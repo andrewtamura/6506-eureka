@@ -92,9 +92,13 @@ async function main() {
   // from unpkg, which we deliberately avoid.
   fragments.init(`${BASE}worker.mjs`);
 
-  // Keep the fragments LOD/culling in sync with the camera.
+  // Keep the fragments geometry in sync with the camera. Force the upload to
+  // finish on every change (not just on "rest") so hardwood planks and walls
+  // don't visibly stream/pop in while the camera is still moving — the model is
+  // small enough to draw in full. (update() without force streams progressively,
+  // which is what caused the pop-in.)
   world.camera.controls.addEventListener("rest", () => fragments.core.update(true));
-  world.camera.controls.addEventListener("update", () => fragments.core.update());
+  world.camera.controls.addEventListener("update", () => fragments.core.update(true));
 
   // When a model is added, attach it to the camera + scene.
   fragments.list.onItemSet.add(({ value: model }) => {
@@ -221,6 +225,7 @@ async function main() {
   const FLOOR = modelBox.min.y + 0.2; // floor surface (slab top) in world Y
   const EYE = 1.63;                    // eye height for a 5'8" person (~1.63 m)
   const LOOK_DIST = 0.05;              // orbit radius indoors: ~0 so you spin in place
+  const ROOM_INSET = 0.55;             // keep the standing point this far from walls (m)
   const ctrls = world.camera.controls;
   const roomBoxes = [];                // { name, box } filled when POV views build
   const skipIds = new Set();           // door + opening ids to ignore when teleporting
@@ -230,17 +235,15 @@ async function main() {
   // instead of swinging the camera on a wide arc into the walls. The boundary
   // box is inset from the walls and pinned to head height, so dragging can
   // never push the camera into a wall or lift it toward the ceiling.
-  function enterRoom(box) {
-    const eyeY = FLOOR + EYE;
-    const inset = 0.55;                  // keep the camera clear of the walls (m)
-    const b = box.clone();
-    b.min.x += inset; b.max.x -= inset;
-    b.min.z += inset; b.max.z -= inset;
-    if (b.min.x >= b.max.x) { const m = (box.min.x + box.max.x) / 2; b.min.x = b.max.x = m; }
-    if (b.min.z >= b.max.z) { const m = (box.min.z + box.max.z) / 2; b.min.z = b.max.z = m; }
-    b.min.y = eyeY - 0.35; b.max.y = eyeY + 0.35; // hold the camera near eye level
-    ctrls.setBoundary(b);
-    ctrls.boundaryEnclosesCamera = true; // keep the camera *inside* the box
+  function enterRoom() {
+    // No boundary: the standing point is pre-clamped to a safe spot (see
+    // clampToRoom) and pan/zoom are disabled, so the camera can only spin ~5 cm
+    // in place and never translates into a wall. Avoiding boundaryEnclosesCamera
+    // is what fixes the heading snapping — a boundary would yank the camera
+    // position to satisfy the box, and against a 5 cm orbit radius that yank
+    // recomputed (and reset) the look direction.
+    ctrls.setBoundary(undefined);
+    ctrls.boundaryEnclosesCamera = false;
     ctrls.azimuthRotateSpeed = -1;       // reverse drag for a first-person look feel
     ctrls.polarRotateSpeed = -1;
     ctrls.minPolarAngle = Math.PI * 0.30; // look up to ~54° above horizontal
@@ -263,6 +266,31 @@ async function main() {
   }
   const roomAt = (x, z) => roomBoxes.find(
     (r) => x >= r.box.min.x && x <= r.box.max.x && z >= r.box.min.z && z <= r.box.max.z);
+
+  // Pull a floor point to a safe standing spot inside its room: clamped to the
+  // room box minus the wall inset (so you never stand in/behind a wall, even
+  // when the tapped point is right at a doorway threshold). Falls back to the
+  // nearest room when the point lands under a wall (between room boxes).
+  function clampToRoom(ex, ez) {
+    let r = roomAt(ex, ez);
+    if (!r) {
+      let best = Infinity;
+      for (const rb of roomBoxes) {
+        const mx = (rb.box.min.x + rb.box.max.x) / 2, mz = (rb.box.min.z + rb.box.max.z) / 2;
+        const dd = (mx - ex) ** 2 + (mz - ez) ** 2;
+        if (dd < best) { best = dd; r = rb; }
+      }
+    }
+    if (!r) return { x: ex, z: ez };
+    const b = r.box;
+    const cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2;
+    const minx = b.min.x + ROOM_INSET, maxx = b.max.x - ROOM_INSET;
+    const minz = b.min.z + ROOM_INSET, maxz = b.max.z - ROOM_INSET;
+    return {
+      x: minx <= maxx ? Math.min(Math.max(ex, minx), maxx) : cx,
+      z: minz <= maxz ? Math.min(Math.max(ez, minz), maxz) : cz,
+    };
+  }
 
   // Teleport target: nearest real surface, ignoring doors/openings so you can
   // step THROUGH a doorway (the opening's void box would otherwise block).
@@ -304,13 +332,11 @@ async function main() {
     // down (e.g. from the top-down overview), which used to snap you to north.
     const az = ctrls.azimuthAngle;
     const fx = -Math.sin(az), fz = -Math.cos(az); // horizontal forward for this azimuth
-    const y = FLOOR + EYE, ex = hit.point.x, ez = hit.point.z;
+    const { x: ex, z: ez } = clampToRoom(hit.point.x, hit.point.z); // safe standing spot
+    const y = FLOOR + EYE;
     await clearSelection();
-    ctrls.boundaryEnclosesCamera = false;
-    ctrls.setBoundary(undefined);
     await ctrls.setLookAt(ex, y, ez, ex + fx * LOOK_DIST, y, ez + fz * LOOK_DIST, true);
-    const room = roomAt(ex, ez);
-    enterRoom(room ? room.box : modelBox);
+    enterRoom();
   }
 
   // --- interactive doors (double-tap a door to swing it open/closed) ------
@@ -391,10 +417,8 @@ async function main() {
       const y = FLOOR + EYE, cx = rc.x, cz = rc.z;
       const tx = cx + dir.x * LOOK_DIST, tz = cz + dir.z * LOOK_DIST;
       addView(name, async () => {
-        ctrls.boundaryEnclosesCamera = false;
-        ctrls.setBoundary(undefined);
         await ctrls.setLookAt(cx, y, cz, tx, y, tz, true);
-        enterRoom(box);
+        enterRoom();
       });
     });
     // Hide the translucent IfcSpace volumes (they clutter the view and the
