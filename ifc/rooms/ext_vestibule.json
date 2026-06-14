@@ -2,14 +2,12 @@
   "key": "extVest",
   "name": "Ext Vestibule",
   "longName": "Vestibule",
-  "bounds": { "x1": -22.9167, "x2": -12, "z1": -7, "z2": -1 },
+  "bounds": { "x1": -17.4583, "x2": -12, "z1": -2.4583, "z2": 4 },
   "walls": true,
   "doors": [
-    { "name": "Vestibule -> Bath", "orient": "H", "fixed": -7, "pos": -17, "width": 2.5 },
-    { "name": "Vestibule -> Laundry", "orient": "H", "fixed": -1, "pos": -17, "width": 2.5 }
+    { "name": "Sitting -> Ext Vestibule", "orient": "V", "fixed": -12, "pos": 1.75, "width": 3.0 },
+    { "name": "Ext Vestibule -> Outside", "orient": "H", "fixed": 4, "pos": -14.73, "width": 3.0 }
   ],
-  "windows": [
-    { "name": "Window - Ext Vestibule", "orient": "V", "fixed": -22.9167, "pos": -4, "width": 3.0, "sill": 2.5, "head": 6.5 }
-  ],
+  "windows": [],
   "interior": { "flooring": { "material": "hardwood" } }
 }
