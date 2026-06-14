@@ -1,5 +1,7 @@
 # Eureka Residence — BIM Viewer
 
+**🔗 Live: https://andrewtamura.github.io/6506-eureka/** &nbsp;·&nbsp; original Three.js model: [`/legacy/`](https://andrewtamura.github.io/6506-eureka/legacy/)
+
 A web BIM viewer for the Eureka residence floor plan, built on
 [That Open Engine](https://thatopen.com) (`@thatopen/*`, the open-source
 toolkit on top of Three.js). The floor plan is authored as a real **IFC** model
@@ -42,7 +44,7 @@ voids.
 
 ## Run it locally
 
-Requires **Node 20+**.
+Requires **Node 22+**.
 
 ```bash
 npm install
@@ -115,6 +117,6 @@ it works at that subpath without extra config.
 - [`@thatopen/components`](https://github.com/ThatOpen/engine_components) `~3.4` — world, IfcLoader, FragmentsManager
 - [`@thatopen/fragments`](https://github.com/ThatOpen/engine_fragments) `~3.4` — Fragments engine + worker
 - [`web-ifc`](https://github.com/ThatOpen/engine_web-ifc) `0.0.77` — IFC parsing (WASM)
-- [`three`](https://threejs.org) `0.182`, `camera-controls`
-- [Vite](https://vite.dev) — dev server & bundler
+- [`three`](https://threejs.org) `0.184`, `camera-controls`
+- [Vite](https://vite.dev) `8` — dev server & bundler
 - [IfcOpenShell](https://ifcopenshell.org) — IFC authoring (Python)
