@@ -196,7 +196,6 @@ def main():
     door_defs = [
         # (name, orient, fixed_ft, pos_ft, width_ft)   coords are in PLAN space;
         # the XS/ZS flip below maps them to the cardinal-oriented model.
-        ("Foyer -> Scullery",   "H", -11.9167, 9.5,  3.5),
         ("Foyer -> Family",     "V",  3.9167,  -6.0, 2.75),
         ("Foyer -> Sitting",    "V",  3.9167,   5.0, 2.75),
         ("Foyer -> Kitchen",    "V", 15.0833,  -5.0, 2.75),
@@ -206,7 +205,9 @@ def main():
         # interior doors connecting adjacent rooms
         ("Family -> Sitting",   "H",  0.0,     -6.0, 2.75),
         ("Kitchen -> Dining",   "H",  2.0,     23.0, 2.75),
+        # Scullery: one door into the Kitchen, one into the Family room
         ("Kitchen -> Scullery", "H", -11.9167, 21.0, 2.5),
+        ("Family -> Scullery",  "H", -11.9167, 0.0,  2.5),
     ]
     win_defs = [
         # (name, orient, fixed_ft, pos_ft, width_ft, sill_ft, head_ft)
