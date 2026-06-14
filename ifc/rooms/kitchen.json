@@ -15,21 +15,24 @@
       "orient": "H",
       "fixed": 2.0,
       "pos": 18.08,
-      "width": 3.0
+      "width": 3.0,
+      "opening": true
     },
     {
       "name": "Kitchen -> Dining (E)",
       "orient": "H",
       "fixed": 2.0,
       "pos": 28.0,
-      "width": 3.0
+      "width": 3.0,
+      "opening": true
     },
     {
       "name": "Kitchen -> Scullery",
       "orient": "H",
       "fixed": -11.9167,
       "pos": 21.58,
-      "width": 3.0
+      "width": 3.0,
+      "opening": true
     }
   ],
   "windows": [

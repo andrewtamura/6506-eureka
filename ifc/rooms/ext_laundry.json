@@ -2,11 +2,27 @@
   "key": "extLaundry",
   "name": "Ext Laundry",
   "longName": "Laundry",
-  "bounds": { "x1": -17.4583, "x2": -12, "z1": -11.9167, "z2": -2.4583 },
+  "bounds": {
+    "x1": -17.4583,
+    "x2": -12,
+    "z1": -11.9167,
+    "z2": -2.4583
+  },
   "walls": true,
   "doors": [
-    { "name": "Laundry -> Bath", "orient": "V", "fixed": -17.4583, "pos": -5.13, "width": 2.67 }
+    {
+      "name": "Laundry -> Bath",
+      "orient": "V",
+      "fixed": -17.4583,
+      "pos": -5.13,
+      "width": 2.67,
+      "opening": true
+    }
   ],
   "windows": [],
-  "interior": { "flooring": { "material": "tile" } }
+  "interior": {
+    "flooring": {
+      "material": "tile"
+    }
+  }
 }

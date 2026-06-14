@@ -51,6 +51,7 @@ class Ctx:
         self.slab_t = cfg["slabThickness"]          # floor slab thickness (m)
         self.door_h_ft = cfg["doorHeight"]          # door head height (ft)
         self.walls = []                              # [{wall, orient, fixed, a, b}]
+        self.door_meta = []                          # [{name, hingeMax, swingSign}] for the viewer
         self.styles = {}                             # rgb tuple -> IfcSurfaceStyle (cached)
 
     # plan feet -> IFC metres (with the cardinal flip)
@@ -285,8 +286,20 @@ def cut_opening(ctx, fill_class, name, orient, fixed_ft, pos_ft, width_ft,
 
 def add_doors(ctx, r):
     for d in r.get("doors", []):
+        opening = d.get("opening", False)
         cut_opening(ctx, "IfcDoor", d["name"], d["orient"], d["fixed"], d["pos"],
-                    d["width"], 0.0, ctx.door_h_ft, leaf=not d.get("opening", False))
+                    d["width"], 0.0, ctx.door_h_ft, leaf=not opening)
+        if opening:
+            continue
+        # Record hinge/swing for the viewer's swinging-leaf overlay.
+        default_sign = -1 if d["orient"] == "H" else 1
+        sw = d.get("swing")
+        sign = default_sign if sw is None else (1 if str(sw) in ("pos", "+", "1") else -1)
+        ctx.door_meta.append({
+            "name": d["name"],
+            "hingeMax": d.get("hinge", "min") == "max",
+            "swingSign": sign,
+        })
 
 
 def add_windows(ctx, r):

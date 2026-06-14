@@ -2,11 +2,28 @@
   "key": "wc",
   "name": "WC",
   "longName": "Water Closet",
-  "bounds": { "x1": -22.9167, "x2": -17.4583, "z1": -11.9167, "z2": -7.459 },
+  "bounds": {
+    "x1": -22.9167,
+    "x2": -17.4583,
+    "z1": -11.9167,
+    "z2": -7.459
+  },
   "walls": true,
   "doors": [
-    { "name": "Bath -> WC", "orient": "H", "fixed": -7.459, "pos": -19.0, "width": 2.33 }
+    {
+      "name": "Bath -> WC",
+      "orient": "H",
+      "fixed": -7.459,
+      "pos": -19.0,
+      "width": 2.33,
+      "hinge": "max",
+      "swing": "pos"
+    }
   ],
   "windows": [],
-  "interior": { "flooring": { "material": "tile" } }
+  "interior": {
+    "flooring": {
+      "material": "tile"
+    }
+  }
 }

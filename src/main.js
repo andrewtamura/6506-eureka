@@ -317,11 +317,18 @@ async function main() {
     const dmap = await model.getItemsOfCategories([/IFCDOOR/]);
     const ids = Object.values(dmap).flat();
     const boxes = await model.getBoxes(ids);
+    const ddata = await model.getItemsData(ids, { attributesDefault: true });
     await model.setVisible(ids, false);
     const omap = await model.getItemsOfCategories([/IFCOPENINGELEMENT/]);
     const oids = Object.values(omap).flat();
     if (oids.length) await model.setVisible(oids, false);
     await fragments.core.update(true);
+
+    // hinge/swing per door, from the generator's manifest (keyed by door name)
+    const meta = {};
+    try {
+      for (const d of await (await fetch(`${BASE}doors.json`)).json()) meta[d.name] = d;
+    } catch (e) { /* fall back to defaults */ }
 
     const ANG = Math.PI / 2;
     const DOUBLE = 1.2; // doors wider than this (m) split into double doors
@@ -332,6 +339,10 @@ async function main() {
       const alongX = sx >= sz;                 // door runs E-W (true) or N-S
       const W = alongX ? sx : sz;              // door width along the wall
       const th = Math.max(alongX ? sz : sx, 0.05); // leaf thickness
+      const nm = String(ddata[i]?.Name?.value ?? "");
+      const m = meta[nm] || {};
+      const hingeMax = !!m.hingeMax;
+      const sign = m.swingSign != null ? m.swingSign : (alongX ? -1 : 1);
       const unit = { open: false };
       const mkLeaf = (hx, hz, leafW, dirSign, openAngle) => {
         const pivot = new THREE.Group();
@@ -344,23 +355,24 @@ async function main() {
         else panel.position.set(0, sy / 2, dirSign * leafW / 2);
         pivot.add(panel);
         world.scene.three.add(pivot);
-        const leaf = { pivot, openAngle, current: 0, unit };
+        const leaf = { pivot, openAngle, current: 0, unit, name: nm };
         panel.userData.door = leaf;
         doors.push(leaf);
         doorMeshes.push(panel);
       };
       if (W > DOUBLE) {                         // double doors (french/patio)
-        const half = W / 2;
+        const half = W / 2;                     // sign picks which side they swing to
         if (alongX) {
-          mkLeaf(bx.min.x, cz, half, +1, ANG);
-          mkLeaf(bx.max.x, cz, half, -1, -ANG);
+          mkLeaf(bx.min.x, cz, half, +1, -sign * ANG);
+          mkLeaf(bx.max.x, cz, half, -1, +sign * ANG);
         } else {
-          mkLeaf(cx, bx.min.z, half, +1, -ANG);
-          mkLeaf(cx, bx.max.z, half, -1, ANG);
+          mkLeaf(cx, bx.min.z, half, +1, -sign * ANG);
+          mkLeaf(cx, bx.max.z, half, -1, +sign * ANG);
         }
       } else {                                  // single leaf
-        if (alongX) mkLeaf(bx.min.x, cz, W, +1, -ANG);
-        else mkLeaf(cx, bx.min.z, W, +1, ANG);
+        const dir = hingeMax ? -1 : +1;         // extend away from the hinge jamb
+        if (alongX) mkLeaf(hingeMax ? bx.max.x : bx.min.x, cz, W, dir, sign * ANG);
+        else mkLeaf(cx, hingeMax ? bx.max.z : bx.min.z, W, dir, sign * ANG);
       }
     });
     window.__eureka.doors = doors; // for the headless smoke test

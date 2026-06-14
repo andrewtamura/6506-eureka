@@ -2,14 +2,49 @@
   "key": "cs",
   "name": "Family Room",
   "longName": "Family Room",
-  "bounds": { "x1": -12, "x2": 3.9167, "z1": -11.9167, "z2": 0 },
+  "bounds": {
+    "x1": -12,
+    "x2": 3.9167,
+    "z1": -11.9167,
+    "z2": 0
+  },
   "walls": true,
   "doors": [
-    { "name": "Family -> Ext Laundry", "orient": "V", "fixed": -12.0, "pos": -5.12, "width": 3.0 },
-    { "name": "Family -> Scullery", "orient": "H", "fixed": -11.9167, "pos": 1.92, "width": 3.0 },
-    { "name": "Family <-> Sitting (opening)", "orient": "H", "fixed": 0.0, "pos": -4.04, "width": 7.0, "opening": true },
-    { "name": "Family -> Patio", "orient": "H", "fixed": -11.9167, "pos": -4.92, "width": 6.67 }
+    {
+      "name": "Family -> Ext Laundry",
+      "orient": "V",
+      "fixed": -12.0,
+      "pos": -5.12,
+      "width": 3.0
+    },
+    {
+      "name": "Family -> Scullery",
+      "orient": "H",
+      "fixed": -11.9167,
+      "pos": 1.92,
+      "width": 3.0
+    },
+    {
+      "name": "Family <-> Sitting (opening)",
+      "orient": "H",
+      "fixed": 0.0,
+      "pos": -4.04,
+      "width": 7.0,
+      "opening": true
+    },
+    {
+      "name": "Family -> Patio",
+      "orient": "H",
+      "fixed": -11.9167,
+      "pos": -4.92,
+      "width": 6.67,
+      "swing": "pos"
+    }
   ],
   "windows": [],
-  "interior": { "flooring": { "material": "hardwood" } }
+  "interior": {
+    "flooring": {
+      "material": "hardwood"
+    }
+  }
 }

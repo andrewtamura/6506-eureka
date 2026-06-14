@@ -86,6 +86,9 @@ def main():
 
     out = os.path.join(HERE, "floorplan.ifc")
     m.write(out)
+    # Door hinge/swing manifest for the viewer's swinging-leaf overlays.
+    with open(os.path.join(HERE, "doors.json"), "w") as f:
+        json.dump(ctx.door_meta, f, indent=2)
 
     def n(cls):
         return len(m.by_type(cls))
