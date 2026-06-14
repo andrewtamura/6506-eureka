@@ -1,0 +1,79 @@
+{
+  "units": "feet",
+  "wallThickness": 0.4583,
+  "wallHeight": 9.5,
+  "rooms": [
+    {
+      "key": "cs",
+      "name": "Family Room",
+      "longName": "Family Room",
+      "x1": -12,
+      "x2": 3.9167,
+      "z1": -11.9167,
+      "z2": 0
+    },
+    {
+      "key": "oi",
+      "name": "Kitchen",
+      "longName": "Kitchen",
+      "x1": 15.0833,
+      "x2": 31,
+      "z1": -11.9167,
+      "z2": 2
+    },
+    {
+      "key": "Vi",
+      "name": "Sitting Room",
+      "longName": "Sitting Room",
+      "x1": -12,
+      "x2": 3.9167,
+      "z1": 0,
+      "z2": 16.0833
+    },
+    {
+      "key": "Zi",
+      "name": "Dining Room",
+      "longName": "Dining Room",
+      "x1": 15.0833,
+      "x2": 31,
+      "z1": 2,
+      "z2": 16.0833
+    },
+    {
+      "key": "Yi",
+      "name": "Foyer",
+      "longName": "Foyer",
+      "x1": 3.9167,
+      "x2": 15.0833,
+      "z1": -11.9167,
+      "z2": 10.1667
+    },
+    {
+      "key": "Fs",
+      "name": "Vestibule",
+      "longName": "Vestibule",
+      "x1": 3.9167,
+      "x2": 15.0833,
+      "z1": 10.1667,
+      "z2": 16.0833
+    },
+    {
+      "key": "oa",
+      "name": "Extension",
+      "longName": "Extension (Bath / Laundry / Vestibule)",
+      "x1": -22.9167,
+      "x2": -12,
+      "z1": -11.9167,
+      "z2": 4
+    },
+    {
+      "key": "fi",
+      "name": "Porch",
+      "longName": "Porch",
+      "x1": -0.0833,
+      "x2": 28.0833,
+      "z1": -18.875,
+      "z2": -11.9167
+    }
+  ]
+}
