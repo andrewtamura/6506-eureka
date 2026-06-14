@@ -17,7 +17,7 @@
       "pos": 1.75,
       "width": 3.0,
       "hinge": "max",
-      "swing": "neg"
+      "swing": "pos"
     },
     {
       "name": "Ext Vestibule -> Outside",
@@ -25,7 +25,8 @@
       "fixed": 4,
       "pos": -14.73,
       "width": 3.0,
-      "hinge": "max"
+      "hinge": "max",
+      "swing": "pos"
     }
   ],
   "windows": [],

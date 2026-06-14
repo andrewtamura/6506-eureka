@@ -22,7 +22,9 @@
       "orient": "H",
       "fixed": -11.9167,
       "pos": 1.92,
-      "width": 3.0
+      "width": 3.0,
+      "hinge": "max",
+      "swing": "pos"
     },
     {
       "name": "Family <-> Sitting (opening)",

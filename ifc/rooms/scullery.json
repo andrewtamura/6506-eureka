@@ -16,7 +16,8 @@
       "fixed": -18.875,
       "pos": 18.67,
       "width": 3.0,
-      "swing": "pos"
+      "swing": "neg",
+      "hinge": "max"
     }
   ],
   "windows": [

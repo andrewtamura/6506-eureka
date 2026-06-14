@@ -6,8 +6,8 @@
   },
   {
     "name": "Family -> Scullery",
-    "hingeMax": false,
-    "swingSign": -1
+    "hingeMax": true,
+    "swingSign": 1
   },
   {
     "name": "Family -> Patio",
@@ -32,16 +32,16 @@
   {
     "name": "Sitting -> Ext Vestibule",
     "hingeMax": true,
-    "swingSign": -1
+    "swingSign": 1
   },
   {
     "name": "Ext Vestibule -> Outside",
     "hingeMax": true,
-    "swingSign": -1
+    "swingSign": 1
   },
   {
     "name": "Back Door",
-    "hingeMax": false,
-    "swingSign": 1
+    "hingeMax": true,
+    "swingSign": -1
   }
 ]
