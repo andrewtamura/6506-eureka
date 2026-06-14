@@ -12,5 +12,5 @@
     { "name": "Foyer -> Vestibule", "orient": "H", "fixed": 10.1667, "pos": 9.5, "width": 2.75 }
   ],
   "windows": [],
-  "interior": {}
+  "interior": { "flooring": { "material": "hardwood" } }
 }

@@ -24,6 +24,22 @@ import builders as B
 
 FT = B.FT
 
+# Material name -> RGB (0..1). Extend as new finishes are needed.
+MATERIALS = {
+    "hardwood": (0.55, 0.36, 0.18),
+    "oak":      (0.62, 0.44, 0.24),
+    "walnut":   (0.36, 0.24, 0.16),
+    "tile":     (0.85, 0.85, 0.82),
+    "carpet":   (0.62, 0.60, 0.56),
+    "concrete": (0.70, 0.70, 0.70),
+    "plaster":  (0.94, 0.93, 0.91),
+}
+DEFAULT_FLOOR = MATERIALS["hardwood"]
+
+
+def material_color(name, fallback):
+    return MATERIALS.get((name or "").lower(), fallback)
+
 
 def _place(ctx, r, prod, cx_m, cy_m, cz_m):
     run("geometry.edit_object_placement", ctx.model, product=prod,
@@ -32,14 +48,14 @@ def _place(ctx, r, prod, cx_m, cy_m, cz_m):
         relating_structure=ctx.storey)
 
 
-def _covering(ctx, r, name, predefined, thickness_ft, z_m):
+def _covering(ctx, r, name, predefined, thickness_ft, z_m, color=None):
     """Floor/ceiling covering: a thin slab over the room footprint."""
     x1, x2, y1, y2 = B.ifc_bounds(ctx, r["bounds"])
     inset = ctx.T / 2
     cov = B.make_box(ctx, "IfcCovering", name,
                      abs(x2 - x1) - 2 * inset, abs(y2 - y1) - 2 * inset,
                      thickness_ft * FT, (x1 + x2) / 2, (y1 + y2) / 2, z_m,
-                     predefined=predefined)
+                     predefined=predefined, color=color)
     run("spatial.assign_container", ctx.model, products=[cov],
         relating_structure=ctx.storey)
 
@@ -66,10 +82,15 @@ def build_interior(ctx, r):
     if not interior:
         return
 
-    if interior.get("flooring"):
-        _covering(ctx, r, f"{r['name']} - Flooring", "FLOORING", 0.05, 0.0)
-    if interior.get("ceiling"):
-        _covering(ctx, r, f"{r['name']} - Ceiling", "CEILING", 0.05, ctx.H - 0.05)
+    fl = interior.get("flooring")
+    if fl:
+        color = material_color(fl.get("material"), DEFAULT_FLOOR)
+        _covering(ctx, r, f"{r['name']} - {fl.get('material', 'wood').title()} Flooring",
+                  "FLOORING", 0.05, 0.0, color=color)
+    cl = interior.get("ceiling")
+    if cl:
+        color = material_color(cl.get("material"), MATERIALS["plaster"])
+        _covering(ctx, r, f"{r['name']} - Ceiling", "CEILING", 0.05, ctx.H - 0.05, color=color)
 
     for item in interior.get("furniture", []):
         _box_item(ctx, r, "IfcFurniture", item.get("type", "Furniture"), item, 2.5)

@@ -8,5 +8,5 @@
   "windows": [
     { "name": "Window - Extension E", "orient": "V", "fixed": -22.9167, "pos": -4.0, "width": 4.0, "sill": 2.5, "head": 6.5 }
   ],
-  "interior": {}
+  "interior": { "flooring": { "material": "hardwood" } }
 }

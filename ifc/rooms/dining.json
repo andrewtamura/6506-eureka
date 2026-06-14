@@ -10,5 +10,5 @@
     { "name": "Window - Dining W2", "orient": "V", "fixed": 31.0, "pos": 12.0, "width": 4.0, "sill": 2.5, "head": 6.5 },
     { "name": "Window - Dining N", "orient": "H", "fixed": 16.0833, "pos": 23.0, "width": 4.0, "sill": 2.5, "head": 6.5 }
   ],
-  "interior": {}
+  "interior": { "flooring": { "material": "hardwood" } }
 }

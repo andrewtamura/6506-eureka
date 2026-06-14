@@ -8,5 +8,5 @@
   "windows": [
     { "name": "Window - Sitting E", "orient": "V", "fixed": -12.0, "pos": 8.0, "width": 4.0, "sill": 2.5, "head": 6.5 }
   ],
-  "interior": {}
+  "interior": { "flooring": { "material": "hardwood" } }
 }

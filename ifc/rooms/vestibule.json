@@ -6,5 +6,5 @@
   "walls": true,
   "doors": [],
   "windows": [],
-  "interior": {}
+  "interior": { "flooring": { "material": "hardwood" } }
 }

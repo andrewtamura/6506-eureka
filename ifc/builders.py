@@ -51,6 +51,7 @@ class Ctx:
         self.slab_t = cfg["slabThickness"]          # floor slab thickness (m)
         self.door_h_ft = cfg["doorHeight"]          # door head height (ft)
         self.walls = []                              # [{wall, orient, fixed, a, b}]
+        self.styles = {}                             # rgb tuple -> IfcSurfaceStyle (cached)
 
     # plan feet -> IFC metres (with the cardinal flip)
     def X(self, plan_x):
@@ -81,9 +82,32 @@ def rect_rep(ctx, xdim, ydim, height):
         Items=[solid])
 
 
+def surface_style(ctx, rgb):
+    """Get (cached) an IfcSurfaceStyle for an (r,g,b) colour in 0..1."""
+    key = tuple(round(c, 3) for c in rgb)
+    if key in ctx.styles:
+        return ctx.styles[key]
+    m = ctx.model
+    style = run("style.add_style", m, name=None)
+    run("style.add_surface_style", m, style=style, ifc_class="IfcSurfaceStyleShading",
+        attributes={"SurfaceColour": {"Name": None, "Red": float(rgb[0]),
+                                      "Green": float(rgb[1]), "Blue": float(rgb[2])},
+                    "Transparency": 0.0})
+    ctx.styles[key] = style
+    return style
+
+
+def assign_color(ctx, rep, rgb):
+    run("style.assign_representation_styles", ctx.model,
+        shape_representation=rep, styles=[surface_style(ctx, rgb)])
+
+
 def make_box(ctx, ifc_class, name, xdim, ydim, height, cx, cy, cz,
-             long_name=None, predefined=None):
-    """Create a product with a centered rectangular extruded body at (cx,cy,cz)."""
+             long_name=None, predefined=None, color=None):
+    """Create a product with a centered rectangular extruded body at (cx,cy,cz).
+
+    If ``color`` (r,g,b in 0..1) is given, the body is shaded that colour.
+    """
     m = ctx.model
     kwargs = {"ifc_class": ifc_class, "name": name}
     if predefined:
@@ -92,6 +116,8 @@ def make_box(ctx, ifc_class, name, xdim, ydim, height, cx, cy, cz,
     if long_name is not None and hasattr(product, "LongName"):
         product.LongName = long_name
     rep = rect_rep(ctx, xdim, ydim, height)
+    if color is not None:
+        assign_color(ctx, rep, color)
     run("geometry.assign_representation", m, product=product, representation=rep)
     run("geometry.edit_object_placement", m, product=product, matrix=matrix(cx, cy, cz))
     return product

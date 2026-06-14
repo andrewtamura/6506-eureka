@@ -10,5 +10,5 @@
     { "name": "Family -> Scullery", "orient": "H", "fixed": -11.9167, "pos": 0.0, "width": 2.5 }
   ],
   "windows": [],
-  "interior": {}
+  "interior": { "flooring": { "material": "hardwood" } }
 }

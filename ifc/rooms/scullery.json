@@ -11,5 +11,5 @@
     { "name": "Window - Scullery S3", "orient": "H", "fixed": -18.875, "pos": 18.0, "width": 3.5, "sill": 2.5, "head": 6.0 },
     { "name": "Window - Scullery S4", "orient": "H", "fixed": -18.875, "pos": 24.0, "width": 3.5, "sill": 2.5, "head": 6.0 }
   ],
-  "interior": {}
+  "interior": { "flooring": { "material": "hardwood" } }
 }
