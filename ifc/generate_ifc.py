@@ -69,7 +69,7 @@ def main():
         r["x1"], r["x2"] = min(x1, x2), max(x1, x2)
         r["z1"], r["z2"] = min(z1, z2), max(z1, z2)
 
-    enclosed = [r for r in rooms if r["key"] != "fi"]  # porch has no walls
+    enclosed = rooms  # every room (incl. the Scullery) gets enclosing walls
 
     # ---- file + units + contexts -------------------------------------------
     m = run("project.create_file", version="IFC4")
@@ -183,7 +183,7 @@ def main():
     for r in rooms:
         x1, x2 = r["x1"] * FT, r["x2"] * FT
         y1, y2 = r["z1"] * FT, r["z2"] * FT
-        inset = (T / 2) if r["key"] != "fi" else 0.0  # interior face for rooms
+        inset = T / 2  # shrink to the interior wall face
         w = abs(x2 - x1) - 2 * inset
         d = abs(y2 - y1) - 2 * inset
         space = make_box_product("IfcSpace", r["name"], w, d, H,
@@ -194,14 +194,19 @@ def main():
     # ---- doors & windows ----------------------------------------------------
     DOOR_H = 7.0 * FT          # 7'-0" doors (per spec)
     door_defs = [
-        # (name, orient, fixed_ft, pos_ft, width_ft)
-        ("Front Entry",        "H", -11.9167, 9.5,  3.5),
-        ("Foyer -> Family",    "V",  3.9167,  -6.0, 2.75),
-        ("Foyer -> Sitting",   "V",  3.9167,   5.0, 2.75),
-        ("Foyer -> Kitchen",   "V", 15.0833,  -5.0, 2.75),
-        ("Foyer -> Dining",    "V", 15.0833,   6.0, 2.75),
-        ("Foyer -> Vestibule", "H", 10.1667,  9.5,  2.75),
-        ("Family -> Extension", "V", -12.0,   -6.0, 2.5),
+        # (name, orient, fixed_ft, pos_ft, width_ft)   coords are in PLAN space;
+        # the XS/ZS flip below maps them to the cardinal-oriented model.
+        ("Foyer -> Scullery",   "H", -11.9167, 9.5,  3.5),
+        ("Foyer -> Family",     "V",  3.9167,  -6.0, 2.75),
+        ("Foyer -> Sitting",    "V",  3.9167,   5.0, 2.75),
+        ("Foyer -> Kitchen",    "V", 15.0833,  -5.0, 2.75),
+        ("Foyer -> Dining",     "V", 15.0833,   6.0, 2.75),
+        ("Foyer -> Vestibule",  "H", 10.1667,  9.5,  2.75),
+        ("Family -> Extension", "V", -12.0,    -6.0, 2.5),
+        # interior doors connecting adjacent rooms
+        ("Family -> Sitting",   "H",  0.0,     -6.0, 2.75),
+        ("Kitchen -> Dining",   "H",  2.0,     23.0, 2.75),
+        ("Kitchen -> Scullery", "H", -11.9167, 21.0, 2.5),
     ]
     win_defs = [
         # (name, orient, fixed_ft, pos_ft, width_ft, sill_ft, head_ft)
