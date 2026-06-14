@@ -14,7 +14,7 @@
       "name": "Back Door",
       "orient": "H",
       "fixed": -18.875,
-      "pos": 19.67,
+      "pos": 18.67,
       "width": 3.0,
       "swing": "neg",
       "hinge": "max"
@@ -25,37 +25,37 @@
       "name": "Window - Scullery S1",
       "orient": "H",
       "fixed": -18.875,
-      "pos": 4.0,
-      "width": 3.5,
-      "sill": 2.5,
-      "head": 6.0
+      "pos": 5.33,
+      "width": 2.5,
+      "sill": 3.5,
+      "head": 7.5
     },
     {
       "name": "Window - Scullery S2",
       "orient": "H",
       "fixed": -18.875,
-      "pos": 12.0,
-      "width": 3.5,
-      "sill": 2.5,
-      "head": 6.0
+      "pos": 14.0,
+      "width": 2.5,
+      "sill": 3.5,
+      "head": 7.5
     },
     {
       "name": "Window - Scullery S3",
       "orient": "H",
       "fixed": -18.875,
-      "pos": 19.0,
-      "width": 3.5,
-      "sill": 2.5,
-      "head": 6.0
+      "pos": 21.67,
+      "width": 2.5,
+      "sill": 3.5,
+      "head": 7.5
     },
     {
-      "name": "Window - Scullery S4",
-      "orient": "H",
-      "fixed": -18.875,
-      "pos": 25.0,
-      "width": 3.5,
-      "sill": 2.5,
-      "head": 6.0
+      "name": "Window - Scullery E",
+      "orient": "V",
+      "fixed": 28.0833,
+      "pos": -15.17,
+      "width": 2.5,
+      "sill": 3.5,
+      "head": 7.5
     }
   ],
   "interior": {

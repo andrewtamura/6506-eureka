@@ -166,7 +166,7 @@ async function main() {
   };
 
   async function selectAt(lx, ly) {
-    const hit = await raycastAt(lx, ly);
+    const hit = await raycastSurface(lx, ly);
     await clearSelection();
     if (!hit) return;
     selected = hit.localId;
@@ -192,21 +192,38 @@ async function main() {
   const EYE = 1.6;                     // standing eye height above the floor (m)
   const ctrls = world.camera.controls;
   const roomBoxes = [];                // { name, box } filled when POV views build
+  const skipIds = new Set();           // door + opening ids to ignore when teleporting
   function enterRoom(box) {
     ctrls.setBoundary(box);
     ctrls.boundaryEnclosesCamera = true; // keep the camera *inside* the box
+    ctrls.azimuthRotateSpeed = -1;       // reverse drag for a first-person look feel
+    ctrls.polarRotateSpeed = -1;
   }
   function exitToOverview() {
     ctrls.boundaryEnclosesCamera = false;
     ctrls.setBoundary(undefined);
+    ctrls.azimuthRotateSpeed = 1;        // normal orbit for the overview
+    ctrls.polarRotateSpeed = 1;
     ctrls.fitToBox(modelBox, true);
   }
   const roomAt = (x, z) => roomBoxes.find(
     (r) => x >= r.box.min.x && x <= r.box.max.x && z >= r.box.min.z && z <= r.box.max.z);
 
+  // Teleport target: nearest real surface, ignoring doors/openings so you can
+  // step THROUGH a doorway (the opening's void box would otherwise block).
+  async function raycastSurface(lx, ly) {
+    pointer.set(lx, ly);
+    const hits = await model.raycastAll({ camera: world.camera.three, mouse: pointer, dom });
+    if (!hits || !hits.length) return null;
+    const cam = world.camera.three.position;
+    return hits
+      .filter((h) => !skipIds.has(h.localId))
+      .sort((a, b) => a.point.distanceTo(cam) - b.point.distanceTo(cam))[0] || null;
+  }
+
   const _fwd = new THREE.Vector3();
   async function teleportTo(lx, ly) {
-    const hit = await raycastAt(lx, ly);
+    const hit = await raycastSurface(lx, ly);
     if (!hit) return;
     world.camera.three.getWorldDirection(_fwd);
     _fwd.y = 0;
@@ -305,6 +322,11 @@ async function main() {
         enterRoom(box);
       });
     });
+    // Hide the translucent IfcSpace volumes (they clutter the view and the
+    // raycast hits them first, blocking teleport) and never raycast them.
+    await model.setVisible(ids, false);
+    for (const id of ids) skipIds.add(id);
+    await fragments.core.update(true);
   }
 
   // --- build swinging door overlays ---------------------------------------
@@ -323,6 +345,8 @@ async function main() {
     const oids = Object.values(omap).flat();
     if (oids.length) await model.setVisible(oids, false);
     await fragments.core.update(true);
+    for (const id of ids) skipIds.add(id);   // doors + openings: not teleport targets
+    for (const id of oids) skipIds.add(id);
 
     // hinge/swing per door, from the generator's manifest (keyed by door name)
     const meta = {};

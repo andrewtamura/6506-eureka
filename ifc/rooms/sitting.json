@@ -2,11 +2,28 @@
   "key": "Vi",
   "name": "Sitting Room",
   "longName": "Sitting Room",
-  "bounds": { "x1": -12, "x2": 3.9167, "z1": 0, "z2": 16.0833 },
+  "bounds": {
+    "x1": -12,
+    "x2": 3.9167,
+    "z1": 0,
+    "z2": 16.0833
+  },
   "walls": true,
   "doors": [],
   "windows": [
-    { "name": "Window - Sitting E", "orient": "V", "fixed": -12.0, "pos": 8.0, "width": 4.0, "sill": 2.5, "head": 6.5 }
+    {
+      "name": "Window - Sitting N (picture)",
+      "orient": "H",
+      "fixed": 16.0833,
+      "pos": -3.4,
+      "width": 8.0,
+      "sill": 1.5,
+      "head": 7.0
+    }
   ],
-  "interior": { "flooring": { "material": "hardwood" } }
+  "interior": {
+    "flooring": {
+      "material": "hardwood"
+    }
+  }
 }
