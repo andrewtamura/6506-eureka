@@ -186,29 +186,39 @@ def _box_item(ctx, r, ifc_class, name, item, default_h, predefined=None, default
 def _proto_round_pedestal_table(item):
     dia = float(item.get("diameter", 5.0))      # table-top diameter (ft)
     h = float(item.get("h", 2.5))               # table height (ft)
-    top = 0.18
+    top = 0.22                                   # thicker top reads as a real slab
     wood = item.get("material", "walnut")
+    foot = 0.3
     return [
-        {"shape": "cyl", "w": dia,        "z": h - top, "h": top,            "material": wood},  # top
-        {"shape": "cyl", "w": 0.7,        "z": 0.18,    "h": h - top - 0.18, "material": wood},  # column
-        {"shape": "cyl", "w": dia * 0.42, "z": 0.0,     "h": 0.18,           "material": wood},  # foot
+        {"shape": "cyl", "w": dia,       "z": h - top, "h": top,             "material": wood},  # top
+        {"shape": "cyl", "w": 0.95,      "z": foot,    "h": h - top - foot,  "material": wood},  # pedestal column
+        {"shape": "cyl", "w": dia * 0.5, "z": 0.0,     "h": foot,            "material": wood},  # flared foot
     ]
 
 
 def _proto_highback_chair(item):
-    sh = float(item.get("seatHeight", 1.5))     # seat height (ft)
-    sw, sd = 1.55, 1.55                          # seat width/depth (ft)
-    back = float(item.get("backHeight", 2.0))   # back rises this far above the seat
+    # A chunky upholstered dining chair: four legs, a thick seat cushion, a wide
+    # thick high back, and a front apron under the seat so it doesn't read as
+    # sticks. "Front" is +dz (the side that faces the table).
+    seat_top = float(item.get("seatHeight", 1.5))   # seat surface height (ft)
+    sw, sd = 1.6, 1.6                                # seat width/depth (ft)
+    cush = 0.45                                       # cushion thickness
+    back = float(item.get("backHeight", 2.0))        # back rises this far above seat
     fab = item.get("material", "upholstery")
-    leg, lh = "walnut", 0.15
-    legxy = sw / 2 - 0.18
+    leg = "walnut"
+    legh = seat_top - cush                            # legs reach the cushion underside
+    lx = sw / 2 - 0.22
+    ld = sd / 2 - 0.22
     return [
-        {"dx": 0, "dz": 0, "z": sh, "w": sw, "d": sd, "h": 0.22, "material": fab},                 # seat
-        {"dx": 0, "dz": -(sd / 2 - 0.1), "z": sh, "w": sw, "d": 0.18, "h": back, "material": fab}, # high back
-        {"dx": -legxy, "dz": -legxy, "z": 0, "w": 0.16, "d": 0.16, "h": sh, "material": leg},
-        {"dx": legxy,  "dz": -legxy, "z": 0, "w": 0.16, "d": 0.16, "h": sh, "material": leg},
-        {"dx": -legxy, "dz": legxy,  "z": 0, "w": 0.16, "d": 0.16, "h": sh, "material": leg},
-        {"dx": legxy,  "dz": legxy,  "z": 0, "w": 0.16, "d": 0.16, "h": sh, "material": leg},
+        # legs
+        {"dx": -lx, "dz": -ld, "z": 0, "w": 0.22, "d": 0.22, "h": legh, "material": leg},
+        {"dx":  lx, "dz": -ld, "z": 0, "w": 0.22, "d": 0.22, "h": legh, "material": leg},
+        {"dx": -lx, "dz":  ld, "z": 0, "w": 0.22, "d": 0.22, "h": legh, "material": leg},
+        {"dx":  lx, "dz":  ld, "z": 0, "w": 0.22, "d": 0.22, "h": legh, "material": leg},
+        # thick upholstered seat cushion
+        {"dx": 0, "dz": 0, "z": legh, "w": sw, "d": sd, "h": cush, "material": fab},
+        # wide, thick high back sitting on the rear edge of the seat
+        {"dx": 0, "dz": -(sd / 2 - 0.2), "z": seat_top, "w": sw, "d": 0.4, "h": back, "material": fab},
     ]
 
 
