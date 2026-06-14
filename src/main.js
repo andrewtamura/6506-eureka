@@ -321,9 +321,39 @@ async function main() {
     }
   }
 
+  // Debug marker: concentric rings dropped on the floor at the last double-tap
+  // so we can see exactly where a tap lands. Green = it hit a floor (teleports),
+  // red = it hit something else (no teleport).
+  const tapMarker = new THREE.Group();
+  tapMarker.visible = false;
+  tapMarker.renderOrder = 999;
+  for (const r of [0.12, 0.3, 0.5]) {
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(r - 0.025, r, 48),
+      new THREE.MeshBasicMaterial({ color: 0x00e676, transparent: true, opacity: 0.9,
+        side: THREE.DoubleSide, depthTest: false }));
+    ring.rotation.x = -Math.PI / 2; // lay flat on the floor (XZ plane)
+    ring.renderOrder = 999;
+    tapMarker.add(ring);
+  }
+  const tapDot = new THREE.Mesh(
+    new THREE.CircleGeometry(0.05, 24),
+    new THREE.MeshBasicMaterial({ color: 0x00e676, transparent: true, opacity: 0.95,
+      side: THREE.DoubleSide, depthTest: false }));
+  tapDot.rotation.x = -Math.PI / 2; tapDot.renderOrder = 999;
+  tapMarker.add(tapDot);
+  world.scene.three.add(tapMarker);
+  function showTapMarker(point, isFloor) {
+    const col = isFloor ? 0x00e676 : 0xff5252;
+    tapMarker.children.forEach((m) => m.material.color.setHex(col));
+    tapMarker.position.set(point.x, FLOOR + 0.02, point.z);
+    tapMarker.visible = true;
+  }
+
   async function teleportTo(lx, ly) {
     const hit = await raycastSurface(lx, ly);
     if (!hit) return;
+    showTapMarker(hit.point, floorIds.has(hit.localId)); // debug: where did the tap land?
     // Only floors are teleport targets — double-tapping a wall/window/etc. is a no-op.
     if (!floorIds.has(hit.localId)) return;
     // Keep the heading you were facing. Derive it from the controls' azimuth
