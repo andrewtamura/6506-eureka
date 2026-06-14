@@ -110,6 +110,9 @@ async function main() {
   await ifcLoader.setup({
     autoSetWasm: false,
     wasm: { path: `${BASE}web-ifc/`, absolute: true },
+    // Tessellate circles finely so round furniture (pedestal tables, columns)
+    // reads as round, not as a coarse polygon.
+    webIfc: { CIRCLE_SEGMENTS: 48 },
   });
 
   // --- load the model -----------------------------------------------------
