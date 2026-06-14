@@ -287,21 +287,22 @@ async function main() {
     }
   }
 
-  const _fwd = new THREE.Vector3();
   async function teleportTo(lx, ly) {
     const hit = await raycastSurface(lx, ly);
     if (!hit) return;
     // Only floors are teleport targets — double-tapping a wall/window/etc. is a no-op.
     if (!floorIds.has(hit.localId)) return;
-    world.camera.three.getWorldDirection(_fwd);
-    _fwd.y = 0;
-    if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, -1);
-    _fwd.normalize();
+    // Keep the heading you were facing. Derive it from the controls' azimuth
+    // (always well-defined) rather than the camera's 3D forward vector — the
+    // latter collapses to nothing when you tap the floor while looking steeply
+    // down (e.g. from the top-down overview), which used to snap you to north.
+    const az = ctrls.azimuthAngle;
+    const fx = -Math.sin(az), fz = -Math.cos(az); // horizontal forward for this azimuth
     const y = FLOOR + EYE, ex = hit.point.x, ez = hit.point.z;
     await clearSelection();
     ctrls.boundaryEnclosesCamera = false;
     ctrls.setBoundary(undefined);
-    await ctrls.setLookAt(ex, y, ez, ex + _fwd.x * LOOK_DIST, y, ez + _fwd.z * LOOK_DIST, true);
+    await ctrls.setLookAt(ex, y, ez, ex + fx * LOOK_DIST, y, ez + fz * LOOK_DIST, true);
     const room = roomAt(ex, ez);
     enterRoom(room ? room.box : modelBox);
   }
