@@ -1,0 +1,50 @@
+name: Deploy BIM viewer to GitHub Pages
+
+# Publishes the That Open Engine viewer in dist/ to GitHub Pages.
+# - Automatic on every push to `main`.
+# - Manual on any branch via the "Run workflow" button (workflow_dispatch),
+#   handy for previewing a feature branch before merging.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment; newer runs supersede in-progress ones.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # The viewer's runtime assets (IFC + web-ifc WASM + fragments worker) are
+      # committed / vendored, so CI needs no headless browser.
+      PUPPETEER_SKIP_DOWNLOAD: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build # runs prepare-assets, then `vite build` -> dist/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

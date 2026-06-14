@@ -1,0 +1,12 @@
+{
+  "key": "oa",
+  "name": "Extension",
+  "longName": "Extension (Bath / Laundry / Vestibule)",
+  "bounds": { "x1": -22.9167, "x2": -12, "z1": -11.9167, "z2": 4 },
+  "walls": true,
+  "doors": [],
+  "windows": [
+    { "name": "Window - Extension E", "orient": "V", "fixed": -22.9167, "pos": -4.0, "width": 4.0, "sill": 2.5, "head": 6.5 }
+  ],
+  "interior": { "flooring": { "material": "hardwood" } }
+}
