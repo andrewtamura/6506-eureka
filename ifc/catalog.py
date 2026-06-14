@@ -34,6 +34,8 @@ MATERIALS = {
     "carpet":   (0.62, 0.60, 0.56),
     "concrete": (0.70, 0.70, 0.70),
     "plaster":  (0.94, 0.93, 0.91),
+    "upholstery": (0.34, 0.40, 0.50),  # slate-blue fabric
+    "linen":      (0.80, 0.76, 0.68),
 }
 DEFAULT_FLOOR = MATERIALS["hardwood"]
 
@@ -134,41 +136,86 @@ def _rotate_plan(dx, dz, rad):
     return dx * c - dz * s, dx * s + dz * c
 
 
-def _box(ctx, r, ifc_class, label, cx_ft, cz_ft, w_ft, d_ft, h_ft, base_ft,
-         rot_rad, color, predefined=None):
-    """Place one box (plan feet) and contain it in the storey."""
-    prod = B.make_box(ctx, ifc_class, f"{r['name']} - {label}",
-                      w_ft * FT, d_ft * FT, h_ft * FT,
-                      ctx.X(cx_ft), ctx.Y(cz_ft), base_ft * FT + h_ft * FT / 2,
-                      predefined=predefined, color=color, rot=rot_rad)
+def _solid(ctx, r, ifc_class, label, cx_ft, cz_ft, w_ft, d_ft, h_ft, base_ft,
+           rot_rad, color, predefined=None, shape="box"):
+    """Place one solid (plan feet) and contain it in the storey. ``shape`` is
+    "box" (w x d x h) or "cyl" (a vertical cylinder of diameter ``w_ft``)."""
+    name = f"{r['name']} - {label}"
+    cz_m = base_ft * FT + h_ft * FT / 2
+    if shape == "cyl":
+        prod = B.make_cylinder(ctx, ifc_class, name, w_ft * FT, h_ft * FT,
+                               ctx.X(cx_ft), ctx.Y(cz_ft), cz_m,
+                               predefined=predefined, color=color, rot=rot_rad)
+    else:
+        prod = B.make_box(ctx, ifc_class, name, w_ft * FT, d_ft * FT, h_ft * FT,
+                          ctx.X(cx_ft), ctx.Y(cz_ft), cz_m,
+                          predefined=predefined, color=color, rot=rot_rad)
     run("spatial.assign_container", ctx.model, products=[prod], relating_structure=ctx.storey)
     return prod
 
 
 def _box_item(ctx, r, ifc_class, name, item, default_h, predefined=None, default_color=None):
     """A furniture/fixture/rug item placed at a plan ``at`` point. Supports
-    ``rot`` (degrees, about vertical), per-item ``color``/``material``, and an
-    optional ``parts`` list of sub-boxes (offset dx/dz, size w/d/h, z, colour)
-    for pieces made of several blocks (e.g. a table = top + legs)."""
+    ``rot`` (degrees about vertical), per-item ``color``/``material``, a named
+    ``type`` prototype (see PROTOTYPES), and an explicit ``parts`` list. Each
+    part is a sub-solid: offset ``dx``/``dz`` (feet, rotate with the item), size
+    ``w``/``d``/``h``, base ``z``, optional ``shape`` ("box"/"cyl") and colour."""
     at = item.get("at", [0, 0])
     label = item.get("name") or item.get("type") or name
     # plan rotation -> IFC rotation (the cardinal flip reverses the turn sense)
     rot = math.radians(float(item.get("rot", 0))) * (ctx.xs * ctx.zs)
     color = _item_color(item, default_color)
-    parts = item.get("parts")
+    parts = item.get("parts") or (PROTOTYPES[item["type"]](item) if item.get("type") in PROTOTYPES else None)
     if parts:
         for i, p in enumerate(parts):
-            ox, oz = _rotate_plan(float(p.get("dx", 0)), float(p.get("dz", 0)), rot)
-            _box(ctx, r, ifc_class, f"{label} {i + 1}",
-                 at[0] + ox / FT, at[1] + oz / FT,
-                 float(p.get("w", 1)), float(p.get("d", 1)), float(p.get("h", 1)),
-                 float(p.get("z", item.get("z", 0))), rot,
-                 _item_color(p, color), predefined=predefined)
+            ox, oz = _rotate_plan(float(p.get("dx", 0)), float(p.get("dz", 0)), rot)  # feet
+            _solid(ctx, r, ifc_class, f"{label} {i + 1}", at[0] + ox, at[1] + oz,
+                   float(p.get("w", 1)), float(p.get("d", 1)), float(p.get("h", 1)),
+                   float(p.get("z", item.get("z", 0))), rot,
+                   _item_color(p, color), predefined=predefined, shape=p.get("shape", "box"))
         return
     cz = float(item["z"]) if item.get("z") is not None else 0.0
-    return _box(ctx, r, ifc_class, label, at[0], at[1],
-                float(item.get("w", 2)), float(item.get("d", 2)), float(item.get("h", default_h)),
-                cz, rot, color, predefined=predefined)
+    return _solid(ctx, r, ifc_class, label, at[0], at[1],
+                  float(item.get("w", 2)), float(item.get("d", 2)), float(item.get("h", default_h)),
+                  cz, rot, color, predefined=predefined, shape=item.get("shape", "box"))
+
+
+# Furniture prototypes: a named ``type`` expands into a list of parts (relative
+# feet). Add a piece by adding a function here; rooms then place it with one line
+# ``{ "type": "...", "at": [x, z], "rot": deg }``. A chair's "front" is +dz.
+def _proto_round_pedestal_table(item):
+    dia = float(item.get("diameter", 5.0))      # table-top diameter (ft)
+    h = float(item.get("h", 2.5))               # table height (ft)
+    top = 0.18
+    wood = item.get("material", "walnut")
+    return [
+        {"shape": "cyl", "w": dia,        "z": h - top, "h": top,            "material": wood},  # top
+        {"shape": "cyl", "w": 0.7,        "z": 0.18,    "h": h - top - 0.18, "material": wood},  # column
+        {"shape": "cyl", "w": dia * 0.42, "z": 0.0,     "h": 0.18,           "material": wood},  # foot
+    ]
+
+
+def _proto_highback_chair(item):
+    sh = float(item.get("seatHeight", 1.5))     # seat height (ft)
+    sw, sd = 1.55, 1.55                          # seat width/depth (ft)
+    back = float(item.get("backHeight", 2.0))   # back rises this far above the seat
+    fab = item.get("material", "upholstery")
+    leg, lh = "walnut", 0.15
+    legxy = sw / 2 - 0.18
+    return [
+        {"dx": 0, "dz": 0, "z": sh, "w": sw, "d": sd, "h": 0.22, "material": fab},                 # seat
+        {"dx": 0, "dz": -(sd / 2 - 0.1), "z": sh, "w": sw, "d": 0.18, "h": back, "material": fab}, # high back
+        {"dx": -legxy, "dz": -legxy, "z": 0, "w": 0.16, "d": 0.16, "h": sh, "material": leg},
+        {"dx": legxy,  "dz": -legxy, "z": 0, "w": 0.16, "d": 0.16, "h": sh, "material": leg},
+        {"dx": -legxy, "dz": legxy,  "z": 0, "w": 0.16, "d": 0.16, "h": sh, "material": leg},
+        {"dx": legxy,  "dz": legxy,  "z": 0, "w": 0.16, "d": 0.16, "h": sh, "material": leg},
+    ]
+
+
+PROTOTYPES = {
+    "round_pedestal_table": _proto_round_pedestal_table,
+    "highback_chair": _proto_highback_chair,
+}
 
 
 # Interior categories: one declarative table instead of a loop each. ``ceiling``
