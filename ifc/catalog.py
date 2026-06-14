@@ -60,6 +60,63 @@ def _covering(ctx, r, name, predefined, thickness_ft, z_m, color=None):
         relating_structure=ctx.storey)
 
 
+WOODS = {"hardwood", "oak", "walnut"}
+
+
+def _scale(rgb, f):
+    return tuple(max(0.0, min(1.0, c * f)) for c in rgb)
+
+
+def _plank_floor(ctx, r, base):
+    """Realistic hardwood: staggered planks with per-board shade variation over a
+    dark base, giving grain direction, board joints and groove lines."""
+    x1, x2, y1, y2 = B.ifc_bounds(ctx, r["bounds"])
+    m = ctx.T / 2
+    x1, x2, y1, y2 = x1 + m, x2 - m, y1 + m, y2 - m
+    shades = [_scale(base, f) for f in (0.86, 0.95, 1.0, 1.08, 0.9)]
+    groove = _scale(base, 0.32)
+    th = 0.05 * FT
+    grain_x = (x2 - x1) >= (y2 - y1)           # planks run along the longer axis
+    u0, u1, v0, v1 = (x1, x2, y1, y2) if grain_x else (y1, y2, x1, x2)
+    pw, rgap = 0.5 * FT, 0.012 * FT            # board width 6", groove between rows
+    seg, egap = 6.0 * FT, 0.03 * FT            # board length 6', end gap
+
+    solids = []
+    base_solid = B.positioned_solid(ctx, x2 - x1, y2 - y1, th * 0.5,
+                                    (x1 + x2) / 2, (y1 + y2) / 2, 0.0)
+    B.style_item(ctx, base_solid, groove)
+    solids.append(base_solid)
+
+    zt = th * 0.5
+    v, ri = v0, 0
+    while v < v1 - 1e-6:
+        depth = min(pw, v1 - v) - rgap
+        if depth < 0.03:
+            break
+        cv = v + depth / 2
+        u = u0 - (ri % 3) * (seg / 3.0)        # stagger board joints row to row
+        ci = 0
+        while u < u1 - 1e-6:
+            a, b = max(u, u0), min(u + seg - egap, u1)
+            if b - a > 0.05:
+                cu, length = (a + b) / 2, b - a
+                if grain_x:
+                    s = B.positioned_solid(ctx, length, depth, th, cu, cv, zt)
+                else:
+                    s = B.positioned_solid(ctx, depth, length, th, cv, cu, zt)
+                B.style_item(ctx, s, shades[(ri * 5 + ci) % len(shades)])
+                solids.append(s)
+            u += seg
+            ci += 1
+        v += pw
+        ri += 1
+
+    cov = B.multi_solid_product(ctx, "IfcCovering",
+                                f"{r['name']} - Hardwood Flooring", solids,
+                                predefined="FLOORING")
+    run("spatial.assign_container", ctx.model, products=[cov], relating_structure=ctx.storey)
+
+
 def _box_item(ctx, r, ifc_class, name, item, default_h, predefined=None):
     """Generic box-shaped item (furniture, fixture, rug, cabinet) placed at a
     plan ``at`` point, sitting on the floor unless ``z`` is given."""
@@ -84,9 +141,13 @@ def build_interior(ctx, r):
 
     fl = interior.get("flooring")
     if fl:
-        color = material_color(fl.get("material"), DEFAULT_FLOOR)
-        _covering(ctx, r, f"{r['name']} - {fl.get('material', 'wood').title()} Flooring",
-                  "FLOORING", 0.05, 0.0, color=color)
+        mat = (fl.get("material") or "").lower()
+        color = material_color(mat, DEFAULT_FLOOR)
+        if mat in WOODS:
+            _plank_floor(ctx, r, color)        # realistic staggered planks
+        else:
+            _covering(ctx, r, f"{r['name']} - {mat.title()} Flooring",
+                      "FLOORING", 0.05, 0.0, color=color)
     cl = interior.get("ceiling")
     if cl:
         color = material_color(cl.get("material"), MATERIALS["plaster"])

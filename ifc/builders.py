@@ -102,6 +102,44 @@ def assign_color(ctx, rep, rgb):
         shape_representation=rep, styles=[surface_style(ctx, rgb)])
 
 
+def positioned_solid(ctx, xdim, ydim, height, cx, cy, cz):
+    """An extruded rectangular solid whose own Position carries (cx,cy,cz).
+
+    Lets many solids live in one product's representation (e.g. floor planks).
+    """
+    m = ctx.model
+    profile = m.create_entity(
+        "IfcRectangleProfileDef", ProfileType="AREA", XDim=float(xdim), YDim=float(ydim),
+        Position=m.create_entity("IfcAxis2Placement2D",
+                                 Location=m.create_entity("IfcCartesianPoint", Coordinates=(0.0, 0.0))))
+    return m.create_entity(
+        "IfcExtrudedAreaSolid", SweptArea=profile, Depth=float(height),
+        Position=m.create_entity("IfcAxis2Placement3D",
+                                 Location=m.create_entity("IfcCartesianPoint",
+                                                          Coordinates=(float(cx), float(cy), float(cz)))),
+        ExtrudedDirection=m.create_entity("IfcDirection", DirectionRatios=(0.0, 0.0, 1.0)))
+
+
+def style_item(ctx, solid, rgb):
+    """Colour a single representation item (so each plank can differ)."""
+    ctx.model.create_entity("IfcStyledItem", Item=solid, Styles=[surface_style(ctx, rgb)])
+
+
+def multi_solid_product(ctx, ifc_class, name, solids, predefined=None):
+    """Create one product whose Body representation holds many (pre-styled) solids."""
+    m = ctx.model
+    kwargs = {"ifc_class": ifc_class, "name": name}
+    if predefined:
+        kwargs["predefined_type"] = predefined
+    product = run("root.create_entity", m, **kwargs)
+    rep = m.create_entity("IfcShapeRepresentation", ContextOfItems=ctx.body,
+                          RepresentationIdentifier="Body", RepresentationType="SweptSolid",
+                          Items=solids)
+    run("geometry.assign_representation", m, product=product, representation=rep)
+    run("geometry.edit_object_placement", m, product=product, matrix=matrix(0, 0, 0))
+    return product
+
+
 def make_box(ctx, ifc_class, name, xdim, ydim, height, cx, cy, cz,
              long_name=None, predefined=None, color=None):
     """Create a product with a centered rectangular extruded body at (cx,cy,cz).
