@@ -30,7 +30,7 @@ floorplan_spec.json ──(IfcOpenShell)──▶ floorplan.ifc ──(web-ifc)�
 | `legacy/index.html` | The original Three.js floor plan, kept for reference. |
 
 The model contains 11 walls (5½″ / 2×6 framing, 9′-6″ ceilings), 8 floor slabs,
-8 spaces (Family, Kitchen, Sitting, Dining, Foyer, Vestibule, Extension, Porch),
+8 spaces (Family, Kitchen, Sitting, Dining, Foyer, Vestibule, Extension, Scullery),
 7 doors and 6 windows — all as semantic IFC elements with `IfcOpeningElement`
 voids.
 

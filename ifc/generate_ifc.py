@@ -55,14 +55,18 @@ def main():
     SLAB_T = 0.2                            # floor slab thickness (m)
     rooms = spec["rooms"]
 
-    # Flip the plan's depth axis (plan-z) before authoring. Standard IFC viewers
-    # convert IFC (Z-up) to a Y-up scene by rotating -90 deg about X, which maps
-    # IFC +Y to scene -Z -- i.e. it negates the depth axis. Authoring IFC_Y as
-    # -plan_z cancels that, so the model renders in the same orientation as the
-    # original floor plan (otherwise rooms appear mirrored front-to-back).
-    ZS = -1.0
+    # Orient the model to true cardinal directions using IFC's convention
+    # (+X = East, +Y = North). The recovered plan has the Extension at the most
+    # negative plan-x and the Scullery at the most negative plan-z, so:
+    #   IFC_X = -plan_x  -> Extension on the East (+X), Kitchen/Dining on the West
+    #   IFC_Y = +plan_z  -> Scullery on the South (-Y)
+    # (Net effect vs. the un-mirrored layout is a 180 deg rotation about the
+    # vertical axis, so the relative room arrangement is preserved.)
+    XS, ZS = -1.0, 1.0
     for r in rooms:
+        x1, x2 = XS * r["x1"], XS * r["x2"]
         z1, z2 = ZS * r["z1"], ZS * r["z2"]
+        r["x1"], r["x2"] = min(x1, x2), max(x1, x2)
         r["z1"], r["z2"] = min(z1, z2), max(z1, z2)
 
     enclosed = [r for r in rooms if r["key"] != "fi"]  # porch has no walls
@@ -260,16 +264,17 @@ def main():
         run("spatial.assign_container", m, products=[fill],
             relating_structure=storey)
 
-    # Apply the same depth-axis flip (ZS) to openings. For an H wall the
-    # depth-axis coord is `fixed`; for a V wall it is `pos`.
+    # Apply the same axis flips to openings. For an H wall (runs along x) the
+    # `fixed` coord is the depth axis (z) and `pos` is x; for a V wall it's the
+    # reverse.
     for name, orient, fixed, pos, width in door_defs:
-        f = ZS * fixed if orient == "H" else fixed
-        p = ZS * pos if orient == "V" else pos
+        f = ZS * fixed if orient == "H" else XS * fixed
+        p = XS * pos if orient == "H" else ZS * pos
         cut_opening("IfcDoor", name, orient, f * FT, p * FT,
                     width * FT, 0.0, DOOR_H)
     for name, orient, fixed, pos, width, sill, head in win_defs:
-        f = ZS * fixed if orient == "H" else fixed
-        p = ZS * pos if orient == "V" else pos
+        f = ZS * fixed if orient == "H" else XS * fixed
+        p = XS * pos if orient == "H" else ZS * pos
         cut_opening("IfcWindow", name, orient, f * FT, p * FT,
                     width * FT, sill * FT, head * FT)
 

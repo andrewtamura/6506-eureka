@@ -152,6 +152,28 @@ async function main() {
 
   // Click empty space (Esc) to clear.
   window.addEventListener("keydown", (e) => { if (e.key === "Escape") clearSelection(); });
+
+  // --- compass ------------------------------------------------------------
+  // The model is authored to true cardinal directions (IFC +X=East, +Y=North).
+  // web-ifc maps IFC +Y -> three.js -Z, so "North" in the scene is (0,0,-1).
+  // Rotate the compass rose so its N points along North's screen direction.
+  const rose = document.getElementById("compass-rose");
+  const camOrigin = new THREE.Vector3();
+  const northPt = new THREE.Vector3();
+  function updateCompass() {
+    const cam = world.camera.three;
+    cam.updateMatrixWorld();
+    camOrigin.set(0, 0, 0).project(cam);
+    northPt.set(0, 0, -1).project(cam); // one unit North in world space
+    const dx = northPt.x - camOrigin.x;
+    const dy = northPt.y - camOrigin.y; // NDC y is up
+    // Angle to rotate "up" (the rose's default N) onto the North screen vector.
+    const angle = Math.atan2(dx, dy);
+    rose.style.transform = `rotate(${angle}rad)`;
+  }
+  world.camera.controls.addEventListener("update", updateCompass);
+  world.camera.controls.addEventListener("rest", updateCompass);
+  updateCompass();
 }
 
 main().catch((err) => {

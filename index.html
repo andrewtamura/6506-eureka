@@ -32,6 +32,26 @@
       position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
       z-index: 10; background: rgba(20,24,33,0.85); color: #fff;
       padding: 8px 16px; border-radius: 20px; font-size: 13px; }
+    /* Compass: the rose rotates so "N" always points to true (model) north. */
+    #compass {
+      position: fixed; right: 16px; bottom: 16px; z-index: 10;
+      width: 64px; height: 64px; border-radius: 50%;
+      background: rgba(255,255,255,0.9); backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.18); }
+    #compass-rose { position: absolute; inset: 0; }
+    #compass .dir {
+      position: absolute; left: 50%; transform: translateX(-50%);
+      font: 700 11px sans-serif; color: #556; }
+    #compass .dir.n { top: 3px; color: #d23; }
+    #compass .dir.s { bottom: 3px; }
+    #compass .dir.e { right: 4px; left: auto; top: 50%; transform: translateY(-50%); }
+    #compass .dir.w { left: 4px; top: 50%; transform: translateY(-50%); }
+    #compass .needle {
+      position: absolute; left: 50%; top: 8px; width: 0; height: 0;
+      transform: translateX(-50%);
+      border-left: 5px solid transparent; border-right: 5px solid transparent;
+      border-bottom: 22px solid #d23; }
   </style>
 </head>
 <body>
@@ -43,6 +63,13 @@
   </div>
   <div id="props"><h2>Properties</h2><div id="props-body"></div></div>
   <div id="status">Loading…</div>
+  <div id="compass" title="North">
+    <div id="compass-rose">
+      <div class="needle"></div>
+      <span class="dir n">N</span><span class="dir e">E</span>
+      <span class="dir s">S</span><span class="dir w">W</span>
+    </div>
+  </div>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
