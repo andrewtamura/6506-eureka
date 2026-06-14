@@ -178,6 +178,42 @@ def make_box(ctx, ifc_class, name, xdim, ydim, height, cx, cy, cz,
     return product
 
 
+def circle_rep(ctx, diameter, height):
+    """Body representation: a circle (centered on origin) extruded +Z."""
+    m = ctx.model
+    profile = m.create_entity(
+        "IfcCircleProfileDef", ProfileType="AREA", Radius=float(diameter) / 2.0,
+        Position=m.create_entity(
+            "IfcAxis2Placement2D",
+            Location=m.create_entity("IfcCartesianPoint", Coordinates=(0.0, 0.0))))
+    solid = m.create_entity(
+        "IfcExtrudedAreaSolid", SweptArea=profile, Depth=float(height),
+        Position=m.create_entity(
+            "IfcAxis2Placement3D",
+            Location=m.create_entity("IfcCartesianPoint", Coordinates=(0.0, 0.0, 0.0))),
+        ExtrudedDirection=m.create_entity("IfcDirection", DirectionRatios=(0.0, 0.0, 1.0)))
+    return m.create_entity(
+        "IfcShapeRepresentation", ContextOfItems=ctx.body,
+        RepresentationIdentifier="Body", RepresentationType="SweptSolid", Items=[solid])
+
+
+def make_cylinder(ctx, ifc_class, name, diameter, height, cx, cy, cz,
+                  predefined=None, color=None, rot=0.0):
+    """Create a product with a centered circular extruded body at (cx,cy,cz)
+    (round table tops, pedestals, columns...)."""
+    m = ctx.model
+    kwargs = {"ifc_class": ifc_class, "name": name}
+    if predefined:
+        kwargs["predefined_type"] = predefined
+    product = run("root.create_entity", m, **kwargs)
+    rep = circle_rep(ctx, diameter, height)
+    if color is not None:
+        assign_color(ctx, rep, color)
+    run("geometry.assign_representation", m, product=product, representation=rep)
+    run("geometry.edit_object_placement", m, product=product, matrix=matrix(cx, cy, cz, rot))
+    return product
+
+
 def ifc_bounds(ctx, b):
     """Room bounds (plan feet dict) -> (x1, x2, y1, y2) in IFC metres, ordered."""
     xs = [ctx.X(b["x1"]), ctx.X(b["x2"])]

@@ -42,6 +42,65 @@
   "interior": {
     "flooring": {
       "material": "hardwood"
-    }
+    },
+    "furniture": [
+      {
+        "type": "round_pedestal_table",
+        "at": [
+          23.04,
+          9.04
+        ],
+        "diameter": 5.0,
+        "h": 2.5
+      },
+      {
+        "type": "highback_chair",
+        "at": [
+          23.04,
+          12.64
+        ],
+        "rot": 180.0
+      },
+      {
+        "type": "highback_chair",
+        "at": [
+          19.92,
+          10.84
+        ],
+        "rot": -120.0
+      },
+      {
+        "type": "highback_chair",
+        "at": [
+          19.92,
+          7.24
+        ],
+        "rot": -60.0
+      },
+      {
+        "type": "highback_chair",
+        "at": [
+          23.04,
+          5.44
+        ],
+        "rot": -0.0
+      },
+      {
+        "type": "highback_chair",
+        "at": [
+          26.16,
+          7.24
+        ],
+        "rot": 60.0
+      },
+      {
+        "type": "highback_chair",
+        "at": [
+          26.16,
+          10.84
+        ],
+        "rot": 120.0
+      }
+    ]
   }
 }
