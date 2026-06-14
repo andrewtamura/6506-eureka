@@ -16,7 +16,9 @@
     "dining",
     "foyer",
     "vestibule",
-    "extension",
+    "ext_bath",
+    "ext_vestibule",
+    "ext_laundry",
     "scullery"
   ]
 }
