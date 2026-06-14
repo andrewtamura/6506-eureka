@@ -24,3 +24,5 @@ for (const f of ["web-ifc.wasm", "web-ifc-mt.wasm"]) {
 // Self-host the fragments worker so the published site has NO runtime CDN
 // dependency (the default OBC.FragmentsManager.getWorker() fetches from unpkg).
 copy("node_modules/@thatopen/fragments/dist/Worker/worker.mjs", "public/worker.mjs");
+// Publish the original Three.js model alongside the BIM viewer at /legacy/.
+copy("legacy/index.html", "public/legacy/index.html");

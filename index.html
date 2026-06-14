@@ -77,6 +77,10 @@
       font: 600 11px sans-serif; color: #334; cursor: pointer;
       box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
     .view-btn:hover { background: #fff; }
+    .page-link {
+      display: inline-block; margin-top: 9px; font: 600 12px sans-serif;
+      color: #2563c9; text-decoration: none; }
+    .page-link:hover { text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -87,6 +91,7 @@
       <div class="menu-body">
         <div class="muted">IFC / BIM model — That Open Engine</div>
         <div class="muted" style="margin-top:6px">Click an element to inspect it. Double-tap a door to open it, or the floor to teleport inside.</div>
+        <a id="legacy-link" class="page-link" href="./legacy/">↗ Original Three.js model</a>
       </div>
     </div>
     <div class="menu" data-menu>
