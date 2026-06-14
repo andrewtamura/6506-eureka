@@ -163,7 +163,30 @@ async function main() {
       ex, y, ez, ex + _fwd.x * 4, y, ez + _fwd.z * 4, true);
   }
 
-  // pointer handling: drag = orbit, single tap = select, double tap = teleport
+  // --- interactive doors (double-tap a door to swing it open/closed) ------
+  const doorMeshes = []; // door panel meshes (for raycasting)
+  const doors = [];      // { pivot, openAngle, target, current }
+  const doorRaycaster = new THREE.Raycaster();
+  const _ndc = new THREE.Vector2();
+  function pickDoor(lx, ly) {
+    _ndc.set((lx / dom.clientWidth) * 2 - 1, -(ly / dom.clientHeight) * 2 + 1);
+    doorRaycaster.setFromCamera(_ndc, world.camera.three);
+    const hits = doorRaycaster.intersectObjects(doorMeshes, false);
+    return hits.length ? hits[0].object.userData.door : null;
+  }
+  const toggleDoor = (d) => { d.target = d.target === 0 ? d.openAngle : 0; };
+  (function animateDoors() {
+    for (const d of doors) {
+      if (Math.abs(d.current - d.target) > 1e-3) {
+        d.current += (d.target - d.current) * 0.2; // ease toward target
+        d.pivot.rotation.y = d.current;
+      }
+    }
+    requestAnimationFrame(animateDoors);
+  })();
+
+  // pointer handling: drag = orbit, single tap = select,
+  // double tap = open/close a door (if one is tapped) else teleport
   let down = null, lastTap = 0, lastX = 0, lastY = 0;
   container.addEventListener("pointerdown", (e) => (down = { x: e.clientX, y: e.clientY }));
   container.addEventListener("pointerup", async (e) => {
@@ -173,7 +196,9 @@ async function main() {
     const now = performance.now();
     if (now - lastTap < 350 && Math.hypot(e.clientX - lastX, e.clientY - lastY) < 25) {
       lastTap = 0;
-      await teleportTo(lx, ly);
+      const door = pickDoor(lx, ly);
+      if (door) toggleDoor(door);
+      else await teleportTo(lx, ly);
       return;
     }
     lastTap = now; lastX = e.clientX; lastY = e.clientY;
@@ -216,6 +241,43 @@ async function main() {
       addView(name, () =>
         world.camera.controls.setLookAt(ex, y, ez, tx, y, tz, true));
     });
+  }
+
+  // --- build swinging door overlays ---------------------------------------
+  // The baked IFC door panels can't be cheaply animated, so we hide them and
+  // overlay our own hinged panels that swing on double-tap.
+  {
+    const doorMat = new THREE.MeshLambertMaterial({ color: 0x9b7653 });
+    const dmap = await model.getItemsOfCategories([/IFCDOOR/]);
+    const ids = Object.values(dmap).flat();
+    const boxes = await model.getBoxes(ids);
+    await model.setVisible(ids, false); // hide the static panels
+    await fragments.core.update(true);
+    ids.forEach((id, i) => {
+      const bx = boxes[i];
+      const sx = bx.max.x - bx.min.x, sy = bx.max.y - bx.min.y, sz = bx.max.z - bx.min.z;
+      const cx = (bx.min.x + bx.max.x) / 2, cz = (bx.min.z + bx.max.z) / 2;
+      const pivot = new THREE.Group();
+      let panel, openAngle;
+      if (sx >= sz) {            // door runs E-W; hinge at its -X jamb
+        pivot.position.set(bx.min.x, bx.min.y, cz);
+        panel = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, Math.max(sz, 0.05)), doorMat);
+        panel.position.set(sx / 2, sy / 2, 0);
+        openAngle = -Math.PI / 2;
+      } else {                   // door runs N-S; hinge at its -Z jamb
+        pivot.position.set(cx, bx.min.y, bx.min.z);
+        panel = new THREE.Mesh(new THREE.BoxGeometry(Math.max(sx, 0.05), sy, sz), doorMat);
+        panel.position.set(0, sy / 2, sz / 2);
+        openAngle = Math.PI / 2;
+      }
+      const d = { pivot, openAngle, target: 0, current: 0 };
+      panel.userData.door = d;
+      pivot.add(panel);
+      world.scene.three.add(pivot);
+      doors.push(d);
+      doorMeshes.push(panel);
+    });
+    window.__eureka.doors = doors; // for the headless smoke test
   }
 
   // --- compass ------------------------------------------------------------
