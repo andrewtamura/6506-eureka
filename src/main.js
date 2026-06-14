@@ -17,6 +17,15 @@ const setStatus = (t) => { statusEl.textContent = t; statusEl.style.display = t 
 async function main() {
   const container = document.getElementById("viewer");
 
+  // Strip the engine's "That Open Company" watermark logo (an SVG-bearing div
+  // the renderer appends into the container). Our own UI lives outside #viewer
+  // and uses no SVGs, so any SVG div added here is the logo.
+  const stripLogo = () =>
+    container.querySelectorAll(":scope > div").forEach((d) => {
+      if (d.querySelector("svg")) d.remove();
+    });
+  new MutationObserver(stripLogo).observe(container, { childList: true });
+
   // --- world (scene + renderer + camera) ---------------------------------
   const components = new OBC.Components();
   const worlds = components.get(OBC.Worlds);
