@@ -1,0 +1,22 @@
+{
+  "project": "Eureka Residence",
+  "site": "Site",
+  "building": "Eureka House",
+  "storey": "Ground Floor",
+  "units": "feet",
+  "wallThickness": 0.4583,
+  "wallHeight": 9.5,
+  "slabThickness": 0.2,
+  "doorHeight": 7.0,
+  "orientation": { "xs": -1, "zs": 1 },
+  "rooms": [
+    "family",
+    "kitchen",
+    "sitting",
+    "dining",
+    "foyer",
+    "vestibule",
+    "extension",
+    "scullery"
+  ]
+}

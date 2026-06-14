@@ -10,8 +10,8 @@ This replaces the original hand-built Three.js scene (preserved under
 [`legacy/`](legacy/)) with a proper BIM pipeline:
 
 ```
-floorplan_spec.json ──(IfcOpenShell)──▶ floorplan.ifc ──(web-ifc)──▶ Fragments ──▶ 3D viewer
-   (room geometry)      generate_ifc.py    (IFC4 model)   IfcLoader    in browser    That Open Engine
+rooms/*.json ──(IfcOpenShell)──▶ floorplan.ifc ──(web-ifc)──▶ Fragments ──▶ 3D viewer
+ (per-room data)  generate_ifc.py   (IFC4 model)   IfcLoader    in browser   That Open Engine
 ```
 
 ---
@@ -23,8 +23,12 @@ floorplan_spec.json ──(IfcOpenShell)──▶ floorplan.ifc ──(web-ifc)�
 | `index.html`, `src/main.js` | The That Open Engine viewer (Vite app). |
 | `vite.config.js` | Vite config (relative `base` so it works on a Pages subpath). |
 | `scripts/prepare-assets.mjs` | Copies runtime assets into `public/` before dev/build. |
-| `ifc/floorplan_spec.json` | Room rectangles (wall centerlines, in feet), recovered from the original bundle. |
-| `ifc/generate_ifc.py` | IfcOpenShell generator: spec → `floorplan.ifc`. |
+| `ifc/model.json` | Global config: units, wall thickness/height, orientation, room list. |
+| `ifc/rooms/<name>.json` | **One self-contained file per room** — bounds, doors, windows, and an `interior` block. Edit just this to work on a room. |
+| `ifc/rooms/<name>.py` | *Optional* per-room hook (`build(ctx, room)`) for bespoke geometry the catalog doesn't cover. |
+| `ifc/builders.py` | Shared IFC primitives: walls, slabs, spaces, openings. |
+| `ifc/catalog.py` | Interior-design vocabulary: furniture, light fixtures, flooring, ceilings, rugs, cabinetry. |
+| `ifc/generate_ifc.py` | Orchestrator: reads `model.json` + each `rooms/*.json` → `floorplan.ifc`. |
 | `ifc/floorplan.ifc` | The generated IFC4 BIM model (committed; CI does not need Python). |
 | `.github/workflows/deploy.yml` | Builds and publishes the viewer to GitHub Pages. |
 | `legacy/index.html` | The original Three.js floor plan, kept for reference. |
@@ -66,8 +70,13 @@ npm run preview  # serve the production build locally
 
 ## Regenerating the IFC model
 
-Only needed if you change `ifc/floorplan_spec.json` (or the generator). Requires
-**Python 3.10+**.
+Only needed if you change a room file under `ifc/rooms/` (or the generator).
+Requires **Python 3.10+**.
+
+To work on a single room (e.g. add furniture to the Dining room), edit only
+`ifc/rooms/dining.json` — its `interior` block uses the item types defined in
+`ifc/catalog.py`. For one-off geometry the catalog doesn't cover, add an
+`ifc/rooms/dining.py` hook exporting `build(ctx, room)`.
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate

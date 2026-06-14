@@ -1,0 +1,16 @@
+{
+  "key": "Yi",
+  "name": "Foyer",
+  "longName": "Foyer",
+  "bounds": { "x1": 3.9167, "x2": 15.0833, "z1": -11.9167, "z2": 10.1667 },
+  "walls": true,
+  "doors": [
+    { "name": "Foyer -> Family", "orient": "V", "fixed": 3.9167, "pos": -6.0, "width": 2.75 },
+    { "name": "Foyer -> Sitting", "orient": "V", "fixed": 3.9167, "pos": 5.0, "width": 2.75 },
+    { "name": "Foyer -> Kitchen", "orient": "V", "fixed": 15.0833, "pos": -5.0, "width": 2.75 },
+    { "name": "Foyer -> Dining", "orient": "V", "fixed": 15.0833, "pos": 6.0, "width": 2.75 },
+    { "name": "Foyer -> Vestibule", "orient": "H", "fixed": 10.1667, "pos": 9.5, "width": 2.75 }
+  ],
+  "windows": [],
+  "interior": {}
+}
