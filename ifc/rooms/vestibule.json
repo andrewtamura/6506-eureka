@@ -2,11 +2,26 @@
   "key": "Fs",
   "name": "Vestibule",
   "longName": "Vestibule",
-  "bounds": { "x1": 3.9167, "x2": 15.0833, "z1": 10.1667, "z2": 16.0833 },
+  "bounds": {
+    "x1": 3.9167,
+    "x2": 15.0833,
+    "z1": 10.1667,
+    "z2": 16.0833
+  },
   "walls": true,
   "doors": [
-    { "name": "Front Door", "orient": "H", "fixed": 16.0833, "pos": 9.5, "width": 3.0 }
+    {
+      "name": "Front Door",
+      "orient": "H",
+      "fixed": 16.0833,
+      "pos": 9.5,
+      "width": 3.0
+    }
   ],
   "windows": [],
-  "interior": { "flooring": { "material": "hardwood" } }
+  "interior": {
+    "flooring": {
+      "material": "tile"
+    }
+  }
 }

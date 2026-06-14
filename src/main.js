@@ -232,11 +232,14 @@ async function main() {
     const hits = doorRaycaster.intersectObjects(doorMeshes, false);
     return hits.length ? hits[0].object.userData.door : null;
   }
-  const toggleDoor = (d) => { d.target = d.target === 0 ? d.openAngle : 0; };
+  // A door "unit" may have 1 leaf (single) or 2 (double); tapping any leaf
+  // toggles the whole unit so both leaves swing together.
+  const toggleDoor = (leaf) => { leaf.unit.open = !leaf.unit.open; };
   (function animateDoors() {
     for (const d of doors) {
-      if (Math.abs(d.current - d.target) > 1e-3) {
-        d.current += (d.target - d.current) * 0.2; // ease toward target
+      const target = d.unit.open ? d.openAngle : 0;
+      if (Math.abs(d.current - target) > 1e-3) {
+        d.current += (target - d.current) * 0.2; // ease toward target
         d.pivot.rotation.y = d.current;
       }
     }
@@ -305,38 +308,60 @@ async function main() {
   }
 
   // --- build swinging door overlays ---------------------------------------
-  // The baked IFC door panels can't be cheaply animated, so we hide them and
-  // overlay our own hinged panels that swing on double-tap.
+  // Hide the baked IFC door panels (can't cheaply animate them) and overlay our
+  // own hinged leaves. Wide doors become double doors. Also hide the
+  // IfcOpeningElement void boxes (rendered semi-opaque) so cased openings and
+  // open doorways are fully see-through.
   {
     const doorMat = new THREE.MeshLambertMaterial({ color: 0x9b7653 });
     const dmap = await model.getItemsOfCategories([/IFCDOOR/]);
     const ids = Object.values(dmap).flat();
     const boxes = await model.getBoxes(ids);
-    await model.setVisible(ids, false); // hide the static panels
+    await model.setVisible(ids, false);
+    const omap = await model.getItemsOfCategories([/IFCOPENINGELEMENT/]);
+    const oids = Object.values(omap).flat();
+    if (oids.length) await model.setVisible(oids, false);
     await fragments.core.update(true);
+
+    const ANG = Math.PI / 2;
+    const DOUBLE = 1.2; // doors wider than this (m) split into double doors
     ids.forEach((id, i) => {
       const bx = boxes[i];
       const sx = bx.max.x - bx.min.x, sy = bx.max.y - bx.min.y, sz = bx.max.z - bx.min.z;
       const cx = (bx.min.x + bx.max.x) / 2, cz = (bx.min.z + bx.max.z) / 2;
-      const pivot = new THREE.Group();
-      let panel, openAngle;
-      if (sx >= sz) {            // door runs E-W; hinge at its -X jamb
-        pivot.position.set(bx.min.x, bx.min.y, cz);
-        panel = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, Math.max(sz, 0.05)), doorMat);
-        panel.position.set(sx / 2, sy / 2, 0);
-        openAngle = -Math.PI / 2;
-      } else {                   // door runs N-S; hinge at its -Z jamb
-        pivot.position.set(cx, bx.min.y, bx.min.z);
-        panel = new THREE.Mesh(new THREE.BoxGeometry(Math.max(sx, 0.05), sy, sz), doorMat);
-        panel.position.set(0, sy / 2, sz / 2);
-        openAngle = Math.PI / 2;
+      const alongX = sx >= sz;                 // door runs E-W (true) or N-S
+      const W = alongX ? sx : sz;              // door width along the wall
+      const th = Math.max(alongX ? sz : sx, 0.05); // leaf thickness
+      const unit = { open: false };
+      const mkLeaf = (hx, hz, leafW, dirSign, openAngle) => {
+        const pivot = new THREE.Group();
+        pivot.position.set(hx, bx.min.y, hz);
+        const geo = alongX
+          ? new THREE.BoxGeometry(leafW, sy, th)
+          : new THREE.BoxGeometry(th, sy, leafW);
+        const panel = new THREE.Mesh(geo, doorMat);
+        if (alongX) panel.position.set(dirSign * leafW / 2, sy / 2, 0);
+        else panel.position.set(0, sy / 2, dirSign * leafW / 2);
+        pivot.add(panel);
+        world.scene.three.add(pivot);
+        const leaf = { pivot, openAngle, current: 0, unit };
+        panel.userData.door = leaf;
+        doors.push(leaf);
+        doorMeshes.push(panel);
+      };
+      if (W > DOUBLE) {                         // double doors (french/patio)
+        const half = W / 2;
+        if (alongX) {
+          mkLeaf(bx.min.x, cz, half, +1, ANG);
+          mkLeaf(bx.max.x, cz, half, -1, -ANG);
+        } else {
+          mkLeaf(cx, bx.min.z, half, +1, -ANG);
+          mkLeaf(cx, bx.max.z, half, -1, ANG);
+        }
+      } else {                                  // single leaf
+        if (alongX) mkLeaf(bx.min.x, cz, W, +1, -ANG);
+        else mkLeaf(cx, bx.min.z, W, +1, ANG);
       }
-      const d = { pivot, openAngle, target: 0, current: 0 };
-      panel.userData.door = d;
-      pivot.add(panel);
-      world.scene.three.add(pivot);
-      doors.push(d);
-      doorMeshes.push(panel);
     });
     window.__eureka.doors = doors; // for the headless smoke test
   }
