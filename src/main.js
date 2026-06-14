@@ -458,6 +458,28 @@ async function main() {
 
   const _tdir = new THREE.Vector3();
   const headingAngle = () => { world.camera.three.getWorldDirection(_tdir); return Math.atan2(_tdir.x, _tdir.z); };
+  // Glide the camera to a new pose by interpolating the eye + look-at point as
+  // straight-line (Cartesian) points, snapping each frame. Because we never
+  // interpolate the controls' azimuth ANGLE, there's no angle to wrap and thus
+  // no long-way "flip" — the view just slides over. ~0.28s, eased.
+  const _p0 = new THREE.Vector3(), _t0 = new THREE.Vector3();
+  const _p1 = new THREE.Vector3(), _t1 = new THREE.Vector3();
+  const _pp = new THREE.Vector3(), _tt = new THREE.Vector3();
+  function glideTo(px, py, pz, tx, ty, tz, dur = 280) {
+    ctrls.getPosition(_p0); ctrls.getTarget(_t0);
+    _p1.set(px, py, pz); _t1.set(tx, ty, tz);
+    const start = performance.now();
+    return new Promise((resolve) => {
+      const step = () => {
+        const k = Math.min(1, (performance.now() - start) / dur);
+        const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2; // easeInOutQuad
+        _pp.lerpVectors(_p0, _p1, e); _tt.lerpVectors(_t0, _t1, e);
+        ctrls.setLookAt(_pp.x, _pp.y, _pp.z, _tt.x, _tt.y, _tt.z, false);
+        if (k < 1) requestAnimationFrame(step); else resolve();
+      };
+      step();
+    });
+  }
   async function teleportTo(lx, ly) {
     const hit = await raycastSurface(lx, ly);
     if (!hit) return;
@@ -477,12 +499,8 @@ async function main() {
     const { x: ex, z: ez } = clampToRoom(hit.point.x, hit.point.z); // safe standing spot
     const y = FLOOR + EYE;
     await clearSelection();
-    // Snap (no transition). An animated setLookAt interpolates the controls'
-    // azimuth toward the normalised target angle, which — once the azimuth has
-    // accumulated past ±π from looking around — swings the long way round (a
-    // visible ~full-turn flip that still lands facing correctly). Snapping has
-    // no path to swing.
-    await ctrls.setLookAt(ex, y, ez, ex + fx * LOOK_DIST, y, ez + fz * LOOK_DIST, false);
+    // Smooth Cartesian glide (no azimuth-angle interpolation -> no long-way flip).
+    await glideTo(ex, y, ez, ex + fx * LOOK_DIST, y, ez + fz * LOOK_DIST);
     enterRoom();
     // debug HUD: net heading change across the teleport (≈0 means no flip)
     let dh = (headingAngle() - headBefore) * 180 / Math.PI;
