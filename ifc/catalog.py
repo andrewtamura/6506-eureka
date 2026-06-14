@@ -36,6 +36,9 @@ MATERIALS = {
     "plaster":  (0.94, 0.93, 0.91),
     "upholstery": (0.34, 0.40, 0.50),  # slate-blue fabric
     "linen":      (0.80, 0.76, 0.68),
+    "oatmeal":    (0.84, 0.80, 0.72),  # cream/oatmeal upholstery
+    "lightoak":   (0.72, 0.58, 0.40),  # natural oak legs
+    "darkwalnut": (0.26, 0.18, 0.12),  # dark wood table top
 }
 DEFAULT_FLOOR = MATERIALS["hardwood"]
 
@@ -222,9 +225,36 @@ def _proto_highback_chair(item):
     ]
 
 
+def _proto_upholstered_dining_chair(item):
+    # Transitional upholstered dining chair (Williams-Sonoma style): a cream
+    # upholstered seat + a curved upholstered back that "floats" above the seat
+    # on a small reveal, all on light-oak legs. "Front" is +dz.
+    seat_top = float(item.get("seatHeight", 1.5))    # seat surface height (ft)
+    sw, sd = 1.55, 1.5                                # seat width/depth (ft)
+    cush = 0.4                                         # seat cushion thickness
+    backh = float(item.get("backHeight", 1.2))        # upholstered back panel height
+    reveal = 0.18                                      # gap between seat and back
+    fab = item.get("material", "oatmeal")
+    leg = item.get("legMaterial", "lightoak")
+    legh = seat_top - cush                             # legs reach the cushion underside
+    lx, ld = sw / 2 - 0.16, sd / 2 - 0.16
+    return [
+        {"dx": -lx, "dz": -ld, "z": 0, "w": 0.17, "d": 0.17, "h": legh, "material": leg},
+        {"dx":  lx, "dz": -ld, "z": 0, "w": 0.17, "d": 0.17, "h": legh, "material": leg},
+        {"dx": -lx, "dz":  ld, "z": 0, "w": 0.17, "d": 0.17, "h": legh, "material": leg},
+        {"dx":  lx, "dz":  ld, "z": 0, "w": 0.17, "d": 0.17, "h": legh, "material": leg},
+        # cream seat cushion
+        {"dx": 0, "dz": 0, "z": legh, "w": sw, "d": sd, "h": cush, "material": fab},
+        # upholstered back panel, floating just above the seat on a reveal
+        {"dx": 0, "dz": -(sd / 2 - 0.18), "z": seat_top + reveal, "w": sw, "d": 0.28,
+         "h": backh, "material": fab},
+    ]
+
+
 PROTOTYPES = {
     "round_pedestal_table": _proto_round_pedestal_table,
     "highback_chair": _proto_highback_chair,
+    "upholstered_dining_chair": _proto_upholstered_dining_chair,
 }
 
 
