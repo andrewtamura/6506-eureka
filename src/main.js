@@ -418,46 +418,7 @@ async function main() {
     }
   }
 
-  // Debug marker: concentric rings dropped on the floor at the last double-tap
-  // so we can see exactly where a tap lands. Green = it hit a floor (teleports),
-  // red = it hit something else (no teleport).
-  const tapMarker = new THREE.Group();
-  tapMarker.visible = false;
-  tapMarker.renderOrder = 999;
-  for (const r of [0.12, 0.3, 0.5]) {
-    const ring = new THREE.Mesh(
-      new THREE.RingGeometry(r - 0.025, r, 48),
-      new THREE.MeshBasicMaterial({ color: 0x00e676, transparent: true, opacity: 0.9,
-        side: THREE.DoubleSide, depthTest: false }));
-    ring.rotation.x = -Math.PI / 2; // lay flat on the floor (XZ plane)
-    ring.renderOrder = 999;
-    tapMarker.add(ring);
-  }
-  const tapDot = new THREE.Mesh(
-    new THREE.CircleGeometry(0.05, 24),
-    new THREE.MeshBasicMaterial({ color: 0x00e676, transparent: true, opacity: 0.95,
-      side: THREE.DoubleSide, depthTest: false }));
-  tapDot.rotation.x = -Math.PI / 2; tapDot.renderOrder = 999;
-  tapMarker.add(tapDot);
-  world.scene.three.add(tapMarker);
-  function showTapMarker(point, isFloor) {
-    const col = isFloor ? 0x00e676 : 0xff5252;
-    tapMarker.children.forEach((m) => m.material.color.setHex(col));
-    tapMarker.position.set(point.x, FLOOR + 0.02, point.z);
-    tapMarker.visible = true;
-  }
-
-  // Debug readout: shows the net heading change of the last teleport so we can
-  // tell from the device whether the camera actually flips.
-  const debugEl = document.createElement("div");
-  debugEl.style.cssText = "position:fixed;left:12px;bottom:12px;z-index:20;" +
-    "background:rgba(20,24,33,0.85);color:#0f0;font:600 12px monospace;" +
-    "padding:5px 9px;border-radius:8px;pointer-events:none;";
-  debugEl.textContent = "teleport Δheading —";
-  document.body.appendChild(debugEl);
-
   const _tdir = new THREE.Vector3();
-  const headingAngle = () => { world.camera.three.getWorldDirection(_tdir); return Math.atan2(_tdir.x, _tdir.z); };
   // Glide the camera to a new pose by interpolating the eye + look-at point as
   // straight-line (Cartesian) points, snapping each frame. Because we never
   // interpolate the controls' azimuth ANGLE, there's no angle to wrap and thus
@@ -483,7 +444,6 @@ async function main() {
   async function teleportTo(lx, ly) {
     const hit = await raycastSurface(lx, ly);
     if (!hit) return;
-    showTapMarker(hit.point, floorIds.has(hit.localId)); // debug: where did the tap land?
     // Only floors are teleport targets — double-tapping a wall/window/etc. is a no-op.
     if (!floorIds.has(hit.localId)) return;
     // Keep the heading you currently SEE. Use the camera's actual facing
@@ -495,17 +455,12 @@ async function main() {
     let fx, fz;
     if (_tdir.lengthSq() > 1e-3) { _tdir.normalize(); fx = _tdir.x; fz = _tdir.z; }
     else { const az = ctrls.azimuthAngle; fx = -Math.sin(az); fz = -Math.cos(az); }
-    const headBefore = Math.atan2(fx, fz);
     const { x: ex, z: ez } = clampToRoom(hit.point.x, hit.point.z); // safe standing spot
     const y = FLOOR + EYE;
     await clearSelection();
     // Smooth Cartesian glide (no azimuth-angle interpolation -> no long-way flip).
     await glideTo(ex, y, ez, ex + fx * LOOK_DIST, y, ez + fz * LOOK_DIST);
     enterRoom();
-    // debug HUD: net heading change across the teleport (≈0 means no flip)
-    let dh = (headingAngle() - headBefore) * 180 / Math.PI;
-    while (dh > 180) dh -= 360; while (dh < -180) dh += 360;
-    debugEl.textContent = `teleport Δheading ${dh.toFixed(0)}°`;
   }
 
   // --- interactive doors (double-tap a door to swing it open/closed) ------
