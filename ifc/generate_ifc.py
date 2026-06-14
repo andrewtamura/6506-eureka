@@ -89,6 +89,10 @@ def main():
     # Door hinge/swing manifest for the viewer's swinging-leaf overlays.
     with open(os.path.join(HERE, "doors.json"), "w") as f:
         json.dump(ctx.door_meta, f, indent=2)
+    # Plank-floor manifest: the viewer re-renders these coverings as one
+    # instanced mesh (name = which covering, rgb = plank colour).
+    with open(os.path.join(HERE, "floors.json"), "w") as f:
+        json.dump(ctx.plank_floors, f, indent=2)
 
     def n(cls):
         return len(m.by_type(cls))
