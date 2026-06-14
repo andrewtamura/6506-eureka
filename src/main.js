@@ -178,9 +178,23 @@ async function main() {
     renderProps(String(category).replace(/^Ifc/, ""), rows);
   }
 
-  // --- first-person teleport (double-tap / double-click) ------------------
+  // --- interior camera: confine to a room so panning can't fly through walls
   const FLOOR = modelBox.min.y + 0.2; // floor surface (slab top) in world Y
   const EYE = 1.6;                     // standing eye height above the floor (m)
+  const ctrls = world.camera.controls;
+  const roomBoxes = [];                // { name, box } filled when POV views build
+  function enterRoom(box) {
+    ctrls.setBoundary(box);
+    ctrls.boundaryEnclosesCamera = true; // keep the camera *inside* the box
+  }
+  function exitToOverview() {
+    ctrls.boundaryEnclosesCamera = false;
+    ctrls.setBoundary(undefined);
+    ctrls.fitToBox(modelBox, true);
+  }
+  const roomAt = (x, z) => roomBoxes.find(
+    (r) => x >= r.box.min.x && x <= r.box.max.x && z >= r.box.min.z && z <= r.box.max.z);
+
   const _fwd = new THREE.Vector3();
   async function teleportTo(lx, ly) {
     const hit = await raycastAt(lx, ly);
@@ -189,11 +203,13 @@ async function main() {
     _fwd.y = 0;
     if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, -1);
     _fwd.normalize();
-    const y = FLOOR + EYE;
-    const ex = hit.point.x, ez = hit.point.z;
+    const y = FLOOR + EYE, ex = hit.point.x, ez = hit.point.z;
     await clearSelection();
-    world.camera.controls.setLookAt(
-      ex, y, ez, ex + _fwd.x * 4, y, ez + _fwd.z * 4, true);
+    ctrls.boundaryEnclosesCamera = false;
+    ctrls.setBoundary(undefined);
+    await ctrls.setLookAt(ex, y, ez, ex + _fwd.x * 1.2, y, ez + _fwd.z * 1.2, true);
+    const room = roomAt(ex, ez);
+    enterRoom(room ? room.box : modelBox);
   }
 
   // --- interactive doors (double-tap a door to swing it open/closed) ------
@@ -250,11 +266,10 @@ async function main() {
     btn.addEventListener("click", fn);
     viewsEl.appendChild(btn);
   };
-  addView("\u{1F3E0} Overview", () =>
-    world.camera.controls.fitToBox(modelBox, true));
+  addView("\u{1F3E0} Overview", () => exitToOverview());
   {
-    // One eye-level view per room: stand just inside the near wall looking
-    // across the room toward the building centre (central rooms face North).
+    // One eye-level view per room: stand at the room centre (always inside)
+    // looking toward the building centre, and confine the camera to the room.
     const spaceMap = await model.getItemsOfCategories([/IFCSPACE/]);
     const ids = Object.values(spaceMap).flat();
     const boxes = await model.getBoxes(ids);
@@ -262,17 +277,21 @@ async function main() {
     const c = modelBox.getCenter(new THREE.Vector3());
     const rc = new THREE.Vector3(), dir = new THREE.Vector3();
     ids.forEach((id, i) => {
-      const bx = boxes[i];
-      bx.getCenter(rc);
+      const box = boxes[i].clone();
+      box.getCenter(rc);
       const name = String(data[i]?.Name?.value ?? "Room");
+      roomBoxes.push({ name, box });
       dir.set(c.x - rc.x, 0, c.z - rc.z);
       if (dir.lengthSq() < 0.25) dir.set(0, 0, -1);
       dir.normalize();
-      const y = FLOOR + EYE;
-      const ex = rc.x - dir.x * 1.5, ez = rc.z - dir.z * 1.5;
-      const tx = rc.x + dir.x * 6, tz = rc.z + dir.z * 6;
-      addView(name, () =>
-        world.camera.controls.setLookAt(ex, y, ez, tx, y, tz, true));
+      const y = FLOOR + EYE, cx = rc.x, cz = rc.z;
+      const tx = cx + dir.x * 1.2, tz = cz + dir.z * 1.2;
+      addView(name, async () => {
+        ctrls.boundaryEnclosesCamera = false;
+        ctrls.setBoundary(undefined);
+        await ctrls.setLookAt(cx, y, cz, tx, y, tz, true);
+        enterRoom(box);
+      });
     });
   }
 
