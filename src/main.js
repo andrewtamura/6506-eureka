@@ -477,7 +477,12 @@ async function main() {
     const { x: ex, z: ez } = clampToRoom(hit.point.x, hit.point.z); // safe standing spot
     const y = FLOOR + EYE;
     await clearSelection();
-    await ctrls.setLookAt(ex, y, ez, ex + fx * LOOK_DIST, y, ez + fz * LOOK_DIST, true);
+    // Snap (no transition). An animated setLookAt interpolates the controls'
+    // azimuth toward the normalised target angle, which — once the azimuth has
+    // accumulated past ±π from looking around — swings the long way round (a
+    // visible ~full-turn flip that still lands facing correctly). Snapping has
+    // no path to swing.
+    await ctrls.setLookAt(ex, y, ez, ex + fx * LOOK_DIST, y, ez + fz * LOOK_DIST, false);
     enterRoom();
     // debug HUD: net heading change across the teleport (≈0 means no flip)
     let dh = (headingAngle() - headBefore) * 180 / Math.PI;
@@ -600,10 +605,11 @@ async function main() {
       const m = meta[nm] || {};
       const hingeMax = !!m.hingeMax;
       const sign = m.swingSign != null ? m.swingSign : (alongX ? -1 : 1);
-      const unit = { open: false };
+      const unit = { open: true };               // doors default to open
       const mkLeaf = (hx, hz, leafW, dirSign, openAngle) => {
         const pivot = new THREE.Group();
         pivot.position.set(hx, bx.min.y, hz);
+        pivot.rotation.y = openAngle;            // start in the open position
         const geo = alongX
           ? new THREE.BoxGeometry(leafW, sy, th)
           : new THREE.BoxGeometry(th, sy, leafW);
@@ -612,7 +618,7 @@ async function main() {
         else panel.position.set(0, sy / 2, dirSign * leafW / 2);
         pivot.add(panel);
         world.scene.three.add(pivot);
-        const leaf = { pivot, openAngle, current: 0, unit, name: nm };
+        const leaf = { pivot, openAngle, current: openAngle, unit, name: nm };
         panel.userData.door = leaf;
         doors.push(leaf);
         doorMeshes.push(panel);
