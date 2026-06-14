@@ -56,6 +56,9 @@
     #views {
       position: fixed; left: 12px; top: 104px; z-index: 10; max-width: 224px;
       display: flex; flex-wrap: wrap; gap: 5px; }
+    #lighting {
+      position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
+      z-index: 10; display: flex; gap: 6px; }
     .view-btn {
       background: rgba(255,255,255,0.9); backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
@@ -73,6 +76,7 @@
     <div class="muted" style="margin-top:6px">Click an element to inspect it. Double-tap a door to open it, or the floor to teleport inside.</div>
   </div>
   <div id="views"></div>
+  <div id="lighting"></div>
   <div id="props"><h2>Properties</h2><div id="props-body"></div></div>
   <div id="status">Loading…</div>
   <div id="compass" title="North">
