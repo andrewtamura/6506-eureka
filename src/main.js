@@ -120,6 +120,12 @@ async function main() {
   // on the grid (Y=0). With coordinate=true, base-coordination shifts the whole
   // model below the grid, which reads as "sunk/upside-down".
   const model = await ifcLoader.load(bytes, false, "Eureka Residence");
+  // Render the whole house at full geometry instead of the DEFAULT view-based
+  // LOD/culling, which made hardwood planks and walls pop in/out as the camera
+  // moved. ALL_GEOMETRY still honours items we explicitly hide (IfcSpace
+  // volumes, door panels) — it only stops the distance/frustum culling. The
+  // model is small enough that drawing it all is cheap.
+  await model.setLodMode(FRAGS.LodMode.ALL_GEOMETRY);
   await fragments.core.update(true);
 
   // Fragments' base-coordination places the model below the grid; lift it so
