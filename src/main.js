@@ -218,6 +218,7 @@ async function main() {
   const ctrls = world.camera.controls;
   const roomBoxes = [];                // { name, box } filled when POV views build
   const skipIds = new Set();           // door + opening ids to ignore when teleporting
+  const floorIds = new Set();          // slab + floor-finish ids: the only teleport targets
   // Stand inside a room with a first-person feel. The orbit pivot sits just in
   // front of the eye (LOOK_DIST), so looking around rotates almost in place
   // instead of swinging the camera on a wide arc into the walls. The boundary
@@ -269,10 +270,29 @@ async function main() {
       .sort((a, b) => a.point.distanceTo(cam) - b.point.distanceTo(cam))[0] || null;
   }
 
+  // Identify the walkable floor surfaces (structural slabs + floor finishes like
+  // hardwood/tile/rugs). Ceiling coverings are excluded so teleport only ever
+  // lands on a floor. Done once, up front.
+  {
+    const slabs = Object.values(await model.getItemsOfCategories([/IFCSLAB/])).flat();
+    for (const id of slabs) floorIds.add(id);
+    const covs = Object.values(await model.getItemsOfCategories([/IFCCOVERING/])).flat();
+    if (covs.length) {
+      const cdata = await model.getItemsData(covs, { attributesDefault: true });
+      covs.forEach((id, i) => {
+        const pt = cdata[i]?.PredefinedType;
+        const v = String((pt && typeof pt === "object" && "value" in pt) ? pt.value : pt);
+        if (v !== "CEILING") floorIds.add(id); // FLOORING (and anything not a ceiling)
+      });
+    }
+  }
+
   const _fwd = new THREE.Vector3();
   async function teleportTo(lx, ly) {
     const hit = await raycastSurface(lx, ly);
     if (!hit) return;
+    // Only floors are teleport targets — double-tapping a wall/window/etc. is a no-op.
+    if (!floorIds.has(hit.localId)) return;
     world.camera.three.getWorldDirection(_fwd);
     _fwd.y = 0;
     if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, -1);
