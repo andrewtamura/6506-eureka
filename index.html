@@ -16,7 +16,7 @@
       border-radius: 12px; padding: 12px 14px; max-width: 280px;
       box-shadow: 0 2px 10px rgba(0,0,0,0.12); font-size: 13px; line-height: 1.5; }
     .panel h1 { font-size: 15px; margin: 0 0 4px; }
-    .panel .muted { color: #667; font-size: 12px; }
+    .muted { color: #667; font-size: 12px; line-height: 1.45; }
     #props {
       position: fixed; top: 12px; right: 12px; z-index: 10; width: 260px;
       max-height: calc(100% - 24px); overflow-y: auto;
@@ -52,13 +52,24 @@
       transform: translateX(-50%);
       border-left: 5px solid transparent; border-right: 5px solid transparent;
       border-bottom: 22px solid #d23; }
-    /* Preset POV views */
-    #views {
-      position: fixed; left: 12px; top: 104px; z-index: 10; max-width: 224px;
-      display: flex; flex-wrap: wrap; gap: 5px; }
-    #lighting {
-      position: fixed; top: 12px; left: 50%; transform: translateX(-50%);
-      z-index: 10; display: flex; gap: 6px; }
+    /* Collapsible left-hand menus */
+    #ui-left {
+      position: fixed; top: 12px; left: 12px; z-index: 11; width: 220px;
+      display: flex; flex-direction: column; gap: 8px;
+      max-height: calc(100vh - 24px); overflow-y: auto; }
+    .menu {
+      background: rgba(255,255,255,0.92); backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); overflow: hidden; }
+    .menu-header {
+      display: flex; justify-content: space-between; align-items: center;
+      gap: 10px; padding: 9px 12px; cursor: pointer; user-select: none;
+      font: 600 13px sans-serif; color: #223; }
+    .menu-header .chev { color: #889; transition: transform 0.2s; }
+    .menu.open .menu-header .chev { transform: rotate(90deg); }
+    .menu-body { display: none; padding: 0 12px 11px; }
+    .menu.open .menu-body { display: block; }
+    #views, #lighting { display: flex; flex-wrap: wrap; gap: 5px; }
     .view-btn {
       background: rgba(255,255,255,0.9); backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
@@ -70,13 +81,23 @@
 </head>
 <body>
   <div id="viewer"></div>
-  <div class="panel">
-    <h1>🏠 Eureka Residence</h1>
-    <div class="muted">IFC / BIM model — That Open Engine</div>
-    <div class="muted" style="margin-top:6px">Click an element to inspect it. Double-tap a door to open it, or the floor to teleport inside.</div>
+  <div id="ui-left">
+    <div class="menu open" data-menu>
+      <div class="menu-header"><span>🏠 6506 Eureka</span><span class="chev">▸</span></div>
+      <div class="menu-body">
+        <div class="muted">IFC / BIM model — That Open Engine</div>
+        <div class="muted" style="margin-top:6px">Click an element to inspect it. Double-tap a door to open it, or the floor to teleport inside.</div>
+      </div>
+    </div>
+    <div class="menu" data-menu>
+      <div class="menu-header"><span>📷 Camera views</span><span class="chev">▸</span></div>
+      <div class="menu-body"><div id="views"></div></div>
+    </div>
+    <div class="menu" data-menu>
+      <div class="menu-header"><span>💡 Lighting</span><span class="chev">▸</span></div>
+      <div class="menu-body"><div id="lighting"></div></div>
+    </div>
   </div>
-  <div id="views"></div>
-  <div id="lighting"></div>
   <div id="props"><h2>Properties</h2><div id="props-body"></div></div>
   <div id="status">Loading…</div>
   <div id="compass" title="North">
@@ -86,6 +107,11 @@
       <span class="dir s">S</span><span class="dir w">W</span>
     </div>
   </div>
+  <script>
+    // Collapsible menus: click a header to expand/collapse.
+    document.querySelectorAll("[data-menu] .menu-header").forEach((h) =>
+      h.addEventListener("click", () => h.parentElement.classList.toggle("open")));
+  </script>
   <script type="module" src="/src/main.js"></script>
 </body>
 </html>
