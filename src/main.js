@@ -335,6 +335,21 @@ async function main() {
     }
   }
 
+  // Index the rooms up front — before any tap can fire — so teleport clamping
+  // is ready from the very first double-tap. Records each IfcSpace box, hides
+  // the translucent space volumes, and excludes them from raycasting.
+  {
+    const ids = Object.values(await model.getItemsOfCategories([/IFCSPACE/])).flat();
+    const boxes = await model.getBoxes(ids);
+    const data = await model.getItemsData(ids, { attributesDefault: true });
+    ids.forEach((id, i) => {
+      roomBoxes.push({ id, name: String(data[i]?.Name?.value ?? "Room"), box: boxes[i].clone() });
+    });
+    await model.setVisible(ids, false);
+    for (const id of ids) skipIds.add(id);
+    await fragments.core.update(true);
+  }
+
   // Debug marker: concentric rings dropped on the floor at the last double-tap
   // so we can see exactly where a tap lands. Green = it hit a floor (teleports),
   // red = it hit something else (no teleport).
@@ -442,19 +457,12 @@ async function main() {
   };
   addView("\u{1F3E0} Overview", () => exitToOverview());
   {
-    // One eye-level view per room: stand at the room centre (always inside)
-    // looking toward the building centre, and confine the camera to the room.
-    const spaceMap = await model.getItemsOfCategories([/IFCSPACE/]);
-    const ids = Object.values(spaceMap).flat();
-    const boxes = await model.getBoxes(ids);
-    const data = await model.getItemsData(ids, { attributesDefault: true });
+    // One eye-level view per room (reusing the room index built earlier): stand
+    // at the room centre looking toward the building centre.
     const c = modelBox.getCenter(new THREE.Vector3());
     const rc = new THREE.Vector3(), dir = new THREE.Vector3();
-    ids.forEach((id, i) => {
-      const box = boxes[i].clone();
+    for (const { name, box } of roomBoxes) {
       box.getCenter(rc);
-      const name = String(data[i]?.Name?.value ?? "Room");
-      roomBoxes.push({ name, box });
       dir.set(c.x - rc.x, 0, c.z - rc.z);
       if (dir.lengthSq() < 0.25) dir.set(0, 0, -1);
       dir.normalize();
@@ -464,12 +472,7 @@ async function main() {
         await ctrls.setLookAt(cx, y, cz, tx, y, tz, true);
         enterRoom();
       });
-    });
-    // Hide the translucent IfcSpace volumes (they clutter the view and the
-    // raycast hits them first, blocking teleport) and never raycast them.
-    await model.setVisible(ids, false);
-    for (const id of ids) skipIds.add(id);
-    await fragments.core.update(true);
+    }
   }
 
   // --- build swinging door overlays ---------------------------------------
