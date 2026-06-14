@@ -3,6 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <!-- Don't let the browser cache the HTML. The JS/asset filenames are content-
+       hashed (so they bust automatically); keeping this HTML fresh means a
+       reload always picks up the latest deploy instead of a stale build. -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>Eureka Residence — BIM Viewer</title>
   <style>
     html, body { margin: 0; padding: 0; height: 100%; overflow: hidden;
