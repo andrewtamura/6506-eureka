@@ -44,13 +44,11 @@ async function main() {
   world.camera.controls.addEventListener("rest", () => fragments.core.update(true));
   world.camera.controls.addEventListener("update", () => fragments.core.update());
 
-  // When a model is added, attach it to the camera + scene and frame it.
+  // When a model is added, attach it to the camera + scene.
   fragments.list.onItemSet.add(({ value: model }) => {
     model.useCamera(world.camera.three);
     world.scene.three.add(model.object);
     fragments.core.update(true);
-    const box = new THREE.Box3().setFromObject(model.object);
-    if (!box.isEmpty()) world.camera.controls.fitToBox(box, true);
   });
 
   // --- IFC loader ---------------------------------------------------------
@@ -66,11 +64,27 @@ async function main() {
   const res = await fetch(`${BASE}floorplan.ifc`);
   if (!res.ok) throw new Error(`Could not fetch floorplan.ifc (${res.status})`);
   const bytes = new Uint8Array(await res.arrayBuffer());
-  const model = await ifcLoader.load(bytes, true, "Eureka Residence");
+  // coordinate=false keeps the model's authored coordinates so the floor sits
+  // on the grid (Y=0). With coordinate=true, base-coordination shifts the whole
+  // model below the grid, which reads as "sunk/upside-down".
+  const model = await ifcLoader.load(bytes, false, "Eureka Residence");
   await fragments.core.update(true);
+
+  // Fragments' base-coordination places the model below the grid; lift it so
+  // the floor rests on the grid plane (Y=0), then frame it. Shifting
+  // model.object keeps raycasting consistent (fragments uses its world matrix).
+  const box = new THREE.Box3().setFromObject(model.object);
+  if (!box.isEmpty()) {
+    model.object.position.y -= box.min.y;
+    model.object.updateMatrixWorld(true);
+    await fragments.core.update(true);
+    const framed = new THREE.Box3().setFromObject(model.object);
+    world.camera.controls.fitToBox(framed, true);
+  }
   setStatus("");
 
   // Debug handle (used by the headless smoke test; harmless in production).
+  window.THREE = THREE;
   window.__eureka = { components, world, fragments, model, loaded: true };
 
   // --- selection + properties --------------------------------------------
