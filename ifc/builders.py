@@ -239,10 +239,11 @@ def find_wall(ctx, orient, fixed_m, pos_m):
 
 
 def cut_opening(ctx, fill_class, name, orient, fixed_ft, pos_ft, width_ft,
-                sill_ft, head_ft):
+                sill_ft, head_ft, leaf=True):
     """Cut an opening (door/window) into the host wall and add its filling.
 
     All inputs are in PLAN feet; the flip to IFC metres happens here.
+    leaf=False makes a cased opening (a hole, no door panel) you can see through.
     """
     m = ctx.model
     if orient == "H":
@@ -264,6 +265,8 @@ def cut_opening(ctx, fill_class, name, orient, fixed_ft, pos_ft, width_ft,
     run("geometry.assign_representation", m, product=opening, representation=rep)
     run("geometry.edit_object_placement", m, product=opening, matrix=matrix(cx, cy, sill_m))
     run("feature.add_feature", m, feature=opening, element=host["wall"])
+    if not leaf:
+        return None  # cased opening: just the hole, no door panel
     fill = run("root.create_entity", m, ifc_class=fill_class, name=name)
     if hasattr(fill, "OverallHeight"):
         fill.OverallHeight = float(height)
@@ -283,7 +286,7 @@ def cut_opening(ctx, fill_class, name, orient, fixed_ft, pos_ft, width_ft,
 def add_doors(ctx, r):
     for d in r.get("doors", []):
         cut_opening(ctx, "IfcDoor", d["name"], d["orient"], d["fixed"], d["pos"],
-                    d["width"], 0.0, ctx.door_h_ft)
+                    d["width"], 0.0, ctx.door_h_ft, leaf=not d.get("opening", False))
 
 
 def add_windows(ctx, r):

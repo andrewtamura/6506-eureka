@@ -4,7 +4,9 @@
   "longName": "Scullery",
   "bounds": { "x1": -1.0833, "x2": 27.0833, "z1": -18.875, "z2": -11.9167 },
   "walls": true,
-  "doors": [],
+  "doors": [
+    { "name": "Back Door", "orient": "H", "fixed": -18.875, "pos": 18.67, "width": 3.0 }
+  ],
   "windows": [
     { "name": "Window - Scullery S1", "orient": "H", "fixed": -18.875, "pos": 3.0, "width": 3.5, "sill": 2.5, "head": 6.0 },
     { "name": "Window - Scullery S2", "orient": "H", "fixed": -18.875, "pos": 11.0, "width": 3.5, "sill": 2.5, "head": 6.0 },
