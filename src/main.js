@@ -447,23 +447,42 @@ async function main() {
     tapMarker.visible = true;
   }
 
+  // Debug readout: shows the net heading change of the last teleport so we can
+  // tell from the device whether the camera actually flips.
+  const debugEl = document.createElement("div");
+  debugEl.style.cssText = "position:fixed;left:12px;bottom:12px;z-index:20;" +
+    "background:rgba(20,24,33,0.85);color:#0f0;font:600 12px monospace;" +
+    "padding:5px 9px;border-radius:8px;pointer-events:none;";
+  debugEl.textContent = "teleport Δheading —";
+  document.body.appendChild(debugEl);
+
+  const _tdir = new THREE.Vector3();
+  const headingAngle = () => { world.camera.three.getWorldDirection(_tdir); return Math.atan2(_tdir.x, _tdir.z); };
   async function teleportTo(lx, ly) {
     const hit = await raycastSurface(lx, ly);
     if (!hit) return;
     showTapMarker(hit.point, floorIds.has(hit.localId)); // debug: where did the tap land?
     // Only floors are teleport targets — double-tapping a wall/window/etc. is a no-op.
     if (!floorIds.has(hit.localId)) return;
-    // Keep the heading you were facing. Derive it from the controls' azimuth
-    // (always well-defined) rather than the camera's 3D forward vector — the
-    // latter collapses to nothing when you tap the floor while looking steeply
-    // down (e.g. from the top-down overview), which used to snap you to north.
-    const az = ctrls.azimuthAngle;
-    const fx = -Math.sin(az), fz = -Math.cos(az); // horizontal forward for this azimuth
+    // Keep the heading you currently SEE. Use the camera's actual facing
+    // (horizontal). ctrls.azimuthAngle is the *target* spherical angle, which
+    // differs from the visible facing when the view is still settling from a
+    // drag — reading it there snapped the heading. Only fall back to the azimuth
+    // when looking almost straight down (where the horizontal facing vanishes).
+    world.camera.three.getWorldDirection(_tdir); _tdir.y = 0;
+    let fx, fz;
+    if (_tdir.lengthSq() > 1e-3) { _tdir.normalize(); fx = _tdir.x; fz = _tdir.z; }
+    else { const az = ctrls.azimuthAngle; fx = -Math.sin(az); fz = -Math.cos(az); }
+    const headBefore = Math.atan2(fx, fz);
     const { x: ex, z: ez } = clampToRoom(hit.point.x, hit.point.z); // safe standing spot
     const y = FLOOR + EYE;
     await clearSelection();
     await ctrls.setLookAt(ex, y, ez, ex + fx * LOOK_DIST, y, ez + fz * LOOK_DIST, true);
     enterRoom();
+    // debug HUD: net heading change across the teleport (≈0 means no flip)
+    let dh = (headingAngle() - headBefore) * 180 / Math.PI;
+    while (dh > 180) dh -= 360; while (dh < -180) dh += 360;
+    debugEl.textContent = `teleport Δheading ${dh.toFixed(0)}°`;
   }
 
   // --- interactive doors (double-tap a door to swing it open/closed) ------
