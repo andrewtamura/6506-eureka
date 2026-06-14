@@ -10,8 +10,10 @@ import * as FRAGS from "@thatopen/fragments";
 
 const BASE = import.meta.env.BASE_URL; // respects Vite `base` on GitHub Pages
 const statusEl = document.getElementById("status");
-const propsEl = document.getElementById("props");
+const propsEl = document.getElementById("props-menu");
 const propsBody = document.getElementById("props-body");
+const propsTitle = document.getElementById("props-title");
+const PROPS_HINT = '<div class="muted">Tap an element — a wall, the floor, a window — to see what it is.</div>';
 const setStatus = (t) => { statusEl.textContent = t; statusEl.style.display = t ? "block" : "none"; };
 
 async function main() {
@@ -149,13 +151,14 @@ async function main() {
 
   async function clearSelection() {
     if (selected != null) { await model.resetHighlight([selected]); selected = null; }
-    propsEl.style.display = "none";
+    propsTitle.textContent = "ℹ️ Selection";
+    propsBody.innerHTML = PROPS_HINT;
+    propsEl.classList.remove("open"); // collapse the menu when nothing is picked
   }
 
   function renderProps(title, rows) {
     propsBody.innerHTML = "";
-    const h = propsEl.querySelector("h2");
-    h.textContent = title;
+    propsTitle.textContent = `ℹ️ ${title}`;
     for (const [k, v] of rows) {
       const row = document.createElement("div"); row.className = "row";
       row.innerHTML = `<span class="k"></span><span class="v"></span>`;
@@ -163,7 +166,7 @@ async function main() {
       row.querySelector(".v").textContent = v;
       propsBody.appendChild(row);
     }
-    propsEl.style.display = "block";
+    propsEl.classList.add("open"); // expand the menu to reveal the picked element
   }
 
   const pointer = new THREE.Vector2();
@@ -185,14 +188,27 @@ async function main() {
       relationsDefault: { attributes: true, relations: false },
     });
     const val = (a) => (a && typeof a === "object" && "value" in a ? a.value : a);
-    const rows = [];
-    const category = val(data?._category) ?? "Element";
-    if (data?.Name != null) rows.push(["Name", val(data.Name)]);
-    if (data?.LongName != null) rows.push(["Long name", val(data.LongName)]);
-    if (data?.PredefinedType != null) rows.push(["Type", val(data.PredefinedType)]);
-    rows.push(["IFC class", category]);
-    rows.push(["Local ID", selected]);
-    renderProps(String(category).replace(/^Ifc/, ""), rows);
+    const category = String(val(data?._category) ?? "Element");
+    // Plain-language label for the IFC class (the raw class name and internal
+    // id aren't meaningful to a homeowner).
+    // _category comes back uppercase (e.g. "IFCWALL"), so key by that.
+    const FRIENDLY = {
+      IFCWALL: "Wall", IFCWALLSTANDARDCASE: "Wall", IFCSLAB: "Floor",
+      IFCDOOR: "Door", IFCWINDOW: "Window", IFCSPACE: "Room",
+      IFCCOVERING: "Floor finish", IFCFURNISHINGELEMENT: "Furniture",
+      IFCFURNITURE: "Furniture", IFCROOF: "Roof", IFCBEAM: "Beam",
+      IFCCOLUMN: "Column", IFCMEMBER: "Frame", IFCPLATE: "Glass panel",
+      IFCSTAIR: "Stair", IFCRAILING: "Railing", IFCBUILDINGELEMENTPROXY: "Fixture",
+    };
+    const key = category.toUpperCase();
+    const rest = key.replace(/^IFC/, "");
+    const kind = FRIENDLY[key] || (rest ? rest[0] + rest.slice(1).toLowerCase() : "Element");
+    const rows = [["What it is", kind]];
+    const display = data?.LongName != null ? String(val(data.LongName))
+                  : data?.Name != null ? String(val(data.Name)) : "";
+    if (display && display.toLowerCase() !== kind.toLowerCase())
+      rows.push(["Name", display]);
+    renderProps(kind, rows);
   }
 
   // --- interior camera: confine to a room so panning can't fly through walls
