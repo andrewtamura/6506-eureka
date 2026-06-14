@@ -19,6 +19,20 @@ const setStatus = (t) => { statusEl.textContent = t; statusEl.style.display = t 
 async function main() {
   const container = document.getElementById("viewer");
 
+  // Show which build is live (git hash + date) so a cached/stale asset is
+  // obvious. The values are injected by Vite `define` at build time.
+  {
+    const buildEl = document.getElementById("build-info");
+    const hash = typeof __BUILD_HASH__ !== "undefined" ? __BUILD_HASH__ : "dev";
+    const date = typeof __BUILD_DATE__ !== "undefined" ? __BUILD_DATE__ : "";
+    if (buildEl) {
+      buildEl.innerHTML =
+        `build <a href="https://github.com/andrewtamura/6506-eureka/commit/${hash}" ` +
+        `target="_blank" rel="noopener" style="color:#2563c9;text-decoration:none">${hash}</a>` +
+        (date ? ` · ${date}` : "");
+    }
+  }
+
   // Strip the engine's "That Open Company" watermark logo (an SVG-bearing div
   // the renderer appends into the container). Our own UI lives outside #viewer
   // and uses no SVGs, so any SVG div added here is the logo.
