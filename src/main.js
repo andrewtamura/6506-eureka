@@ -16,37 +16,6 @@ const propsTitle = document.getElementById("props-title");
 const PROPS_HINT = '<div class="muted">Tap an element — a wall, the floor, a window — to see what it is.</div>';
 const setStatus = (t) => { statusEl.textContent = t; statusEl.style.display = t ? "block" : "none"; };
 
-// Procedural hardwood texture: 6" planks running along U (drawn East-West when
-// UV-mapped from world X), running-bond stagger, per-plank shade variation and
-// grain streaks, seamless so it tiles continuously across rooms.
-function makeWoodTexture(THREE) {
-  const S = 512, rows = 16;            // 16 planks across an 8 ft tile (~6" each)
-  const cv = document.createElement("canvas"); cv.width = cv.height = S;
-  const g = cv.getContext("2d");
-  const rh = S / rows;
-  const rnd = (n) => { const x = Math.sin(n * 127.1) * 43758.5; return x - Math.floor(x); };
-  g.fillStyle = "#33220f"; g.fillRect(0, 0, S, S); // groove / gaps show through
-  for (let r = 0; r < rows; r++) {
-    const y = r * rh;
-    const sh = 0.8 + rnd(r) * 0.42;                // per-plank brightness
-    const cr = Math.min(255, 140 * sh) | 0, cg = Math.min(255, 92 * sh) | 0, cb = Math.min(255, 46 * sh) | 0;
-    g.fillStyle = `rgb(${cr},${cg},${cb})`;
-    g.fillRect(0, y + 1, S, rh - 2);               // plank face (1px groove top/bottom)
-    const ex = r % 2 ? S / 2 : 0;                  // plank-end groove, staggered per row
-    g.fillStyle = "#33220f"; g.fillRect(ex - 1, y, 2, rh);
-    g.strokeStyle = "rgba(50,32,16,0.22)"; g.lineWidth = 1; // grain streaks
-    for (let k = 0; k < 4; k++) {
-      const gy = y + 3 + rnd(r * 7 + k) * (rh - 6);
-      g.beginPath(); g.moveTo(0, gy); g.lineTo(S, gy); g.stroke();
-    }
-  }
-  const tex = new THREE.CanvasTexture(cv);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 8;
-  return tex;
-}
-
 async function main() {
   const container = document.getElementById("viewer");
 
@@ -381,11 +350,13 @@ async function main() {
     await fragments.core.update(true);
   }
 
-  // --- realistic hardwood floor (textured plane, not plank geometry) ------
-  // The IFC authors hardwood as hundreds of small plank solids, which the
-  // fragments engine streams/re-renders as the camera moves (visible pop-in).
-  // Hide those coverings and lay one wood-grain textured plane per room. UVs
-  // are derived from world coordinates so planks stay continuous across rooms.
+  // --- realistic hardwood floor (one instanced mesh, not plank geometry) --
+  // The IFC authors hardwood as hundreds of small plank solids; the fragments
+  // engine streams/re-renders those as the camera moves (visible pop-in). Hide
+  // them and draw real 3D planks ourselves as a single THREE.InstancedMesh —
+  // every plank in every room is one draw call, so nothing streams or pops.
+  // The plank grid is laid on GLOBAL world coordinates so boards line up and run
+  // continuously across rooms and through doorways.
   {
     const covs = Object.values(await model.getItemsOfCategories([/IFCCOVERING/])).flat();
     const cdata = await model.getItemsData(covs, { attributesDefault: true });
@@ -398,26 +369,52 @@ async function main() {
     if (woodIds.length) {
       await model.setVisible(woodIds, false);   // stop the plank geometry rendering
       await fragments.core.update(true);
-      const tex = makeWoodTexture(THREE);
-      const T = 2.4384;                          // world metres per texture tile (8 ft)
-      const fy = FLOOR + 0.02;                   // sit just above the slab
+      const FT = 0.3048;
+      const pw = 0.5 * FT, rgap = 0.012 * FT;   // board width 6" (across grain, N-S)
+      const seg = 10 * FT, egap = 0.03 * FT;    // board length 10' (along grain, E-W)
+      const ph = 0.02;                          // plank relief (height) in metres
+      const fy = FLOOR + 0.02;                  // plank underside, just above the slab
+      const baseRGB = [0.55, 0.36, 0.18];       // hardwood base colour
+      const factors = [0.82, 0.9, 0.97, 1.05, 1.12, 0.86, 1.0];
+      const hash = (n) => { const x = Math.sin(n * 127.1) * 43758.5; return x - Math.floor(x); };
+      // Dark base under the planks so the gaps read as groove lines.
+      const baseMat = new THREE.MeshLambertMaterial({ color: 0x2a1c0d });
+      const planks = [];
       for (const b of woodBoxes) {
-        const w = b.max.x - b.min.x, d = b.max.z - b.min.z;
-        const cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2;
-        const geo = new THREE.PlaneGeometry(w, d);
-        // Map each vertex's UV to its WORLD position (u=worldX/T, v=worldZ/T) so
-        // the wood pattern is continuous from room to room. rotation.x=-90°
-        // sends local (x,y) to world (x, -y).
-        const pos = geo.attributes.position, uv = geo.attributes.uv;
-        for (let vi = 0; vi < pos.count; vi++) {
-          uv.setXY(vi, (cx + pos.getX(vi)) / T, (cz - pos.getY(vi)) / T);
+        const x1 = b.min.x, x2 = b.max.x, z1 = b.min.z, z2 = b.max.z;
+        const base = new THREE.Mesh(new THREE.PlaneGeometry(x2 - x1, z2 - z1), baseMat);
+        base.rotation.x = -Math.PI / 2;
+        base.position.set((x1 + x2) / 2, fy - 0.004, (z1 + z2) / 2);
+        world.scene.three.add(base);
+        for (let k = Math.floor(z1 / pw); k < Math.ceil(z2 / pw); k++) {
+          const ry0 = Math.max(k * pw, z1), ry1 = Math.min((k + 1) * pw, z2);
+          const depth = (ry1 - rgap) - ry0;
+          if (depth < 0.03) continue;
+          const cz = (ry0 + ry1 - rgap) / 2;
+          const off = hash(k) * seg;             // per-row stagger on the global grid
+          for (let j = Math.floor((x1 - off) / seg); j < Math.ceil((x2 - off) / seg); j++) {
+            const px0 = off + j * seg;
+            const a = Math.max(px0, x1), bb = Math.min(px0 + seg - egap, x2);
+            const len = bb - a;
+            if (len < 0.05) continue;
+            const f = factors[Math.floor(hash(k * 131.7 + j * 7.31) * factors.length) % factors.length];
+            planks.push({ cx: (a + bb) / 2, cz, len, depth, f });
+          }
         }
-        uv.needsUpdate = true;
-        const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: tex }));
-        mesh.rotation.x = -Math.PI / 2;
-        mesh.position.set(cx, fy, cz);
-        world.scene.three.add(mesh);
       }
+      const inst = new THREE.InstancedMesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        new THREE.MeshLambertMaterial({}), planks.length);
+      const m = new THREE.Matrix4(), col = new THREE.Color();
+      planks.forEach((p, i) => {
+        m.makeScale(p.len, ph, p.depth);
+        m.setPosition(p.cx, fy + ph / 2, p.cz);
+        inst.setMatrixAt(i, m);
+        inst.setColorAt(i, col.setRGB(baseRGB[0] * p.f, baseRGB[1] * p.f, baseRGB[2] * p.f));
+      });
+      inst.instanceMatrix.needsUpdate = true;
+      if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+      world.scene.three.add(inst);
     }
   }
 
