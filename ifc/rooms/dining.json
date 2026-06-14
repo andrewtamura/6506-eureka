@@ -2,13 +2,46 @@
   "key": "Zi",
   "name": "Dining Room",
   "longName": "Dining Room",
-  "bounds": { "x1": 15.0833, "x2": 31, "z1": 2, "z2": 16.0833 },
+  "bounds": {
+    "x1": 15.0833,
+    "x2": 31,
+    "z1": 2,
+    "z2": 16.0833
+  },
   "walls": true,
   "doors": [],
   "windows": [
-    { "name": "Window - Dining W1", "orient": "V", "fixed": 31.0, "pos": 6.0, "width": 4.0, "sill": 2.5, "head": 6.5 },
-    { "name": "Window - Dining W2", "orient": "V", "fixed": 31.0, "pos": 12.0, "width": 4.0, "sill": 2.5, "head": 6.5 },
-    { "name": "Window - Dining N", "orient": "H", "fixed": 16.0833, "pos": 23.0, "width": 4.0, "sill": 2.5, "head": 6.5 }
+    {
+      "name": "Window - Dining W1",
+      "orient": "V",
+      "fixed": 31.0,
+      "pos": 5.58,
+      "width": 3.0,
+      "sill": 2.5,
+      "head": 7.0
+    },
+    {
+      "name": "Window - Dining W2",
+      "orient": "V",
+      "fixed": 31.0,
+      "pos": 12.58,
+      "width": 3.0,
+      "sill": 2.5,
+      "head": 7.0
+    },
+    {
+      "name": "Window - Dining N (picture)",
+      "orient": "H",
+      "fixed": 16.0833,
+      "pos": 22.4,
+      "width": 8.0,
+      "sill": 1.5,
+      "head": 7.0
+    }
   ],
-  "interior": { "flooring": { "material": "hardwood" } }
+  "interior": {
+    "flooring": {
+      "material": "hardwood"
+    }
+  }
 }
