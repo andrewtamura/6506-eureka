@@ -74,12 +74,13 @@ async function main() {
   // the floor rests on the grid plane (Y=0), then frame it. Shifting
   // model.object keeps raycasting consistent (fragments uses its world matrix).
   const box = new THREE.Box3().setFromObject(model.object);
+  let modelBox = box;
   if (!box.isEmpty()) {
     model.object.position.y -= box.min.y;
     model.object.updateMatrixWorld(true);
     await fragments.core.update(true);
-    const framed = new THREE.Box3().setFromObject(model.object);
-    world.camera.controls.fitToBox(framed, true);
+    modelBox = new THREE.Box3().setFromObject(model.object);
+    world.camera.controls.fitToBox(modelBox, true);
   }
   setStatus("");
 
@@ -116,25 +117,19 @@ async function main() {
   }
 
   const pointer = new THREE.Vector2();
-  let down = null;
-  container.addEventListener("pointerdown", (e) => (down = { x: e.clientX, y: e.clientY }));
-  container.addEventListener("pointerup", async (e) => {
-    // Ignore drags (orbiting the camera shouldn't select).
-    if (down && (Math.abs(e.clientX - down.x) > 4 || Math.abs(e.clientY - down.y) > 4)) return;
-    const rect = container.getBoundingClientRect();
-    pointer.set(e.clientX - rect.left, e.clientY - rect.top);
-    const hit = await model.raycast({
-      camera: world.camera.three,
-      mouse: pointer,
-      dom: world.renderer.three.domElement,
-    });
+  const dom = world.renderer.three.domElement;
+  const raycastAt = (lx, ly) => {
+    pointer.set(lx, ly);
+    return model.raycast({ camera: world.camera.three, mouse: pointer, dom });
+  };
+
+  async function selectAt(lx, ly) {
+    const hit = await raycastAt(lx, ly);
     await clearSelection();
     if (!hit) return;
-
     selected = hit.localId;
     await model.highlight([selected], HIGHLIGHT);
     await fragments.core.update(true);
-
     const [data] = await model.getItemsData([selected], {
       attributesDefault: true,
       relationsDefault: { attributes: true, relations: false },
@@ -148,10 +143,80 @@ async function main() {
     rows.push(["IFC class", category]);
     rows.push(["Local ID", selected]);
     renderProps(String(category).replace(/^Ifc/, ""), rows);
+  }
+
+  // --- first-person teleport (double-tap / double-click) ------------------
+  const FLOOR = modelBox.min.y + 0.2; // floor surface (slab top) in world Y
+  const EYE = 1.6;                     // standing eye height above the floor (m)
+  const _fwd = new THREE.Vector3();
+  async function teleportTo(lx, ly) {
+    const hit = await raycastAt(lx, ly);
+    if (!hit) return;
+    world.camera.three.getWorldDirection(_fwd);
+    _fwd.y = 0;
+    if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, -1);
+    _fwd.normalize();
+    const y = FLOOR + EYE;
+    const ex = hit.point.x, ez = hit.point.z;
+    await clearSelection();
+    world.camera.controls.setLookAt(
+      ex, y, ez, ex + _fwd.x * 4, y, ez + _fwd.z * 4, true);
+  }
+
+  // pointer handling: drag = orbit, single tap = select, double tap = teleport
+  let down = null, lastTap = 0, lastX = 0, lastY = 0;
+  container.addEventListener("pointerdown", (e) => (down = { x: e.clientX, y: e.clientY }));
+  container.addEventListener("pointerup", async (e) => {
+    if (down && (Math.abs(e.clientX - down.x) > 4 || Math.abs(e.clientY - down.y) > 4)) return;
+    const rect = container.getBoundingClientRect();
+    const lx = e.clientX - rect.left, ly = e.clientY - rect.top;
+    const now = performance.now();
+    if (now - lastTap < 350 && Math.hypot(e.clientX - lastX, e.clientY - lastY) < 25) {
+      lastTap = 0;
+      await teleportTo(lx, ly);
+      return;
+    }
+    lastTap = now; lastX = e.clientX; lastY = e.clientY;
+    await selectAt(lx, ly);
   });
 
   // Click empty space (Esc) to clear.
   window.addEventListener("keydown", (e) => { if (e.key === "Escape") clearSelection(); });
+
+  // --- preset POV views ---------------------------------------------------
+  const viewsEl = document.getElementById("views");
+  const addView = (label, fn) => {
+    const btn = document.createElement("button");
+    btn.className = "view-btn";
+    btn.textContent = label;
+    btn.addEventListener("click", fn);
+    viewsEl.appendChild(btn);
+  };
+  addView("\u{1F3E0} Overview", () =>
+    world.camera.controls.fitToBox(modelBox, true));
+  {
+    // One eye-level view per room: stand just inside the near wall looking
+    // across the room toward the building centre (central rooms face North).
+    const spaceMap = await model.getItemsOfCategories([/IFCSPACE/]);
+    const ids = Object.values(spaceMap).flat();
+    const boxes = await model.getBoxes(ids);
+    const data = await model.getItemsData(ids, { attributesDefault: true });
+    const c = modelBox.getCenter(new THREE.Vector3());
+    const rc = new THREE.Vector3(), dir = new THREE.Vector3();
+    ids.forEach((id, i) => {
+      const bx = boxes[i];
+      bx.getCenter(rc);
+      const name = String(data[i]?.Name?.value ?? "Room");
+      dir.set(c.x - rc.x, 0, c.z - rc.z);
+      if (dir.lengthSq() < 0.25) dir.set(0, 0, -1);
+      dir.normalize();
+      const y = FLOOR + EYE;
+      const ex = rc.x - dir.x * 1.5, ez = rc.z - dir.z * 1.5;
+      const tx = rc.x + dir.x * 6, tz = rc.z + dir.z * 6;
+      addView(name, () =>
+        world.camera.controls.setLookAt(ex, y, ez, tx, y, tz, true));
+    });
+  }
 
   // --- compass ------------------------------------------------------------
   // The model is authored to true cardinal directions (IFC +X=East, +Y=North).

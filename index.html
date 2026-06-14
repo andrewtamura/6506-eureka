@@ -52,6 +52,17 @@
       transform: translateX(-50%);
       border-left: 5px solid transparent; border-right: 5px solid transparent;
       border-bottom: 22px solid #d23; }
+    /* Preset POV views */
+    #views {
+      position: fixed; left: 12px; top: 104px; z-index: 10; max-width: 224px;
+      display: flex; flex-wrap: wrap; gap: 5px; }
+    .view-btn {
+      background: rgba(255,255,255,0.9); backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      border: none; border-radius: 8px; padding: 5px 9px;
+      font: 600 11px sans-serif; color: #334; cursor: pointer;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
+    .view-btn:hover { background: #fff; }
   </style>
 </head>
 <body>
@@ -59,8 +70,9 @@
   <div class="panel">
     <h1>🏠 Eureka Residence</h1>
     <div class="muted">IFC / BIM model — That Open Engine</div>
-    <div class="muted" style="margin-top:6px">Click an element to inspect its properties.</div>
+    <div class="muted" style="margin-top:6px">Click an element to inspect it. Double-tap the floor to teleport inside.</div>
   </div>
+  <div id="views"></div>
   <div id="props"><h2>Properties</h2><div id="props-body"></div></div>
   <div id="status">Loading…</div>
   <div id="compass" title="North">
