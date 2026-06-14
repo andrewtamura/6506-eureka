@@ -54,6 +54,17 @@ def main():
     H = spec["wallHeight"] * FT             # wall / ceiling height (m)
     SLAB_T = 0.2                            # floor slab thickness (m)
     rooms = spec["rooms"]
+
+    # Flip the plan's depth axis (plan-z) before authoring. Standard IFC viewers
+    # convert IFC (Z-up) to a Y-up scene by rotating -90 deg about X, which maps
+    # IFC +Y to scene -Z -- i.e. it negates the depth axis. Authoring IFC_Y as
+    # -plan_z cancels that, so the model renders in the same orientation as the
+    # original floor plan (otherwise rooms appear mirrored front-to-back).
+    ZS = -1.0
+    for r in rooms:
+        z1, z2 = ZS * r["z1"], ZS * r["z2"]
+        r["z1"], r["z2"] = min(z1, z2), max(z1, z2)
+
     enclosed = [r for r in rooms if r["key"] != "fi"]  # porch has no walls
 
     # ---- file + units + contexts -------------------------------------------
@@ -249,11 +260,17 @@ def main():
         run("spatial.assign_container", m, products=[fill],
             relating_structure=storey)
 
+    # Apply the same depth-axis flip (ZS) to openings. For an H wall the
+    # depth-axis coord is `fixed`; for a V wall it is `pos`.
     for name, orient, fixed, pos, width in door_defs:
-        cut_opening("IfcDoor", name, orient, fixed * FT, pos * FT,
+        f = ZS * fixed if orient == "H" else fixed
+        p = ZS * pos if orient == "V" else pos
+        cut_opening("IfcDoor", name, orient, f * FT, p * FT,
                     width * FT, 0.0, DOOR_H)
     for name, orient, fixed, pos, width, sill, head in win_defs:
-        cut_opening("IfcWindow", name, orient, fixed * FT, pos * FT,
+        f = ZS * fixed if orient == "H" else fixed
+        p = ZS * pos if orient == "V" else pos
+        cut_opening("IfcWindow", name, orient, f * FT, p * FT,
                     width * FT, sill * FT, head * FT)
 
     out = os.path.join(HERE, "floorplan.ifc")
