@@ -16,6 +16,37 @@ const propsTitle = document.getElementById("props-title");
 const PROPS_HINT = '<div class="muted">Tap an element — a wall, the floor, a window — to see what it is.</div>';
 const setStatus = (t) => { statusEl.textContent = t; statusEl.style.display = t ? "block" : "none"; };
 
+// Procedural hardwood texture: 6" planks running along U (drawn East-West when
+// UV-mapped from world X), running-bond stagger, per-plank shade variation and
+// grain streaks, seamless so it tiles continuously across rooms.
+function makeWoodTexture(THREE) {
+  const S = 512, rows = 16;            // 16 planks across an 8 ft tile (~6" each)
+  const cv = document.createElement("canvas"); cv.width = cv.height = S;
+  const g = cv.getContext("2d");
+  const rh = S / rows;
+  const rnd = (n) => { const x = Math.sin(n * 127.1) * 43758.5; return x - Math.floor(x); };
+  g.fillStyle = "#33220f"; g.fillRect(0, 0, S, S); // groove / gaps show through
+  for (let r = 0; r < rows; r++) {
+    const y = r * rh;
+    const sh = 0.8 + rnd(r) * 0.42;                // per-plank brightness
+    const cr = Math.min(255, 140 * sh) | 0, cg = Math.min(255, 92 * sh) | 0, cb = Math.min(255, 46 * sh) | 0;
+    g.fillStyle = `rgb(${cr},${cg},${cb})`;
+    g.fillRect(0, y + 1, S, rh - 2);               // plank face (1px groove top/bottom)
+    const ex = r % 2 ? S / 2 : 0;                  // plank-end groove, staggered per row
+    g.fillStyle = "#33220f"; g.fillRect(ex - 1, y, 2, rh);
+    g.strokeStyle = "rgba(50,32,16,0.22)"; g.lineWidth = 1; // grain streaks
+    for (let k = 0; k < 4; k++) {
+      const gy = y + 3 + rnd(r * 7 + k) * (rh - 6);
+      g.beginPath(); g.moveTo(0, gy); g.lineTo(S, gy); g.stroke();
+    }
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 8;
+  return tex;
+}
+
 async function main() {
   const container = document.getElementById("viewer");
 
@@ -348,6 +379,46 @@ async function main() {
     await model.setVisible(ids, false);
     for (const id of ids) skipIds.add(id);
     await fragments.core.update(true);
+  }
+
+  // --- realistic hardwood floor (textured plane, not plank geometry) ------
+  // The IFC authors hardwood as hundreds of small plank solids, which the
+  // fragments engine streams/re-renders as the camera moves (visible pop-in).
+  // Hide those coverings and lay one wood-grain textured plane per room. UVs
+  // are derived from world coordinates so planks stay continuous across rooms.
+  {
+    const covs = Object.values(await model.getItemsOfCategories([/IFCCOVERING/])).flat();
+    const cdata = await model.getItemsData(covs, { attributesDefault: true });
+    const cboxes = await model.getBoxes(covs);
+    const woodBoxes = [];
+    const woodIds = [];
+    covs.forEach((id, i) => {
+      if (/hardwood/i.test(String(cdata[i]?.Name?.value ?? ""))) { woodIds.push(id); woodBoxes.push(cboxes[i]); }
+    });
+    if (woodIds.length) {
+      await model.setVisible(woodIds, false);   // stop the plank geometry rendering
+      await fragments.core.update(true);
+      const tex = makeWoodTexture(THREE);
+      const T = 2.4384;                          // world metres per texture tile (8 ft)
+      const fy = FLOOR + 0.02;                   // sit just above the slab
+      for (const b of woodBoxes) {
+        const w = b.max.x - b.min.x, d = b.max.z - b.min.z;
+        const cx = (b.min.x + b.max.x) / 2, cz = (b.min.z + b.max.z) / 2;
+        const geo = new THREE.PlaneGeometry(w, d);
+        // Map each vertex's UV to its WORLD position (u=worldX/T, v=worldZ/T) so
+        // the wood pattern is continuous from room to room. rotation.x=-90°
+        // sends local (x,y) to world (x, -y).
+        const pos = geo.attributes.position, uv = geo.attributes.uv;
+        for (let vi = 0; vi < pos.count; vi++) {
+          uv.setXY(vi, (cx + pos.getX(vi)) / T, (cz - pos.getY(vi)) / T);
+        }
+        uv.needsUpdate = true;
+        const mesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ map: tex }));
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.position.set(cx, fy, cz);
+        world.scene.three.add(mesh);
+      }
+    }
   }
 
   // Debug marker: concentric rings dropped on the floor at the last double-tap
