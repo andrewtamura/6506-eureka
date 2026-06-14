@@ -7,6 +7,9 @@
 import * as THREE from "three";
 import * as OBC from "@thatopen/components";
 import * as FRAGS from "@thatopen/fragments";
+import { setupLighting } from "./lighting.js";
+import { setupCompass } from "./compass.js";
+import { buildWoodFloor } from "./wood-floor.js";
 
 const BASE = import.meta.env.BASE_URL; // respects Vite `base` on GitHub Pages
 const statusEl = document.getElementById("status");
@@ -67,31 +70,11 @@ async function main() {
   grids.create(world);
 
   // --- time-of-day lighting ----------------------------------------------
-  // Replace SimpleScene's default lights with our own sun + sky rig so the
-  // Morning/Afternoon/Evening/Night presets fully control the look.
-  const defaultLights = [];
-  scene.traverse((o) => { if (o.isLight) defaultLights.push(o); });
-  defaultLights.forEach((l) => l.removeFromParent());
-  const sun = new THREE.DirectionalLight(0xffffff, 3);
-  const sky = new THREE.HemisphereLight(0xbfdcff, 0x9a8a7a, 0.8);
-  scene.add(sun, sun.target, sky);
-  const LIGHTING = {
-    Morning:   { bg: 0xcfe3f5, sun: 0xffd9a0, si: 2.2, dir: [1, 0.45, 0.2],   sky: 0xbcd8f0, grd: 0x9a7a5a, hi: 0.6 },
-    Afternoon: { bg: 0xb0d4f1, sun: 0xfff3e0, si: 3.2, dir: [-0.3, 1, 0.25],  sky: 0xbfdcff, grd: 0x9a8a7a, hi: 0.9 },
-    Evening:   { bg: 0xf3c79a, sun: 0xff8a45, si: 2.0, dir: [-1, 0.35, -0.1], sky: 0xb08fb0, grd: 0x6a5a4a, hi: 0.5 },
-    Night:     { bg: 0x0b1020, sun: 0x9fb6ff, si: 0.5, dir: [0.2, 1, -0.3],   sky: 0x22304a, grd: 0x0d1018, hi: 0.25 },
-  };
-  function applyLighting(name) {
-    const p = LIGHTING[name];
-    scene.background = new THREE.Color(p.bg);
-    sun.color.set(p.sun); sun.intensity = p.si;
-    sun.position.set(p.dir[0], p.dir[1], p.dir[2]).normalize().multiplyScalar(40);
-    sky.color.set(p.sky); sky.groundColor.set(p.grd); sky.intensity = p.hi;
-  }
+  const { apply: applyLighting, names: lightingNames } = setupLighting(scene);
   applyLighting("Afternoon");
   const lightEl = document.getElementById("lighting");
   const icons = { Morning: "\u{1F305}", Afternoon: "☀️", Evening: "\u{1F307}", Night: "\u{1F319}" };
-  for (const name of Object.keys(LIGHTING)) {
+  for (const name of lightingNames) {
     const btn = document.createElement("button");
     btn.className = "view-btn";
     btn.textContent = `${icons[name]} ${name}`;
@@ -350,76 +333,8 @@ async function main() {
     await fragments.core.update(true);
   }
 
-  // --- realistic hardwood floor (one instanced mesh, not plank geometry) --
-  // The IFC authors hardwood as hundreds of small plank solids; the fragments
-  // engine streams/re-renders those as the camera moves (visible pop-in). Hide
-  // them and draw real 3D planks ourselves as a single THREE.InstancedMesh —
-  // every plank in every room is one draw call, so nothing streams or pops.
-  // The plank grid is laid on GLOBAL world coordinates so boards line up and run
-  // continuously across rooms and through doorways.
-  {
-    // The generator lists which coverings are plank floors (+ colour) in
-    // floors.json — an explicit contract, instead of guessing from the name.
-    let manifest = [];
-    try { manifest = await (await fetch(`${BASE}floors.json`)).json(); } catch (e) { /* none */ }
-    const covs = Object.values(await model.getItemsOfCategories([/IFCCOVERING/])).flat();
-    const cdata = await model.getItemsData(covs, { attributesDefault: true });
-    const cboxes = await model.getBoxes(covs);
-    const byName = new Map();
-    covs.forEach((id, i) => byName.set(String(cdata[i]?.Name?.value ?? ""), { id, box: cboxes[i] }));
-    const floors = manifest
-      .map((e) => ({ ...byName.get(e.name), rgb: e.rgb }))
-      .filter((f) => f.box);
-    if (floors.length) {
-      await model.setVisible(floors.map((f) => f.id), false); // hide the IFC plank geometry
-      await fragments.core.update(true);
-      const FT = 0.3048;
-      const pw = 0.5 * FT, rgap = 0.012 * FT;   // board width 6" (across grain, N-S)
-      const seg = 10 * FT, egap = 0.03 * FT;    // board length 10' (along grain, E-W)
-      const ph = 0.02;                          // plank relief (height) in metres
-      const fy = FLOOR + 0.02;                  // plank underside, just above the slab
-      const factors = [0.82, 0.9, 0.97, 1.05, 1.12, 0.86, 1.0];
-      const hash = (n) => { const x = Math.sin(n * 127.1) * 43758.5; return x - Math.floor(x); };
-      const baseMat = new THREE.MeshLambertMaterial({ color: 0x2a1c0d }); // groove colour
-      const planks = [];
-      for (const fl of floors) {
-        const bx = fl.box, [cr, cg, cb] = fl.rgb;
-        const x1 = bx.min.x, x2 = bx.max.x, z1 = bx.min.z, z2 = bx.max.z;
-        const base = new THREE.Mesh(new THREE.PlaneGeometry(x2 - x1, z2 - z1), baseMat);
-        base.rotation.x = -Math.PI / 2;
-        base.position.set((x1 + x2) / 2, fy - 0.004, (z1 + z2) / 2);
-        world.scene.three.add(base);
-        for (let k = Math.floor(z1 / pw); k < Math.ceil(z2 / pw); k++) {
-          const ry0 = Math.max(k * pw, z1), ry1 = Math.min((k + 1) * pw, z2);
-          const depth = (ry1 - rgap) - ry0;
-          if (depth < 0.03) continue;
-          const cz = (ry0 + ry1 - rgap) / 2;
-          const off = hash(k) * seg;             // per-row stagger on the global grid
-          for (let j = Math.floor((x1 - off) / seg); j < Math.ceil((x2 - off) / seg); j++) {
-            const px0 = off + j * seg;
-            const a = Math.max(px0, x1), bEnd = Math.min(px0 + seg - egap, x2);
-            const len = bEnd - a;
-            if (len < 0.05) continue;
-            const sf = factors[Math.floor(hash(k * 131.7 + j * 7.31) * factors.length) % factors.length];
-            planks.push({ cx: (a + bEnd) / 2, cz, len, depth, r: cr * sf, g: cg * sf, b: cb * sf });
-          }
-        }
-      }
-      const inst = new THREE.InstancedMesh(
-        new THREE.BoxGeometry(1, 1, 1),
-        new THREE.MeshLambertMaterial({}), planks.length);
-      const m = new THREE.Matrix4(), col = new THREE.Color();
-      planks.forEach((p, i) => {
-        m.makeScale(p.len, ph, p.depth);
-        m.setPosition(p.cx, fy + ph / 2, p.cz);
-        inst.setMatrixAt(i, m);
-        inst.setColorAt(i, col.setRGB(p.r, p.g, p.b));
-      });
-      inst.instanceMatrix.needsUpdate = true;
-      if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
-      world.scene.three.add(inst);
-    }
-  }
+  // --- realistic hardwood floor (one instanced mesh; see wood-floor.js) ---
+  await buildWoodFloor({ scene, model, fragments, floorY: FLOOR, baseUrl: BASE });
 
   const _tdir = new THREE.Vector3();
   // Glide the camera to a new pose by interpolating the eye + look-at point as
@@ -617,27 +532,8 @@ async function main() {
     window.__eureka.doors = doors; // for the headless smoke test
   }
 
-  // --- compass ------------------------------------------------------------
-  // The model is authored to true cardinal directions (IFC +X=East, +Y=North).
-  // web-ifc maps IFC +Y -> three.js -Z, so "North" in the scene is (0,0,-1).
-  // Rotate the compass rose so its N points along North's screen direction.
-  const rose = document.getElementById("compass-rose");
-  const camOrigin = new THREE.Vector3();
-  const northPt = new THREE.Vector3();
-  function updateCompass() {
-    const cam = world.camera.three;
-    cam.updateMatrixWorld();
-    camOrigin.set(0, 0, 0).project(cam);
-    northPt.set(0, 0, -1).project(cam); // one unit North in world space
-    const dx = northPt.x - camOrigin.x;
-    const dy = northPt.y - camOrigin.y; // NDC y is up
-    // Angle to rotate "up" (the rose's default N) onto the North screen vector.
-    const angle = Math.atan2(dx, dy);
-    rose.style.transform = `rotate(${angle}rad)`;
-  }
-  world.camera.controls.addEventListener("update", updateCompass);
-  world.camera.controls.addEventListener("rest", updateCompass);
-  updateCompass();
+  // --- compass (see compass.js) -------------------------------------------
+  setupCompass(world.camera.three, world.camera.controls);
 }
 
 main().catch((err) => {
