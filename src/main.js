@@ -39,6 +39,14 @@ async function main() {
   const scene = world.scene.three;
   await world.camera.controls.setLookAt(18, 14, 18, 0, 1.5, 0);
 
+  // Wider field of view for an immersive interior feel (a 50–60° lens reads as
+  // "looking through a tube" once you're standing in a room); a small near
+  // plane keeps nearby walls from clipping when you're close to them.
+  const cam3 = world.camera.three;
+  cam3.fov = 75;
+  cam3.near = 0.05;
+  cam3.updateProjectionMatrix();
+
   const grids = components.get(OBC.Grids);
   grids.create(world);
 
@@ -189,21 +197,45 @@ async function main() {
 
   // --- interior camera: confine to a room so panning can't fly through walls
   const FLOOR = modelBox.min.y + 0.2; // floor surface (slab top) in world Y
-  const EYE = 1.6;                     // standing eye height above the floor (m)
+  const EYE = 1.63;                    // eye height for a 5'8" person (~1.63 m)
+  const LOOK_DIST = 0.05;              // orbit radius indoors: ~0 so you spin in place
   const ctrls = world.camera.controls;
   const roomBoxes = [];                // { name, box } filled when POV views build
   const skipIds = new Set();           // door + opening ids to ignore when teleporting
+  // Stand inside a room with a first-person feel. The orbit pivot sits just in
+  // front of the eye (LOOK_DIST), so looking around rotates almost in place
+  // instead of swinging the camera on a wide arc into the walls. The boundary
+  // box is inset from the walls and pinned to head height, so dragging can
+  // never push the camera into a wall or lift it toward the ceiling.
   function enterRoom(box) {
-    ctrls.setBoundary(box);
+    const eyeY = FLOOR + EYE;
+    const inset = 0.55;                  // keep the camera clear of the walls (m)
+    const b = box.clone();
+    b.min.x += inset; b.max.x -= inset;
+    b.min.z += inset; b.max.z -= inset;
+    if (b.min.x >= b.max.x) { const m = (box.min.x + box.max.x) / 2; b.min.x = b.max.x = m; }
+    if (b.min.z >= b.max.z) { const m = (box.min.z + box.max.z) / 2; b.min.z = b.max.z = m; }
+    b.min.y = eyeY - 0.35; b.max.y = eyeY + 0.35; // hold the camera near eye level
+    ctrls.setBoundary(b);
     ctrls.boundaryEnclosesCamera = true; // keep the camera *inside* the box
     ctrls.azimuthRotateSpeed = -1;       // reverse drag for a first-person look feel
     ctrls.polarRotateSpeed = -1;
+    ctrls.minPolarAngle = Math.PI * 0.30; // look up to ~54° above horizontal
+    ctrls.maxPolarAngle = Math.PI * 0.70; // and ~54° below — no straight up/down
+    ctrls.minDistance = LOOK_DIST;        // lock the orbit radius so pinch-zoom
+    ctrls.maxDistance = LOOK_DIST;        // can't dolly the camera out of the room
+    ctrls.truckSpeed = 0;                 // no two-finger pan (would exit the room)
   }
   function exitToOverview() {
     ctrls.boundaryEnclosesCamera = false;
     ctrls.setBoundary(undefined);
     ctrls.azimuthRotateSpeed = 1;        // normal orbit for the overview
     ctrls.polarRotateSpeed = 1;
+    ctrls.minPolarAngle = 0;             // free orbit again
+    ctrls.maxPolarAngle = Math.PI;
+    ctrls.minDistance = 0;
+    ctrls.maxDistance = Infinity;
+    ctrls.truckSpeed = 2;
     ctrls.fitToBox(modelBox, true);
   }
   const roomAt = (x, z) => roomBoxes.find(
@@ -233,7 +265,7 @@ async function main() {
     await clearSelection();
     ctrls.boundaryEnclosesCamera = false;
     ctrls.setBoundary(undefined);
-    await ctrls.setLookAt(ex, y, ez, ex + _fwd.x * 1.2, y, ez + _fwd.z * 1.2, true);
+    await ctrls.setLookAt(ex, y, ez, ex + _fwd.x * LOOK_DIST, y, ez + _fwd.z * LOOK_DIST, true);
     const room = roomAt(ex, ez);
     enterRoom(room ? room.box : modelBox);
   }
@@ -314,7 +346,7 @@ async function main() {
       if (dir.lengthSq() < 0.25) dir.set(0, 0, -1);
       dir.normalize();
       const y = FLOOR + EYE, cx = rc.x, cz = rc.z;
-      const tx = cx + dir.x * 1.2, tz = cz + dir.z * 1.2;
+      const tx = cx + dir.x * LOOK_DIST, tz = cz + dir.z * LOOK_DIST;
       addView(name, async () => {
         ctrls.boundaryEnclosesCamera = false;
         ctrls.setBoundary(undefined);
