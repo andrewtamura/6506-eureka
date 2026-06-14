@@ -50,11 +50,11 @@ def _place(ctx, r, prod, cx_m, cy_m, cz_m):
 
 
 def _covering(ctx, r, name, predefined, thickness_ft, z_m, color=None):
-    """Floor/ceiling covering: a thin slab over the room footprint."""
+    """Floor/ceiling covering over the room footprint, extended to the wall
+    centerlines so floors run continuously through door openings/thresholds."""
     x1, x2, y1, y2 = B.ifc_bounds(ctx, r["bounds"])
-    inset = ctx.T / 2
     cov = B.make_box(ctx, "IfcCovering", name,
-                     abs(x2 - x1) - 2 * inset, abs(y2 - y1) - 2 * inset,
+                     abs(x2 - x1), abs(y2 - y1),
                      thickness_ft * FT, (x1 + x2) / 2, (y1 + y2) / 2, z_m,
                      predefined=predefined, color=color)
     run("spatial.assign_container", ctx.model, products=[cov],
@@ -79,9 +79,10 @@ def _plank_floor(ctx, r, base):
     GLOBAL grid anchored in world coords, so they line up continuously from room
     to room. Per-row pseudo-random stagger + per-board shade variation break the
     regularity. A dark base shows through the joints as groove lines."""
+    # Extend to the wall centerlines (full bounds, no inset) so floors of
+    # adjacent rooms meet under the walls and run continuously through door
+    # openings/thresholds (the wall hides the overlap; openings reveal it).
     x1, x2, y1, y2 = B.ifc_bounds(ctx, r["bounds"])
-    m = ctx.T / 2
-    x1, x2, y1, y2 = x1 + m, x2 - m, y1 + m, y2 - m
     shades = [_scale(base, f) for f in (0.82, 0.9, 0.97, 1.05, 1.12, 0.86, 1.0)]
     groove = _scale(base, 0.30)
     th = 0.05 * FT
