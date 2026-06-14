@@ -211,12 +211,20 @@ def main():
     ]
     win_defs = [
         # (name, orient, fixed_ft, pos_ft, width_ft, sill_ft, head_ft)
-        ("Window - Family S",  "H", -11.9167, -4.0, 4.0, 2.5, 6.5),
-        ("Window - Family W",  "V", -12.0,    -9.0, 3.5, 2.5, 6.5),
-        ("Window - Sitting W", "V", -12.0,     8.0, 4.0, 2.5, 6.5),
-        ("Window - Kitchen E", "V", 31.0,     -6.0, 4.0, 2.5, 6.5),
-        ("Window - Dining E",  "V", 31.0,      9.0, 4.0, 2.5, 6.5),
-        ("Window - Dining N",  "H", 16.0833,  23.0, 4.0, 2.5, 6.5),
+        # Exterior walls only (audited against the original model). Family/Foyer/
+        # Vestibule are internally surrounded, so they get no windows.
+        # NB: names use true cardinal directions (model is +X=East, +Y=North,
+        # so a plan-west wall faces East after the orientation flip).
+        ("Window - Sitting E",   "V", -12.0,     8.0,  4.0, 2.5, 6.5),
+        ("Window - Kitchen W",   "V", 31.0,     -6.0,  4.0, 2.5, 6.5),
+        ("Window - Dining W1",   "V", 31.0,      6.0,  4.0, 2.5, 6.5),
+        ("Window - Dining W2",   "V", 31.0,     12.0,  4.0, 2.5, 6.5),
+        ("Window - Dining N",    "H", 16.0833,  23.0,  4.0, 2.5, 6.5),
+        ("Window - Extension E", "V", -22.9167, -4.0,  4.0, 2.5, 6.5),
+        ("Window - Scullery S1", "H", -18.875,   3.0,  3.5, 2.5, 6.0),
+        ("Window - Scullery S2", "H", -18.875,  11.0,  3.5, 2.5, 6.0),
+        ("Window - Scullery S3", "H", -18.875,  18.0,  3.5, 2.5, 6.0),
+        ("Window - Scullery S4", "H", -18.875,  24.0,  3.5, 2.5, 6.0),
     ]
 
     def find_wall(orient, fixed_m, pos_m):
