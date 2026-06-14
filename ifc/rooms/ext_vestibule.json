@@ -1,0 +1,38 @@
+{
+  "key": "extVest",
+  "name": "Ext Vestibule",
+  "longName": "Vestibule",
+  "bounds": {
+    "x1": -17.4583,
+    "x2": -12,
+    "z1": -2.4583,
+    "z2": 4
+  },
+  "walls": true,
+  "doors": [
+    {
+      "name": "Sitting -> Ext Vestibule",
+      "orient": "V",
+      "fixed": -12,
+      "pos": 1.75,
+      "width": 3.0,
+      "hinge": "max",
+      "swing": "pos"
+    },
+    {
+      "name": "Ext Vestibule -> Outside",
+      "orient": "H",
+      "fixed": 4,
+      "pos": -14.73,
+      "width": 3.0,
+      "hinge": "max",
+      "swing": "pos"
+    }
+  ],
+  "windows": [],
+  "interior": {
+    "flooring": {
+      "material": "tile"
+    }
+  }
+}

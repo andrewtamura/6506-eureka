@@ -17,6 +17,15 @@ const setStatus = (t) => { statusEl.textContent = t; statusEl.style.display = t 
 async function main() {
   const container = document.getElementById("viewer");
 
+  // Strip the engine's "That Open Company" watermark logo (an SVG-bearing div
+  // the renderer appends into the container). Our own UI lives outside #viewer
+  // and uses no SVGs, so any SVG div added here is the logo.
+  const stripLogo = () =>
+    container.querySelectorAll(":scope > div").forEach((d) => {
+      if (d.querySelector("svg")) d.remove();
+    });
+  new MutationObserver(stripLogo).observe(container, { childList: true });
+
   // --- world (scene + renderer + camera) ---------------------------------
   const components = new OBC.Components();
   const worlds = components.get(OBC.Worlds);
@@ -178,9 +187,23 @@ async function main() {
     renderProps(String(category).replace(/^Ifc/, ""), rows);
   }
 
-  // --- first-person teleport (double-tap / double-click) ------------------
+  // --- interior camera: confine to a room so panning can't fly through walls
   const FLOOR = modelBox.min.y + 0.2; // floor surface (slab top) in world Y
   const EYE = 1.6;                     // standing eye height above the floor (m)
+  const ctrls = world.camera.controls;
+  const roomBoxes = [];                // { name, box } filled when POV views build
+  function enterRoom(box) {
+    ctrls.setBoundary(box);
+    ctrls.boundaryEnclosesCamera = true; // keep the camera *inside* the box
+  }
+  function exitToOverview() {
+    ctrls.boundaryEnclosesCamera = false;
+    ctrls.setBoundary(undefined);
+    ctrls.fitToBox(modelBox, true);
+  }
+  const roomAt = (x, z) => roomBoxes.find(
+    (r) => x >= r.box.min.x && x <= r.box.max.x && z >= r.box.min.z && z <= r.box.max.z);
+
   const _fwd = new THREE.Vector3();
   async function teleportTo(lx, ly) {
     const hit = await raycastAt(lx, ly);
@@ -189,11 +212,13 @@ async function main() {
     _fwd.y = 0;
     if (_fwd.lengthSq() < 1e-6) _fwd.set(0, 0, -1);
     _fwd.normalize();
-    const y = FLOOR + EYE;
-    const ex = hit.point.x, ez = hit.point.z;
+    const y = FLOOR + EYE, ex = hit.point.x, ez = hit.point.z;
     await clearSelection();
-    world.camera.controls.setLookAt(
-      ex, y, ez, ex + _fwd.x * 4, y, ez + _fwd.z * 4, true);
+    ctrls.boundaryEnclosesCamera = false;
+    ctrls.setBoundary(undefined);
+    await ctrls.setLookAt(ex, y, ez, ex + _fwd.x * 1.2, y, ez + _fwd.z * 1.2, true);
+    const room = roomAt(ex, ez);
+    enterRoom(room ? room.box : modelBox);
   }
 
   // --- interactive doors (double-tap a door to swing it open/closed) ------
@@ -207,11 +232,14 @@ async function main() {
     const hits = doorRaycaster.intersectObjects(doorMeshes, false);
     return hits.length ? hits[0].object.userData.door : null;
   }
-  const toggleDoor = (d) => { d.target = d.target === 0 ? d.openAngle : 0; };
+  // A door "unit" may have 1 leaf (single) or 2 (double); tapping any leaf
+  // toggles the whole unit so both leaves swing together.
+  const toggleDoor = (leaf) => { leaf.unit.open = !leaf.unit.open; };
   (function animateDoors() {
     for (const d of doors) {
-      if (Math.abs(d.current - d.target) > 1e-3) {
-        d.current += (d.target - d.current) * 0.2; // ease toward target
+      const target = d.unit.open ? d.openAngle : 0;
+      if (Math.abs(d.current - target) > 1e-3) {
+        d.current += (target - d.current) * 0.2; // ease toward target
         d.pivot.rotation.y = d.current;
       }
     }
@@ -250,11 +278,10 @@ async function main() {
     btn.addEventListener("click", fn);
     viewsEl.appendChild(btn);
   };
-  addView("\u{1F3E0} Overview", () =>
-    world.camera.controls.fitToBox(modelBox, true));
+  addView("\u{1F3E0} Overview", () => exitToOverview());
   {
-    // One eye-level view per room: stand just inside the near wall looking
-    // across the room toward the building centre (central rooms face North).
+    // One eye-level view per room: stand at the room centre (always inside)
+    // looking toward the building centre, and confine the camera to the room.
     const spaceMap = await model.getItemsOfCategories([/IFCSPACE/]);
     const ids = Object.values(spaceMap).flat();
     const boxes = await model.getBoxes(ids);
@@ -262,53 +289,91 @@ async function main() {
     const c = modelBox.getCenter(new THREE.Vector3());
     const rc = new THREE.Vector3(), dir = new THREE.Vector3();
     ids.forEach((id, i) => {
-      const bx = boxes[i];
-      bx.getCenter(rc);
+      const box = boxes[i].clone();
+      box.getCenter(rc);
       const name = String(data[i]?.Name?.value ?? "Room");
+      roomBoxes.push({ name, box });
       dir.set(c.x - rc.x, 0, c.z - rc.z);
       if (dir.lengthSq() < 0.25) dir.set(0, 0, -1);
       dir.normalize();
-      const y = FLOOR + EYE;
-      const ex = rc.x - dir.x * 1.5, ez = rc.z - dir.z * 1.5;
-      const tx = rc.x + dir.x * 6, tz = rc.z + dir.z * 6;
-      addView(name, () =>
-        world.camera.controls.setLookAt(ex, y, ez, tx, y, tz, true));
+      const y = FLOOR + EYE, cx = rc.x, cz = rc.z;
+      const tx = cx + dir.x * 1.2, tz = cz + dir.z * 1.2;
+      addView(name, async () => {
+        ctrls.boundaryEnclosesCamera = false;
+        ctrls.setBoundary(undefined);
+        await ctrls.setLookAt(cx, y, cz, tx, y, tz, true);
+        enterRoom(box);
+      });
     });
   }
 
   // --- build swinging door overlays ---------------------------------------
-  // The baked IFC door panels can't be cheaply animated, so we hide them and
-  // overlay our own hinged panels that swing on double-tap.
+  // Hide the baked IFC door panels (can't cheaply animate them) and overlay our
+  // own hinged leaves. Wide doors become double doors. Also hide the
+  // IfcOpeningElement void boxes (rendered semi-opaque) so cased openings and
+  // open doorways are fully see-through.
   {
     const doorMat = new THREE.MeshLambertMaterial({ color: 0x9b7653 });
     const dmap = await model.getItemsOfCategories([/IFCDOOR/]);
     const ids = Object.values(dmap).flat();
     const boxes = await model.getBoxes(ids);
-    await model.setVisible(ids, false); // hide the static panels
+    const ddata = await model.getItemsData(ids, { attributesDefault: true });
+    await model.setVisible(ids, false);
+    const omap = await model.getItemsOfCategories([/IFCOPENINGELEMENT/]);
+    const oids = Object.values(omap).flat();
+    if (oids.length) await model.setVisible(oids, false);
     await fragments.core.update(true);
+
+    // hinge/swing per door, from the generator's manifest (keyed by door name)
+    const meta = {};
+    try {
+      for (const d of await (await fetch(`${BASE}doors.json`)).json()) meta[d.name] = d;
+    } catch (e) { /* fall back to defaults */ }
+
+    const ANG = Math.PI / 2;
+    const DOUBLE = 1.2; // doors wider than this (m) split into double doors
     ids.forEach((id, i) => {
       const bx = boxes[i];
       const sx = bx.max.x - bx.min.x, sy = bx.max.y - bx.min.y, sz = bx.max.z - bx.min.z;
       const cx = (bx.min.x + bx.max.x) / 2, cz = (bx.min.z + bx.max.z) / 2;
-      const pivot = new THREE.Group();
-      let panel, openAngle;
-      if (sx >= sz) {            // door runs E-W; hinge at its -X jamb
-        pivot.position.set(bx.min.x, bx.min.y, cz);
-        panel = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, Math.max(sz, 0.05)), doorMat);
-        panel.position.set(sx / 2, sy / 2, 0);
-        openAngle = -Math.PI / 2;
-      } else {                   // door runs N-S; hinge at its -Z jamb
-        pivot.position.set(cx, bx.min.y, bx.min.z);
-        panel = new THREE.Mesh(new THREE.BoxGeometry(Math.max(sx, 0.05), sy, sz), doorMat);
-        panel.position.set(0, sy / 2, sz / 2);
-        openAngle = Math.PI / 2;
+      const alongX = sx >= sz;                 // door runs E-W (true) or N-S
+      const W = alongX ? sx : sz;              // door width along the wall
+      const th = Math.max(alongX ? sz : sx, 0.05); // leaf thickness
+      const nm = String(ddata[i]?.Name?.value ?? "");
+      const m = meta[nm] || {};
+      const hingeMax = !!m.hingeMax;
+      const sign = m.swingSign != null ? m.swingSign : (alongX ? -1 : 1);
+      const unit = { open: false };
+      const mkLeaf = (hx, hz, leafW, dirSign, openAngle) => {
+        const pivot = new THREE.Group();
+        pivot.position.set(hx, bx.min.y, hz);
+        const geo = alongX
+          ? new THREE.BoxGeometry(leafW, sy, th)
+          : new THREE.BoxGeometry(th, sy, leafW);
+        const panel = new THREE.Mesh(geo, doorMat);
+        if (alongX) panel.position.set(dirSign * leafW / 2, sy / 2, 0);
+        else panel.position.set(0, sy / 2, dirSign * leafW / 2);
+        pivot.add(panel);
+        world.scene.three.add(pivot);
+        const leaf = { pivot, openAngle, current: 0, unit, name: nm };
+        panel.userData.door = leaf;
+        doors.push(leaf);
+        doorMeshes.push(panel);
+      };
+      if (W > DOUBLE) {                         // double doors (french/patio)
+        const half = W / 2;                     // sign picks which side they swing to
+        if (alongX) {
+          mkLeaf(bx.min.x, cz, half, +1, -sign * ANG);
+          mkLeaf(bx.max.x, cz, half, -1, +sign * ANG);
+        } else {
+          mkLeaf(cx, bx.min.z, half, +1, -sign * ANG);
+          mkLeaf(cx, bx.max.z, half, -1, +sign * ANG);
+        }
+      } else {                                  // single leaf
+        const dir = hingeMax ? -1 : +1;         // extend away from the hinge jamb
+        if (alongX) mkLeaf(hingeMax ? bx.max.x : bx.min.x, cz, W, dir, sign * ANG);
+        else mkLeaf(cx, hingeMax ? bx.max.z : bx.min.z, W, dir, sign * ANG);
       }
-      const d = { pivot, openAngle, target: 0, current: 0 };
-      panel.userData.door = d;
-      pivot.add(panel);
-      world.scene.three.add(pivot);
-      doors.push(d);
-      doorMeshes.push(panel);
     });
     window.__eureka.doors = doors; // for the headless smoke test
   }

@@ -51,6 +51,7 @@ class Ctx:
         self.slab_t = cfg["slabThickness"]          # floor slab thickness (m)
         self.door_h_ft = cfg["doorHeight"]          # door head height (ft)
         self.walls = []                              # [{wall, orient, fixed, a, b}]
+        self.door_meta = []                          # [{name, hingeMax, swingSign}] for the viewer
         self.styles = {}                             # rgb tuple -> IfcSurfaceStyle (cached)
 
     # plan feet -> IFC metres (with the cardinal flip)
@@ -82,24 +83,32 @@ def rect_rep(ctx, xdim, ydim, height):
         Items=[solid])
 
 
-def surface_style(ctx, rgb):
-    """Get (cached) an IfcSurfaceStyle for an (r,g,b) colour in 0..1."""
-    key = tuple(round(c, 3) for c in rgb)
+def surface_style(ctx, rgb, transparency=0.0):
+    """Get (cached) an IfcSurfaceStyle for an (r,g,b) colour in 0..1.
+
+    transparency 0=opaque .. 1=fully transparent (uses IfcSurfaceStyleRendering
+    so viewers render see-through glass).
+    """
+    key = tuple(round(c, 3) for c in rgb) + (round(transparency, 2),)
     if key in ctx.styles:
         return ctx.styles[key]
     m = ctx.model
+    col = {"Name": None, "Red": float(rgb[0]), "Green": float(rgb[1]), "Blue": float(rgb[2])}
     style = run("style.add_style", m, name=None)
-    run("style.add_surface_style", m, style=style, ifc_class="IfcSurfaceStyleShading",
-        attributes={"SurfaceColour": {"Name": None, "Red": float(rgb[0]),
-                                      "Green": float(rgb[1]), "Blue": float(rgb[2])},
-                    "Transparency": 0.0})
+    if transparency > 0:
+        run("style.add_surface_style", m, style=style, ifc_class="IfcSurfaceStyleRendering",
+            attributes={"SurfaceColour": col, "Transparency": float(transparency),
+                        "ReflectanceMethod": "GLASS"})
+    else:
+        run("style.add_surface_style", m, style=style, ifc_class="IfcSurfaceStyleShading",
+            attributes={"SurfaceColour": col, "Transparency": 0.0})
     ctx.styles[key] = style
     return style
 
 
-def assign_color(ctx, rep, rgb):
+def assign_color(ctx, rep, rgb, transparency=0.0):
     run("style.assign_representation_styles", ctx.model,
-        shape_representation=rep, styles=[surface_style(ctx, rgb)])
+        shape_representation=rep, styles=[surface_style(ctx, rgb, transparency)])
 
 
 def positioned_solid(ctx, xdim, ydim, height, cx, cy, cz):
@@ -231,10 +240,11 @@ def find_wall(ctx, orient, fixed_m, pos_m):
 
 
 def cut_opening(ctx, fill_class, name, orient, fixed_ft, pos_ft, width_ft,
-                sill_ft, head_ft):
+                sill_ft, head_ft, leaf=True):
     """Cut an opening (door/window) into the host wall and add its filling.
 
     All inputs are in PLAN feet; the flip to IFC metres happens here.
+    leaf=False makes a cased opening (a hole, no door panel) you can see through.
     """
     m = ctx.model
     if orient == "H":
@@ -256,6 +266,8 @@ def cut_opening(ctx, fill_class, name, orient, fixed_ft, pos_ft, width_ft,
     run("geometry.assign_representation", m, product=opening, representation=rep)
     run("geometry.edit_object_placement", m, product=opening, matrix=matrix(cx, cy, sill_m))
     run("feature.add_feature", m, feature=opening, element=host["wall"])
+    if not leaf:
+        return None  # cased opening: just the hole, no door panel
     fill = run("root.create_entity", m, ifc_class=fill_class, name=name)
     if hasattr(fill, "OverallHeight"):
         fill.OverallHeight = float(height)
@@ -263,6 +275,8 @@ def cut_opening(ctx, fill_class, name, orient, fixed_ft, pos_ft, width_ft,
         fill.OverallWidth = float(width_m)
     pd = 0.05
     prep = rect_rep(ctx, width_m, pd, height) if orient == "H" else rect_rep(ctx, pd, width_m, height)
+    if fill_class == "IfcWindow":
+        assign_color(ctx, prep, (0.6, 0.8, 0.92), transparency=0.7)  # see-through glass
     run("geometry.assign_representation", m, product=fill, representation=prep)
     run("geometry.edit_object_placement", m, product=fill, matrix=matrix(cx, cy, sill_m))
     run("feature.add_filling", m, opening=opening, element=fill)
@@ -272,8 +286,20 @@ def cut_opening(ctx, fill_class, name, orient, fixed_ft, pos_ft, width_ft,
 
 def add_doors(ctx, r):
     for d in r.get("doors", []):
+        opening = d.get("opening", False)
         cut_opening(ctx, "IfcDoor", d["name"], d["orient"], d["fixed"], d["pos"],
-                    d["width"], 0.0, ctx.door_h_ft)
+                    d["width"], 0.0, ctx.door_h_ft, leaf=not opening)
+        if opening:
+            continue
+        # Record hinge/swing for the viewer's swinging-leaf overlay.
+        default_sign = -1 if d["orient"] == "H" else 1
+        sw = d.get("swing")
+        sign = default_sign if sw is None else (1 if str(sw) in ("pos", "+", "1") else -1)
+        ctx.door_meta.append({
+            "name": d["name"],
+            "hingeMax": d.get("hinge", "min") == "max",
+            "swingSign": sign,
+        })
 
 
 def add_windows(ctx, r):

@@ -26,3 +26,5 @@ for (const f of ["web-ifc.wasm", "web-ifc-mt.wasm"]) {
 copy("node_modules/@thatopen/fragments/dist/Worker/worker.mjs", "public/worker.mjs");
 // Publish the original Three.js model alongside the BIM viewer at /legacy/.
 copy("legacy/index.html", "public/legacy/index.html");
+// Door hinge/swing manifest consumed by the viewer.
+copy("ifc/doors.json", "public/doors.json");

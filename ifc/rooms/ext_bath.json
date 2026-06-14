@@ -1,0 +1,12 @@
+{
+  "key": "extBath",
+  "name": "Ext Bath",
+  "longName": "Bathroom",
+  "bounds": { "x1": -22.9167, "x2": -17.4583, "z1": -7.459, "z2": 4 },
+  "walls": true,
+  "doors": [],
+  "windows": [
+    { "name": "Window - Bath", "orient": "V", "fixed": -22.9167, "pos": -5.46, "width": 3.0, "sill": 2.5, "head": 6.5 }
+  ],
+  "interior": { "flooring": { "material": "tile" } }
+}

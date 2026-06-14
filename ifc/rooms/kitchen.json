@@ -2,14 +2,53 @@
   "key": "oi",
   "name": "Kitchen",
   "longName": "Kitchen",
-  "bounds": { "x1": 15.0833, "x2": 31, "z1": -11.9167, "z2": 2 },
+  "bounds": {
+    "x1": 15.0833,
+    "x2": 31,
+    "z1": -11.9167,
+    "z2": 2
+  },
   "walls": true,
   "doors": [
-    { "name": "Kitchen -> Dining", "orient": "H", "fixed": 2.0, "pos": 23.0, "width": 2.75 },
-    { "name": "Kitchen -> Scullery", "orient": "H", "fixed": -11.9167, "pos": 21.0, "width": 2.5 }
+    {
+      "name": "Kitchen -> Dining (W)",
+      "orient": "H",
+      "fixed": 2.0,
+      "pos": 18.08,
+      "width": 3.0,
+      "opening": true
+    },
+    {
+      "name": "Kitchen -> Dining (E)",
+      "orient": "H",
+      "fixed": 2.0,
+      "pos": 28.0,
+      "width": 3.0,
+      "opening": true
+    },
+    {
+      "name": "Kitchen -> Scullery",
+      "orient": "H",
+      "fixed": -11.9167,
+      "pos": 21.58,
+      "width": 3.0,
+      "opening": true
+    }
   ],
   "windows": [
-    { "name": "Window - Kitchen W", "orient": "V", "fixed": 31.0, "pos": -6.0, "width": 4.0, "sill": 2.5, "head": 6.5 }
+    {
+      "name": "Window - Kitchen W",
+      "orient": "V",
+      "fixed": 31.0,
+      "pos": -6.0,
+      "width": 4.0,
+      "sill": 2.5,
+      "head": 6.5
+    }
   ],
-  "interior": { "flooring": { "material": "hardwood" } }
+  "interior": {
+    "flooring": {
+      "material": "tile"
+    }
+  }
 }

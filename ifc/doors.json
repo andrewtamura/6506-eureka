@@ -1,0 +1,47 @@
+[
+  {
+    "name": "Family -> Ext Laundry",
+    "hingeMax": false,
+    "swingSign": 1
+  },
+  {
+    "name": "Family -> Scullery",
+    "hingeMax": true,
+    "swingSign": 1
+  },
+  {
+    "name": "Family -> Patio",
+    "hingeMax": false,
+    "swingSign": 1
+  },
+  {
+    "name": "Foyer -> Vestibule (french)",
+    "hingeMax": false,
+    "swingSign": 1
+  },
+  {
+    "name": "Front Door",
+    "hingeMax": false,
+    "swingSign": -1
+  },
+  {
+    "name": "Bath -> WC",
+    "hingeMax": true,
+    "swingSign": 1
+  },
+  {
+    "name": "Sitting -> Ext Vestibule",
+    "hingeMax": true,
+    "swingSign": 1
+  },
+  {
+    "name": "Ext Vestibule -> Outside",
+    "hingeMax": true,
+    "swingSign": 1
+  },
+  {
+    "name": "Back Door",
+    "hingeMax": true,
+    "swingSign": -1
+  }
+]

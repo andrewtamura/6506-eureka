@@ -19,6 +19,7 @@ Geometry is intentionally simple (proxy boxes / coverings) — enough to read th
 design intent; refine per item type as needed.
 """
 
+import math
 from ifcopenshell.api import run
 import builders as B
 
@@ -49,11 +50,11 @@ def _place(ctx, r, prod, cx_m, cy_m, cz_m):
 
 
 def _covering(ctx, r, name, predefined, thickness_ft, z_m, color=None):
-    """Floor/ceiling covering: a thin slab over the room footprint."""
+    """Floor/ceiling covering over the room footprint, extended to the wall
+    centerlines so floors run continuously through door openings/thresholds."""
     x1, x2, y1, y2 = B.ifc_bounds(ctx, r["bounds"])
-    inset = ctx.T / 2
     cov = B.make_box(ctx, "IfcCovering", name,
-                     abs(x2 - x1) - 2 * inset, abs(y2 - y1) - 2 * inset,
+                     abs(x2 - x1), abs(y2 - y1),
                      thickness_ft * FT, (x1 + x2) / 2, (y1 + y2) / 2, z_m,
                      predefined=predefined, color=color)
     run("spatial.assign_container", ctx.model, products=[cov],
@@ -67,19 +68,26 @@ def _scale(rgb, f):
     return tuple(max(0.0, min(1.0, c * f)) for c in rgb)
 
 
+def _hash(n):
+    """Deterministic pseudo-random in [0,1) for irregular stagger/shade."""
+    v = math.sin(n * 12.9898) * 43758.5453
+    return v - math.floor(v)
+
+
 def _plank_floor(ctx, r, base):
-    """Realistic hardwood: staggered planks with per-board shade variation over a
-    dark base, giving grain direction, board joints and groove lines."""
+    """Realistic hardwood. Boards run East-West (along world X) and sit on a
+    GLOBAL grid anchored in world coords, so they line up continuously from room
+    to room. Per-row pseudo-random stagger + per-board shade variation break the
+    regularity. A dark base shows through the joints as groove lines."""
+    # Extend to the wall centerlines (full bounds, no inset) so floors of
+    # adjacent rooms meet under the walls and run continuously through door
+    # openings/thresholds (the wall hides the overlap; openings reveal it).
     x1, x2, y1, y2 = B.ifc_bounds(ctx, r["bounds"])
-    m = ctx.T / 2
-    x1, x2, y1, y2 = x1 + m, x2 - m, y1 + m, y2 - m
-    shades = [_scale(base, f) for f in (0.86, 0.95, 1.0, 1.08, 0.9)]
-    groove = _scale(base, 0.32)
+    shades = [_scale(base, f) for f in (0.82, 0.9, 0.97, 1.05, 1.12, 0.86, 1.0)]
+    groove = _scale(base, 0.30)
     th = 0.05 * FT
-    grain_x = (x2 - x1) >= (y2 - y1)           # planks run along the longer axis
-    u0, u1, v0, v1 = (x1, x2, y1, y2) if grain_x else (y1, y2, x1, x2)
-    pw, rgap = 0.5 * FT, 0.012 * FT            # board width 6", groove between rows
-    seg, egap = 6.0 * FT, 0.03 * FT            # board length 6', end gap
+    pw, rgap = 0.5 * FT, 0.012 * FT     # board width 6" (across grain, N-S)
+    seg, egap = 10.0 * FT, 0.03 * FT    # board length 10' (along grain, E-W)
 
     solids = []
     base_solid = B.positioned_solid(ctx, x2 - x1, y2 - y1, th * 0.5,
@@ -88,28 +96,23 @@ def _plank_floor(ctx, r, base):
     solids.append(base_solid)
 
     zt = th * 0.5
-    v, ri = v0, 0
-    while v < v1 - 1e-6:
-        depth = min(pw, v1 - v) - rgap
+    # Rows indexed on a global grid (k = world-Y band) so adjacent rooms share
+    # row lines; joints offset per row by a global pseudo-random stagger.
+    for k in range(math.floor(y1 / pw), math.ceil(y2 / pw)):
+        ry0, ry1 = max(k * pw, y1), min((k + 1) * pw, y2)
+        depth = (ry1 - rgap) - ry0
         if depth < 0.03:
-            break
-        cv = v + depth / 2
-        u = u0 - (ri % 3) * (seg / 3.0)        # stagger board joints row to row
-        ci = 0
-        while u < u1 - 1e-6:
-            a, b = max(u, u0), min(u + seg - egap, u1)
-            if b - a > 0.05:
-                cu, length = (a + b) / 2, b - a
-                if grain_x:
-                    s = B.positioned_solid(ctx, length, depth, th, cu, cv, zt)
-                else:
-                    s = B.positioned_solid(ctx, depth, length, th, cv, cu, zt)
-                B.style_item(ctx, s, shades[(ri * 5 + ci) % len(shades)])
-                solids.append(s)
-            u += seg
-            ci += 1
-        v += pw
-        ri += 1
+            continue
+        cy = (ry0 + ry1 - rgap) / 2
+        off = _hash(k) * seg
+        for j in range(math.floor((x1 - off) / seg), math.ceil((x2 - off) / seg)):
+            px0 = off + j * seg
+            a, b = max(px0, x1), min(px0 + seg - egap, x2)
+            if b - a < 0.05:
+                continue
+            s = B.positioned_solid(ctx, b - a, depth, th, (a + b) / 2, cy, zt)
+            B.style_item(ctx, s, shades[int(_hash(k * 131.7 + j * 7.31) * len(shades)) % len(shades)])
+            solids.append(s)
 
     cov = B.multi_solid_product(ctx, "IfcCovering",
                                 f"{r['name']} - Hardwood Flooring", solids,
