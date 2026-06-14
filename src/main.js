@@ -198,7 +198,7 @@ async function main() {
   // --- interior camera: confine to a room so panning can't fly through walls
   const FLOOR = modelBox.min.y + 0.2; // floor surface (slab top) in world Y
   const EYE = 1.63;                    // eye height for a 5'8" person (~1.63 m)
-  const LOOK_DIST = 0.4;               // orbit radius indoors: small = look in place
+  const LOOK_DIST = 0.05;              // orbit radius indoors: ~0 so you spin in place
   const ctrls = world.camera.controls;
   const roomBoxes = [];                // { name, box } filled when POV views build
   const skipIds = new Set();           // door + opening ids to ignore when teleporting
