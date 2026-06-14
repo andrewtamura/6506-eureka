@@ -82,24 +82,32 @@ def rect_rep(ctx, xdim, ydim, height):
         Items=[solid])
 
 
-def surface_style(ctx, rgb):
-    """Get (cached) an IfcSurfaceStyle for an (r,g,b) colour in 0..1."""
-    key = tuple(round(c, 3) for c in rgb)
+def surface_style(ctx, rgb, transparency=0.0):
+    """Get (cached) an IfcSurfaceStyle for an (r,g,b) colour in 0..1.
+
+    transparency 0=opaque .. 1=fully transparent (uses IfcSurfaceStyleRendering
+    so viewers render see-through glass).
+    """
+    key = tuple(round(c, 3) for c in rgb) + (round(transparency, 2),)
     if key in ctx.styles:
         return ctx.styles[key]
     m = ctx.model
+    col = {"Name": None, "Red": float(rgb[0]), "Green": float(rgb[1]), "Blue": float(rgb[2])}
     style = run("style.add_style", m, name=None)
-    run("style.add_surface_style", m, style=style, ifc_class="IfcSurfaceStyleShading",
-        attributes={"SurfaceColour": {"Name": None, "Red": float(rgb[0]),
-                                      "Green": float(rgb[1]), "Blue": float(rgb[2])},
-                    "Transparency": 0.0})
+    if transparency > 0:
+        run("style.add_surface_style", m, style=style, ifc_class="IfcSurfaceStyleRendering",
+            attributes={"SurfaceColour": col, "Transparency": float(transparency),
+                        "ReflectanceMethod": "GLASS"})
+    else:
+        run("style.add_surface_style", m, style=style, ifc_class="IfcSurfaceStyleShading",
+            attributes={"SurfaceColour": col, "Transparency": 0.0})
     ctx.styles[key] = style
     return style
 
 
-def assign_color(ctx, rep, rgb):
+def assign_color(ctx, rep, rgb, transparency=0.0):
     run("style.assign_representation_styles", ctx.model,
-        shape_representation=rep, styles=[surface_style(ctx, rgb)])
+        shape_representation=rep, styles=[surface_style(ctx, rgb, transparency)])
 
 
 def positioned_solid(ctx, xdim, ydim, height, cx, cy, cz):
@@ -263,6 +271,8 @@ def cut_opening(ctx, fill_class, name, orient, fixed_ft, pos_ft, width_ft,
         fill.OverallWidth = float(width_m)
     pd = 0.05
     prep = rect_rep(ctx, width_m, pd, height) if orient == "H" else rect_rep(ctx, pd, width_m, height)
+    if fill_class == "IfcWindow":
+        assign_color(ctx, prep, (0.6, 0.8, 0.92), transparency=0.7)  # see-through glass
     run("geometry.assign_representation", m, product=fill, representation=prep)
     run("geometry.edit_object_placement", m, product=fill, matrix=matrix(cx, cy, sill_m))
     run("feature.add_filling", m, opening=opening, element=fill)
