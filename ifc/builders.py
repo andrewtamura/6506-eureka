@@ -10,6 +10,7 @@ convert plan coordinates to IFC metres, applying the cardinal-orientation flip
 (IFC +X = East, +Y = North) once, in one place.
 """
 
+import math
 import numpy as np
 import ifcopenshell
 from ifcopenshell.api import run
@@ -17,9 +18,14 @@ from ifcopenshell.api import run
 FT = 0.3048  # feet -> metres
 
 
-def matrix(x=0.0, y=0.0, z=0.0):
-    """4x4 translation-only placement matrix."""
+def matrix(x=0.0, y=0.0, z=0.0, rot=0.0):
+    """4x4 placement matrix: translation to (x,y,z), plus an optional rotation
+    ``rot`` (radians) about the vertical (Z) axis — used to orient furniture."""
     m = np.eye(4)
+    if rot:
+        c, s = math.cos(rot), math.sin(rot)
+        m[0, 0], m[0, 1] = c, -s
+        m[1, 0], m[1, 1] = s, c
     m[0, 3], m[1, 3], m[2, 3] = x, y, z
     return m
 
@@ -52,6 +58,7 @@ class Ctx:
         self.door_h_ft = cfg["doorHeight"]          # door head height (ft)
         self.walls = []                              # [{wall, orient, fixed, a, b}]
         self.door_meta = []                          # [{name, hingeMax, swingSign}] for the viewer
+        self.plank_floors = []                       # [{name, rgb}] plank floors the viewer re-renders
         self.styles = {}                             # rgb tuple -> IfcSurfaceStyle (cached)
 
     # plan feet -> IFC metres (with the cardinal flip)
@@ -150,10 +157,11 @@ def multi_solid_product(ctx, ifc_class, name, solids, predefined=None):
 
 
 def make_box(ctx, ifc_class, name, xdim, ydim, height, cx, cy, cz,
-             long_name=None, predefined=None, color=None):
+             long_name=None, predefined=None, color=None, rot=0.0):
     """Create a product with a centered rectangular extruded body at (cx,cy,cz).
 
     If ``color`` (r,g,b in 0..1) is given, the body is shaded that colour.
+    ``rot`` (radians) rotates the box about the vertical axis (for furniture).
     """
     m = ctx.model
     kwargs = {"ifc_class": ifc_class, "name": name}
@@ -166,7 +174,7 @@ def make_box(ctx, ifc_class, name, xdim, ydim, height, cx, cy, cz,
     if color is not None:
         assign_color(ctx, rep, color)
     run("geometry.assign_representation", m, product=product, representation=rep)
-    run("geometry.edit_object_placement", m, product=product, matrix=matrix(cx, cy, cz))
+    run("geometry.edit_object_placement", m, product=product, matrix=matrix(cx, cy, cz, rot))
     return product
 
 

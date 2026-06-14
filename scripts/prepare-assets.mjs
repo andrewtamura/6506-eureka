@@ -28,3 +28,5 @@ copy("node_modules/@thatopen/fragments/dist/Worker/worker.mjs", "public/worker.m
 copy("legacy/index.html", "public/legacy/index.html");
 // Door hinge/swing manifest consumed by the viewer.
 copy("ifc/doors.json", "public/doors.json");
+// Plank-floor manifest (which coverings to re-render as instanced wood + colour).
+copy("ifc/floors.json", "public/floors.json");

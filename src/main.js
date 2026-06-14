@@ -358,30 +358,33 @@ async function main() {
   // The plank grid is laid on GLOBAL world coordinates so boards line up and run
   // continuously across rooms and through doorways.
   {
+    // The generator lists which coverings are plank floors (+ colour) in
+    // floors.json — an explicit contract, instead of guessing from the name.
+    let manifest = [];
+    try { manifest = await (await fetch(`${BASE}floors.json`)).json(); } catch (e) { /* none */ }
     const covs = Object.values(await model.getItemsOfCategories([/IFCCOVERING/])).flat();
     const cdata = await model.getItemsData(covs, { attributesDefault: true });
     const cboxes = await model.getBoxes(covs);
-    const woodBoxes = [];
-    const woodIds = [];
-    covs.forEach((id, i) => {
-      if (/hardwood/i.test(String(cdata[i]?.Name?.value ?? ""))) { woodIds.push(id); woodBoxes.push(cboxes[i]); }
-    });
-    if (woodIds.length) {
-      await model.setVisible(woodIds, false);   // stop the plank geometry rendering
+    const byName = new Map();
+    covs.forEach((id, i) => byName.set(String(cdata[i]?.Name?.value ?? ""), { id, box: cboxes[i] }));
+    const floors = manifest
+      .map((e) => ({ ...byName.get(e.name), rgb: e.rgb }))
+      .filter((f) => f.box);
+    if (floors.length) {
+      await model.setVisible(floors.map((f) => f.id), false); // hide the IFC plank geometry
       await fragments.core.update(true);
       const FT = 0.3048;
       const pw = 0.5 * FT, rgap = 0.012 * FT;   // board width 6" (across grain, N-S)
       const seg = 10 * FT, egap = 0.03 * FT;    // board length 10' (along grain, E-W)
       const ph = 0.02;                          // plank relief (height) in metres
       const fy = FLOOR + 0.02;                  // plank underside, just above the slab
-      const baseRGB = [0.55, 0.36, 0.18];       // hardwood base colour
       const factors = [0.82, 0.9, 0.97, 1.05, 1.12, 0.86, 1.0];
       const hash = (n) => { const x = Math.sin(n * 127.1) * 43758.5; return x - Math.floor(x); };
-      // Dark base under the planks so the gaps read as groove lines.
-      const baseMat = new THREE.MeshLambertMaterial({ color: 0x2a1c0d });
+      const baseMat = new THREE.MeshLambertMaterial({ color: 0x2a1c0d }); // groove colour
       const planks = [];
-      for (const b of woodBoxes) {
-        const x1 = b.min.x, x2 = b.max.x, z1 = b.min.z, z2 = b.max.z;
+      for (const fl of floors) {
+        const bx = fl.box, [cr, cg, cb] = fl.rgb;
+        const x1 = bx.min.x, x2 = bx.max.x, z1 = bx.min.z, z2 = bx.max.z;
         const base = new THREE.Mesh(new THREE.PlaneGeometry(x2 - x1, z2 - z1), baseMat);
         base.rotation.x = -Math.PI / 2;
         base.position.set((x1 + x2) / 2, fy - 0.004, (z1 + z2) / 2);
@@ -394,11 +397,11 @@ async function main() {
           const off = hash(k) * seg;             // per-row stagger on the global grid
           for (let j = Math.floor((x1 - off) / seg); j < Math.ceil((x2 - off) / seg); j++) {
             const px0 = off + j * seg;
-            const a = Math.max(px0, x1), bb = Math.min(px0 + seg - egap, x2);
-            const len = bb - a;
+            const a = Math.max(px0, x1), bEnd = Math.min(px0 + seg - egap, x2);
+            const len = bEnd - a;
             if (len < 0.05) continue;
-            const f = factors[Math.floor(hash(k * 131.7 + j * 7.31) * factors.length) % factors.length];
-            planks.push({ cx: (a + bb) / 2, cz, len, depth, f });
+            const sf = factors[Math.floor(hash(k * 131.7 + j * 7.31) * factors.length) % factors.length];
+            planks.push({ cx: (a + bEnd) / 2, cz, len, depth, r: cr * sf, g: cg * sf, b: cb * sf });
           }
         }
       }
@@ -410,7 +413,7 @@ async function main() {
         m.makeScale(p.len, ph, p.depth);
         m.setPosition(p.cx, fy + ph / 2, p.cz);
         inst.setMatrixAt(i, m);
-        inst.setColorAt(i, col.setRGB(baseRGB[0] * p.f, baseRGB[1] * p.f, baseRGB[2] * p.f));
+        inst.setColorAt(i, col.setRGB(p.r, p.g, p.b));
       });
       inst.instanceMatrix.needsUpdate = true;
       if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
