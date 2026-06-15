@@ -91,30 +91,35 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl }) {
       }
     }
 
-    // 3) cornice matching the photo (over-door crop): a tall PLAIN WHITE FRIEZE
-    //    board is the dominant element, capped by a small stepped bed mold, with
-    //    a cove crown (with a straight topper) tight at the ceiling projecting ~5".
-    const Hc = 0.16, P5 = 0.127;            // crown height / 5" projection (m)
-    const bedH = 0.05;                       // bed-mold cap height
+    // 3) cornice matching the photo (over-door crop): a compact band at the top
+    //    of the wall — a cove crown (with a straight topper) tight at the ceiling,
+    //    a small stepped bed mold, then a proud white frieze whose height equals
+    //    the cove's. Plain field fills the wall between the head and the cornice.
+    const coveH = 0.13, topperH = 0.035, P5 = 0.127; // cove height / topper / 5" projection (m)
+    const Hc = coveH + topperH;             // total crown height
+    const bedH = 0.045;                      // bed-mold cap height
+    const friezeH = coveH;                   // frieze height == cove height (per spec)
     const crownB = wallTop - Hc;            // crown springline (bottom of crown)
     const friezeTop = crownB - bedH;        // top of the flat frieze board
+    const friezeBot = friezeTop - friezeH;  // bottom of the frieze
     band(w.lo, w.hi, headY, headY + 0.045, 0.05);            // architrave cap atop casing
-    band(w.lo, w.hi, headY + 0.045, friezeTop, 0.024);       // FRIEZE — tall, proud, white board
-    band(w.lo, w.hi, friezeTop, friezeTop + 0.022, 0.05);    // bed mold: lower bead (most proud)
-    band(w.lo, w.hi, friezeTop + 0.022, crownB, 0.062);      // bed mold: upper step
-    // cove crown: a single concave COVE (quarter-hollow) with a STRAIGHT TOPPER
-    // piece running from the top of the cove out to the ceiling — together they
-    // read as the S-curve in the photo, but it's a cove + flat topper, not an
-    // ogee. Profile is (X = projection into room, Y = up) with origin at the
-    // springline on the wall; oriented via a basis (X->interior normal, Y->up,
-    // Z->wall dir) so it miters at the corners.
+    band(w.lo, w.hi, headY + 0.045, friezeBot, 0.012, field); // plain field, head -> cornice
+    band(w.lo, w.hi, friezeBot, friezeTop, 0.024);          // FRIEZE — proud white board (== cove height)
+    band(w.lo, w.hi, friezeTop, friezeTop + 0.02, 0.05);    // bed mold: lower bead (most proud)
+    band(w.lo, w.hi, friezeTop + 0.02, crownB, 0.058);      // bed mold: upper step
+    // cove crown: a single concave COVE (quarter-hollow, height coveH) with a
+    // STRAIGHT TOPPER (height topperH) running from the top of the cove out to
+    // the ceiling — together they read as the S-curve in the photo, but it's a
+    // cove + flat topper, not an ogee. Profile is (X = projection into room,
+    // Y = up) with origin at the springline on the wall; oriented via a basis
+    // (X->interior normal, Y->up, Z->wall dir) so it miters at the corners.
     {
       const A = P(w.lo), B = P(w.hi), L = A.distanceTo(B);
       const dir = B.clone().sub(A); dir.y = 0; dir.normalize();
       const shape = new THREE.Shape();
       shape.moveTo(0, 0);
-      shape.lineTo(0, 0.018);                                  // bottom fillet (fascia) at wall
-      shape.quadraticCurveTo(0, Hc - 0.05, 0.058, Hc - 0.05);  // concave cove (up wall, sweep out)
+      shape.lineTo(0, 0.016);                                  // bottom fillet (fascia) at wall
+      shape.quadraticCurveTo(0, coveH, 0.072, coveH);          // concave cove (up wall, sweep out)
       shape.lineTo(P5, Hc - 0.012);                            // straight topper (flat slope to ceiling)
       shape.lineTo(P5, Hc);                                    // top fillet at ceiling
       shape.lineTo(0, Hc);                                     // along ceiling back to wall
