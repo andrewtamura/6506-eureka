@@ -84,13 +84,16 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl }) {
       const sy = sill * ft; if (sy - bbH < 0.06) continue;
       band(a, b, bbH, sy, 0.012, field);
     }
-    // Battens on a 14" grid anchored at the corner (w.lo). The board stays
-    // continuous; a batten is simply OMITTED where its grid line lands inside a
-    // door (no board there) or within a casing-width of any opening edge (so it
-    // never doubles up against the trim).
+    // Battens on ONE continuous 14" grid anchored at the corner (w.lo) — the SAME
+    // rhythm for the tall full-height battens and the shorter battens under the
+    // windows (a grid line under a window simply stops at the sill). A batten is
+    // omitted only where it lands inside a doorway (no board there) or where it
+    // would physically overlap a casing jamb (so it never doubles up on the trim),
+    // which keeps the spacing uniform right through the openings.
+    const battenClear = caseW / ft / 2 + 0.02; // half the casing width — overlap only
     for (let g = w.lo + BATTEN_SPACING_FT; g < w.hi - 0.05; g += BATTEN_SPACING_FT) {
       if (doors.some(([a, b]) => g > Math.min(a, b) && g < Math.max(a, b))) continue; // in a doorway
-      if (openings.some(([oa, ob]) => Math.abs(g - oa) < caseInset || Math.abs(g - ob) < caseInset)) continue; // too near trim
+      if (openings.some(([oa, ob]) => Math.abs(g - oa) < battenClear || Math.abs(g - ob) < battenClear)) continue; // would touch a jamb
       let yTop = headY; // under a window the batten stops at the sill
       for (const [a, b, sill] of wins) { if (g > Math.min(a, b) && g < Math.max(a, b)) { yTop = sill * ft; break; } }
       if (yTop - bbH < 0.25) continue; // skip stubby battens (e.g. under a low sill)
