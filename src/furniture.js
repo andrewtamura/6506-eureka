@@ -148,7 +148,7 @@ function buildBuiltinHutch(p) {
     add(box(udw - 0.06, fh - 0.06, 0.006), glass, ux, fy, zF - 0.012);  // glass pane
     add(box(0.012, fh - 0.06, 0.008), paint, ux, fy, zF - 0.012);       // vertical muntin
     for (const my of [fy - fh / 6, fy + fh / 6]) add(box(udw - 0.06, 0.012, 0.008), paint, ux, my, zF - 0.012);
-    for (const sy of [upBot + fh / 3, upBot + 2 * fh / 3]) add(box(udw - 0.05, 0.015, dep - 0.04), paint, ux, sy, zM); // shelves
+    add(box(udw - 0.05, 0.015, dep - 0.04), paint, ux, (upBot + upTop) / 2, zM); // single shelf
     knob(ux + udw / 2 - 0.05, fy);
   }
 
