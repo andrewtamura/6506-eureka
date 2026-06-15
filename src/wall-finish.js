@@ -91,24 +91,34 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl }) {
       }
     }
 
-    // 3) cornice matching the photo — NO dentils: a plain frieze, a small bed
-    //    mold, and a stepped cove crown that projects ~5" and miters at corners.
-    const Hc = 0.19, P5 = 0.127;            // crown height / 5" projection (m)
-    const crownB = wallTop - Hc;            // crown springline
-    band(w.lo, w.hi, headY, headY + 0.05, 0.04);             // architrave cap (atop casing)
-    band(w.lo, w.hi, headY + 0.05, crownB - 0.05, 0.012, field); // frieze (flat, recessed)
-    band(w.lo, w.hi, crownB - 0.05, crownB, 0.05);           // bed mold under the crown
-    // stepped cove crown: a profile (X = projection into room, Y = up) extruded
-    // along the wall, oriented via a basis (X->normal, Y->up, Z->wall dir).
+    // 3) cornice matching the photo (over-door crop): a tall PLAIN WHITE FRIEZE
+    //    board is the dominant element, capped by a small stepped bed mold, with
+    //    a cove crown (with a straight topper) tight at the ceiling projecting ~5".
+    const Hc = 0.16, P5 = 0.127;            // crown height / 5" projection (m)
+    const bedH = 0.05;                       // bed-mold cap height
+    const crownB = wallTop - Hc;            // crown springline (bottom of crown)
+    const friezeTop = crownB - bedH;        // top of the flat frieze board
+    band(w.lo, w.hi, headY, headY + 0.045, 0.05);            // architrave cap atop casing
+    band(w.lo, w.hi, headY + 0.045, friezeTop, 0.024);       // FRIEZE — tall, proud, white board
+    band(w.lo, w.hi, friezeTop, friezeTop + 0.022, 0.05);    // bed mold: lower bead (most proud)
+    band(w.lo, w.hi, friezeTop + 0.022, crownB, 0.062);      // bed mold: upper step
+    // cove crown: a single concave COVE (quarter-hollow) with a STRAIGHT TOPPER
+    // piece running from the top of the cove out to the ceiling — together they
+    // read as the S-curve in the photo, but it's a cove + flat topper, not an
+    // ogee. Profile is (X = projection into room, Y = up) with origin at the
+    // springline on the wall; oriented via a basis (X->interior normal, Y->up,
+    // Z->wall dir) so it miters at the corners.
     {
       const A = P(w.lo), B = P(w.hi), L = A.distanceTo(B);
       const dir = B.clone().sub(A); dir.y = 0; dir.normalize();
       const shape = new THREE.Shape();
-      shape.moveTo(0, 0); shape.lineTo(0, Hc); shape.lineTo(P5, Hc);  // back up wall, out along ceiling
-      shape.lineTo(P5, Hc - 0.022);                                   // ceiling fillet
-      shape.quadraticCurveTo(0.012, Hc - 0.11, 0.05, 0.052);         // big cove (concave)
-      shape.lineTo(0.05, 0.028); shape.lineTo(0.022, 0.028);          // bottom fascia
-      shape.lineTo(0.022, 0); shape.lineTo(0, 0);                     // fillet back to wall
+      shape.moveTo(0, 0);
+      shape.lineTo(0, 0.018);                                  // bottom fillet (fascia) at wall
+      shape.quadraticCurveTo(0, Hc - 0.05, 0.058, Hc - 0.05);  // concave cove (up wall, sweep out)
+      shape.lineTo(P5, Hc - 0.012);                            // straight topper (flat slope to ceiling)
+      shape.lineTo(P5, Hc);                                    // top fillet at ceiling
+      shape.lineTo(0, Hc);                                     // along ceiling back to wall
+      shape.lineTo(0, 0);                                      // down the wall (back face)
       const geo = new THREE.ExtrudeGeometry(shape, { depth: L, bevelEnabled: false });
       const crown = new THREE.Mesh(geo, crownMat);
       crown.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(Nw, new THREE.Vector3(0, 1, 0), dir));
