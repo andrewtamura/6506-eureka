@@ -80,11 +80,14 @@ const HEXBLACK = [0.11, 0.11, 0.12];
 
 function hexagon(hexes, b) {
   const x1 = b.min.x, x2 = b.max.x, z1 = b.min.z, z2 = b.max.z;
-  const nr = Math.ceil((z2 - z1) / HEX_ROW), nc = Math.ceil((x2 - x1) / HEX_COL);
-  for (let r = -1; r <= nr + 1; r++) {
-    const z = z1 + r * HEX_ROW, xoff = (r & 1) ? HEX_COL / 2 : 0;
-    for (let c = -1; c <= nc + 1; c++) {
-      const x = x1 + xoff + c * HEX_COL;
+  // Anchor the honeycomb to a GLOBAL grid (origin 0,0) so the pattern runs
+  // continuously across adjacent rooms (the box clip trims each room's edge).
+  const r0 = Math.floor(z1 / HEX_ROW) - 1, r1 = Math.ceil(z2 / HEX_ROW) + 1;
+  for (let r = r0; r <= r1; r++) {
+    const z = r * HEX_ROW, xoff = (r & 1) ? HEX_COL / 2 : 0;
+    const c0 = Math.floor((x1 - xoff) / HEX_COL) - 1, c1 = Math.ceil((x2 - xoff) / HEX_COL) + 1;
+    for (let c = c0; c <= c1; c++) {
+      const x = xoff + c * HEX_COL;
       const q = c - Math.floor(r / 2);                       // axial column
       // a regular field accent: an isolated charcoal hex every 3rd row and 3rd
       // column (each surrounded by white) — evenly spaced, repeating, ~1-in-9.
