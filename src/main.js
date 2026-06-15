@@ -12,6 +12,7 @@ import { setupCompass } from "./compass.js";
 import { buildWoodFloor } from "./wood-floor.js";
 import { buildFurniture } from "./furniture.js";
 import { buildWallFinish } from "./wall-finish.js";
+import { buildCeilings } from "./ceilings.js";
 
 const BASE = import.meta.env.BASE_URL; // respects Vite `base` on GitHub Pages
 const statusEl = document.getElementById("status");
@@ -68,11 +69,16 @@ async function main() {
   cam3.near = 0.05;
   cam3.updateProjectionMatrix();
 
+  // Cast real shadows so the ceiling/walls/floor block the sun (daylight only
+  // enters through windows + open doors) and recesses read with depth.
+  world.renderer.three.shadowMap.enabled = true;
+  world.renderer.three.shadowMap.type = THREE.PCFSoftShadowMap;
+
   const grids = components.get(OBC.Grids);
   grids.create(world);
 
   // --- time-of-day lighting ----------------------------------------------
-  const { apply: applyLighting, names: lightingNames } = setupLighting(scene);
+  const { apply: applyLighting, names: lightingNames, focusShadow } = setupLighting(scene);
   applyLighting("Afternoon");
   const lightEl = document.getElementById("lighting");
   const icons = { Morning: "\u{1F305}", Afternoon: "☀️", Evening: "\u{1F307}", Night: "\u{1F319}" };
@@ -237,6 +243,7 @@ async function main() {
 
   // --- interior camera: confine to a room so panning can't fly through walls
   const FLOOR = modelBox.min.y + 0.2; // floor surface (slab top) in world Y
+  let setPlanView = () => {};          // assigned once ceilings exist (POV opaque / plan transparent)
   const EYE = 1.63;                    // eye height for a 5'8" person (~1.63 m)
   const LOOK_DIST = 0.05;              // orbit radius indoors: ~0 so you spin in place
   const ROOM_INSET = 0.55;             // keep the standing point this far from walls (m)
@@ -265,8 +272,10 @@ async function main() {
     ctrls.minDistance = LOOK_DIST;        // lock the orbit radius so pinch-zoom
     ctrls.maxDistance = LOOK_DIST;        // can't dolly the camera out of the room
     ctrls.truckSpeed = 0;                 // no two-finger pan (would exit the room)
+    setPlanView(false);                   // inside a room: opaque ceiling overhead
   }
   function exitToOverview() {
+    setPlanView(true);                    // looking down on the plan: see-through ceiling
     ctrls.boundaryEnclosesCamera = false;
     ctrls.setBoundary(undefined);
     ctrls.azimuthRotateSpeed = 1;        // normal orbit for the overview
@@ -358,6 +367,22 @@ async function main() {
 
   // --- board-and-batten wall finish + baseboards (see wall-finish.js) -----
   await buildWallFinish({ scene, floorY: FLOOR, ceilingY: modelBox.max.y, baseUrl: BASE });
+
+  // --- ceilings (block the sun; opaque in POV, transparent in plan) -------
+  setPlanView = buildCeilings({ scene, rooms: roomBoxes, ceilingY: modelBox.max.y }).setPlanView;
+  // Opaque blockers (ceiling, walls, floor, furniture) cast shadow so the sun
+  // can't pass through them; transparent glass does NOT cast, so windows let
+  // daylight into the interior. (Run before toggling the ceiling transparent so
+  // the ceiling is registered as a shadow caster.)
+  scene.traverse((o) => {
+    if (!o.isMesh) return;
+    const mats = Array.isArray(o.material) ? o.material : [o.material];
+    o.castShadow = !mats.some((m) => m && m.transparent && m.opacity < 0.95);
+    o.receiveShadow = true;
+  });
+  const _sz = modelBox.getSize(new THREE.Vector3());
+  focusShadow(modelBox.getCenter(new THREE.Vector3()), Math.max(_sz.x, _sz.z) * 0.6);
+  setPlanView(true);   // the viewer opens in the overview
 
   const _tdir = new THREE.Vector3();
   // Glide the camera to a new pose by interpolating the eye + look-at point as
