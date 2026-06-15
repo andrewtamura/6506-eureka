@@ -91,27 +91,27 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl }) {
       }
     }
 
-    // 3) cornice matching the photo (over-door crop): the frieze sits DIRECTLY
-    //    above the opening heads (no plain wall between), capped by a small bed
-    //    mold, then a cove crown (with a straight topper) at the ceiling. The
-    //    cove height equals the frieze height; both are derived from the gap
-    //    between the head line and the ceiling so the frieze bottom lands exactly
-    //    on the openings.
+    // 3) cornice: an entablature that sits DIRECTLY on top of the 7' opening
+    //    heads (door-head line) — frieze, small bed mold, then a cove crown with
+    //    a straight topper — with plain wall above it up to the ceiling. The cove
+    //    height equals the frieze height. The crown runs on all four walls and
+    //    miters at the corners.
     const topperH = 0.03, bedH = 0.04, P5 = 0.127;   // topper / bed-mold / 5" projection (m)
-    const friezeH = Math.max(0.06, (wallTop - headY - topperH - bedH) / 2);
-    const coveH = friezeH;                   // cove height == frieze height (per spec)
+    const friezeH = 0.16, coveH = friezeH;   // frieze height == cove height (per spec)
     const Hc = coveH + topperH;             // total crown height
-    const crownB = wallTop - Hc;            // crown springline (bottom of crown)
-    const friezeTop = crownB - bedH;        // top of the frieze (below bed mold)
-    band(w.lo, w.hi, headY, friezeTop, 0.024);              // FRIEZE — sits on the opening head (== cove height)
+    const friezeTop = headY + friezeH;      // frieze bottom sits on the opening head
+    const crownB = friezeTop + bedH;        // crown springline (bottom of crown)
+    const crownTop = crownB + Hc;           // top of the crown
+    band(w.lo, w.hi, headY, friezeTop, 0.024);             // FRIEZE — sits on the opening head (== cove height)
     band(w.lo, w.hi, friezeTop, friezeTop + 0.018, 0.05);  // bed mold: lower bead (most proud)
     band(w.lo, w.hi, friezeTop + 0.018, crownB, 0.058);    // bed mold: upper step
+    band(w.lo, w.hi, crownTop, wallTop, 0.012, field);     // plain wall above the cornice, up to the ceiling
     // cove crown: a single concave COVE (quarter-hollow, height coveH) with a
     // STRAIGHT TOPPER (height topperH) running from the top of the cove out to
-    // the ceiling — together they read as the S-curve in the photo, but it's a
+    // the crown top — together they read as the S-curve in the photo, but it's a
     // cove + flat topper, not an ogee. Profile is (X = projection into room,
-    // Y = up) with origin at the springline on the wall; oriented via a basis
-    // (X->interior normal, Y->up, Z->wall dir) so it miters at the corners.
+    // Y = up) with origin at the crown springline on the wall; oriented via a
+    // basis (X->interior normal, Y->up, Z->wall dir) so it miters at the corners.
     {
       const A = P(w.lo), B = P(w.hi), L = A.distanceTo(B);
       const dir = B.clone().sub(A); dir.y = 0; dir.normalize();
@@ -119,9 +119,9 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl }) {
       shape.moveTo(0, 0);
       shape.lineTo(0, 0.016);                                  // bottom fillet (fascia) at wall
       shape.quadraticCurveTo(0, coveH, 0.08, coveH);           // concave cove (up wall, sweep out)
-      shape.lineTo(P5, Hc - 0.012);                            // straight topper (flat slope to ceiling)
-      shape.lineTo(P5, Hc);                                    // top fillet at ceiling
-      shape.lineTo(0, Hc);                                     // along ceiling back to wall
+      shape.lineTo(P5, Hc - 0.012);                            // straight topper (flat slope outward)
+      shape.lineTo(P5, Hc);                                    // top fillet
+      shape.lineTo(0, Hc);                                     // top face back to wall
       shape.lineTo(0, 0);                                      // down the wall (back face)
       const geo = new THREE.ExtrudeGeometry(shape, { depth: L, bevelEnabled: false });
       const crown = new THREE.Mesh(geo, crownMat);
