@@ -90,11 +90,11 @@ function buildBuiltinHutch(p) {
   // dimensions: 36" counter, a 24" open void above it (the empty 16"-deep niche),
   // then flush glass uppers. The carcass is 16" deep (the niche depth); it sits
   // flush with the casings and its back is hidden by the kitchen bump-out.
-  const counterY = 0.90, baseBot = 0.12;
+  const counterTop = (30 / 12) * ft;                // counter 30" above the floor
+  const counterY = counterTop - 0.06, baseBot = 0.10;
   const dep = (16 / 12) * ft;                        // 16" carcass / niche depth
   const zB = zF - dep, zM = zF - dep / 2;            // back plane / depth midpoint
-  const counterTop = counterY + 0.06;               // top of the counter slab
-  const upBot = counterTop + (24 / 12) * ft;         // 24" open void above the counter
+  const upBot = counterTop + (18 / 12) * ft;         // 18" open void above the counter
   const upTop = 2.00;
   const dark = new THREE.MeshStandardMaterial({ color: 0xcfccc3, roughness: 0.7 });
 
