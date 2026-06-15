@@ -96,7 +96,7 @@ function buildBuiltinHutch(p) {
   const dep = (16 / 12) * ft;                        // 16" carcass / niche depth
   const zB = zF - dep, zM = zF - dep / 2;            // back plane / depth midpoint
   const upTop = H;                                   // uppers reach the headline (room cornice seats above)
-  const upBot = upTop - (28 / 12) * ft;              // 28"-tall uppers (fixed); the open void is the ~24" remainder
+  const upBot = upTop - (32 / 12) * ft;              // 32"-tall uppers (fixed); the open void is the ~20" remainder
   const dark = new THREE.MeshStandardMaterial({ color: 0xcfccc3, roughness: 0.7 });
 
   // carcass: full-height side gables frame the niche; back panel, bottom, top, toe kick
