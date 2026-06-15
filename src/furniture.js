@@ -94,8 +94,8 @@ function buildBuiltinHutch(p) {
   const counterY = counterTop - 0.06, baseBot = 0.10;
   const dep = (16 / 12) * ft;                        // 16" carcass / niche depth
   const zB = zF - dep, zM = zF - dep / 2;            // back plane / depth midpoint
-  const upBot = counterTop + (24 / 12) * ft;         // 24" open void above the counter
-  const upTop = upBot + (32 / 12) * ft;              // 32"-tall upper cabinets
+  const upTop = H;                                   // uppers reach the headline (room cornice seats above)
+  const upBot = upTop - (32 / 12) * ft;              // 32"-tall uppers; the void below is the remainder
   const dark = new THREE.MeshStandardMaterial({ color: 0xcfccc3, roughness: 0.7 });
 
   // carcass: full-height side gables frame the niche; back panel, bottom, top, toe kick
@@ -152,9 +152,7 @@ function buildBuiltinHutch(p) {
     knob(ux + udw / 2 - 0.05, fy);
   }
 
-  // crown cap + filler to the ceiling
-  add(box(W + 0.04, 0.05, dep + 0.05), paint, 0, upTop + 0.03, zM);
-  if (H - upTop > 0.10) add(box(W, H - upTop - 0.06, dep), paint, 0, (upTop + 0.06 + H) / 2, zM);
+  // (no cabinet crown: the uppers meet the headline and the room cornice seats on top)
   return g;
 }
 
