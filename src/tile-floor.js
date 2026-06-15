@@ -83,6 +83,30 @@ function checkerboard(tiles, b, fy) {
   }
 }
 
+// --- white hexagon mosaic with scattered black accents (baths / utility) ---
+const HEX_FF = (2.5 / 12) * FT;          // 2.5" flat-to-flat hex
+const HEXR = HEX_FF / Math.sqrt(3);      // circumradius (centre to corner)
+const HEX_COL = Math.sqrt(3) * HEXR;     // column spacing = flat-to-flat
+const HEX_ROW = 1.5 * HEXR;              // row spacing
+const HEXWHITE = [0.90, 0.89, 0.85];
+const HEXBLACK = [0.11, 0.11, 0.12];
+
+function hexagon(hexes, b, fy) {
+  const x1 = b.min.x, x2 = b.max.x, z1 = b.min.z, z2 = b.max.z;
+  let r = 0;
+  for (let z = z1; z <= z2; z += HEX_ROW, r++) {     // pointy-top rows; odd rows shift half a column
+    const xoff = (r & 1) ? HEX_COL / 2 : 0;
+    for (let x = x1 + xoff; x <= x2; x += HEX_COL) {
+      if (x < x1) continue;
+      const c = Math.round((x - x1) / HEX_COL);
+      const accent = hash(c * 12.9 + r * 7.31) < 0.12;   // ~12% scattered black accents
+      const base = accent ? HEXBLACK : HEXWHITE;
+      const sf = MSHADE[Math.floor(hash(c * 3.7 + r * 9.1) * MSHADE.length) % MSHADE.length];
+      hexes.push({ cx: x, cz: z, rgb: [base[0] * sf, base[1] * sf, base[2] * sf] });
+    }
+  }
+}
+
 const PATTERNS = { basketweave, checkerboard };
 
 export async function buildTileFloor({ scene, model, fragments, floorY, baseUrl }) {
@@ -95,8 +119,9 @@ export async function buildTileFloor({ scene, model, fragments, floorY, baseUrl 
   const cboxes = await model.getBoxes(covs);
   const byName = new Map();
   covs.forEach((id, i) => byName.set(String(cdata[i]?.Name?.value ?? ""), { id, box: cboxes[i] }));
+  const known = (p) => PATTERNS[p] || p === "hexagon";
   const floors = manifest.map((e) => ({ ...byName.get(e.name), pattern: e.pattern }))
-    .filter((f) => f.box && PATTERNS[f.pattern]);
+    .filter((f) => f.box && known(f.pattern));
   if (!floors.length) return;
 
   await model.setVisible(floors.map((f) => f.id), false);   // hide the flat IFC tile covering
@@ -104,28 +129,47 @@ export async function buildTileFloor({ scene, model, fragments, floorY, baseUrl 
 
   const fy = floorY + 0.02;
   const groutMat = new THREE.MeshLambertMaterial({ color: 0xbdb9ad });
-  const tiles = [];
+  const tiles = [], hexes = [];                              // rectangular tiles vs hex prisms
   for (const fl of floors) {
     const b = fl.box;
     const base = new THREE.Mesh(new THREE.PlaneGeometry(b.max.x - b.min.x, b.max.z - b.min.z), groutMat);
     base.rotation.x = -Math.PI / 2;
     base.position.set((b.min.x + b.max.x) / 2, fy - 0.003, (b.min.z + b.max.z) / 2);
     base.receiveShadow = true; scene.add(base);
-    PATTERNS[fl.pattern](tiles, b, fy);
+    if (fl.pattern === "hexagon") hexagon(hexes, b, fy);
+    else PATTERNS[fl.pattern](tiles, b, fy);
   }
 
-  const inst = new THREE.InstancedMesh(
-    new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({}), tiles.length);
-  inst.receiveShadow = true;
-  const m = new THREE.Matrix4(), col = new THREE.Color(), pos = new THREE.Vector3();
-  const scl = new THREE.Vector3(), q = new THREE.Quaternion(), Y = new THREE.Vector3(0, 1, 0);
-  tiles.forEach((t, i) => {
-    q.setFromAxisAngle(Y, t.rot || 0);
-    m.compose(pos.set(t.cx, t.y, t.cz), q, scl.set(t.w, t.h, t.d));
-    inst.setMatrixAt(i, m);
-    inst.setColorAt(i, col.setRGB(t.rgb[0], t.rgb[1], t.rgb[2]));
-  });
-  inst.instanceMatrix.needsUpdate = true;
-  if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
-  scene.add(inst);
+  const col = new THREE.Color();
+  if (tiles.length) {
+    const inst = new THREE.InstancedMesh(
+      new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({}), tiles.length);
+    inst.receiveShadow = true;
+    const m = new THREE.Matrix4(), pos = new THREE.Vector3();
+    const scl = new THREE.Vector3(), q = new THREE.Quaternion(), Y = new THREE.Vector3(0, 1, 0);
+    tiles.forEach((t, i) => {
+      q.setFromAxisAngle(Y, t.rot || 0);
+      m.compose(pos.set(t.cx, t.y, t.cz), q, scl.set(t.w, t.h, t.d));
+      inst.setMatrixAt(i, m);
+      inst.setColorAt(i, col.setRGB(t.rgb[0], t.rgb[1], t.rgb[2]));
+    });
+    inst.instanceMatrix.needsUpdate = true;
+    if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+    scene.add(inst);
+  }
+  if (hexes.length) {
+    // pointy-top hex prism (6-sided cylinder), slightly shrunk for the grout line
+    const hg = new THREE.CylinderGeometry(HEXR * 0.92, HEXR * 0.92, TH, 6);
+    const hinst = new THREE.InstancedMesh(hg, new THREE.MeshLambertMaterial({}), hexes.length);
+    hinst.receiveShadow = true;
+    const m = new THREE.Matrix4();
+    hexes.forEach((h, i) => {
+      m.makeTranslation(h.cx, fy + TH / 2, h.cz);
+      hinst.setMatrixAt(i, m);
+      hinst.setColorAt(i, col.setRGB(h.rgb[0], h.rgb[1], h.rgb[2]));
+    });
+    hinst.instanceMatrix.needsUpdate = true;
+    if (hinst.instanceColor) hinst.instanceColor.needsUpdate = true;
+    scene.add(hinst);
+  }
 }

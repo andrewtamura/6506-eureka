@@ -22,7 +22,8 @@
   "windows": [],
   "interior": {
     "flooring": {
-      "material": "tile"
+      "material": "tile",
+      "pattern": "hexagon"
     }
   }
 }
