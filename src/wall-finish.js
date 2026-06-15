@@ -12,7 +12,7 @@ import * as THREE from "three";
 const MILL = 0xefece4;   // millwork white (battens, casing, base, cornice)
 const FIELD = 0xdcd7cb;  // slightly deeper field/frieze so the millwork reads
 const BATTEN_W = 0.0254;        // 1" battens
-const BATTEN_SPACING_FT = 1.0;  // 12" board grid, anchored at the wall corner
+const BATTEN_SPACING_FT = 14 / 12;  // 14" board grid, anchored at the wall corner
 
 export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl }) {
   let data;
@@ -84,7 +84,7 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl }) {
       const sy = sill * ft; if (sy - bbH < 0.06) continue;
       band(a, b, bbH, sy, 0.012, field);
     }
-    // Battens on a 12" grid anchored at the corner (w.lo). The board stays
+    // Battens on a 14" grid anchored at the corner (w.lo). The board stays
     // continuous; a batten is simply OMITTED where its grid line lands inside a
     // door (no board there) or within a casing-width of any opening edge (so it
     // never doubles up against the trim).
