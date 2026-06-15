@@ -4,6 +4,15 @@
   "zs": 1,
   "items": [
     {
+      "type": "rug",
+      "px": 23.04,
+      "pz": 9.04,
+      "rot": 0.0,
+      "material": "rug",
+      "w": 11,
+      "d": 9
+    },
+    {
       "type": "round_pedestal_table",
       "px": 23.04,
       "pz": 9.04,

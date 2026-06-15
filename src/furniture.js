@@ -9,6 +9,7 @@ import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeom
 const PALETTE = {
   oatmeal: 0xd9d2c4, linen: 0xcfc6b4, upholstery: 0x5a6b80,
   lightoak: 0xb38f63, oak: 0xa9824f, walnut: 0x6b4a2f, darkwalnut: 0x3a2a1c,
+  rug: 0x9c6b5a, sage: 0x8a9a86, slate: 0x4a5568,
 };
 const col = (name, fallback) => new THREE.Color(PALETTE[name] ?? fallback);
 const fabricMat = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.95 });
@@ -57,7 +58,19 @@ function buildTable(p) {
   return g;
 }
 
-const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable };
+// A flat rectangular area rug (w x d in feet). Returned as a Group so its
+// y-offset survives when buildFurniture positions the group on the floor.
+function buildRug(p) {
+  const ft = 0.3048;
+  const g = new THREE.Group();
+  const mat = new THREE.MeshStandardMaterial({ color: col(p.material || "rug", 0x9c6b5a), roughness: 1.0 });
+  const m = new THREE.Mesh(new THREE.BoxGeometry((p.w ?? 8) * ft, 0.012, (p.d ?? 6) * ft), mat);
+  m.position.y = 0.03; // sit on top of the instanced wood planks (which rise ~0.04 above the slab)
+  g.add(m);
+  return g;
+}
+
+const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug };
 const CHAIRS = new Set(["upholstered_dining_chair", "highback_chair"]);
 const SEAT_FRONT = 0.225;   // chair seat front is +0.225 m toward the table from its centre
 const TUCK = 0.08;          // pushed-in: seat front this far under the table edge
@@ -70,7 +83,16 @@ export async function buildFurniture({ scene, floorY, baseUrl }) {
   // plan (feet) -> three.js world: x = xs*px*ft, z = -(zs*pz*ft) (web-ifc maps IFC +Y -> -Z)
   const world = (px, pz) => [xs * px * ft, -(zs * pz * ft)];
 
-  // Tables first, so chairs can be positioned relative to their nearest table.
+  // Flat/static pieces first (rugs) so the table + chairs sit on top of them.
+  for (const it of items) {
+    if (it.type === "round_pedestal_table" || CHAIRS.has(it.type) || !BUILDERS[it.type]) continue;
+    const [x, z] = world(it.px, it.pz);
+    const obj = BUILDERS[it.type](it);
+    obj.position.set(x, floorY, z);
+    scene.add(obj);
+  }
+
+  // Tables, so chairs can be positioned relative to their nearest table.
   const tables = [];
   for (const it of items) {
     if (it.type !== "round_pedestal_table") continue;

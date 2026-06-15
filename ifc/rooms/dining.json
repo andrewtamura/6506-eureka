@@ -45,6 +45,16 @@
     },
     "furniture": [
       {
+        "type": "rug",
+        "at": [
+          23.04,
+          9.04
+        ],
+        "w": 11,
+        "d": 9,
+        "material": "rug"
+      },
+      {
         "type": "round_pedestal_table",
         "at": [
           23.04,
