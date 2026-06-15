@@ -91,29 +91,24 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl }) {
       }
     }
 
-    // 3) Colonial Revival entablature (bottom -> top): architrave fascia + cap,
-    //    a plain frieze, a bed mold, a dentil course, a cornice fascia, and a
-    //    curved cove crown that projects 5" and miters at the corners.
-    const Hc = 0.16, P5 = 0.127;            // crown height / 5" projection (m)
+    // 3) cornice matching the photo — NO dentils: a plain frieze, a small bed
+    //    mold, and a stepped cove crown that projects ~5" and miters at corners.
+    const Hc = 0.19, P5 = 0.127;            // crown height / 5" projection (m)
     const crownB = wallTop - Hc;            // crown springline
-    const fasciaT = crownB, fasciaB = crownB - 0.05;     // cornice fascia
-    const dentT = fasciaB, dentB = dentT - 0.09;          // dentil course
-    const bedT = dentB, bedB = dentT - 0.09 - 0.06;       // bed mold
-    band(w.lo, w.hi, headY, headY + 0.06, 0.03);          // architrave fascia
-    band(w.lo, w.hi, headY + 0.06, headY + 0.13, 0.055);  // architrave cap
-    band(w.lo, w.hi, headY + 0.13, bedB, 0.012, field);   // frieze (recessed)
-    band(w.lo, w.hi, bedB, bedT, 0.06);                   // bed mold
-    for (let s = w.lo + 0.16; s < w.hi - 0.06; s += 0.33) post(s, dentB, dentT, 0.04, 0.06); // dentils
-    band(w.lo, w.hi, dentB, dentT, 0.022, field);         // dentil backer (recessed)
-    band(w.lo, w.hi, fasciaB, fasciaT, 0.075);            // cornice fascia
-    // curved cove crown: a profile (X = projection into room, Y = up) extruded
+    band(w.lo, w.hi, headY, headY + 0.05, 0.04);             // architrave cap (atop casing)
+    band(w.lo, w.hi, headY + 0.05, crownB - 0.05, 0.012, field); // frieze (flat, recessed)
+    band(w.lo, w.hi, crownB - 0.05, crownB, 0.05);           // bed mold under the crown
+    // stepped cove crown: a profile (X = projection into room, Y = up) extruded
     // along the wall, oriented via a basis (X->normal, Y->up, Z->wall dir).
     {
       const A = P(w.lo), B = P(w.hi), L = A.distanceTo(B);
       const dir = B.clone().sub(A); dir.y = 0; dir.normalize();
       const shape = new THREE.Shape();
-      shape.moveTo(0, 0); shape.lineTo(0, Hc); shape.lineTo(P5, Hc);
-      shape.quadraticCurveTo(0, Hc, 0, 0);               // concave cove face
+      shape.moveTo(0, 0); shape.lineTo(0, Hc); shape.lineTo(P5, Hc);  // back up wall, out along ceiling
+      shape.lineTo(P5, Hc - 0.022);                                   // ceiling fillet
+      shape.quadraticCurveTo(0.012, Hc - 0.11, 0.05, 0.052);         // big cove (concave)
+      shape.lineTo(0.05, 0.028); shape.lineTo(0.022, 0.028);          // bottom fascia
+      shape.lineTo(0.022, 0); shape.lineTo(0, 0);                     // fillet back to wall
       const geo = new THREE.ExtrudeGeometry(shape, { depth: L, bevelEnabled: false });
       const crown = new THREE.Mesh(geo, crownMat);
       crown.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(Nw, new THREE.Vector3(0, 1, 0), dir));
