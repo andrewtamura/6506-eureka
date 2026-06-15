@@ -42,6 +42,21 @@ def union_intervals(intervals, tol=1e-4):
     return [(a, b) for a, b in out if b - a > tol]
 
 
+def subtract_intervals(lo, hi, holes, margin=0.0, minlen=0.3):
+    """Solid spans of [lo,hi] left after removing the (optionally margined)
+    ``holes``. Spans shorter than ``minlen`` are dropped."""
+    merged = union_intervals([(a - margin, b + margin) for a, b in holes]) if holes else []
+    spans, cur = [], lo
+    for a, b in merged:
+        a, b = max(a, lo), min(b, hi)
+        if a > cur:
+            spans.append((cur, a))
+        cur = max(cur, b)
+    if cur < hi:
+        spans.append((cur, hi))
+    return [(a, b) for a, b in spans if b - a > minlen]
+
+
 class Ctx:
     """Carries the IFC file, the model context, the storey, global parameters
     and the running list of walls (so openings can find their host)."""
@@ -60,6 +75,7 @@ class Ctx:
         self.door_meta = []                          # [{name, hingeMax, swingSign}] for the viewer
         self.plank_floors = []                       # [{name, rgb}] plank floors the viewer re-renders
         self.furniture = []                          # [{type, px, pz, rot, ...}] viewer-rendered furniture
+        self.paneling = []                           # [{along, at, normal, base, field}] wall finishes
         self.styles = {}                             # rgb tuple -> IfcSurfaceStyle (cached)
 
     # plan feet -> IFC metres (with the cardinal flip)

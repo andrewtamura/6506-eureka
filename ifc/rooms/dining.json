@@ -118,6 +118,9 @@
         "rot": 120.0,
         "material": "oatmeal"
       }
-    ]
+    ],
+    "paneling": {
+      "baseboard": 10
+    }
   }
 }

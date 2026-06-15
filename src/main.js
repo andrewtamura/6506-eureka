@@ -11,6 +11,7 @@ import { setupLighting } from "./lighting.js";
 import { setupCompass } from "./compass.js";
 import { buildWoodFloor } from "./wood-floor.js";
 import { buildFurniture } from "./furniture.js";
+import { buildWallFinish } from "./wall-finish.js";
 
 const BASE = import.meta.env.BASE_URL; // respects Vite `base` on GitHub Pages
 const statusEl = document.getElementById("status");
@@ -342,6 +343,9 @@ async function main() {
 
   // --- soft furniture as procedural meshes (see furniture.js) -------------
   const furniture = await buildFurniture({ scene, floorY: FLOOR + 0.02, baseUrl: BASE });
+
+  // --- board-and-batten wall finish + baseboards (see wall-finish.js) -----
+  await buildWallFinish({ scene, floorY: FLOOR, ceilingY: modelBox.max.y, baseUrl: BASE });
 
   const _tdir = new THREE.Vector3();
   // Glide the camera to a new pose by interpolating the eye + look-at point as

@@ -34,6 +34,48 @@ def load_json(path):
         return json.load(f)
 
 
+def compute_paneling(ctx, rooms):
+    """For rooms whose `interior.paneling` is set, compute the solid wall spans
+    to finish (minus door/window openings, found across all rooms on the shared
+    wall lines). The viewer builds baseboard + board-and-batten on these spans."""
+    half = ctx.T / B.FT / 2  # half wall thickness, in plan feet
+    for room in rooms:
+        if not (room.get("interior") or {}).get("paneling"):
+            continue
+        b = room["bounds"]
+        x1, x2 = sorted([b["x1"], b["x2"]])
+        z1, z2 = sorted([b["z1"], b["z2"]])
+
+        def gather(orient, fixed):
+            doors, wins = [], []
+            for r in rooms:
+                for d in r.get("doors", []):
+                    if d["orient"] == orient and abs(d["fixed"] - fixed) < 0.3:
+                        w = abs(d["width"]); doors.append((d["pos"] - w / 2, d["pos"] + w / 2))
+                for wd in r.get("windows", []):
+                    if wd["orient"] == orient and abs(wd["fixed"] - fixed) < 0.3:
+                        w = abs(wd["width"]); wins.append((wd["pos"] - w / 2, wd["pos"] + w / 2))
+            return doors, wins
+
+        for orient, fixed, lo, hi, face, normal in [
+            ("H", z1, x1, x2, z1 + half, [0, 1]),
+            ("H", z2, x1, x2, z2 - half, [0, -1]),
+            ("V", x1, z1, z2, x1 + half, [1, 0]),
+            ("V", x2, z1, z2, x2 - half, [-1, 0]),
+        ]:
+            doors, wins = gather(orient, fixed)
+            base = B.subtract_intervals(lo, hi, doors, margin=0.25)            # baseboard: minus doors
+            field = B.subtract_intervals(lo, hi, doors + wins, margin=0.25)    # field: minus doors+windows
+            if not base and not field:
+                continue
+            ctx.paneling.append({
+                "along": "x" if orient == "H" else "z",
+                "at": round(face, 4), "normal": normal,
+                "base": [[round(a, 3), round(c, 3)] for a, c in base],
+                "field": [[round(a, 3), round(c, 3)] for a, c in field],
+            })
+
+
 def run_hook(ctx, room):
     """If rooms/<stem>.py exists with build(ctx, room), run it for bespoke geometry."""
     hook = os.path.join(ROOMS_DIR, room["_stem"] + ".py")
@@ -83,6 +125,7 @@ def main():
         B.add_windows(ctx, r)
         catalog.build_interior(ctx, r)
         run_hook(ctx, r)
+    compute_paneling(ctx, rooms)
 
     out = os.path.join(HERE, "floorplan.ifc")
     m.write(out)
@@ -97,6 +140,10 @@ def main():
     # Carries the plan->world mapping so the viewer can place them.
     with open(os.path.join(HERE, "furniture.json"), "w") as f:
         json.dump({"ft": B.FT, "xs": ctx.xs, "zs": ctx.zs, "items": ctx.furniture}, f, indent=2)
+    # Wall-finish manifest: solid wall spans for baseboard + board-and-batten.
+    with open(os.path.join(HERE, "paneling.json"), "w") as f:
+        json.dump({"ft": B.FT, "xs": ctx.xs, "zs": ctx.zs,
+                   "baseboardFt": 10 / 12, "walls": ctx.paneling}, f, indent=2)
 
     def n(cls):
         return len(m.by_type(cls))

@@ -32,3 +32,5 @@ copy("ifc/doors.json", "public/doors.json");
 copy("ifc/floors.json", "public/floors.json");
 // Furniture manifest (soft/curved pieces the viewer renders as meshes).
 copy("ifc/furniture.json", "public/furniture.json");
+// Wall-finish manifest (baseboard + board-and-batten spans).
+copy("ifc/paneling.json", "public/paneling.json");
