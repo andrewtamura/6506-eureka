@@ -35,9 +35,9 @@ def load_json(path):
 
 
 def compute_paneling(ctx, rooms):
-    """For rooms whose `interior.paneling` is set, compute the solid wall spans
-    to finish (minus door/window openings, found across all rooms on the shared
-    wall lines). The viewer builds baseboard + board-and-batten on these spans."""
+    """For rooms whose `interior.paneling` is set, emit the wall data the viewer
+    needs to build a full trim program: wall extent + door/window openings (found
+    across all rooms on the shared wall lines). Heads are uniform (ctx.head_ft)."""
     half = ctx.T / B.FT / 2  # half wall thickness, in plan feet
     for room in rooms:
         if not (room.get("interior") or {}).get("paneling"):
@@ -51,10 +51,11 @@ def compute_paneling(ctx, rooms):
             for r in rooms:
                 for d in r.get("doors", []):
                     if d["orient"] == orient and abs(d["fixed"] - fixed) < 0.3:
-                        w = abs(d["width"]); doors.append((d["pos"] - w / 2, d["pos"] + w / 2))
+                        w = abs(d["width"]); doors.append([round(d["pos"] - w / 2, 3), round(d["pos"] + w / 2, 3)])
                 for wd in r.get("windows", []):
                     if wd["orient"] == orient and abs(wd["fixed"] - fixed) < 0.3:
-                        w = abs(wd["width"]); wins.append((wd["pos"] - w / 2, wd["pos"] + w / 2))
+                        w = abs(wd["width"])
+                        wins.append([round(wd["pos"] - w / 2, 3), round(wd["pos"] + w / 2, 3), wd["sill"]])
             return doors, wins
 
         for orient, fixed, lo, hi, face, normal in [
@@ -64,15 +65,11 @@ def compute_paneling(ctx, rooms):
             ("V", x2, z1, z2, x2 - half, [-1, 0]),
         ]:
             doors, wins = gather(orient, fixed)
-            base = B.subtract_intervals(lo, hi, doors, margin=0.25)            # baseboard: minus doors
-            field = B.subtract_intervals(lo, hi, doors + wins, margin=0.25)    # field: minus doors+windows
-            if not base and not field:
-                continue
             ctx.paneling.append({
                 "along": "x" if orient == "H" else "z",
                 "at": round(face, 4), "normal": normal,
-                "base": [[round(a, 3), round(c, 3)] for a, c in base],
-                "field": [[round(a, 3), round(c, 3)] for a, c in field],
+                "lo": round(lo, 3), "hi": round(hi, 3),
+                "doors": doors, "windows": wins,
             })
 
 
@@ -140,10 +137,12 @@ def main():
     # Carries the plan->world mapping so the viewer can place them.
     with open(os.path.join(HERE, "furniture.json"), "w") as f:
         json.dump({"ft": B.FT, "xs": ctx.xs, "zs": ctx.zs, "items": ctx.furniture}, f, indent=2)
-    # Wall-finish manifest: solid wall spans for baseboard + board-and-batten.
+    # Wall-finish manifest: wall extents + openings for baseboard, board-and-
+    # batten, window/door casing, and the continuous head entablature.
     with open(os.path.join(HERE, "paneling.json"), "w") as f:
         json.dump({"ft": B.FT, "xs": ctx.xs, "zs": ctx.zs,
-                   "baseboardFt": 10 / 12, "walls": ctx.paneling}, f, indent=2)
+                   "baseboardFt": 10 / 12, "headFt": ctx.head_ft, "entablatureFt": 0.9,
+                   "casingFt": 0.33, "walls": ctx.paneling}, f, indent=2)
 
     def n(cls):
         return len(m.by_type(cls))

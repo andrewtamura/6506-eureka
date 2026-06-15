@@ -8,6 +8,7 @@
   "wallHeight": 9.5,
   "slabThickness": 0.2,
   "doorHeight": 7.0,
+  "headHeight": 7.0,
   "orientation": { "xs": -1, "zs": 1 },
   "rooms": [
     "family",
