@@ -33,6 +33,11 @@ export function setupLighting(scene) {
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.03;
+  // Bake the shadow map on demand instead of every frame: the geometry and sun
+  // are static, so a frozen shadow stays correct AND doesn't flicker as the
+  // fragments engine streams walls in/out while you pan inside a room.
+  sun.shadow.autoUpdate = false;
+  sun.shadow.needsUpdate = true;
   const sky = new THREE.HemisphereLight(0xbfdcff, 0x9a8a7a, 0.8);
   scene.add(sun, sun.target, sky);
 
@@ -48,6 +53,7 @@ export function setupLighting(scene) {
     sun.position.copy(focus).add(
       new THREE.Vector3(p.dir[0], p.dir[1], p.dir[2]).normalize().multiplyScalar(dist));
     sky.color.set(p.sky); sky.groundColor.set(p.grd); sky.intensity = p.hi;
+    sun.shadow.needsUpdate = true;   // re-bake the (frozen) shadow when the sun moves
   };
 
   // Aim the sun + size its (orthographic) shadow camera to cover the model.
@@ -61,5 +67,6 @@ export function setupLighting(scene) {
     if (current) apply(current);   // reposition the sun relative to the new focus
   };
 
-  return { apply, names: Object.keys(PRESETS), focusShadow };
+  const refreshShadow = () => { sun.shadow.needsUpdate = true; };
+  return { apply, names: Object.keys(PRESETS), focusShadow, refreshShadow };
 }

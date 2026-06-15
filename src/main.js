@@ -80,7 +80,7 @@ async function main() {
   grids.create(world);
 
   // --- time-of-day lighting ----------------------------------------------
-  const { apply: applyLighting, names: lightingNames, focusShadow } = setupLighting(scene);
+  const { apply: applyLighting, names: lightingNames, focusShadow, refreshShadow } = setupLighting(scene);
   applyLighting("Afternoon");
   const lightEl = document.getElementById("lighting");
   const icons = { Morning: "\u{1F305}", Afternoon: "☀️", Evening: "\u{1F307}", Night: "\u{1F319}" };
@@ -104,7 +104,7 @@ async function main() {
   // don't visibly stream/pop in while the camera is still moving — the model is
   // small enough to draw in full. (update() without force streams progressively,
   // which is what caused the pop-in.)
-  world.camera.controls.addEventListener("rest", () => fragments.core.update(true));
+  world.camera.controls.addEventListener("rest", () => { fragments.core.update(true); refreshShadow(); });
   world.camera.controls.addEventListener("update", () => fragments.core.update(true));
 
   // When a model is added, attach it to the camera + scene.
@@ -387,6 +387,7 @@ async function main() {
   // the ceiling is registered as a shadow caster.)
   scene.traverse((o) => {
     if (!o.isMesh) return;
+    o.frustumCulled = false;   // keep walls/geometry from popping out as you pan in a room
     const mats = Array.isArray(o.material) ? o.material : [o.material];
     o.castShadow = !mats.some((m) => m && m.transparent && m.opacity < 0.95);
     o.receiveShadow = true;
