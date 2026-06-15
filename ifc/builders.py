@@ -76,6 +76,7 @@ class Ctx:
         self.walls = []                              # [{wall, orient, fixed, a, b}]
         self.door_meta = []                          # [{name, hingeMax, swingSign}] for the viewer
         self.plank_floors = []                       # [{name, rgb}] plank floors the viewer re-renders
+        self.tile_floors = []                         # [{name, pattern}] tiled floors the viewer re-renders
         self.furniture = []                          # [{type, px, pz, rot, ...}] viewer-rendered furniture
         self.paneling = []                           # [{along, at, normal, base, field}] wall finishes
         self.styles = {}                             # rgb tuple -> IfcSurfaceStyle (cached)

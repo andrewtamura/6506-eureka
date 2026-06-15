@@ -10,6 +10,7 @@ import * as FRAGS from "@thatopen/fragments";
 import { setupLighting } from "./lighting.js";
 import { setupCompass } from "./compass.js";
 import { buildWoodFloor } from "./wood-floor.js";
+import { buildTileFloor } from "./tile-floor.js";
 import { buildFurniture } from "./furniture.js";
 import { buildWallFinish } from "./wall-finish.js";
 import { buildCeilings } from "./ceilings.js";
@@ -361,6 +362,7 @@ async function main() {
 
   // --- realistic hardwood floor (one instanced mesh; see wood-floor.js) ---
   await buildWoodFloor({ scene, model, fragments, floorY: FLOOR, baseUrl: BASE });
+  await buildTileFloor({ scene, model, fragments, floorY: FLOOR, baseUrl: BASE });
 
   // --- soft furniture as procedural meshes (see furniture.js) -------------
   const furniture = await buildFurniture({ scene, floorY: FLOOR + 0.02, baseUrl: BASE });

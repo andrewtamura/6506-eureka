@@ -222,8 +222,12 @@ def build_interior(ctx, r):
         if mat in WOODS:
             _plank_floor(ctx, r, color, mat)   # realistic staggered planks
         else:
-            _covering(ctx, r, f"{r['name']} - {mat.title()} Flooring",
-                      "FLOORING", 0.05, 0.0, color=color)
+            name = f"{r['name']} - {mat.title()} Flooring"
+            _covering(ctx, r, name, "FLOORING", 0.05, 0.0, color=color)
+            # A patterned tile (e.g. marble basketweave) is re-rendered by the
+            # viewer as an instanced mosaic; record it so it knows which covering.
+            if fl.get("pattern"):
+                ctx.tile_floors.append({"name": name, "pattern": fl["pattern"]})
     cl = interior.get("ceiling")
     if cl:
         color = material_color(cl.get("material"), MATERIALS["plaster"])

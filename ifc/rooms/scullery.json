@@ -60,7 +60,8 @@
   ],
   "interior": {
     "flooring": {
-      "material": "tile"
+      "material": "tile",
+      "pattern": "checkerboard"
     }
   }
 }
