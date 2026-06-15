@@ -87,15 +87,16 @@ function buildBuiltinHutch(p) {
   const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
   const knob = (x, y, z = zF) => add(new THREE.SphereGeometry(0.012, 10, 8), brass, x, y, z + 0.006);
 
-  // dimensions: 36" counter, a 24" open void above it (the empty 16"-deep niche),
-  // then flush glass uppers. The carcass is 16" deep (the niche depth); it sits
-  // flush with the casings and its back is hidden by the kitchen bump-out.
-  const counterTop = (32 / 12) * ft;                // counter 32" above the floor
+  // dimensions: the counter height and the upper-cabinet height are the fixed
+  // drivers; the open void above the counter is whatever's left between them.
+  // The carcass is 16" deep (the niche depth); it sits flush with the casings
+  // and its back is hidden by the kitchen bump-out.
+  const counterTop = (32 / 12) * ft;                // counter 32" above the floor (fixed)
   const counterY = counterTop - 0.06, baseBot = 0.10;
   const dep = (16 / 12) * ft;                        // 16" carcass / niche depth
   const zB = zF - dep, zM = zF - dep / 2;            // back plane / depth midpoint
   const upTop = H;                                   // uppers reach the headline (room cornice seats above)
-  const upBot = upTop - (32 / 12) * ft;              // 32"-tall uppers; the void below is the remainder
+  const upBot = upTop - (28 / 12) * ft;              // 28"-tall uppers (fixed); the open void is the ~24" remainder
   const dark = new THREE.MeshStandardMaterial({ color: 0xcfccc3, roughness: 0.7 });
 
   // carcass: full-height side gables frame the niche; back panel, bottom, top, toe kick
