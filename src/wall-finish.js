@@ -66,20 +66,21 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl }) {
       mesh.position.set(C.x + Nw.x * depth / 2, floorY + (y0 + y1) / 2, C.z + Nw.z * depth / 2);
       mesh.rotation.y = rotY; scene.add(mesh);
     };
-    const doors = w.doors || [], wins = w.windows || [];
+    const doors = w.doors || [], wins = w.windows || [], tall = w.tall || [];
     const winX = wins.map((q) => [q[0], q[1]]);
+    const tallX = tall.map((t) => [t[0], t[1]]);   // full-height built-in openings (e.g. the hutch)
     const caseInset = caseW / ft + 0.05; // feet — keep field/battens off the casing
 
-    // 1) baseboard — minus doors only (continuous under windows)
-    for (const [a, b] of subtract(w.lo, w.hi, doors, 0.12)) band(a, b, 0, bbH, 0.05);
+    // 1) baseboard — minus doors + full-height built-ins (continuous under windows)
+    for (const [a, b] of subtract(w.lo, w.hi, [...doors, ...tallX], 0.12)) band(a, b, 0, bbH, 0.05);
 
     // 2) board-and-batten field: the BOARD (flat backing) is continuous across the
     //    whole wall, corner to corner — full height (bbH..head) everywhere except
     //    the openings, plus a continuous strip under each window (bbH..sill). It
     //    runs right up to the opening edges (the casing overlays it), so there are
     //    no gaps next to the trim.
-    const openings = [...doors, ...winX].map(([a, b]) => [Math.min(a, b), Math.max(a, b)]);
-    for (const [a, b] of subtract(w.lo, w.hi, [...doors, ...winX], 0, 0.02)) band(a, b, bbH, headY, 0.012, field);
+    const openings = [...doors, ...winX, ...tallX].map(([a, b]) => [Math.min(a, b), Math.max(a, b)]);
+    for (const [a, b] of subtract(w.lo, w.hi, [...doors, ...winX, ...tallX], 0, 0.02)) band(a, b, bbH, headY, 0.012, field);
     for (const [a, b, sill] of wins) {
       const sy = sill * ft; if (sy - bbH < 0.06) continue;
       band(a, b, bbH, sy, 0.012, field);
@@ -92,7 +93,7 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl }) {
     // which keeps the spacing uniform right through the openings.
     const battenClear = caseW / ft / 2 + 0.02; // half the casing width — overlap only
     for (let g = w.lo + BATTEN_SPACING_FT; g < w.hi - 0.05; g += BATTEN_SPACING_FT) {
-      if (doors.some(([a, b]) => g > Math.min(a, b) && g < Math.max(a, b))) continue; // in a doorway
+      if ([...doors, ...tallX].some(([a, b]) => g > Math.min(a, b) && g < Math.max(a, b))) continue; // in a doorway / built-in
       if (openings.some(([oa, ob]) => Math.abs(g - oa) < battenClear || Math.abs(g - ob) < battenClear)) continue; // would touch a jamb
       let yTop = headY; // under a window the batten stops at the sill
       for (const [a, b, sill] of wins) { if (g > Math.min(a, b) && g < Math.max(a, b)) { yTop = sill * ft; break; } }
@@ -104,30 +105,29 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl }) {
     //    heads (door-head line) — frieze, small bed mold, then a cove crown with
     //    a straight topper — with plain wall above it up to the ceiling. The cove
     //    height equals the frieze height. The crown runs on all four walls and
-    //    miters at the corners.
+    //    miters at the corners, but BREAKS around full-height built-ins (`tall`),
+    //    which run past the cornice; plain wall fills above each built-in instead.
     const topperH = 0.03, bedH = 0.04, P5 = 0.127;   // topper / bed-mold / 5" projection (m)
     const friezeH = 0.16, coveH = friezeH;   // frieze height == cove height (per spec)
     const Hc = coveH + topperH;             // total crown height
     const friezeTop = headY + friezeH;      // frieze bottom sits on the opening head
     const crownB = friezeTop + bedH;        // crown springline (bottom of crown)
     const crownTop = crownB + Hc;           // top of the crown
-    band(w.lo, w.hi, headY, friezeTop, 0.024);             // FRIEZE — sits on the opening head (== cove height)
-    band(w.lo, w.hi, friezeTop, friezeTop + 0.018, 0.05);  // bed mold: lower bead (most proud)
-    band(w.lo, w.hi, friezeTop + 0.018, crownB, 0.058);    // bed mold: upper step
-    band(w.lo, w.hi, crownTop, wallTop, 0.012, field);     // plain wall above the cornice, up to the ceiling
     // cove crown: a single concave COVE (quarter-hollow, height coveH) with a
-    // STRAIGHT TOPPER (height topperH) running from the top of the cove out to
-    // the crown top — together they read as the S-curve in the photo, but it's a
-    // cove + flat topper, not an ogee. Profile is (X = projection into room,
-    // Y = up); extruded along a RIGHT-HANDED basis (X->interior normal, Y->up,
-    // Z->normal x up) so the rotation is valid on all four walls (a left-handed
-    // basis would yield a bad quaternion and drop the crown off two of them); the
-    // extrusion starts from whichever wall end lies in the +Z direction.
-    {
-      const A = P(w.lo), B = P(w.hi), L = A.distanceTo(B);
+    // STRAIGHT TOPPER (height topperH) — together they read as the S-curve in the
+    // photo. Profile is (X = projection into room, Y = up); extruded along a
+    // RIGHT-HANDED basis (X->interior normal, Y->up, Z->normal x up) so the
+    // rotation is valid on all four walls; the extrusion starts from whichever
+    // span end lies in the +Z direction.
+    for (const [s0, s1] of subtract(w.lo, w.hi, tallX, 0, 0.05)) {
+      band(s0, s1, headY, friezeTop, 0.024);             // FRIEZE — sits on the opening head
+      band(s0, s1, friezeTop, friezeTop + 0.018, 0.05);  // bed mold: lower bead
+      band(s0, s1, friezeTop + 0.018, crownB, 0.058);    // bed mold: upper step
+      band(s0, s1, crownTop, wallTop, 0.012, field);     // plain wall above the cornice, up to the ceiling
+      const A = P(s0), B = P(s1), L = A.distanceTo(B);
       const up = new THREE.Vector3(0, 1, 0);
       const zAxis = new THREE.Vector3().crossVectors(Nw, up).normalize(); // right-handed third axis
-      const start = zAxis.dot(B.clone().sub(A)) >= 0 ? A : B;             // so the span runs A..B
+      const start = zAxis.dot(B.clone().sub(A)) >= 0 ? A : B;             // so the span runs s0..s1
       const shape = new THREE.Shape();
       shape.moveTo(0, 0);
       shape.lineTo(0, 0.016);                                  // bottom fillet (fascia) at wall
@@ -142,6 +142,8 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl }) {
       crown.position.set(start.x, floorY + crownB, start.z);
       scene.add(crown);
     }
+    // plain wall above each full-height built-in (from its head up to the ceiling)
+    for (const [a, b, th] of tall) band(a, b, th * ft, wallTop, 0.012, field);
 
     // 4) window casing: jambs (sill..head) + sill stool + apron
     for (const [a, b, sill] of wins) {
