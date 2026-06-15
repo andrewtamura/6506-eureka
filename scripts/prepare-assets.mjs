@@ -30,3 +30,5 @@ copy("legacy/index.html", "public/legacy/index.html");
 copy("ifc/doors.json", "public/doors.json");
 // Plank-floor manifest (which coverings to re-render as instanced wood + colour).
 copy("ifc/floors.json", "public/floors.json");
+// Furniture manifest (soft/curved pieces the viewer renders as meshes).
+copy("ifc/furniture.json", "public/furniture.json");

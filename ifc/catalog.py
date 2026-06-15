@@ -42,6 +42,10 @@ MATERIALS = {
 }
 DEFAULT_FLOOR = MATERIALS["hardwood"]
 
+# Furniture types rendered as smooth meshes in the viewer (see src/furniture.js),
+# recorded to furniture.json rather than built as IFC box/cylinder proxies.
+VIEWER_TYPES = {"round_pedestal_table", "upholstered_dining_chair", "highback_chair"}
+
 
 def material_color(name, fallback):
     return MATERIALS.get((name or "").lower(), fallback)
@@ -165,10 +169,20 @@ def _box_item(ctx, r, ifc_class, name, item, default_h, predefined=None, default
     ``w``/``d``/``h``, base ``z``, optional ``shape`` ("box"/"cyl") and colour."""
     at = item.get("at", [0, 0])
     label = item.get("name") or item.get("type") or name
+    # Upholstered / shaped pieces are rendered as smooth meshes in the viewer
+    # (curved geometry the IFC box/cyl primitives can't do): record them to the
+    # furniture manifest instead of building blocky IFC proxies.
+    if item.get("type") in VIEWER_TYPES:
+        ctx.furniture.append({k: v for k, v in {
+            "type": item["type"], "px": at[0], "pz": at[1], "rot": float(item.get("rot", 0)),
+            "material": item.get("material"), "legMaterial": item.get("legMaterial"),
+            "diameter": item.get("diameter"), "h": item.get("h"),
+        }.items() if v is not None})
+        return
     # plan rotation -> IFC rotation (the cardinal flip reverses the turn sense)
     rot = math.radians(float(item.get("rot", 0))) * (ctx.xs * ctx.zs)
     color = _item_color(item, default_color)
-    parts = item.get("parts") or (PROTOTYPES[item["type"]](item) if item.get("type") in PROTOTYPES else None)
+    parts = item.get("parts")          # explicit multi-box pieces (e.g. blocky cabinetry)
     if parts:
         for i, p in enumerate(parts):
             ox, oz = _rotate_plan(float(p.get("dx", 0)), float(p.get("dz", 0)), rot)  # feet
@@ -181,81 +195,6 @@ def _box_item(ctx, r, ifc_class, name, item, default_h, predefined=None, default
     return _solid(ctx, r, ifc_class, label, at[0], at[1],
                   float(item.get("w", 2)), float(item.get("d", 2)), float(item.get("h", default_h)),
                   cz, rot, color, predefined=predefined, shape=item.get("shape", "box"))
-
-
-# Furniture prototypes: a named ``type`` expands into a list of parts (relative
-# feet). Add a piece by adding a function here; rooms then place it with one line
-# ``{ "type": "...", "at": [x, z], "rot": deg }``. A chair's "front" is +dz.
-def _proto_round_pedestal_table(item):
-    dia = float(item.get("diameter", 5.0))      # table-top diameter (ft)
-    h = float(item.get("h", 2.5))               # table height (ft)
-    top = 0.22                                   # thicker top reads as a real slab
-    wood = item.get("material", "walnut")
-    foot = 0.3
-    return [
-        {"shape": "cyl", "w": dia,       "z": h - top, "h": top,             "material": wood},  # top
-        {"shape": "cyl", "w": 0.95,      "z": foot,    "h": h - top - foot,  "material": wood},  # pedestal column
-        {"shape": "cyl", "w": dia * 0.5, "z": 0.0,     "h": foot,            "material": wood},  # flared foot
-    ]
-
-
-def _proto_highback_chair(item):
-    # A chunky upholstered dining chair: four legs, a thick seat cushion, a wide
-    # thick high back, and a front apron under the seat so it doesn't read as
-    # sticks. "Front" is +dz (the side that faces the table).
-    seat_top = float(item.get("seatHeight", 1.5))   # seat surface height (ft)
-    sw, sd = 1.6, 1.6                                # seat width/depth (ft)
-    cush = 0.45                                       # cushion thickness
-    back = float(item.get("backHeight", 2.0))        # back rises this far above seat
-    fab = item.get("material", "upholstery")
-    leg = "walnut"
-    legh = seat_top - cush                            # legs reach the cushion underside
-    lx = sw / 2 - 0.22
-    ld = sd / 2 - 0.22
-    return [
-        # legs
-        {"dx": -lx, "dz": -ld, "z": 0, "w": 0.22, "d": 0.22, "h": legh, "material": leg},
-        {"dx":  lx, "dz": -ld, "z": 0, "w": 0.22, "d": 0.22, "h": legh, "material": leg},
-        {"dx": -lx, "dz":  ld, "z": 0, "w": 0.22, "d": 0.22, "h": legh, "material": leg},
-        {"dx":  lx, "dz":  ld, "z": 0, "w": 0.22, "d": 0.22, "h": legh, "material": leg},
-        # thick upholstered seat cushion
-        {"dx": 0, "dz": 0, "z": legh, "w": sw, "d": sd, "h": cush, "material": fab},
-        # wide, thick high back sitting on the rear edge of the seat
-        {"dx": 0, "dz": -(sd / 2 - 0.2), "z": seat_top, "w": sw, "d": 0.4, "h": back, "material": fab},
-    ]
-
-
-def _proto_upholstered_dining_chair(item):
-    # Transitional upholstered dining chair (Williams-Sonoma style): a cream
-    # upholstered seat + a curved upholstered back that "floats" above the seat
-    # on a small reveal, all on light-oak legs. "Front" is +dz.
-    seat_top = float(item.get("seatHeight", 1.5))    # seat surface height (ft)
-    sw, sd = 1.55, 1.5                                # seat width/depth (ft)
-    cush = 0.4                                         # seat cushion thickness
-    backh = float(item.get("backHeight", 1.2))        # upholstered back panel height
-    reveal = 0.18                                      # gap between seat and back
-    fab = item.get("material", "oatmeal")
-    leg = item.get("legMaterial", "lightoak")
-    legh = seat_top - cush                             # legs reach the cushion underside
-    lx, ld = sw / 2 - 0.16, sd / 2 - 0.16
-    return [
-        {"dx": -lx, "dz": -ld, "z": 0, "w": 0.17, "d": 0.17, "h": legh, "material": leg},
-        {"dx":  lx, "dz": -ld, "z": 0, "w": 0.17, "d": 0.17, "h": legh, "material": leg},
-        {"dx": -lx, "dz":  ld, "z": 0, "w": 0.17, "d": 0.17, "h": legh, "material": leg},
-        {"dx":  lx, "dz":  ld, "z": 0, "w": 0.17, "d": 0.17, "h": legh, "material": leg},
-        # cream seat cushion
-        {"dx": 0, "dz": 0, "z": legh, "w": sw, "d": sd, "h": cush, "material": fab},
-        # upholstered back panel, floating just above the seat on a reveal
-        {"dx": 0, "dz": -(sd / 2 - 0.18), "z": seat_top + reveal, "w": sw, "d": 0.28,
-         "h": backh, "material": fab},
-    ]
-
-
-PROTOTYPES = {
-    "round_pedestal_table": _proto_round_pedestal_table,
-    "highback_chair": _proto_highback_chair,
-    "upholstered_dining_chair": _proto_upholstered_dining_chair,
-}
 
 
 # Interior categories: one declarative table instead of a loop each. ``ceiling``
