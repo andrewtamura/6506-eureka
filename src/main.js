@@ -79,18 +79,26 @@ async function main() {
   const grids = components.get(OBC.Grids);
   grids.create(world);
 
-  // --- time-of-day lighting ----------------------------------------------
-  const { apply: applyLighting, names: lightingNames, focusShadow, refreshShadow } = setupLighting(scene);
-  applyLighting("Afternoon");
+  // --- time-of-day lighting (a single hour slider) -----------------------
+  const { setTime, focusShadow, refreshShadow } = setupLighting(scene);
   const lightEl = document.getElementById("lighting");
-  const icons = { Morning: "\u{1F305}", Afternoon: "☀️", Evening: "\u{1F307}", Night: "\u{1F319}" };
-  for (const name of lightingNames) {
-    const btn = document.createElement("button");
-    btn.className = "view-btn";
-    btn.textContent = `${icons[name]} ${name}`;
-    btn.addEventListener("click", () => applyLighting(name));
-    lightEl.appendChild(btn);
-  }
+  const fmtHour = (h) => {
+    const hr = Math.floor(h), mn = Math.round((h - hr) * 60) % 60;
+    const ap = hr < 12 || hr === 24 ? "AM" : "PM", h12 = ((hr + 11) % 12) + 1;
+    return `${h12}:${String(mn).padStart(2, "0")} ${ap}`;
+  };
+  const timeLabel = document.createElement("div");
+  timeLabel.className = "muted";
+  timeLabel.style.cssText = "width:100%;margin-bottom:6px";
+  const slider = document.createElement("input");
+  slider.type = "range"; slider.min = "0"; slider.max = "24"; slider.step = "0.5"; slider.value = "14";
+  slider.style.width = "100%";
+  slider.setAttribute("aria-label", "Time of day");
+  const onTime = () => { const h = parseFloat(slider.value); setTime(h); timeLabel.textContent = `\u{1F551} ${fmtHour(h)}`; };
+  slider.addEventListener("input", onTime);
+  lightEl.appendChild(timeLabel);
+  lightEl.appendChild(slider);
+  onTime();   // initialize at 2:00 PM
 
   // --- fragments engine ---------------------------------------------------
   const fragments = components.get(OBC.FragmentsManager);
@@ -134,12 +142,13 @@ async function main() {
   // on the grid (Y=0). With coordinate=true, base-coordination shifts the whole
   // model below the grid, which reads as "sunk/upside-down".
   const model = await ifcLoader.load(bytes, false, "Eureka Residence");
-  // Render the whole house at full geometry instead of the DEFAULT view-based
-  // LOD/culling, which made hardwood planks and walls pop in/out as the camera
-  // moved. ALL_GEOMETRY still honours items we explicitly hide (IfcSpace
-  // volumes, door panels) — it only stops the distance/frustum culling. The
-  // model is small enough that drawing it all is cheap.
-  await model.setLodMode(FRAGS.LodMode.ALL_GEOMETRY);
+  // Render the whole house with no view-based hiding: ALL_VISIBLE keeps every
+  // item at full geometry regardless of the camera, so walls/planks don't pop
+  // in and out as you pan inside a room (ALL_GEOMETRY still frustum-hid items).
+  // Items we explicitly setVisible(false) later (IfcSpace volumes, door panels,
+  // the flat floor coverings we re-render) stay hidden. The model is small
+  // enough that drawing it all is cheap.
+  await model.setLodMode(FRAGS.LodMode.ALL_VISIBLE);
   await fragments.core.update(true);
 
   // Fragments' base-coordination places the model below the grid; lift it so
