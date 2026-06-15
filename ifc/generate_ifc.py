@@ -136,6 +136,10 @@ def main():
     # instanced mesh (name = which covering, rgb = plank colour).
     with open(os.path.join(HERE, "floors.json"), "w") as f:
         json.dump(ctx.plank_floors, f, indent=2)
+    # Tile-floor manifest: patterned tile coverings the viewer re-renders as an
+    # instanced mosaic (e.g. the vestibules' marble basketweave).
+    with open(os.path.join(HERE, "tiles.json"), "w") as f:
+        json.dump(ctx.tile_floors, f, indent=2)
     # Furniture manifest: soft/curved pieces the viewer renders as meshes.
     # Carries the plan->world mapping so the viewer can place them.
     with open(os.path.join(HERE, "furniture.json"), "w") as f:

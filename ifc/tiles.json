@@ -1,0 +1,30 @@
+[
+  {
+    "name": "Kitchen - Tile Flooring",
+    "pattern": "checkerboard"
+  },
+  {
+    "name": "Vestibule - Tile Flooring",
+    "pattern": "basketweave"
+  },
+  {
+    "name": "Ext Bath - Tile Flooring",
+    "pattern": "hexagon"
+  },
+  {
+    "name": "WC - Tile Flooring",
+    "pattern": "hexagon"
+  },
+  {
+    "name": "Ext Vestibule - Tile Flooring",
+    "pattern": "basketweave"
+  },
+  {
+    "name": "Ext Laundry - Tile Flooring",
+    "pattern": "hexagon"
+  },
+  {
+    "name": "Scullery - Tile Flooring",
+    "pattern": "checkerboard"
+  }
+]
