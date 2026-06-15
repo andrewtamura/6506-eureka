@@ -114,16 +114,17 @@ function buildBuiltinHutch(p) {
   { const tops = 0.16;
     add(box(cw[0] - 0.015, tops - 0.012, 0.02), paint, cx[0], baseBot + tops / 2, zF - 0.01); knob(cx[0], baseBot + tops / 2);
     drawerStack(cx[0], cw[0], baseBot + tops, counterY, 3); }
-  // center: top drawer, raised-panel door, heating register
+  // center: heating register at the BOTTOM, raised-panel door, drawer under the counter
   { const dH = 0.16, regH = 0.26, doorH = (counterY - baseBot) - dH - regH;
-    add(box(cw[1] - 0.015, dH - 0.012, 0.02), paint, cx[1], baseBot + dH / 2, zF - 0.01); knob(cx[1], baseBot + dH / 2);
-    const doorY = baseBot + dH + doorH / 2;
+    const regY = baseBot + regH / 2;                                   // register at the bottom
+    add(box(cw[1] - 0.04, regH - 0.04, 0.012), grille, cx[1], regY, zF - 0.006);
+    for (let i = 0; i < 5; i++) add(box(cw[1] - 0.06, 0.006, 0.014), paint, cx[1], regY - regH / 2 + 0.04 + i * ((regH - 0.08) / 4), zF - 0.004);
+    const doorY = baseBot + regH + doorH / 2;
     add(box(cw[1] - 0.015, doorH - 0.012, 0.02), paint, cx[1], doorY, zF - 0.01);
     add(box(cw[1] - 0.10, doorH - 0.10, 0.012), paint, cx[1], doorY, zF + 0.004); // raised panel
     knob(cx[1] - cw[1] / 2 + 0.05, doorY);
-    const regY = counterY - regH / 2;
-    add(box(cw[1] - 0.04, regH - 0.04, 0.012), grille, cx[1], regY, zF - 0.006);
-    for (let i = 0; i < 5; i++) add(box(cw[1] - 0.06, 0.006, 0.014), paint, cx[1], regY - regH / 2 + 0.04 + i * ((regH - 0.08) / 4), zF - 0.004); }
+    const drY = counterY - dH / 2;                                     // small drawer under the counter
+    add(box(cw[1] - 0.015, dH - 0.012, 0.02), paint, cx[1], drY, zF - 0.01); knob(cx[1], drY); }
   // right bank: 5 drawers
   drawerStack(cx[2], cw[2], baseBot, counterY, 5);
 
