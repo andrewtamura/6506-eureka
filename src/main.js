@@ -147,12 +147,20 @@ async function main() {
   // model.object keeps raycasting consistent (fragments uses its world matrix).
   const box = new THREE.Box3().setFromObject(model.object);
   let modelBox = box;
+  // Frame the model straight down as a plan view (the default look). A tiny X
+  // offset keeps the look-direction off exact gimbal; fitToBox then dollies to
+  // fit while keeping the top-down orientation.
+  const framePlan = (transition) => {
+    const c = modelBox.getCenter(new THREE.Vector3());
+    world.camera.controls.setLookAt(c.x + 0.001, modelBox.max.y + 20, c.z, c.x, modelBox.min.y, c.z, false);
+    world.camera.controls.fitToBox(modelBox, transition);
+  };
   if (!box.isEmpty()) {
     model.object.position.y -= box.min.y;
     model.object.updateMatrixWorld(true);
     await fragments.core.update(true);
     modelBox = new THREE.Box3().setFromObject(model.object);
-    world.camera.controls.fitToBox(modelBox, true);
+    framePlan(true);
   }
   setStatus("");
 
@@ -287,7 +295,7 @@ async function main() {
     ctrls.minDistance = 0;
     ctrls.maxDistance = Infinity;
     ctrls.truckSpeed = 2;
-    ctrls.fitToBox(modelBox, true);
+    framePlan(true);                      // return to the top-down plan view
   }
   const roomAt = (x, z) => roomBoxes.find(
     (r) => x >= r.box.min.x && x <= r.box.max.x && z >= r.box.min.z && z <= r.box.max.z);
