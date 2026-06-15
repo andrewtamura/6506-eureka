@@ -11,7 +11,8 @@ import * as THREE from "three";
 
 const MILL = 0xefece4;   // millwork white (battens, casing, base, cornice)
 const FIELD = 0xdcd7cb;  // slightly deeper field/frieze so the millwork reads
-const BATTEN_W = 0.06, BATTEN_SPACING = 0.3048; // battens ~12" on centre
+const BATTEN_W = 0.0254;        // 1" battens
+const BATTEN_SPACING_FT = 1.0;  // 12" board grid, anchored at the wall corner
 
 export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl }) {
   let data;
@@ -63,27 +64,31 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl }) {
       mesh.position.set(C.x + Nw.x * depth / 2, floorY + (y0 + y1) / 2, C.z + Nw.z * depth / 2);
       mesh.rotation.y = rotY; scene.add(mesh);
     };
-    // Battens at the INTERIOR board divisions only (~12" boards). No batten at
-    // the span ends, so we never double up against a window/door casing jamb.
-    const battens = (s0, s1, y0, y1) => {
-      const L = Math.abs(s1 - s0) * ft; const n = Math.max(1, Math.round(L / BATTEN_SPACING));
-      for (let i = 1; i < n; i++) post(s0 + (s1 - s0) * i / n, y0, y1, BATTEN_W, 0.03);
-    };
-
     const doors = w.doors || [], wins = w.windows || [];
     const winX = wins.map((q) => [q[0], q[1]]);
+    const caseInset = caseW / ft + 0.05; // feet — keep field/battens off the casing
 
     // 1) baseboard — minus doors only (continuous under windows)
     for (const [a, b] of subtract(w.lo, w.hi, doors, 0.12)) band(a, b, 0, bbH, 0.05);
 
-    // 2) board-and-batten field: solid columns (minus doors+windows) full bbH..head,
-    //    and under each window bbH..sill
-    for (const [a, b] of subtract(w.lo, w.hi, [...doors, ...winX], caseW / ft + 0.05)) {
-      band(a, b, bbH, headY, 0.012, field); battens(a, b, bbH, headY);
+    // 2) board-and-batten field backings: solid columns (minus doors+windows)
+    //    full bbH..head, and under each window bbH..sill. Collect the field
+    //    regions (with their top) so battens can be laid on one grid below.
+    const regions = []; // [a, b, yTop]
+    for (const [a, b] of subtract(w.lo, w.hi, [...doors, ...winX], caseInset)) {
+      band(a, b, bbH, headY, 0.012, field); regions.push([a, b, headY]);
     }
     for (const [a, b, sill] of wins) {
       const sy = sill * ft; if (sy - bbH < 0.06) continue;
-      band(a, b, bbH, sy, 0.012, field); battens(a, b, bbH, sy);
+      band(a, b, bbH, sy, 0.012, field); regions.push([a + caseInset, b - caseInset, sy]);
+    }
+    // Battens on a 12" grid anchored at the corner (w.lo) moving inward — drawn
+    // only where a grid line falls inside a field region (so none double up next
+    // to a casing jamb, and boards read consistently from the corner).
+    for (let g = w.lo + BATTEN_SPACING_FT; g < w.hi - 0.05; g += BATTEN_SPACING_FT) {
+      for (const [ra, rb, yTop] of regions) {
+        if (g > ra + 0.04 && g < rb - 0.04) { post(g, bbH, yTop, BATTEN_W, 0.03); break; }
+      }
     }
 
     // 3) continuous entablature at the head line (architrave + frieze + cornice)
