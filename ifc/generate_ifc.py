@@ -47,16 +47,19 @@ def compute_paneling(ctx, rooms):
         z1, z2 = sorted([b["z1"], b["z2"]])
 
         def gather(orient, fixed):
-            doors, wins = [], []
+            doors, wins, tall = [], [], []
             for r in rooms:
                 for d in r.get("doors", []):
                     if d["orient"] == orient and abs(d["fixed"] - fixed) < 0.3:
-                        w = abs(d["width"]); doors.append([round(d["pos"] - w / 2, 3), round(d["pos"] + w / 2, 3)])
+                        w = abs(d["width"]); span = [round(d["pos"] - w / 2, 3), round(d["pos"] + w / 2, 3)]
+                        # full-height built-in openings (a taller head) break the
+                        # cornice rather than seating it on the head line.
+                        (tall.append(span + [d["headFt"]]) if d.get("headFt") else doors.append(span))
                 for wd in r.get("windows", []):
                     if wd["orient"] == orient and abs(wd["fixed"] - fixed) < 0.3:
                         w = abs(wd["width"])
                         wins.append([round(wd["pos"] - w / 2, 3), round(wd["pos"] + w / 2, 3), wd["sill"]])
-            return doors, wins
+            return doors, wins, tall
 
         for orient, fixed, lo, hi, face, normal in [
             ("H", z1, x1, x2, z1 + half, [0, 1]),
@@ -64,12 +67,12 @@ def compute_paneling(ctx, rooms):
             ("V", x1, z1, z2, x1 + half, [1, 0]),
             ("V", x2, z1, z2, x2 - half, [-1, 0]),
         ]:
-            doors, wins = gather(orient, fixed)
+            doors, wins, tall = gather(orient, fixed)
             ctx.paneling.append({
                 "along": "x" if orient == "H" else "z",
                 "at": round(face, 4), "normal": normal,
                 "lo": round(lo, 3), "hi": round(hi, 3),
-                "doors": doors, "windows": wins,
+                "doors": doors, "windows": wins, "tall": tall,
             })
 
 

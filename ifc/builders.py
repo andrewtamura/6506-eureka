@@ -350,8 +350,9 @@ def cut_opening(ctx, fill_class, name, orient, fixed_ft, pos_ft, width_ft,
 def add_doors(ctx, r):
     for d in r.get("doors", []):
         opening = d.get("opening", False)
+        head = float(d.get("headFt", ctx.head_ft))   # tall built-in openings override the head
         cut_opening(ctx, "IfcDoor", d["name"], d["orient"], d["fixed"], d["pos"],
-                    d["width"], 0.0, ctx.head_ft, leaf=not opening)
+                    d["width"], 0.0, head, leaf=not opening)
         if opening:
             continue
         # Record hinge/swing for the viewer's swinging-leaf overlay.
