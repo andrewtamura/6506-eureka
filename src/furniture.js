@@ -105,6 +105,13 @@ function buildBuiltinHutch(p) {
   add(box(W, 0.02, dep), paint, 0, H - 0.01, zM);                              // top
   add(box(W - 0.04, 0.10, 0.04), dark, 0, 0.05, zF - 0.07);                    // recessed toe kick
   add(box(W, 0.04, dep), paint, 0, counterY + 0.04, zM);                       // 16"-deep countertop
+  // the open void above the counter: a recessed beadboard backsplash at the back
+  // of the niche (set 16" back from the face) so the space reads as an empty void
+  { const niH = upBot - counterTop, niW = W - 0.06, niY = (counterTop + upBot) / 2;
+    add(box(niW, niH, 0.01), paint, 0, niY, zB + 0.02);
+    const groove = new THREE.MeshStandardMaterial({ color: 0xbdb9b0, roughness: 0.9 });
+    const n = Math.max(5, Math.round(niW / 0.09));
+    for (let i = 1; i < n; i++) add(box(0.004, niH, 0.006), groove, -niW / 2 + i * (niW / n), niY, zB + 0.027); }
 
   // base: symmetric drawer banks flanking a single door over the register
   const IW = W - 0.05, st = 0.03, avail = IW - 2 * st;
