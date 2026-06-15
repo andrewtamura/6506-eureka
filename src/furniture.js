@@ -87,22 +87,24 @@ function buildBuiltinHutch(p) {
   const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
   const knob = (x, y, z = zF) => add(new THREE.SphereGeometry(0.012, 10, 8), brass, x, y, z + 0.006);
 
-  // dimensions: 36" counter; a 16"-deep countertop; shallower upper cabinets set
-  // back so the counter reads as a work-surface ledge in front of the glass.
-  const counterY = 0.914, upBot = 1.08, upTop = 1.98, baseBot = 0.12;
-  const counterD = (16 / 12) * ft;                  // 16" countertop depth
-  const upperD = 0.305;                             // 12" deep uppers
-  const zUback = -D / 2, zU = zUback + upperD;       // upper front plane (inset behind the counter)
+  // dimensions: 36" counter, a 24" open void above it (the empty 16"-deep niche),
+  // then flush glass uppers. The carcass is 16" deep (the niche depth); it sits
+  // flush with the casings and its back is hidden by the kitchen bump-out.
+  const counterY = 0.90, baseBot = 0.12;
+  const dep = (16 / 12) * ft;                        // 16" carcass / niche depth
+  const zB = zF - dep, zM = zF - dep / 2;            // back plane / depth midpoint
+  const counterTop = counterY + 0.06;               // top of the counter slab
+  const upBot = counterTop + (24 / 12) * ft;         // 24" open void above the counter
+  const upTop = 2.00;
   const dark = new THREE.MeshStandardMaterial({ color: 0xcfccc3, roughness: 0.7 });
 
-  // carcass: full-depth base, shallower upper box (set back), recessed toe kick
-  add(box(W, H, 0.018), paint, 0, H / 2, -D / 2 + 0.009);                                              // back panel
-  for (const sx of [-1, 1]) add(box(0.02, counterY, D), paint, sx * (W / 2 - 0.01), counterY / 2, 0);  // base gables
-  for (const sx of [-1, 1]) add(box(0.02, H - counterY, upperD), paint, sx * (W / 2 - 0.01), (counterY + H) / 2, zUback + upperD / 2); // upper gables
-  add(box(W, 0.02, D), paint, 0, 0.01, 0);                                                             // bottom
-  add(box(W, 0.02, upperD), paint, 0, H - 0.01, zUback + upperD / 2);                                  // top over uppers
-  add(box(W - 0.04, 0.10, 0.04), dark, 0, 0.05, zF - 0.07);                                            // toe kick
-  add(box(W, 0.04, counterD), paint, 0, counterY + 0.02, zF - counterD / 2 + 0.01);                    // 16"-deep countertop (front flush)
+  // carcass: full-height side gables frame the niche; back panel, bottom, top, toe kick
+  add(box(W, H, 0.018), paint, 0, H / 2, zB + 0.009);                          // back panel
+  for (const sx of [-1, 1]) add(box(0.02, H, dep), paint, sx * (W / 2 - 0.01), H / 2, zM); // gables
+  add(box(W, 0.02, dep), paint, 0, 0.01, zM);                                  // bottom
+  add(box(W, 0.02, dep), paint, 0, H - 0.01, zM);                              // top
+  add(box(W - 0.04, 0.10, 0.04), dark, 0, 0.05, zF - 0.07);                    // recessed toe kick
+  add(box(W, 0.04, dep), paint, 0, counterY + 0.04, zM);                       // 16"-deep countertop
 
   // base: symmetric drawer banks flanking a single door over the register
   const IW = W - 0.05, st = 0.03, avail = IW - 2 * st;
@@ -128,25 +130,24 @@ function buildBuiltinHutch(p) {
     add(box(cw[1] - 0.10, doorH - 0.10, 0.012), paint, cx[1], doorY, zF + 0.004); // raised panel
     knob(cx[1] - cw[1] / 2 + 0.05, doorY); }
 
-  // uppers: three inset glass doors (frame + glass + muntins) with shelves
+  // uppers: three flush glass doors (frame + glass + muntins) with shelves
   const uAvail = IW - 4 * st, udw = uAvail / 3, fh = upTop - upBot, fy = (upBot + upTop) / 2;
   for (let i = 0; i < 3; i++) {
     const ux = -IW / 2 + st + udw * (i + 0.5) + st * i;
-    add(box(udw, 0.04, 0.022), paint, ux, upBot + 0.02, zU - 0.011);   // bottom rail
-    add(box(udw, 0.04, 0.022), paint, ux, upTop - 0.02, zU - 0.011);   // top rail
-    add(box(0.035, fh, 0.022), paint, ux - udw / 2 + 0.018, fy, zU - 0.011); // stiles
-    add(box(0.035, fh, 0.022), paint, ux + udw / 2 - 0.018, fy, zU - 0.011);
-    add(box(udw - 0.06, fh - 0.06, 0.006), glass, ux, fy, zU - 0.012);  // glass pane
-    add(box(0.012, fh - 0.06, 0.008), paint, ux, fy, zU - 0.012);       // vertical muntin
-    for (const my of [fy - fh / 6, fy + fh / 6]) add(box(udw - 0.06, 0.012, 0.008), paint, ux, my, zU - 0.012);
-    const shD = (zU - 0.02) - zUback;
-    for (const sy of [upBot + fh / 3, upBot + 2 * fh / 3]) add(box(udw - 0.05, 0.015, shD), paint, ux, sy, ((zU - 0.02) + zUback) / 2); // shelves
-    knob(ux + udw / 2 - 0.05, fy, zU);
+    add(box(udw, 0.04, 0.022), paint, ux, upBot + 0.02, zF - 0.011);   // bottom rail
+    add(box(udw, 0.04, 0.022), paint, ux, upTop - 0.02, zF - 0.011);   // top rail
+    add(box(0.035, fh, 0.022), paint, ux - udw / 2 + 0.018, fy, zF - 0.011); // stiles
+    add(box(0.035, fh, 0.022), paint, ux + udw / 2 - 0.018, fy, zF - 0.011);
+    add(box(udw - 0.06, fh - 0.06, 0.006), glass, ux, fy, zF - 0.012);  // glass pane
+    add(box(0.012, fh - 0.06, 0.008), paint, ux, fy, zF - 0.012);       // vertical muntin
+    for (const my of [fy - fh / 6, fy + fh / 6]) add(box(udw - 0.06, 0.012, 0.008), paint, ux, my, zF - 0.012);
+    for (const sy of [upBot + fh / 3, upBot + 2 * fh / 3]) add(box(udw - 0.05, 0.015, dep - 0.04), paint, ux, sy, zM); // shelves
+    knob(ux + udw / 2 - 0.05, fy);
   }
 
-  // crown cap + filler to the ceiling (over the shallow upper box)
-  add(box(W + 0.04, 0.05, upperD + 0.05), paint, 0, upTop + 0.03, zUback + upperD / 2);
-  if (H - upTop > 0.10) add(box(W + 0.02, H - upTop - 0.06, upperD), paint, 0, (upTop + 0.06 + H) / 2, zUback + upperD / 2);
+  // crown cap + filler to the ceiling
+  add(box(W + 0.04, 0.05, dep + 0.05), paint, 0, upTop + 0.03, zM);
+  if (H - upTop > 0.10) add(box(W, H - upTop - 0.06, dep), paint, 0, (upTop + 0.06 + H) / 2, zM);
   return g;
 }
 
