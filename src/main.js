@@ -79,26 +79,56 @@ async function main() {
   const grids = components.get(OBC.Grids);
   grids.create(world);
 
-  // --- time-of-day lighting (a single hour slider) -----------------------
+  // --- time-of-day dial --------------------------------------------------
+  // A circular 24-hour dial that reflects the cyclic nature of time: drag the
+  // sun knob around the ring. Noon is at top, midnight at the bottom; the sun
+  // rises on the left (dawn) and sets on the right (dusk) — its daily arc. The
+  // top half of the ring is tinted day, the bottom half night.
   const { setTime, focusShadow, refreshShadow } = setupLighting(scene);
   const lightEl = document.getElementById("lighting");
   const fmtHour = (h) => {
-    const hr = Math.floor(h), mn = Math.round((h - hr) * 60) % 60;
-    const ap = hr < 12 || hr === 24 ? "AM" : "PM", h12 = ((hr + 11) % 12) + 1;
+    const hr = Math.floor(h) % 24, mn = Math.round((h - Math.floor(h)) * 60) % 60;
+    const ap = hr < 12 ? "AM" : "PM", h12 = ((hr + 11) % 12) + 1;
     return `${h12}:${String(mn).padStart(2, "0")} ${ap}`;
   };
-  const timeLabel = document.createElement("div");
-  timeLabel.className = "muted";
-  timeLabel.style.cssText = "width:100%;margin-bottom:6px";
-  const slider = document.createElement("input");
-  slider.type = "range"; slider.min = "0"; slider.max = "24"; slider.step = "0.5"; slider.value = "14";
-  slider.style.width = "100%";
-  slider.setAttribute("aria-label", "Time of day");
-  const onTime = () => { const h = parseFloat(slider.value); setTime(h); timeLabel.textContent = `\u{1F551} ${fmtHour(h)}`; };
-  slider.addEventListener("input", onTime);
-  lightEl.appendChild(timeLabel);
-  lightEl.appendChild(slider);
-  onTime();   // initialize at 2:00 PM
+  const NS = "http://www.w3.org/2000/svg";
+  const SZ = 150, C = SZ / 2, RR = 56;
+  const el = (tag, attrs, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    return e;
+  };
+  const dial = el("svg", { viewBox: `0 0 ${SZ} ${SZ}` });
+  dial.style.cssText = "width:150px;height:150px;touch-action:none;cursor:grab";
+  dial.appendChild(el("path", { d: `M ${C - RR} ${C} A ${RR} ${RR} 0 0 1 ${C + RR} ${C}`, fill: "none", stroke: "#bcd8f0", "stroke-width": "8", "stroke-linecap": "round" })); // day (top)
+  dial.appendChild(el("path", { d: `M ${C + RR} ${C} A ${RR} ${RR} 0 0 1 ${C - RR} ${C}`, fill: "none", stroke: "#3a4763", "stroke-width": "8", "stroke-linecap": "round" })); // night (bottom)
+  for (const [t, x, y, a] of [["12p", C, C - RR - 5, "middle"], ["6p", C + RR + 6, C + 3, "start"], ["12a", C, C + RR + 13, "middle"], ["6a", C - RR - 6, C + 3, "end"]])
+    dial.appendChild(el("text", { x, y, "text-anchor": a, "font-size": "9", fill: "#889" }, t));
+  const knob = el("circle", { r: "8", fill: "#f5b942", stroke: "#fff", "stroke-width": "2" });
+  const label = el("text", { x: C, y: C + 4, "text-anchor": "middle", "font-size": "13", fill: "#445", "font-weight": "600" });
+  dial.append(knob, label);
+  lightEl.appendChild(dial);
+
+  let hour = 14;
+  const place = (h) => {
+    const a = ((h - 12) / 24) * 2 * Math.PI;             // 0 at noon (top), clockwise
+    knob.setAttribute("cx", C + RR * Math.sin(a));
+    knob.setAttribute("cy", C - RR * Math.cos(a));
+    label.textContent = fmtHour(h);
+  };
+  const apply = (h) => { hour = ((h % 24) + 24) % 24; setTime(hour); place(hour); };
+  const fromPointer = (e) => {
+    const r = dial.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width * SZ - C, py = (e.clientY - r.top) / r.height * SZ - C;
+    let a = Math.atan2(px, -py); if (a < 0) a += 2 * Math.PI;  // 0 at top, clockwise
+    apply(12 + a / (2 * Math.PI) * 24);
+  };
+  let dragging = false;
+  dial.addEventListener("pointerdown", (e) => { dragging = true; dial.setPointerCapture(e.pointerId); fromPointer(e); });
+  dial.addEventListener("pointermove", (e) => { if (dragging) fromPointer(e); });
+  dial.addEventListener("pointerup", () => { dragging = false; });
+  apply(14);   // initialize at 2:00 PM
 
   // --- fragments engine ---------------------------------------------------
   const fragments = components.get(OBC.FragmentsManager);
