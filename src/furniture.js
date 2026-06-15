@@ -105,10 +105,8 @@ function buildBuiltinHutch(p) {
   add(box(W, 0.02, dep), paint, 0, 0.01, zM);                                  // bottom
   add(box(W, 0.02, dep), paint, 0, H - 0.01, zM);                              // top
   add(box(W - 0.04, 0.10, 0.04), dark, 0, 0.05, zF - 0.07);                    // recessed toe kick
-  // 16"-deep countertop (a distinct wood top, with a 1" front overhang) so the
-  // depth reads against the white cabinet and backsplash
-  const counterMat = new THREE.MeshStandardMaterial({ color: 0xc0a070, roughness: 0.5 });
-  add(box(W, 0.045, dep + 0.025), counterMat, 0, counterTop - 0.0225, zM + 0.0125);
+  // 16"-deep white countertop with a 1" front overhang
+  add(box(W, 0.045, dep + 0.025), paint, 0, counterTop - 0.0225, zM + 0.0125);
   // the open void above the counter: a recessed beadboard backsplash at the back
   // of the niche (set 16" back from the face) so the space reads as an empty void
   { const niH = upBot - counterTop, niW = W - 0.06, niY = (counterTop + upBot) / 2;
