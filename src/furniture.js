@@ -58,29 +58,67 @@ function buildTable(p) {
 }
 
 const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable };
+const CHAIRS = new Set(["upholstered_dining_chair", "highback_chair"]);
+const SEAT_FRONT = 0.225;   // chair seat front is +0.225 m toward the table from its centre
+const TUCK = 0.08;          // pushed-in: seat front this far under the table edge
+const SIT = 0.22;           // pulled-out: this gap between seat front and table edge
 
 export async function buildFurniture({ scene, floorY, baseUrl }) {
   let data;
-  try { data = await (await fetch(`${baseUrl}furniture.json`)).json(); } catch (e) { return; }
+  try { data = await (await fetch(`${baseUrl}furniture.json`)).json(); } catch (e) { return { chairMeshes: [] }; }
   const { ft = 0.3048, xs = -1, zs = 1, items = [] } = data || {};
   // plan (feet) -> three.js world: x = xs*px*ft, z = -(zs*pz*ft) (web-ifc maps IFC +Y -> -Z)
   const world = (px, pz) => [xs * px * ft, -(zs * pz * ft)];
-  const placed = items.map((it) => {
-    const b = BUILDERS[it.type];
-    if (!b) return null;
+
+  // Tables first, so chairs can be positioned relative to their nearest table.
+  const tables = [];
+  for (const it of items) {
+    if (it.type !== "round_pedestal_table") continue;
     const [x, z] = world(it.px, it.pz);
-    const obj = b(it);
-    obj.position.set(x, floorY, z);
-    scene.add(obj);
-    return { it, obj, x, z };
-  }).filter(Boolean);
-  // Orient chairs to face the nearest table (so the set reads correctly without
-  // depending on the stored rotation's handedness).
-  const tables = placed.filter((q) => q.it.type === "round_pedestal_table");
-  for (const q of placed) {
-    if (q.it.type === "round_pedestal_table" || !tables.length) continue;
-    let near = tables[0], best = Infinity;
-    for (const t of tables) { const d = (t.x - q.x) ** 2 + (t.z - q.z) ** 2; if (d < best) { best = d; near = t; } }
-    q.obj.rotation.y = Math.atan2(near.x - q.x, near.z - q.z); // chair front (+Z) -> table
+    const obj = buildTable(it); obj.position.set(x, floorY, z); scene.add(obj);
+    tables.push({ x, z, radius: (it.diameter ?? 5) * ft / 2 });
   }
+
+  const chairs = [];        // { root, inPos, outPos, current, out, toggle }
+  const chairMeshes = [];   // leaf meshes for raycast picking (userData.chair -> entry)
+  const tmp = new THREE.Vector3();
+  for (const it of items) {
+    if (!CHAIRS.has(it.type)) continue;
+    const root = BUILDERS[it.type](it);
+    const [cx, cz] = world(it.px, it.pz);
+    // nearest table; slide the chair radially between tucked-in and pulled-out
+    let near = null, best = Infinity;
+    for (const t of tables) { const d = (t.x - cx) ** 2 + (t.z - cz) ** 2; if (d < best) { best = d; near = t; } }
+    let inPos, outPos;
+    if (near) {
+      let dx = cx - near.x, dz = cz - near.z;     // outward radial direction
+      const len = Math.hypot(dx, dz) || 1; dx /= len; dz /= len;
+      const dIn = near.radius - TUCK + SEAT_FRONT, dOut = near.radius + SIT + SEAT_FRONT;
+      inPos = new THREE.Vector3(near.x + dx * dIn, floorY, near.z + dz * dIn);
+      outPos = new THREE.Vector3(near.x + dx * dOut, floorY, near.z + dz * dOut);
+      root.rotation.y = Math.atan2(-dx, -dz);      // chair front (+Z) faces the table
+    } else {
+      inPos = new THREE.Vector3(cx, floorY, cz); outPos = inPos.clone();
+    }
+    root.position.copy(inPos);                     // default: pushed in
+    scene.add(root);
+    const entry = { root, inPos, outPos, current: inPos.clone(), out: false };
+    entry.toggle = () => { entry.out = !entry.out; };
+    chairs.push(entry);
+    root.traverse((m) => { if (m.isMesh) { m.userData.chair = entry; chairMeshes.push(m); } });
+  }
+
+  // Slide chairs between tucked-in and pulled-out (eased), like the doors.
+  (function animate() {
+    for (const c of chairs) {
+      const target = c.out ? c.outPos : c.inPos;
+      if (c.current.distanceToSquared(target) > 1e-6) {
+        c.current.lerp(target, 0.2);
+        c.root.position.copy(c.current);
+      }
+    }
+    requestAnimationFrame(animate);
+  })();
+
+  return { chairMeshes };
 }

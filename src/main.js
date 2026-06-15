@@ -341,7 +341,7 @@ async function main() {
   await buildWoodFloor({ scene, model, fragments, floorY: FLOOR, baseUrl: BASE });
 
   // --- soft furniture as procedural meshes (see furniture.js) -------------
-  await buildFurniture({ scene, floorY: FLOOR + 0.02, baseUrl: BASE });
+  const furniture = await buildFurniture({ scene, floorY: FLOOR + 0.02, baseUrl: BASE });
 
   const _tdir = new THREE.Vector3();
   // Glide the camera to a new pose by interpolating the eye + look-at point as
@@ -399,6 +399,15 @@ async function main() {
     const hits = doorRaycaster.intersectObjects(doorMeshes, false);
     return hits.length ? hits[0].object.userData.door : null;
   }
+  // Pick an actionable chair (double-tap slides it in/out of the table).
+  function pickChair(lx, ly) {
+    const meshes = furniture?.chairMeshes;
+    if (!meshes || !meshes.length) return null;
+    _ndc.set((lx / dom.clientWidth) * 2 - 1, -(ly / dom.clientHeight) * 2 + 1);
+    doorRaycaster.setFromCamera(_ndc, world.camera.three);
+    const hits = doorRaycaster.intersectObjects(meshes, false);
+    return hits.length ? hits[0].object.userData.chair : null;
+  }
   // A door "unit" may have 1 leaf (single) or 2 (double); tapping any leaf
   // toggles the whole unit so both leaves swing together.
   const toggleDoor = (leaf) => { leaf.unit.open = !leaf.unit.open; };
@@ -425,8 +434,10 @@ async function main() {
     if (now - lastTap < 350 && Math.hypot(e.clientX - lastX, e.clientY - lastY) < 25) {
       lastTap = 0;
       const door = pickDoor(lx, ly);
-      if (door) toggleDoor(door);
-      else await teleportTo(lx, ly);
+      if (door) { toggleDoor(door); return; }
+      const chair = pickChair(lx, ly);
+      if (chair) { chair.toggle(); return; }
+      await teleportTo(lx, ly);
       return;
     }
     lastTap = now; lastX = e.clientX; lastY = e.clientY;
