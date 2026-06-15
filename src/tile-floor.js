@@ -108,9 +108,9 @@ function clipPlanes(b) {
   return [P(1, 0, b.min.x, 0), P(-1, 0, b.max.x, 0), P(0, 1, 0, b.min.z), P(0, -1, 0, b.max.z)];
 }
 
-export async function buildTileFloor({ scene, model, fragments, floorY, baseUrl }) {
+export async function buildTileFloor({ scene, model, fragments, floorY, baseUrl, manifestFile = "tiles.json" }) {
   let manifest = [];
-  try { manifest = await (await fetch(`${baseUrl}tiles.json`)).json(); } catch (e) { /* none */ }
+  try { manifest = await (await fetch(`${baseUrl}${manifestFile}`)).json(); } catch (e) { /* none */ }
   if (!manifest.length) return;
 
   const covs = Object.values(await model.getItemsOfCategories([/IFCCOVERING/])).flat();

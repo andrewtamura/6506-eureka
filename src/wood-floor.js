@@ -15,9 +15,9 @@ const PH = 0.02;                          // plank relief (height), metres
 const SHADES = [0.82, 0.9, 0.97, 1.05, 1.12, 0.86, 1.0];
 const hash = (n) => { const x = Math.sin(n * 127.1) * 43758.5; return x - Math.floor(x); };
 
-export async function buildWoodFloor({ scene, model, fragments, floorY, baseUrl }) {
+export async function buildWoodFloor({ scene, model, fragments, floorY, baseUrl, manifestFile = "floors.json" }) {
   let manifest = [];
-  try { manifest = await (await fetch(`${baseUrl}floors.json`)).json(); } catch (e) { /* none */ }
+  try { manifest = await (await fetch(`${baseUrl}${manifestFile}`)).json(); } catch (e) { /* none */ }
   if (!manifest.length) return;
 
   const covs = Object.values(await model.getItemsOfCategories([/IFCCOVERING/])).flat();

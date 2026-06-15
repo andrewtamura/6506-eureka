@@ -88,15 +88,8 @@ def run_hook(ctx, room):
         mod.build(ctx, room)
 
 
-def main():
-    cfg = load_json(os.path.join(HERE, "model.json"))
-    rooms = []
-    for stem in cfg["rooms"]:
-        r = load_json(os.path.join(ROOMS_DIR, stem + ".json"))
-        r["_stem"] = stem
-        rooms.append(r)
-
-    # ---- file + units + contexts -------------------------------------------
+def new_file(cfg, storey_name):
+    """A fresh IFC file with units, model context, and a minimal spatial tree."""
     m = run("project.create_file", version="IFC4")
     project = run("root.create_entity", m, ifc_class="IfcProject", name=cfg["project"])
     units = [run("unit.add_si_unit", m, unit_type=t, prefix=None)
@@ -105,59 +98,73 @@ def main():
     mctx = run("context.add_context", m, context_type="Model")
     body = run("context.add_context", m, context_type="Model",
                context_identifier="Body", target_view="MODEL_VIEW", parent=mctx)
-
-    # ---- spatial hierarchy --------------------------------------------------
     site = run("root.create_entity", m, ifc_class="IfcSite", name=cfg.get("site", "Site"))
     building = run("root.create_entity", m, ifc_class="IfcBuilding", name=cfg["building"])
-    storey = run("root.create_entity", m, ifc_class="IfcBuildingStorey", name=cfg["storey"])
+    storey = run("root.create_entity", m, ifc_class="IfcBuildingStorey", name=storey_name)
     run("aggregate.assign_object", m, products=[site], relating_object=project)
     run("aggregate.assign_object", m, products=[building], relating_object=site)
     run("aggregate.assign_object", m, products=[storey], relating_object=building)
+    return m, body, storey
 
+
+def build_level(cfg, rooms_cache, level):
+    """Build one level into its own IFC + manifests. Returns the viewer index
+    entry. `kind` is: full (walls + slabs + spaces + openings + interior),
+    shell (exterior perimeter walls + slabs only), or exterior (lot + massing)."""
+    lid, kind = level["id"], level["kind"]
+    m, body, storey = new_file(cfg, level.get("storey", lid))
     ctx = B.Ctx(m, body, storey, cfg)
+    rooms = [rooms_cache[s] for s in level.get("rooms", [])]
 
-    # ---- walls are global (shared edges merge); the rest is per-room --------
-    B.build_walls(ctx, rooms)
-    for r in rooms:
-        B.add_slab(ctx, r)
-        B.add_space(ctx, r)
-        B.add_doors(ctx, r)
-        B.add_windows(ctx, r)
-        catalog.build_interior(ctx, r)
-        run_hook(ctx, r)
-    compute_paneling(ctx, rooms)
+    if kind == "full":
+        B.build_walls(ctx, rooms)
+        for r in rooms:
+            B.add_slab(ctx, r)
+            B.add_space(ctx, r)
+            B.add_doors(ctx, r)
+            B.add_windows(ctx, r)
+            catalog.build_interior(ctx, r)
+            run_hook(ctx, r)
+        compute_paneling(ctx, rooms)
+    elif kind == "shell":
+        B.add_shell(ctx, rooms)
+    elif kind == "exterior":
+        B.add_lot(ctx, cfg["lot"], rooms)
+        B.add_shell(ctx, rooms)        # building massing (perimeter walls + slabs)
 
-    out = os.path.join(HERE, "floorplan.ifc")
-    m.write(out)
-    # Door hinge/swing manifest for the viewer's swinging-leaf overlays.
-    with open(os.path.join(HERE, "doors.json"), "w") as f:
-        json.dump(ctx.door_meta, f, indent=2)
-    # Plank-floor manifest: the viewer re-renders these coverings as one
-    # instanced mesh (name = which covering, rgb = plank colour).
-    with open(os.path.join(HERE, "floors.json"), "w") as f:
-        json.dump(ctx.plank_floors, f, indent=2)
-    # Tile-floor manifest: patterned tile coverings the viewer re-renders as an
-    # instanced mosaic (e.g. the vestibules' marble basketweave).
-    with open(os.path.join(HERE, "tiles.json"), "w") as f:
-        json.dump(ctx.tile_floors, f, indent=2)
-    # Furniture manifest: soft/curved pieces the viewer renders as meshes.
-    # Carries the plan->world mapping so the viewer can place them.
-    with open(os.path.join(HERE, "furniture.json"), "w") as f:
-        json.dump({"ft": B.FT, "xs": ctx.xs, "zs": ctx.zs, "items": ctx.furniture}, f, indent=2)
-    # Wall-finish manifest: wall extents + openings for baseboard, board-and-
-    # batten, window/door casing, and the continuous head entablature.
-    with open(os.path.join(HERE, "paneling.json"), "w") as f:
-        json.dump({"ft": B.FT, "xs": ctx.xs, "zs": ctx.zs,
-                   "baseboardFt": 10 / 12, "headFt": ctx.head_ft, "entablatureFt": 0.9,
-                   "casingFt": 0.33, "walls": ctx.paneling}, f, indent=2)
+    ifc_name = f"{lid}.ifc"
+    m.write(os.path.join(HERE, ifc_name))
+    names = {k: f"{lid}.{k}.json" for k in ("doors", "floors", "tiles", "furniture", "paneling")}
+    dump = lambda k, data: json.dump(data, open(os.path.join(HERE, names[k]), "w"), indent=2)
+    dump("doors", ctx.door_meta)
+    dump("floors", ctx.plank_floors)
+    dump("tiles", ctx.tile_floors)
+    dump("furniture", {"ft": B.FT, "xs": ctx.xs, "zs": ctx.zs, "items": ctx.furniture})
+    dump("paneling", {"ft": B.FT, "xs": ctx.xs, "zs": ctx.zs, "baseboardFt": 10 / 12,
+                      "headFt": ctx.head_ft, "entablatureFt": 0.9, "casingFt": 0.33, "walls": ctx.paneling})
 
-    def n(cls):
-        return len(m.by_type(cls))
-    print(f"Wrote {out}")
-    for cls in ("IfcWall", "IfcSlab", "IfcSpace", "IfcDoor", "IfcWindow",
-                "IfcOpeningElement", "IfcFurniture", "IfcCovering", "IfcLightFixture"):
-        if n(cls):
-            print(f"  {cls:<18}: {n(cls)}")
+    counts = {c: len(m.by_type(c)) for c in ("IfcWall", "IfcSlab", "IfcSpace", "IfcDoor", "IfcWindow", "IfcCovering", "IfcFurniture")}
+    print(f"  {lid:<9} ({kind}) -> {ifc_name}: " + ", ".join(f"{c[3:]}={n}" for c, n in counts.items() if n))
+    return {"id": lid, "storey": level.get("storey", lid), "kind": kind,
+            "label": level.get("label", level.get("storey", lid)),
+            "ifc": ifc_name, "manifests": names}
+
+
+def main():
+    cfg = load_json(os.path.join(HERE, "model.json"))
+    # Load every room referenced by any level once.
+    stems = {s for lvl in cfg["levels"] for s in lvl.get("rooms", [])}
+    rooms_cache = {}
+    for stem in stems:
+        r = load_json(os.path.join(ROOMS_DIR, stem + ".json"))
+        r["_stem"] = stem
+        rooms_cache[stem] = r
+
+    print("Generating levels:")
+    index = [build_level(cfg, rooms_cache, lvl) for lvl in cfg["levels"]]
+    with open(os.path.join(HERE, "levels.json"), "w") as f:
+        json.dump({"levels": index}, f, indent=2)
+    print(f"Wrote levels.json ({len(index)} levels)")
 
 
 if __name__ == "__main__":

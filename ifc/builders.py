@@ -274,6 +274,64 @@ def build_walls(ctx, rooms):
             add_wall(ctx, "V", x, a, b)
 
 
+def perimeter_segments(rects):
+    """Outline of the union of axis-aligned rectangles (each (x1,x2,y1,y2) in
+    metres). Returns boundary wall segments ("V", x, ylo, yhi) / ("H", y, xlo,
+    xhi): an edge of a cell that has the union on exactly one side."""
+    xs = sorted({round(v, 6) for r in rects for v in (r[0], r[1])})
+    ys = sorted({round(v, 6) for r in rects for v in (r[2], r[3])})
+    inside = lambda cx, cy: any(r[0] < cx < r[1] and r[2] < cy < r[3] for r in rects)
+    nx, ny = len(xs) - 1, len(ys) - 1
+    cell = [[inside((xs[i] + xs[i + 1]) / 2, (ys[j] + ys[j + 1]) / 2) for j in range(ny)] for i in range(nx)]
+    vert, horiz = {}, {}                                   # fixed-line -> [intervals]
+    for i in range(nx + 1):                                # vertical boundaries at x = xs[i]
+        for j in range(ny):
+            left = cell[i - 1][j] if i - 1 >= 0 else False
+            right = cell[i][j] if i < nx else False
+            if left != right:
+                vert.setdefault(xs[i], []).append((ys[j], ys[j + 1]))
+    for j in range(ny + 1):                                # horizontal boundaries at y = ys[j]
+        for i in range(nx):
+            below = cell[i][j - 1] if j - 1 >= 0 else False
+            above = cell[i][j] if j < ny else False
+            if below != above:
+                horiz.setdefault(ys[j], []).append((xs[i], xs[i + 1]))
+    out = []
+    for x, ivs in vert.items():
+        out += [("V", x, a, b) for a, b in union_intervals(ivs)]
+    for y, ivs in horiz.items():
+        out += [("H", y, a, b) for a, b in union_intervals(ivs)]
+    return out
+
+
+def add_shell(ctx, rooms):
+    """Exterior shell only: a floor slab per room footprint + the perimeter walls
+    of their union (no interior partitions, spaces, doors, or windows)."""
+    rects = [ifc_bounds(ctx, r["bounds"]) for r in rooms]
+    for r in rooms:
+        add_slab(ctx, r)
+    for orient, fixed, a, b in perimeter_segments(rects):
+        add_wall(ctx, orient, fixed, a, b)
+
+
+def add_lot(ctx, lot, rooms):
+    """A flat lot plane sized lot.widthFt x lot.depthFt (E-W x N-S), positioned so
+    the building sits `westMarginFt` inside the west line (west = +plan x) and the
+    scullery `scullerySouthFt` off the south line (south = min plan z)."""
+    pxs = [v for r in rooms for v in (r["bounds"]["x1"], r["bounds"]["x2"])]
+    pzs = [v for r in rooms for v in (r["bounds"]["z1"], r["bounds"]["z2"])]
+    west = max(pxs) + lot["westMarginFt"]                  # west lot line (plan x)
+    east = west - lot["widthFt"]
+    south = min(pzs) - lot["scullerySouthFt"]              # south lot line (plan z)
+    north = south + lot["depthFt"]
+    cx, cz = (west + east) / 2, (south + north) / 2
+    lotmesh = make_box(ctx, "IfcSlab", "Lot",
+                       lot["widthFt"] * FT, lot["depthFt"] * FT, 0.1,
+                       ctx.X(cx), ctx.Y(cz), -0.11, predefined="BASESLAB", color=(0.46, 0.55, 0.34))
+    run("spatial.assign_container", ctx.model, products=[lotmesh], relating_structure=ctx.storey)
+    return lotmesh
+
+
 def add_slab(ctx, r):
     x1, x2, y1, y2 = ifc_bounds(ctx, r["bounds"])
     slab = make_box(ctx, "IfcSlab", f"Slab - {r['name']}",

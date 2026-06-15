@@ -164,9 +164,9 @@ const SEAT_FRONT = 0.225;   // chair seat front is +0.225 m toward the table fro
 const TUCK = 0.08;          // pushed-in: seat front this far under the table edge
 const SIT = 0.22;           // pulled-out: this gap between seat front and table edge
 
-export async function buildFurniture({ scene, floorY, baseUrl }) {
+export async function buildFurniture({ scene, floorY, baseUrl, manifestFile = "furniture.json" }) {
   let data;
-  try { data = await (await fetch(`${baseUrl}furniture.json`)).json(); } catch (e) { return { chairMeshes: [] }; }
+  try { data = await (await fetch(`${baseUrl}${manifestFile}`)).json(); } catch (e) { return { chairMeshes: [] }; }
   const { ft = 0.3048, xs = -1, zs = 1, items = [] } = data || {};
   // plan (feet) -> three.js world: x = xs*px*ft, z = -(zs*pz*ft) (web-ifc maps IFC +Y -> -Z)
   const world = (px, pz) => [xs * px * ft, -(zs * pz * ft)];

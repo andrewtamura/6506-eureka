@@ -163,42 +163,44 @@ async function main() {
     webIfc: { CIRCLE_SEGMENTS: 48 },
   });
 
-  // --- load the model -----------------------------------------------------
-  setStatus("Loading IFC model…");
-  const res = await fetch(`${BASE}floorplan.ifc`);
-  if (!res.ok) throw new Error(`Could not fetch floorplan.ifc (${res.status})`);
-  const bytes = new Uint8Array(await res.arrayBuffer());
-  // coordinate=false keeps the model's authored coordinates so the floor sits
-  // on the grid (Y=0). With coordinate=true, base-coordination shifts the whole
-  // model below the grid, which reads as "sunk/upside-down".
-  const model = await ifcLoader.load(bytes, false, "Eureka Residence");
-  // Render the whole house with no view-based hiding: ALL_VISIBLE keeps every
-  // item at full geometry regardless of the camera, so walls/planks don't pop
-  // in and out as you pan inside a room (ALL_GEOMETRY still frustum-hid items).
-  // Items we explicitly setVisible(false) later (IfcSpace volumes, door panels,
-  // the flat floor coverings we re-render) stay hidden. The model is small
-  // enough that drawing it all is cheap.
-  await model.setLodMode(FRAGS.LodMode.ALL_VISIBLE);
-  await fragments.core.update(true);
+  // --- load the levels ----------------------------------------------------
+  // The scene is a left-to-right ROW of views: [ Exterior+lot | Ground | Level 2
+  // | Attic ]. The Ground floor is the primary, fully-interactive model at the
+  // origin; the other levels load as offset "exhibits" beside it (see below).
+  setStatus("Loading model…");
+  const levelsCfg = (await (await fetch(`${BASE}levels.json`)).json()).levels;
+  const groundLevel = levelsCfg.find((l) => l.id === "ground") || levelsCfg[0];
+  const groundManifests = groundLevel.manifests;
+  // coordinate=false keeps authored coordinates so the floor sits on the grid.
+  const loadIfc = async (file, name) => {
+    const r = await fetch(`${BASE}${file}`);
+    if (!r.ok) throw new Error(`Could not fetch ${file} (${r.status})`);
+    const m = await ifcLoader.load(new Uint8Array(await r.arrayBuffer()), false, name);
+    // ALL_VISIBLE: no view-based hiding, so geometry doesn't pop as you pan.
+    await m.setLodMode(FRAGS.LodMode.ALL_VISIBLE);
+    await fragments.core.update(true);
+    return m;
+  };
+  const model = await loadIfc(groundLevel.ifc, groundLevel.storey);
 
-  // Fragments' base-coordination places the model below the grid; lift it so
-  // the floor rests on the grid plane (Y=0), then frame it. Shifting
-  // model.object keeps raycasting consistent (fragments uses its world matrix).
+  // Lift the ground floor so its slab rests on the grid plane (Y=0). `viewBox`
+  // grows to include the exhibit levels so the plan view frames the whole row.
   const box = new THREE.Box3().setFromObject(model.object);
-  let modelBox = box;
-  // Frame the model straight down as a plan view (the default look). A tiny X
-  // offset keeps the look-direction off exact gimbal; fitToBox then dollies to
-  // fit while keeping the top-down orientation.
+  let modelBox = box, viewBox = box;
   const framePlan = (transition) => {
-    const c = modelBox.getCenter(new THREE.Vector3());
-    world.camera.controls.setLookAt(c.x + 0.001, modelBox.max.y + 20, c.z, c.x, modelBox.min.y, c.z, false);
-    world.camera.controls.fitToBox(modelBox, transition);
+    const c = viewBox.getCenter(new THREE.Vector3()), s = viewBox.getSize(new THREE.Vector3());
+    // Look straight down with a tiny +Z eye offset (breaks the gimbal) so the
+    // view is oriented North-up / East-right: world X (E-W) runs HORIZONTALLY
+    // on screen, which is the axis the row of levels is laid out along.
+    world.camera.controls.setLookAt(c.x, viewBox.max.y + Math.max(s.x, s.z) * 1.1, c.z + 0.001, c.x, viewBox.min.y, c.z, false);
+    world.camera.controls.fitToBox(viewBox, transition);
   };
   if (!box.isEmpty()) {
     model.object.position.y -= box.min.y;
     model.object.updateMatrixWorld(true);
     await fragments.core.update(true);
     modelBox = new THREE.Box3().setFromObject(model.object);
+    viewBox = modelBox.clone();
     framePlan(true);
   }
   setStatus("");
@@ -409,14 +411,14 @@ async function main() {
   }
 
   // --- realistic hardwood floor (one instanced mesh; see wood-floor.js) ---
-  await buildWoodFloor({ scene, model, fragments, floorY: FLOOR, baseUrl: BASE });
-  await buildTileFloor({ scene, model, fragments, floorY: FLOOR, baseUrl: BASE });
+  await buildWoodFloor({ scene, model, fragments, floorY: FLOOR, baseUrl: BASE, manifestFile: groundManifests.floors });
+  await buildTileFloor({ scene, model, fragments, floorY: FLOOR, baseUrl: BASE, manifestFile: groundManifests.tiles });
 
   // --- soft furniture as procedural meshes (see furniture.js) -------------
-  const furniture = await buildFurniture({ scene, floorY: FLOOR + 0.02, baseUrl: BASE });
+  const furniture = await buildFurniture({ scene, floorY: FLOOR + 0.02, baseUrl: BASE, manifestFile: groundManifests.furniture });
 
   // --- board-and-batten wall finish + baseboards (see wall-finish.js) -----
-  await buildWallFinish({ scene, floorY: FLOOR, ceilingY: modelBox.max.y, baseUrl: BASE });
+  await buildWallFinish({ scene, floorY: FLOOR, ceilingY: modelBox.max.y, baseUrl: BASE, manifestFile: groundManifests.paneling });
 
   // --- ceilings (block the sun; opaque in POV, transparent in plan) -------
   setPlanView = buildCeilings({ scene, rooms: roomBoxes, ceilingY: modelBox.max.y }).setPlanView;
@@ -434,6 +436,94 @@ async function main() {
   const _sz = modelBox.getSize(new THREE.Vector3());
   focusShadow(modelBox.getCenter(new THREE.Vector3()), Math.max(_sz.x, _sz.z) * 0.6);
   setPlanView(true);   // the viewer opens in the overview
+
+  // --- the rest of the row: Exterior (left) + Level 2 / Attic (right) -----
+  // Ground stays at the origin and stays the only interactive model (teleport,
+  // selection, and POV views all target it). The other levels load as display-
+  // only exhibits beside it, each lifted so its slab rests on the grid.
+  //
+  // With the North-up / East-right plan camera, world X (E-W) runs HORIZONTALLY
+  // on screen, so the row is laid out ALONG world X: screen-left = -X (West),
+  // screen-right = +X (East). We want [ Exterior | Ground | Level 2 | Attic ],
+  // so the exterior sits to -X (West) of the ground floor and Level 2 / Attic
+  // march off toward +X (East).
+  {
+    const GAP = 9;                                         // spacing between views (m)
+    let westX = modelBox.min.x, eastX = modelBox.max.x;    // -X / +X frontiers
+    const views = [{ label: groundLevel.label || groundLevel.storey, box: modelBox }];
+    for (const lvl of levelsCfg) {
+      if (lvl.id === groundLevel.id) continue;
+      try {
+        const m = await loadIfc(lvl.ifc, lvl.storey);
+        // The last/smallest model can finish tessellating a frame after load(),
+        // so its bounds read empty for a moment; poll until the geometry lands.
+        let b0 = new THREE.Box3().setFromObject(m.object);
+        for (let tries = 0; b0.isEmpty() && tries < 40; tries++) {
+          await new Promise((r) => setTimeout(r, 50));
+          await fragments.core.update(true);
+          b0 = new THREE.Box3().setFromObject(m.object);
+        }
+        if (b0.isEmpty()) { console.warn(`exhibit ${lvl.id}: no geometry, skipping`); continue; }
+        m.object.position.y -= b0.min.y;                     // slab on the grid
+        m.object.updateMatrixWorld(true);
+        const b = new THREE.Box3().setFromObject(m.object);
+        const left = lvl.id === "exterior";                  // exterior to the left (West) of ground
+        const dx = left ? (westX - GAP - b.max.x) : (eastX + GAP - b.min.x);
+        m.object.position.x += dx;
+        m.object.updateMatrixWorld(true);
+        if (left) westX = b.min.x + dx; else eastX = b.max.x + dx;
+        m.object.traverse((o) => { if (o.isMesh) { o.frustumCulled = false; o.castShadow = true; o.receiveShadow = true; } });
+        const fb = new THREE.Box3().setFromObject(m.object);
+        views.push({ label: lvl.label || lvl.storey, box: fb });
+        viewBox.expandByObject(m.object);
+      } catch (err) { console.warn(`exhibit ${lvl.id} failed`, err); }
+    }
+
+    // Title each view with a flat label laid on the grid above it (top of the
+    // plan = -Z / North on screen). The plane is oriented so the text reads
+    // left-to-right and upright when viewed from the top-down plan camera.
+    const labelUp = new THREE.Vector3(0, 0, -1);     // toward top of screen (world -Z, North)
+    for (const v of views) {
+      const c = v.box.getCenter(new THREE.Vector3());
+      const cnv = document.createElement("canvas");
+      cnv.width = 1024; cnv.height = 192;
+      const g = cnv.getContext("2d");
+      // a light rounded "pill" so the title reads over the grid OR a dark wall cap
+      const pad = 28, r = 60;
+      g.fillStyle = "rgba(247,249,251,0.92)";
+      g.beginPath();
+      g.moveTo(pad + r, pad); g.arcTo(cnv.width - pad, pad, cnv.width - pad, cnv.height - pad, r);
+      g.arcTo(cnv.width - pad, cnv.height - pad, pad, cnv.height - pad, r);
+      g.arcTo(pad, cnv.height - pad, pad, pad, r); g.arcTo(pad, pad, cnv.width - pad, pad, r);
+      g.closePath(); g.fill();
+      g.fillStyle = "#1f2a37"; g.font = "bold 116px system-ui, sans-serif";
+      g.textAlign = "center"; g.textBaseline = "middle";
+      g.fillText(v.label, cnv.width / 2, cnv.height / 2);
+      const tex = new THREE.CanvasTexture(cnv);
+      tex.anisotropy = 4; tex.colorSpace = THREE.SRGBColorSpace;
+      const W = 4.0, H = W * cnv.height / cnv.width;
+      const mesh = new THREE.Mesh(
+        new THREE.PlaneGeometry(W, H),
+        // depthTest off + a high renderOrder so the perspective-splayed shell
+        // walls of off-centre views never occlude their title.
+        new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false }));
+      mesh.position.set(c.x, 0.02, v.box.min.z - H * 0.75);   // just above (−Z / North of) the view
+      mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
+        new THREE.Vector3(1, 0, 0),    // text +X (right) -> world +X (screen right, East)
+        labelUp,                       // text +Y (up)    -> world -Z (screen up, North)
+        new THREE.Vector3(0, 1, 0)));  // normal          -> world +Y (faces camera)
+      mesh.renderOrder = 999;
+      mesh.frustumCulled = false;
+      mesh.updateMatrixWorld(true);
+      scene.add(mesh);
+      viewBox.expandByObject(mesh);   // keep the titles inside the framed row
+    }
+
+    viewBox.expandByScalar(1.0);   // headroom so the titles never touch the frame edge
+    await fragments.core.update(true);
+    framePlan(false);    // reframe to the whole row
+    refreshShadow();
+  }
 
   const _tdir = new THREE.Vector3();
   // Glide the camera to a new pose by interpolating the eye + look-at point as
@@ -590,7 +680,7 @@ async function main() {
     // hinge/swing per door, from the generator's manifest (keyed by door name)
     const meta = {};
     try {
-      for (const d of await (await fetch(`${BASE}doors.json`)).json()) meta[d.name] = d;
+      for (const d of await (await fetch(`${BASE}${groundManifests.doors}`)).json()) meta[d.name] = d;
     } catch (e) { /* fall back to defaults */ }
 
     const ANG = Math.PI / 2;

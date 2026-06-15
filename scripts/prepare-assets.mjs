@@ -1,9 +1,9 @@
 // Copies runtime assets into public/ so Vite serves/bundles them:
-//   - ifc/floorplan.ifc          -> public/floorplan.ifc   (the BIM model)
-//   - node_modules/web-ifc/*.wasm -> public/web-ifc/*.wasm  (self-hosted WASM)
+//   - ifc/levels.json + each level's IFC + manifests -> public/  (the BIM models)
+//   - node_modules/web-ifc/*.wasm -> public/web-ifc/*.wasm        (self-hosted WASM)
 //
 // Runs automatically via the predev/prebuild npm hooks.
-import { mkdirSync, copyFileSync, existsSync } from "node:fs";
+import { mkdirSync, copyFileSync, existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -17,7 +17,13 @@ const copy = (from, to) => {
   console.log(`copied ${from} -> ${to}`);
 };
 
-copy("ifc/floorplan.ifc", "public/floorplan.ifc");
+// The whole row of views: levels.json + every level's IFC + manifests.
+copy("ifc/levels.json", "public/levels.json");
+const { levels } = JSON.parse(readFileSync(resolve(root, "ifc/levels.json"), "utf8"));
+for (const lvl of levels) {
+  copy(`ifc/${lvl.ifc}`, `public/${lvl.ifc}`);
+  for (const f of Object.values(lvl.manifests)) copy(`ifc/${f}`, `public/${f}`);
+}
 for (const f of ["web-ifc.wasm", "web-ifc-mt.wasm"]) {
   copy(`node_modules/web-ifc/${f}`, `public/web-ifc/${f}`);
 }
@@ -26,13 +32,3 @@ for (const f of ["web-ifc.wasm", "web-ifc-mt.wasm"]) {
 copy("node_modules/@thatopen/fragments/dist/Worker/worker.mjs", "public/worker.mjs");
 // Publish the original Three.js model alongside the BIM viewer at /legacy/.
 copy("legacy/index.html", "public/legacy/index.html");
-// Door hinge/swing manifest consumed by the viewer.
-copy("ifc/doors.json", "public/doors.json");
-// Plank-floor manifest (which coverings to re-render as instanced wood + colour).
-copy("ifc/floors.json", "public/floors.json");
-// Tile-floor manifest (which coverings to re-render as an instanced tile mosaic).
-copy("ifc/tiles.json", "public/tiles.json");
-// Furniture manifest (soft/curved pieces the viewer renders as meshes).
-copy("ifc/furniture.json", "public/furniture.json");
-// Wall-finish manifest (baseboard + board-and-batten spans).
-copy("ifc/paneling.json", "public/paneling.json");
