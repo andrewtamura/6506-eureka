@@ -45,6 +45,18 @@
     },
     "furniture": [
       {
+        "type": "builtin_hutch",
+        "at": [
+          23.04,
+          1.627
+        ],
+        "w": 6.59,
+        "d": 1.5,
+        "h": 7.0,
+        "rot": 180,
+        "material": "cabinet"
+      },
+      {
         "type": "rug",
         "at": [
           23.04,

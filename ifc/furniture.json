@@ -4,6 +4,16 @@
   "zs": 1,
   "items": [
     {
+      "type": "builtin_hutch",
+      "px": 23.04,
+      "pz": 1.627,
+      "rot": 180.0,
+      "material": "cabinet",
+      "h": 7.0,
+      "w": 6.59,
+      "d": 1.5
+    },
+    {
       "type": "rug",
       "px": 23.04,
       "pz": 9.04,

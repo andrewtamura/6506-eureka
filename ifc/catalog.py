@@ -44,7 +44,7 @@ DEFAULT_FLOOR = MATERIALS["hardwood"]
 
 # Furniture types rendered as smooth meshes in the viewer (see src/furniture.js),
 # recorded to furniture.json rather than built as IFC box/cylinder proxies.
-VIEWER_TYPES = {"round_pedestal_table", "upholstered_dining_chair", "highback_chair", "rug"}
+VIEWER_TYPES = {"round_pedestal_table", "upholstered_dining_chair", "highback_chair", "rug", "builtin_hutch"}
 
 
 def material_color(name, fallback):

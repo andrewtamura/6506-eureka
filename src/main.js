@@ -148,6 +148,18 @@ async function main() {
   }
   setStatus("");
 
+  // Window glass arrives from the IFC styles as a transparent material with
+  // depthWrite ON, which makes a pane write the depth buffer and occlude what's
+  // behind it — so some windows render as flat opaque blue instead of see-
+  // through (and it's view-order dependent, so only some looked wrong). Turn off
+  // depthWrite on transparent materials so all glass reads through consistently.
+  model.object.traverse((o) => {
+    if (!o.isMesh) return;
+    for (const m of (Array.isArray(o.material) ? o.material : [o.material])) {
+      if (m && m.transparent && m.opacity < 1) { m.depthWrite = false; m.needsUpdate = true; }
+    }
+  });
+
   // Debug handle (used by the headless smoke test; harmless in production).
   window.THREE = THREE;
   window.__eureka = { components, world, fragments, model, loaded: true };
