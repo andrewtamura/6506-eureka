@@ -79,18 +79,56 @@ async function main() {
   const grids = components.get(OBC.Grids);
   grids.create(world);
 
-  // --- time-of-day lighting ----------------------------------------------
-  const { apply: applyLighting, names: lightingNames, focusShadow } = setupLighting(scene);
-  applyLighting("Afternoon");
+  // --- time-of-day dial --------------------------------------------------
+  // A circular 24-hour dial that reflects the cyclic nature of time: drag the
+  // sun knob around the ring. Noon is at top, midnight at the bottom; the sun
+  // rises on the left (dawn) and sets on the right (dusk) — its daily arc. The
+  // top half of the ring is tinted day, the bottom half night.
+  const { setTime, focusShadow, refreshShadow } = setupLighting(scene);
   const lightEl = document.getElementById("lighting");
-  const icons = { Morning: "\u{1F305}", Afternoon: "☀️", Evening: "\u{1F307}", Night: "\u{1F319}" };
-  for (const name of lightingNames) {
-    const btn = document.createElement("button");
-    btn.className = "view-btn";
-    btn.textContent = `${icons[name]} ${name}`;
-    btn.addEventListener("click", () => applyLighting(name));
-    lightEl.appendChild(btn);
-  }
+  const fmtHour = (h) => {
+    const hr = Math.floor(h) % 24, mn = Math.round((h - Math.floor(h)) * 60) % 60;
+    const ap = hr < 12 ? "AM" : "PM", h12 = ((hr + 11) % 12) + 1;
+    return `${h12}:${String(mn).padStart(2, "0")} ${ap}`;
+  };
+  const NS = "http://www.w3.org/2000/svg";
+  const SZ = 150, C = SZ / 2, RR = 56;
+  const el = (tag, attrs, text) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    return e;
+  };
+  const dial = el("svg", { viewBox: `0 0 ${SZ} ${SZ}` });
+  dial.style.cssText = "width:150px;height:150px;touch-action:none;cursor:grab";
+  dial.appendChild(el("path", { d: `M ${C - RR} ${C} A ${RR} ${RR} 0 0 1 ${C + RR} ${C}`, fill: "none", stroke: "#bcd8f0", "stroke-width": "8", "stroke-linecap": "round" })); // day (top)
+  dial.appendChild(el("path", { d: `M ${C + RR} ${C} A ${RR} ${RR} 0 0 1 ${C - RR} ${C}`, fill: "none", stroke: "#3a4763", "stroke-width": "8", "stroke-linecap": "round" })); // night (bottom)
+  for (const [t, x, y, a] of [["12p", C, C - RR - 5, "middle"], ["6p", C + RR + 6, C + 3, "start"], ["12a", C, C + RR + 13, "middle"], ["6a", C - RR - 6, C + 3, "end"]])
+    dial.appendChild(el("text", { x, y, "text-anchor": a, "font-size": "9", fill: "#889" }, t));
+  const knob = el("circle", { r: "8", fill: "#f5b942", stroke: "#fff", "stroke-width": "2" });
+  const label = el("text", { x: C, y: C + 4, "text-anchor": "middle", "font-size": "13", fill: "#445", "font-weight": "600" });
+  dial.append(knob, label);
+  lightEl.appendChild(dial);
+
+  let hour = 14;
+  const place = (h) => {
+    const a = ((h - 12) / 24) * 2 * Math.PI;             // 0 at noon (top), clockwise
+    knob.setAttribute("cx", C + RR * Math.sin(a));
+    knob.setAttribute("cy", C - RR * Math.cos(a));
+    label.textContent = fmtHour(h);
+  };
+  const apply = (h) => { hour = ((h % 24) + 24) % 24; setTime(hour); place(hour); };
+  const fromPointer = (e) => {
+    const r = dial.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width * SZ - C, py = (e.clientY - r.top) / r.height * SZ - C;
+    let a = Math.atan2(px, -py); if (a < 0) a += 2 * Math.PI;  // 0 at top, clockwise
+    apply(12 + a / (2 * Math.PI) * 24);
+  };
+  let dragging = false;
+  dial.addEventListener("pointerdown", (e) => { dragging = true; dial.setPointerCapture(e.pointerId); fromPointer(e); });
+  dial.addEventListener("pointermove", (e) => { if (dragging) fromPointer(e); });
+  dial.addEventListener("pointerup", () => { dragging = false; });
+  apply(14);   // initialize at 2:00 PM
 
   // --- fragments engine ---------------------------------------------------
   const fragments = components.get(OBC.FragmentsManager);
@@ -104,7 +142,7 @@ async function main() {
   // don't visibly stream/pop in while the camera is still moving — the model is
   // small enough to draw in full. (update() without force streams progressively,
   // which is what caused the pop-in.)
-  world.camera.controls.addEventListener("rest", () => fragments.core.update(true));
+  world.camera.controls.addEventListener("rest", () => { fragments.core.update(true); refreshShadow(); });
   world.camera.controls.addEventListener("update", () => fragments.core.update(true));
 
   // When a model is added, attach it to the camera + scene.
@@ -134,12 +172,13 @@ async function main() {
   // on the grid (Y=0). With coordinate=true, base-coordination shifts the whole
   // model below the grid, which reads as "sunk/upside-down".
   const model = await ifcLoader.load(bytes, false, "Eureka Residence");
-  // Render the whole house at full geometry instead of the DEFAULT view-based
-  // LOD/culling, which made hardwood planks and walls pop in/out as the camera
-  // moved. ALL_GEOMETRY still honours items we explicitly hide (IfcSpace
-  // volumes, door panels) — it only stops the distance/frustum culling. The
-  // model is small enough that drawing it all is cheap.
-  await model.setLodMode(FRAGS.LodMode.ALL_GEOMETRY);
+  // Render the whole house with no view-based hiding: ALL_VISIBLE keeps every
+  // item at full geometry regardless of the camera, so walls/planks don't pop
+  // in and out as you pan inside a room (ALL_GEOMETRY still frustum-hid items).
+  // Items we explicitly setVisible(false) later (IfcSpace volumes, door panels,
+  // the flat floor coverings we re-render) stay hidden. The model is small
+  // enough that drawing it all is cheap.
+  await model.setLodMode(FRAGS.LodMode.ALL_VISIBLE);
   await fragments.core.update(true);
 
   // Fragments' base-coordination places the model below the grid; lift it so
@@ -387,6 +426,7 @@ async function main() {
   // the ceiling is registered as a shadow caster.)
   scene.traverse((o) => {
     if (!o.isMesh) return;
+    o.frustumCulled = false;   // keep walls/geometry from popping out as you pan in a room
     const mats = Array.isArray(o.material) ? o.material : [o.material];
     o.castShadow = !mats.some((m) => m && m.transparent && m.opacity < 0.95);
     o.receiveShadow = true;

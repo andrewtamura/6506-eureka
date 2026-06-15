@@ -1,53 +1,69 @@
-// Time-of-day lighting rig. Replaces SimpleScene's default lights with a sun +
-// sky pair so the Morning/Afternoon/Evening/Night presets fully control the look.
+// Time-of-day lighting driven by a single "hour" (0–24). The sun's azimuth and
+// altitude are the real solar position for El Cerrito, CA (lat 37.9°N, ≈equinox)
+// at that hour; sun/sky colours and intensity track the height of the sun, so a
+// scrub from night → dawn → midday → dusk reads naturally.
+//
+// World axes: the building's north is +z in plan -> world -Z, so East = +X,
+// South = +Z, Up = +Y, and the sun direction is
+//   (cos·alt·sin·az, sin·alt, -cos·alt·cos·az)  (az measured clockwise from N).
 import * as THREE from "three";
 
-// Sun directions are the real solar azimuth/altitude for El Cerrito, CA
-// (lat 37.9°N) at each time of day (≈equinox). The building's north is +z in
-// plan, which maps to world -Z, so in WORLD axes East = +X, South = +Z, Up = +Y,
-// and dir = (cos·alt·sin·az, sin·alt, -cos·alt·cos·az) with az measured from
-// north. The sun stays in the southern sky (+Z) and never goes overhead.
-const PRESETS = {
-  // ~8am, sun low in the ESE  (alt 23°, az 110°)
-  Morning:   { bg: 0xcfe3f5, sun: 0xffd9a0, si: 2.2, dir: [0.87, 0.39, 0.31],  sky: 0xbcd8f0, grd: 0x9a7a5a, hi: 0.6 },
-  // ~2pm, sun high in the SW   (alt 43°, az 223°)
-  Afternoon: { bg: 0xb0d4f1, sun: 0xfff3e0, si: 3.2, dir: [-0.50, 0.68, 0.53], sky: 0xbfdcff, grd: 0x9a8a7a, hi: 0.9 },
-  // ~5pm, sun low in the W     (alt 12°, az 261°)
-  Evening:   { bg: 0xf3c79a, sun: 0xff8a45, si: 2.0, dir: [-0.97, 0.20, 0.16], sky: 0xb08fb0, grd: 0x6a5a4a, hi: 0.5 },
-  // dim moonlight, low in the E
-  Night:     { bg: 0x0b1020, sun: 0x9fb6ff, si: 0.5, dir: [0.80, 0.45, 0.25],  sky: 0x22304a, grd: 0x0d1018, hi: 0.25 },
-};
+const DEG = Math.PI / 180;
+const LAT = 37.9 * DEG;     // El Cerrito, CA
+const DECL = 0;             // solar declination (~equinox)
+const clamp = (v, a, b) => Math.min(Math.max(v, a), b);
+const lerp = (a, b, t) => a + (b - a) * t;
+const mix = (c1, c2, t) => new THREE.Color(c1).lerp(new THREE.Color(c2), t);
 
-// Set up the lighting rig on a three.js scene. Returns { apply, names, focusShadow }.
 export function setupLighting(scene) {
-  // Drop SimpleScene's built-in lights first (collect then remove — removing
-  // during traverse would mutate the tree mid-walk).
+  // Drop SimpleScene's built-in lights first.
   const existing = [];
   scene.traverse((o) => { if (o.isLight) existing.push(o); });
   existing.forEach((l) => l.removeFromParent());
 
   const sun = new THREE.DirectionalLight(0xffffff, 3);
-  // The sun casts shadows so recesses read with depth (cabinet voids, overhangs,
-  // furniture contact). The shadow frustum is sized to the model by focusShadow().
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.bias = -0.0004;
   sun.shadow.normalBias = 0.03;
+  // Bake the shadow on demand (not every frame): geometry + sun are static per
+  // hour, so a frozen shadow stays correct and doesn't flicker while panning.
+  sun.shadow.autoUpdate = false;
+  sun.shadow.needsUpdate = true;
   const sky = new THREE.HemisphereLight(0xbfdcff, 0x9a8a7a, 0.8);
   scene.add(sun, sun.target, sky);
 
-  const focus = new THREE.Vector3();   // point the sun + shadow frustum aim at
-  let dist = 40, current = null;
+  const focus = new THREE.Vector3();   // sun + shadow frustum aim point
+  let dist = 40, hour = 14;
 
-  const apply = (name) => {
-    const p = PRESETS[name];
-    if (!p) return;
-    current = name;
-    scene.background = new THREE.Color(p.bg);
-    sun.color.set(p.sun); sun.intensity = p.si;
-    sun.position.copy(focus).add(
-      new THREE.Vector3(p.dir[0], p.dir[1], p.dir[2]).normalize().multiplyScalar(dist));
-    sky.color.set(p.sky); sky.groundColor.set(p.grd); sky.intensity = p.hi;
+  // Set the lighting for a given hour of the day (0–24).
+  const setTime = (h) => {
+    hour = h;
+    const H = (h - 12) * 15 * DEG;                       // hour angle
+    const altSin = Math.sin(LAT) * Math.sin(DECL) + Math.cos(LAT) * Math.cos(DECL) * Math.cos(H);
+    const alt = Math.asin(clamp(altSin, -1, 1));
+    let az = Math.acos(clamp((Math.sin(DECL) - altSin * Math.sin(LAT)) / (Math.cos(alt) * Math.cos(LAT) || 1e-6), -1, 1));
+    if (H > 0) az = 2 * Math.PI - az;                    // afternoon -> western sky
+
+    const day = clamp(altSin * 1.8, 0, 1);               // 0 below horizon, 1 when well up
+    const warm = clamp(1 - Math.max(altSin, 0) * 3.2, 0, 1); // warm/orange near the horizon
+
+    // Keep the sun a few degrees up for sane shadows even at sunrise/sunset.
+    const altDir = Math.max(alt, 5 * DEG);
+    const dir = new THREE.Vector3(
+      Math.cos(altDir) * Math.sin(az), Math.sin(altDir), -Math.cos(altDir) * Math.cos(az));
+    sun.position.copy(focus).add(dir.normalize().multiplyScalar(dist));
+    sun.intensity = clamp(Math.max(altSin, 0) * 3.4, 0, 3.4) + 0.05;
+    sun.color.copy(mix(0xfff1da, 0xff7a30, warm));       // neutral high, warm low
+
+    sky.intensity = lerp(0.42, 1.0, day);   // keep a twilight/night ambient floor so rooms stay readable
+    sky.color.copy(mix(0x33425e, 0xbfdcff, day));
+    sky.groundColor.copy(mix(0x121723, 0x9a8a7a, day));
+
+    scene.background = altSin <= 0
+      ? mix(0x0b1020, 0xf0c39a, clamp(altSin * 9 + 1, 0, 1))  // night -> dawn/dusk glow at the horizon
+      : mix(0xf3c79a, 0xaed2f0, day);                         // warm horizon -> daytime blue
+    sun.shadow.needsUpdate = true;
   };
 
   // Aim the sun + size its (orthographic) shadow camera to cover the model.
@@ -58,8 +74,9 @@ export function setupLighting(scene) {
     const c = sun.shadow.camera;
     c.left = -radius; c.right = radius; c.top = radius; c.bottom = -radius;
     c.near = 0.5; c.far = dist + radius * 2; c.updateProjectionMatrix();
-    if (current) apply(current);   // reposition the sun relative to the new focus
+    setTime(hour);                       // reposition the sun relative to the new focus
   };
+  const refreshShadow = () => { sun.shadow.needsUpdate = true; };
 
-  return { apply, names: Object.keys(PRESETS), focusShadow };
+  return { setTime, focusShadow, refreshShadow };
 }
