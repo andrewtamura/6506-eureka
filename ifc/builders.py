@@ -71,6 +71,8 @@ class Ctx:
         self.H = cfg["wallHeight"] * FT             # wall / ceiling height (m)
         self.slab_t = cfg["slabThickness"]          # floor slab thickness (m)
         self.door_h_ft = cfg["doorHeight"]          # door head height (ft)
+        # Uniform head height for ALL doors and windows above the finish floor.
+        self.head_ft = cfg.get("headHeight", cfg["doorHeight"])
         self.walls = []                              # [{wall, orient, fixed, a, b}]
         self.door_meta = []                          # [{name, hingeMax, swingSign}] for the viewer
         self.plank_floors = []                       # [{name, rgb}] plank floors the viewer re-renders
@@ -349,7 +351,7 @@ def add_doors(ctx, r):
     for d in r.get("doors", []):
         opening = d.get("opening", False)
         cut_opening(ctx, "IfcDoor", d["name"], d["orient"], d["fixed"], d["pos"],
-                    d["width"], 0.0, ctx.door_h_ft, leaf=not opening)
+                    d["width"], 0.0, ctx.head_ft, leaf=not opening)
         if opening:
             continue
         # Record hinge/swing for the viewer's swinging-leaf overlay.
@@ -365,5 +367,6 @@ def add_doors(ctx, r):
 
 def add_windows(ctx, r):
     for w in r.get("windows", []):
+        # Uniform head for every window (sills stay as authored).
         cut_opening(ctx, "IfcWindow", w["name"], w["orient"], w["fixed"], w["pos"],
-                    w["width"], w["sill"], w["head"])
+                    w["width"], w["sill"], ctx.head_ft)
