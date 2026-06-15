@@ -11,7 +11,7 @@ import * as THREE from "three";
 
 const MILL = 0xefece4;   // millwork white (battens, casing, base, cornice)
 const FIELD = 0xdcd7cb;  // slightly deeper field/frieze so the millwork reads
-const BATTEN_W = 0.06, BATTEN_SPACING = 0.55, CASE_W_MIN = 0.08;
+const BATTEN_W = 0.06, BATTEN_SPACING = 0.3048; // battens ~12" on centre
 
 export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl }) {
   let data;
@@ -63,9 +63,11 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl }) {
       mesh.position.set(C.x + Nw.x * depth / 2, floorY + (y0 + y1) / 2, C.z + Nw.z * depth / 2);
       mesh.rotation.y = rotY; scene.add(mesh);
     };
+    // Battens at the INTERIOR board divisions only (~12" boards). No batten at
+    // the span ends, so we never double up against a window/door casing jamb.
     const battens = (s0, s1, y0, y1) => {
       const L = Math.abs(s1 - s0) * ft; const n = Math.max(1, Math.round(L / BATTEN_SPACING));
-      for (let i = 0; i <= n; i++) post(s0 + (s1 - s0) * i / n, y0, y1, BATTEN_W, 0.03);
+      for (let i = 1; i < n; i++) post(s0 + (s1 - s0) * i / n, y0, y1, BATTEN_W, 0.03);
     };
 
     const doors = w.doors || [], wins = w.windows || [];
