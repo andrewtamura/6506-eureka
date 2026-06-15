@@ -74,6 +74,7 @@ async function main() {
   // enters through windows + open doors) and recesses read with depth.
   world.renderer.three.shadowMap.enabled = true;
   world.renderer.three.shadowMap.type = THREE.PCFSoftShadowMap;
+  world.renderer.three.localClippingEnabled = true;   // clip tile mosaics to their room box
 
   const grids = components.get(OBC.Grids);
   grids.create(world);

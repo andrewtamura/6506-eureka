@@ -1,15 +1,16 @@
-// Tile floors rendered as ONE THREE.InstancedMesh (every brick / square in every
-// tiled room is a single draw call), like the hardwood floor. Which coverings are
-// patterned tile — and which pattern — comes from tiles.json (emitted by the
-// generator): the IFC's flat tile covering is hidden and replaced by the mosaic.
+// Tile floors rendered as instanced mosaics (one draw call per pattern per room),
+// like the hardwood floor. Which coverings are patterned tile — and which pattern
+// — comes from tiles.json (emitted by the generator): the flat IFC tile covering
+// is hidden and replaced by the mosaic.
+//
+// Each room's mosaic is CLIPPED to its covering box (the wall centerlines) with
+// clipping planes, so it ends in a straight edge under door openings and meets
+// the neighbouring floor cleanly at the threshold.
 //
 // Patterns:
-//   - "basketweave": white marble bricks woven in alternating pairs, with a small
-//     charcoal dot at each junction (the entry vestibules).
-//   - "checkerboard": black-and-white 12" squares laid on the diagonal (diamonds,
-//     points N-S), anchored to a global grid so it runs continuously across rooms.
-// Tones are off-white + charcoal (not pure black/white) with subtle per-tile
-// variation so it reads as real stone/ceramic.
+//   - "basketweave": white marble bricks woven in pairs + charcoal dot junctions.
+//   - "checkerboard": black/white 12" squares on the diagonal (diamonds, N-S).
+//   - "hexagon": white hex honeycomb with a repeating charcoal accent (1-in-7).
 import * as THREE from "three";
 
 const FT = 0.3048;
@@ -17,16 +18,15 @@ const TH = 0.012;             // tile relief height (m)
 const hash = (n) => { const x = Math.sin(n * 127.1) * 43758.5; return x - Math.floor(x); };
 
 // --- basketweave (marble) ---
-const U = (4 / 12) * FT;      // 4" basketweave unit cell (a 2"x4" brick pair)
-const BG = 0.005;             // grout line (m)
-const DOT = 0.26 * U;         // charcoal accent dot (~1")
+const U = (4 / 12) * FT;
+const BG = 0.005;
+const DOT = 0.26 * U;
 const MARBLE = [0.90, 0.88, 0.83];
 const DOTCOL = [0.16, 0.16, 0.18];
 const MSHADE = [0.95, 1.0, 1.05, 0.98, 1.03, 0.92];
 
-function basketweave(tiles, b, fy) {
+function basketweave(boxes, b) {
   const x1 = b.min.x, x2 = b.max.x, z1 = b.min.z, z2 = b.max.z;
-  const clamp = (v, lo, hi) => Math.min(Math.max(v, lo), hi);
   const ni = Math.ceil((x2 - x1) / U), nj = Math.ceil((z2 - z1) / U);
   for (let i = 0; i < ni; i++) for (let j = 0; j < nj; j++) {
     const ox = x1 + i * U, oz = z1 + j * U;
@@ -35,34 +35,23 @@ function basketweave(tiles, b, fy) {
     const slabs = ((i + j) & 1) === 0
       ? [[ox, ox + U, oz, oz + U / 2], [ox, ox + U, oz + U / 2, oz + U]]
       : [[ox, ox + U / 2, oz, oz + U], [ox + U / 2, ox + U, oz, oz + U]];
-    for (const [sx0, sx1, sz0, sz1] of slabs) {
-      const ax = clamp(sx0 + BG, x1, x2), bx = clamp(sx1 - BG, x1, x2);
-      const az = clamp(sz0 + BG, z1, z2), bz = clamp(sz1 - BG, z1, z2);
-      if (bx - ax > 0.01 && bz - az > 0.01)
-        tiles.push({ cx: (ax + bx) / 2, cz: (az + bz) / 2, w: bx - ax, d: bz - az, y: fy + TH / 2, h: TH, rot: 0, rgb });
-    }
+    for (const [sx0, sx1, sz0, sz1] of slabs)
+      boxes.push({ cx: (sx0 + sx1) / 2, cz: (sz0 + sz1) / 2, w: sx1 - sx0 - 2 * BG, d: sz1 - sz0 - 2 * BG, y: TH / 2, h: TH, rot: 0, rgb });
   }
-  for (let i = 0; i <= ni; i++) for (let j = 0; j <= nj; j++) {
-    const cx = clamp(x1 + i * U, x1, x2), cz = clamp(z1 + j * U, z1, z2);
-    const ax = clamp(cx - DOT / 2, x1, x2), bx = clamp(cx + DOT / 2, x1, x2);
-    const az = clamp(cz - DOT / 2, z1, z2), bz = clamp(cz + DOT / 2, z1, z2);
-    if (bx - ax > 0.006 && bz - az > 0.006)
-      tiles.push({ cx: (ax + bx) / 2, cz: (az + bz) / 2, w: bx - ax, d: bz - az, y: fy + TH / 2 + 0.002, h: TH + 0.004, rot: 0, rgb: DOTCOL });
-  }
+  for (let i = 0; i <= ni; i++) for (let j = 0; j <= nj; j++)
+    boxes.push({ cx: x1 + i * U, cz: z1 + j * U, w: DOT, d: DOT, y: TH / 2 + 0.002, h: TH + 0.004, rot: 0, rgb: DOTCOL });
 }
 
-// --- black & white checkerboard, laid on the diagonal (diamonds, points N-S) ---
-const T = 1.0 * FT;           // 12" tiles
-const CG = 0.006;             // grout inset
-const R = Math.SQRT1_2;       // cos/sin 45°
-const WHITE = [0.92, 0.91, 0.86];   // warm off-white (not pure white)
-const BLACK = [0.11, 0.11, 0.12];   // charcoal (not pure black)
-const CSHADE = [0.93, 1.0, 1.07, 0.97, 1.04, 0.9]; // subtle per-tile tone variation
+// --- black & white checkerboard on the diagonal (diamonds, points N-S) ---
+const T = 1.0 * FT;
+const CG = 0.006;
+const R = Math.SQRT1_2;
+const WHITE = [0.92, 0.91, 0.86];
+const BLACK = [0.11, 0.11, 0.12];
+const CSHADE = [0.93, 1.0, 1.07, 0.97, 1.04, 0.9];
 
-function checkerboard(tiles, b, fy) {
+function checkerboard(boxes, b) {
   const x1 = b.min.x, x2 = b.max.x, z1 = b.min.z, z2 = b.max.z;
-  // global diagonal lattice: centre(i,j) = ((i-j), (i+j)) * T * cos45 (anchored at
-  // world origin so adjacent rooms line up). u = (1,1)/√2, v = (-1,1)/√2.
   const toIJ = (x, z) => [(x * R + z * R) / T, (-x * R + z * R) / T];
   let imin = Infinity, imax = -Infinity, jmin = Infinity, jmax = -Infinity;
   for (const [x, z] of [[x1, z1], [x1, z2], [x2, z1], [x2, z2]]) {
@@ -71,35 +60,35 @@ function checkerboard(tiles, b, fy) {
     jmin = Math.min(jmin, j); jmax = Math.max(jmax, j);
   }
   const side = T - 2 * CG;
-  for (let i = Math.floor(imin) - 1; i <= Math.ceil(imax) + 1; i++) {
+  for (let i = Math.floor(imin) - 1; i <= Math.ceil(imax) + 1; i++)
     for (let j = Math.floor(jmin) - 1; j <= Math.ceil(jmax) + 1; j++) {
-      const cx = (i - j) * T * R, cz = (i + j) * T * R;
-      if (cx < x1 || cx > x2 || cz < z1 || cz > z2) continue;   // centre must be in the room
-      const base = ((i + j) & 1) === 0 ? WHITE : BLACK;
+      const cx = (i - j) * T * R, cz = (i + j) * T * R;   // global diagonal lattice
+      const base = ((i + j) & 1) === 0 ? WHITE : BLACK;   // (clip planes trim the edges)
       const sf = CSHADE[Math.floor(hash(i * 19.7 + j * 5.3) * CSHADE.length) % CSHADE.length];
-      tiles.push({ cx, cz, w: side, d: side, y: fy + TH / 2, h: TH, rot: Math.PI / 4,
+      boxes.push({ cx, cz, w: side, d: side, y: TH / 2, h: TH, rot: Math.PI / 4,
         rgb: [base[0] * sf, base[1] * sf, base[2] * sf] });
     }
-  }
 }
 
-// --- white hexagon mosaic with scattered black accents (baths / utility) ---
-const HEX_FF = (2.5 / 12) * FT;          // 2.5" flat-to-flat hex
-const HEXR = HEX_FF / Math.sqrt(3);      // circumradius (centre to corner)
-const HEX_COL = Math.sqrt(3) * HEXR;     // column spacing = flat-to-flat
-const HEX_ROW = 1.5 * HEXR;              // row spacing
+// --- white hexagon mosaic with a REPEATING charcoal accent (baths / utility) ---
+const HEX_FF = (2.5 / 12) * FT;
+const HEXR = HEX_FF / Math.sqrt(3);
+const HEX_COL = Math.sqrt(3) * HEXR;
+const HEX_ROW = 1.5 * HEXR;
 const HEXWHITE = [0.90, 0.89, 0.85];
 const HEXBLACK = [0.11, 0.11, 0.12];
 
-function hexagon(hexes, b, fy) {
+function hexagon(hexes, b) {
   const x1 = b.min.x, x2 = b.max.x, z1 = b.min.z, z2 = b.max.z;
-  let r = 0;
-  for (let z = z1; z <= z2; z += HEX_ROW, r++) {     // pointy-top rows; odd rows shift half a column
-    const xoff = (r & 1) ? HEX_COL / 2 : 0;
-    for (let x = x1 + xoff; x <= x2; x += HEX_COL) {
-      if (x < x1) continue;
-      const c = Math.round((x - x1) / HEX_COL);
-      const accent = hash(c * 12.9 + r * 7.31) < 0.12;   // ~12% scattered black accents
+  const nr = Math.ceil((z2 - z1) / HEX_ROW), nc = Math.ceil((x2 - x1) / HEX_COL);
+  for (let r = -1; r <= nr + 1; r++) {
+    const z = z1 + r * HEX_ROW, xoff = (r & 1) ? HEX_COL / 2 : 0;
+    for (let c = -1; c <= nc + 1; c++) {
+      const x = x1 + xoff + c * HEX_COL;
+      const q = c - Math.floor(r / 2);                       // axial column
+      // a regular field accent: an isolated charcoal hex every 3rd row and 3rd
+      // column (each surrounded by white) — evenly spaced, repeating, ~1-in-9.
+      const accent = (((r % 3) + 3) % 3 === 0) && (((q % 3) + 3) % 3 === 0);
       const base = accent ? HEXBLACK : HEXWHITE;
       const sf = MSHADE[Math.floor(hash(c * 3.7 + r * 9.1) * MSHADE.length) % MSHADE.length];
       hexes.push({ cx: x, cz: z, rgb: [base[0] * sf, base[1] * sf, base[2] * sf] });
@@ -108,6 +97,13 @@ function hexagon(hexes, b, fy) {
 }
 
 const PATTERNS = { basketweave, checkerboard };
+
+// inward-facing clip planes at the covering box faces (= wall centerlines)
+function clipPlanes(b) {
+  const P = (nx, nz, px, pz) =>
+    new THREE.Plane().setFromNormalAndCoplanarPoint(new THREE.Vector3(nx, 0, nz), new THREE.Vector3(px, 0, pz));
+  return [P(1, 0, b.min.x, 0), P(-1, 0, b.max.x, 0), P(0, 1, 0, b.min.z), P(0, -1, 0, b.max.z)];
+}
 
 export async function buildTileFloor({ scene, model, fragments, floorY, baseUrl }) {
   let manifest = [];
@@ -129,47 +125,44 @@ export async function buildTileFloor({ scene, model, fragments, floorY, baseUrl 
 
   const fy = floorY + 0.02;
   const groutMat = new THREE.MeshLambertMaterial({ color: 0xbdb9ad });
-  const tiles = [], hexes = [];                              // rectangular tiles vs hex prisms
+  const col = new THREE.Color();
+
   for (const fl of floors) {
     const b = fl.box;
     const base = new THREE.Mesh(new THREE.PlaneGeometry(b.max.x - b.min.x, b.max.z - b.min.z), groutMat);
     base.rotation.x = -Math.PI / 2;
     base.position.set((b.min.x + b.max.x) / 2, fy - 0.003, (b.min.z + b.max.z) / 2);
     base.receiveShadow = true; scene.add(base);
-    if (fl.pattern === "hexagon") hexagon(hexes, b, fy);
-    else PATTERNS[fl.pattern](tiles, b, fy);
-  }
 
-  const col = new THREE.Color();
-  if (tiles.length) {
-    const inst = new THREE.InstancedMesh(
-      new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({}), tiles.length);
-    inst.receiveShadow = true;
-    const m = new THREE.Matrix4(), pos = new THREE.Vector3();
-    const scl = new THREE.Vector3(), q = new THREE.Quaternion(), Y = new THREE.Vector3(0, 1, 0);
-    tiles.forEach((t, i) => {
-      q.setFromAxisAngle(Y, t.rot || 0);
-      m.compose(pos.set(t.cx, t.y, t.cz), q, scl.set(t.w, t.h, t.d));
-      inst.setMatrixAt(i, m);
-      inst.setColorAt(i, col.setRGB(t.rgb[0], t.rgb[1], t.rgb[2]));
-    });
-    inst.instanceMatrix.needsUpdate = true;
-    if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
-    scene.add(inst);
-  }
-  if (hexes.length) {
-    // pointy-top hex prism (6-sided cylinder), slightly shrunk for the grout line
-    const hg = new THREE.CylinderGeometry(HEXR * 0.92, HEXR * 0.92, TH, 6);
-    const hinst = new THREE.InstancedMesh(hg, new THREE.MeshLambertMaterial({}), hexes.length);
-    hinst.receiveShadow = true;
-    const m = new THREE.Matrix4();
-    hexes.forEach((h, i) => {
-      m.makeTranslation(h.cx, fy + TH / 2, h.cz);
-      hinst.setMatrixAt(i, m);
-      hinst.setColorAt(i, col.setRGB(h.rgb[0], h.rgb[1], h.rgb[2]));
-    });
-    hinst.instanceMatrix.needsUpdate = true;
-    if (hinst.instanceColor) hinst.instanceColor.needsUpdate = true;
-    scene.add(hinst);
+    const planes = clipPlanes(b);
+    if (fl.pattern === "hexagon") {
+      const hexes = []; hexagon(hexes, b);
+      const geo = new THREE.CylinderGeometry(HEXR * 0.92, HEXR * 0.92, TH, 6); // pointy-top hex prism
+      const mat = new THREE.MeshLambertMaterial({ clippingPlanes: planes });
+      const inst = new THREE.InstancedMesh(geo, mat, hexes.length);
+      inst.receiveShadow = true;
+      const m = new THREE.Matrix4();
+      hexes.forEach((h, i) => {
+        m.makeTranslation(h.cx, fy + TH / 2, h.cz); inst.setMatrixAt(i, m);
+        inst.setColorAt(i, col.setRGB(h.rgb[0], h.rgb[1], h.rgb[2]));
+      });
+      inst.instanceMatrix.needsUpdate = true; if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+      scene.add(inst);
+    } else {
+      const boxes = []; PATTERNS[fl.pattern](boxes, b);
+      const mat = new THREE.MeshLambertMaterial({ clippingPlanes: planes });
+      const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), mat, boxes.length);
+      inst.receiveShadow = true;
+      const m = new THREE.Matrix4(), pos = new THREE.Vector3(), scl = new THREE.Vector3();
+      const q = new THREE.Quaternion(), Y = new THREE.Vector3(0, 1, 0);
+      boxes.forEach((t, i) => {
+        q.setFromAxisAngle(Y, t.rot || 0);
+        m.compose(pos.set(t.cx, fy + t.y, t.cz), q, scl.set(t.w, t.h, t.d));
+        inst.setMatrixAt(i, m);
+        inst.setColorAt(i, col.setRGB(t.rgb[0], t.rgb[1], t.rgb[2]));
+      });
+      inst.instanceMatrix.needsUpdate = true; if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+      scene.add(inst);
+    }
   }
 }
