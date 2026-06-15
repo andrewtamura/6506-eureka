@@ -28,14 +28,16 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl }) {
   const wallTop = ceilingY - floorY;
   const caseW = casingFt * ft;
 
-  // 1-D complement of [lo,hi] minus holes (with margin), in plan feet.
-  const subtract = (lo, hi, holes, margin) => {
+  // 1-D complement of [lo,hi] minus holes (with margin), in plan feet. `minlen`
+  // drops spans shorter than that (use a tiny value to keep the board continuous
+  // right up to the openings; the default trims degenerate baseboard slivers).
+  const subtract = (lo, hi, holes, margin, minlen = 0.25) => {
     const m = holes.map((h) => [Math.min(h[0], h[1]) - margin, Math.max(h[0], h[1]) + margin])
       .sort((a, b) => a[0] - b[0]);
     const out = []; let cur = lo;
     for (const [a, b] of m) { const A = Math.max(a, lo), B = Math.min(b, hi); if (A > cur) out.push([cur, A]); cur = Math.max(cur, B); }
     if (cur < hi) out.push([cur, hi]);
-    return out.filter(([a, b]) => b - a > 0.25);
+    return out.filter(([a, b]) => b - a > minlen);
   };
 
   for (const w of walls) {
@@ -71,24 +73,28 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl }) {
     // 1) baseboard — minus doors only (continuous under windows)
     for (const [a, b] of subtract(w.lo, w.hi, doors, 0.12)) band(a, b, 0, bbH, 0.05);
 
-    // 2) board-and-batten field backings: solid columns (minus doors+windows)
-    //    full bbH..head, and under each window bbH..sill. Collect the field
-    //    regions (with their top) so battens can be laid on one grid below.
-    const regions = []; // [a, b, yTop]
-    for (const [a, b] of subtract(w.lo, w.hi, [...doors, ...winX], caseInset)) {
-      band(a, b, bbH, headY, 0.012, field); regions.push([a, b, headY]);
-    }
+    // 2) board-and-batten field: the BOARD (flat backing) is continuous across the
+    //    whole wall, corner to corner — full height (bbH..head) everywhere except
+    //    the openings, plus a continuous strip under each window (bbH..sill). It
+    //    runs right up to the opening edges (the casing overlays it), so there are
+    //    no gaps next to the trim.
+    const openings = [...doors, ...winX].map(([a, b]) => [Math.min(a, b), Math.max(a, b)]);
+    for (const [a, b] of subtract(w.lo, w.hi, [...doors, ...winX], 0, 0.02)) band(a, b, bbH, headY, 0.012, field);
     for (const [a, b, sill] of wins) {
       const sy = sill * ft; if (sy - bbH < 0.06) continue;
-      band(a, b, bbH, sy, 0.012, field); regions.push([a + caseInset, b - caseInset, sy]);
+      band(a, b, bbH, sy, 0.012, field);
     }
-    // Battens on a 12" grid anchored at the corner (w.lo) moving inward — drawn
-    // only where a grid line falls inside a field region (so none double up next
-    // to a casing jamb, and boards read consistently from the corner).
+    // Battens on a 12" grid anchored at the corner (w.lo). The board stays
+    // continuous; a batten is simply OMITTED where its grid line lands inside a
+    // door (no board there) or within a casing-width of any opening edge (so it
+    // never doubles up against the trim).
     for (let g = w.lo + BATTEN_SPACING_FT; g < w.hi - 0.05; g += BATTEN_SPACING_FT) {
-      for (const [ra, rb, yTop] of regions) {
-        if (g > ra + 0.04 && g < rb - 0.04) { post(g, bbH, yTop, BATTEN_W, 0.03); break; }
-      }
+      if (doors.some(([a, b]) => g > Math.min(a, b) && g < Math.max(a, b))) continue; // in a doorway
+      if (openings.some(([oa, ob]) => Math.abs(g - oa) < caseInset || Math.abs(g - ob) < caseInset)) continue; // too near trim
+      let yTop = headY; // under a window the batten stops at the sill
+      for (const [a, b, sill] of wins) { if (g > Math.min(a, b) && g < Math.max(a, b)) { yTop = sill * ft; break; } }
+      if (yTop - bbH < 0.25) continue; // skip stubby battens (e.g. under a low sill)
+      post(g, bbH, yTop, BATTEN_W, 0.03);
     }
 
     // 3) cornice: an entablature that sits DIRECTLY on top of the 7' opening
@@ -110,11 +116,15 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl }) {
     // STRAIGHT TOPPER (height topperH) running from the top of the cove out to
     // the crown top — together they read as the S-curve in the photo, but it's a
     // cove + flat topper, not an ogee. Profile is (X = projection into room,
-    // Y = up) with origin at the crown springline on the wall; oriented via a
-    // basis (X->interior normal, Y->up, Z->wall dir) so it miters at the corners.
+    // Y = up); extruded along a RIGHT-HANDED basis (X->interior normal, Y->up,
+    // Z->normal x up) so the rotation is valid on all four walls (a left-handed
+    // basis would yield a bad quaternion and drop the crown off two of them); the
+    // extrusion starts from whichever wall end lies in the +Z direction.
     {
       const A = P(w.lo), B = P(w.hi), L = A.distanceTo(B);
-      const dir = B.clone().sub(A); dir.y = 0; dir.normalize();
+      const up = new THREE.Vector3(0, 1, 0);
+      const zAxis = new THREE.Vector3().crossVectors(Nw, up).normalize(); // right-handed third axis
+      const start = zAxis.dot(B.clone().sub(A)) >= 0 ? A : B;             // so the span runs A..B
       const shape = new THREE.Shape();
       shape.moveTo(0, 0);
       shape.lineTo(0, 0.016);                                  // bottom fillet (fascia) at wall
@@ -125,8 +135,8 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl }) {
       shape.lineTo(0, 0);                                      // down the wall (back face)
       const geo = new THREE.ExtrudeGeometry(shape, { depth: L, bevelEnabled: false });
       const crown = new THREE.Mesh(geo, crownMat);
-      crown.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(Nw, new THREE.Vector3(0, 1, 0), dir));
-      crown.position.set(A.x, floorY + crownB, A.z);
+      crown.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(Nw, up, zAxis));
+      crown.position.set(start.x, floorY + crownB, start.z);
       scene.add(crown);
     }
 
