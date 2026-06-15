@@ -93,6 +93,10 @@ def main():
     # instanced mesh (name = which covering, rgb = plank colour).
     with open(os.path.join(HERE, "floors.json"), "w") as f:
         json.dump(ctx.plank_floors, f, indent=2)
+    # Furniture manifest: soft/curved pieces the viewer renders as meshes.
+    # Carries the plan->world mapping so the viewer can place them.
+    with open(os.path.join(HERE, "furniture.json"), "w") as f:
+        json.dump({"ft": B.FT, "xs": ctx.xs, "zs": ctx.zs, "items": ctx.furniture}, f, indent=2)
 
     def n(cls):
         return len(m.by_type(cls))

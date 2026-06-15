@@ -1,0 +1,58 @@
+{
+  "ft": 0.3048,
+  "xs": -1,
+  "zs": 1,
+  "items": [
+    {
+      "type": "round_pedestal_table",
+      "px": 23.04,
+      "pz": 9.04,
+      "rot": 0.0,
+      "material": "darkwalnut",
+      "diameter": 5.0,
+      "h": 2.5
+    },
+    {
+      "type": "upholstered_dining_chair",
+      "px": 23.04,
+      "pz": 12.64,
+      "rot": 180.0,
+      "material": "oatmeal"
+    },
+    {
+      "type": "upholstered_dining_chair",
+      "px": 19.92,
+      "pz": 10.84,
+      "rot": -120.0,
+      "material": "oatmeal"
+    },
+    {
+      "type": "upholstered_dining_chair",
+      "px": 19.92,
+      "pz": 7.24,
+      "rot": -60.0,
+      "material": "oatmeal"
+    },
+    {
+      "type": "upholstered_dining_chair",
+      "px": 23.04,
+      "pz": 5.44,
+      "rot": -0.0,
+      "material": "oatmeal"
+    },
+    {
+      "type": "upholstered_dining_chair",
+      "px": 26.16,
+      "pz": 7.24,
+      "rot": 60.0,
+      "material": "oatmeal"
+    },
+    {
+      "type": "upholstered_dining_chair",
+      "px": 26.16,
+      "pz": 10.84,
+      "rot": 120.0,
+      "material": "oatmeal"
+    }
+  ]
+}

@@ -10,6 +10,7 @@ import * as FRAGS from "@thatopen/fragments";
 import { setupLighting } from "./lighting.js";
 import { setupCompass } from "./compass.js";
 import { buildWoodFloor } from "./wood-floor.js";
+import { buildFurniture } from "./furniture.js";
 
 const BASE = import.meta.env.BASE_URL; // respects Vite `base` on GitHub Pages
 const statusEl = document.getElementById("status");
@@ -338,6 +339,9 @@ async function main() {
 
   // --- realistic hardwood floor (one instanced mesh; see wood-floor.js) ---
   await buildWoodFloor({ scene, model, fragments, floorY: FLOOR, baseUrl: BASE });
+
+  // --- soft furniture as procedural meshes (see furniture.js) -------------
+  await buildFurniture({ scene, floorY: FLOOR + 0.02, baseUrl: BASE });
 
   const _tdir = new THREE.Vector3();
   // Glide the camera to a new pose by interpolating the eye + look-at point as
