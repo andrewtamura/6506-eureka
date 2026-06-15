@@ -94,7 +94,7 @@ function buildBuiltinHutch(p) {
   const counterY = counterTop - 0.06, baseBot = 0.10;
   const dep = (16 / 12) * ft;                        // 16" carcass / niche depth
   const zB = zF - dep, zM = zF - dep / 2;            // back plane / depth midpoint
-  const upBot = counterTop + (18 / 12) * ft;         // 18" open void above the counter
+  const upBot = counterTop + (24 / 12) * ft;         // 24" open void above the counter
   const upTop = 2.00;
   const dark = new THREE.MeshStandardMaterial({ color: 0xcfccc3, roughness: 0.7 });
 
