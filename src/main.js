@@ -16,6 +16,11 @@ import { buildWallFinish } from "./wall-finish.js";
 import { buildCeilings } from "./ceilings.js";
 
 const BASE = import.meta.env.BASE_URL; // respects Vite `base` on GitHub Pages
+// Cache-buster for the model assets. The JS bundle is content-hashed so it busts
+// itself, but the IFC + JSON manifests keep fixed filenames across deploys, so a
+// browser/CDN can serve a stale model under a fresh app shell. Appending the
+// build hash as a query string makes every deploy fetch the current geometry.
+const VER = typeof __BUILD_HASH__ !== "undefined" && __BUILD_HASH__ !== "dev" ? `?v=${__BUILD_HASH__}` : "";
 const statusEl = document.getElementById("status");
 const propsEl = document.getElementById("props-menu");
 const propsBody = document.getElementById("props-body");
@@ -168,12 +173,12 @@ async function main() {
   // | Attic ]. The Ground floor is the primary, fully-interactive model at the
   // origin; the other levels load as offset "exhibits" beside it (see below).
   setStatus("Loading model…");
-  const levelsCfg = (await (await fetch(`${BASE}levels.json`)).json()).levels;
+  const levelsCfg = (await (await fetch(`${BASE}levels.json${VER}`)).json()).levels;
   const groundLevel = levelsCfg.find((l) => l.id === "ground") || levelsCfg[0];
   const groundManifests = groundLevel.manifests;
   // coordinate=false keeps authored coordinates so the floor sits on the grid.
   const loadIfc = async (file, name) => {
-    const r = await fetch(`${BASE}${file}`);
+    const r = await fetch(`${BASE}${file}${VER}`);
     if (!r.ok) throw new Error(`Could not fetch ${file} (${r.status})`);
     const m = await ifcLoader.load(new Uint8Array(await r.arrayBuffer()), false, name);
     // ALL_VISIBLE: no view-based hiding, so geometry doesn't pop as you pan.
@@ -411,14 +416,14 @@ async function main() {
   }
 
   // --- realistic hardwood floor (one instanced mesh; see wood-floor.js) ---
-  await buildWoodFloor({ scene, model, fragments, floorY: FLOOR, baseUrl: BASE, manifestFile: groundManifests.floors });
-  await buildTileFloor({ scene, model, fragments, floorY: FLOOR, baseUrl: BASE, manifestFile: groundManifests.tiles });
+  await buildWoodFloor({ scene, model, fragments, floorY: FLOOR, baseUrl: BASE, manifestFile: groundManifests.floors + VER });
+  await buildTileFloor({ scene, model, fragments, floorY: FLOOR, baseUrl: BASE, manifestFile: groundManifests.tiles + VER });
 
   // --- soft furniture as procedural meshes (see furniture.js) -------------
-  const furniture = await buildFurniture({ scene, floorY: FLOOR + 0.02, baseUrl: BASE, manifestFile: groundManifests.furniture });
+  const furniture = await buildFurniture({ scene, floorY: FLOOR + 0.02, baseUrl: BASE, manifestFile: groundManifests.furniture + VER });
 
   // --- board-and-batten wall finish + baseboards (see wall-finish.js) -----
-  await buildWallFinish({ scene, floorY: FLOOR, ceilingY: modelBox.max.y, baseUrl: BASE, manifestFile: groundManifests.paneling });
+  await buildWallFinish({ scene, floorY: FLOOR, ceilingY: modelBox.max.y, baseUrl: BASE, manifestFile: groundManifests.paneling + VER });
 
   // --- ceilings (block the sun; opaque in POV, transparent in plan) -------
   setPlanView = buildCeilings({ scene, rooms: roomBoxes, ceilingY: modelBox.max.y }).setPlanView;
@@ -680,7 +685,7 @@ async function main() {
     // hinge/swing per door, from the generator's manifest (keyed by door name)
     const meta = {};
     try {
-      for (const d of await (await fetch(`${BASE}${groundManifests.doors}`)).json()) meta[d.name] = d;
+      for (const d of await (await fetch(`${BASE}${groundManifests.doors}${VER}`)).json()) meta[d.name] = d;
     } catch (e) { /* fall back to defaults */ }
 
     const ANG = Math.PI / 2;
