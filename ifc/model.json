@@ -2,7 +2,6 @@
   "project": "Eureka Residence",
   "site": "Site",
   "building": "Eureka House",
-  "storey": "Ground Floor",
   "units": "feet",
   "wallThickness": 0.4583,
   "wallHeight": 9.5,
@@ -10,17 +9,40 @@
   "doorHeight": 7.0,
   "headHeight": 7.0,
   "orientation": { "xs": -1, "zs": 1 },
-  "rooms": [
-    "family",
-    "kitchen",
-    "sitting",
-    "dining",
-    "foyer",
-    "vestibule",
-    "ext_bath",
-    "wc",
-    "ext_vestibule",
-    "ext_laundry",
-    "scullery"
+  "lot": { "widthFt": 100, "depthFt": 50, "westMarginFt": 16, "scullerySouthFt": 5 },
+  "levels": [
+    {
+      "id": "exterior",
+      "storey": "Site",
+      "label": "Exterior + Lot",
+      "kind": "exterior",
+      "rooms": ["family", "kitchen", "sitting", "dining", "foyer", "vestibule", "ext_bath", "wc", "ext_vestibule", "ext_laundry", "scullery"],
+      "roofGroups": {
+        "primary": { "rooms": ["family", "kitchen", "sitting", "dining", "foyer", "vestibule"], "storeys": 2, "type": "hip", "pitch": 0.5 },
+        "extension": { "rooms": ["ext_bath", "wc", "ext_vestibule", "ext_laundry"], "storeys": 2, "type": "shed", "pitch": 0.0833 },
+        "scullery": { "rooms": ["scullery"], "storeys": 1, "type": "shedhip", "pitch": 0.45 }
+      }
+    },
+    {
+      "id": "ground",
+      "storey": "Ground Floor",
+      "label": "Ground Floor",
+      "kind": "full",
+      "rooms": ["family", "kitchen", "sitting", "dining", "foyer", "vestibule", "ext_bath", "wc", "ext_vestibule", "ext_laundry", "scullery"]
+    },
+    {
+      "id": "level2",
+      "storey": "Second Floor",
+      "label": "Second Floor",
+      "kind": "shell",
+      "rooms": ["family", "kitchen", "sitting", "dining", "foyer", "vestibule", "ext_bath", "wc", "ext_vestibule", "ext_laundry"]
+    },
+    {
+      "id": "attic",
+      "storey": "Attic",
+      "label": "Attic",
+      "kind": "shell",
+      "rooms": ["family", "kitchen", "sitting", "dining", "foyer", "vestibule"]
+    }
   ]
 }

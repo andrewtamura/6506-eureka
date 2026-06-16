@@ -1,0 +1,60 @@
+{
+  "levels": [
+    {
+      "id": "exterior",
+      "storey": "Site",
+      "kind": "exterior",
+      "label": "Exterior + Lot",
+      "ifc": "exterior.ifc",
+      "manifests": {
+        "doors": "exterior.doors.json",
+        "floors": "exterior.floors.json",
+        "tiles": "exterior.tiles.json",
+        "furniture": "exterior.furniture.json",
+        "paneling": "exterior.paneling.json"
+      }
+    },
+    {
+      "id": "ground",
+      "storey": "Ground Floor",
+      "kind": "full",
+      "label": "Ground Floor",
+      "ifc": "ground.ifc",
+      "manifests": {
+        "doors": "ground.doors.json",
+        "floors": "ground.floors.json",
+        "tiles": "ground.tiles.json",
+        "furniture": "ground.furniture.json",
+        "paneling": "ground.paneling.json"
+      }
+    },
+    {
+      "id": "level2",
+      "storey": "Second Floor",
+      "kind": "shell",
+      "label": "Second Floor",
+      "ifc": "level2.ifc",
+      "manifests": {
+        "doors": "level2.doors.json",
+        "floors": "level2.floors.json",
+        "tiles": "level2.tiles.json",
+        "furniture": "level2.furniture.json",
+        "paneling": "level2.paneling.json"
+      }
+    },
+    {
+      "id": "attic",
+      "storey": "Attic",
+      "kind": "shell",
+      "label": "Attic",
+      "ifc": "attic.ifc",
+      "manifests": {
+        "doors": "attic.doors.json",
+        "floors": "attic.floors.json",
+        "tiles": "attic.tiles.json",
+        "furniture": "attic.furniture.json",
+        "paneling": "attic.paneling.json"
+      }
+    }
+  ]
+}

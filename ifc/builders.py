@@ -274,6 +274,216 @@ def build_walls(ctx, rooms):
             add_wall(ctx, "V", x, a, b)
 
 
+def perimeter_segments(rects):
+    """Outline of the union of axis-aligned rectangles (each (x1,x2,y1,y2) in
+    metres). Returns boundary wall segments ("V", x, ylo, yhi) / ("H", y, xlo,
+    xhi): an edge of a cell that has the union on exactly one side."""
+    xs = sorted({round(v, 6) for r in rects for v in (r[0], r[1])})
+    ys = sorted({round(v, 6) for r in rects for v in (r[2], r[3])})
+    inside = lambda cx, cy: any(r[0] < cx < r[1] and r[2] < cy < r[3] for r in rects)
+    nx, ny = len(xs) - 1, len(ys) - 1
+    cell = [[inside((xs[i] + xs[i + 1]) / 2, (ys[j] + ys[j + 1]) / 2) for j in range(ny)] for i in range(nx)]
+    vert, horiz = {}, {}                                   # fixed-line -> [intervals]
+    for i in range(nx + 1):                                # vertical boundaries at x = xs[i]
+        for j in range(ny):
+            left = cell[i - 1][j] if i - 1 >= 0 else False
+            right = cell[i][j] if i < nx else False
+            if left != right:
+                vert.setdefault(xs[i], []).append((ys[j], ys[j + 1]))
+    for j in range(ny + 1):                                # horizontal boundaries at y = ys[j]
+        for i in range(nx):
+            below = cell[i][j - 1] if j - 1 >= 0 else False
+            above = cell[i][j] if j < ny else False
+            if below != above:
+                horiz.setdefault(ys[j], []).append((xs[i], xs[i + 1]))
+    out = []
+    for x, ivs in vert.items():
+        out += [("V", x, a, b) for a, b in union_intervals(ivs)]
+    for y, ivs in horiz.items():
+        out += [("H", y, a, b) for a, b in union_intervals(ivs)]
+    return out
+
+
+def add_shell(ctx, rooms):
+    """Exterior shell only: a floor slab per room footprint + the perimeter walls
+    of their union (no interior partitions, spaces, doors, or windows)."""
+    rects = [ifc_bounds(ctx, r["bounds"]) for r in rooms]
+    for r in rooms:
+        add_slab(ctx, r)
+    for orient, fixed, a, b in perimeter_segments(rects):
+        add_wall(ctx, orient, fixed, a, b)
+
+
+def add_lot(ctx, lot, rooms):
+    """A flat lot plane sized lot.widthFt x lot.depthFt (E-W x N-S), positioned so
+    the building sits `westMarginFt` inside the west line (west = +plan x) and the
+    scullery `scullerySouthFt` off the south line (south = min plan z)."""
+    pxs = [v for r in rooms for v in (r["bounds"]["x1"], r["bounds"]["x2"])]
+    pzs = [v for r in rooms for v in (r["bounds"]["z1"], r["bounds"]["z2"])]
+    west = max(pxs) + lot["westMarginFt"]                  # west lot line (plan x)
+    east = west - lot["widthFt"]
+    south = min(pzs) - lot["scullerySouthFt"]              # south lot line (plan z)
+    north = south + lot["depthFt"]
+    cx, cz = (west + east) / 2, (south + north) / 2
+    lotmesh = make_box(ctx, "IfcSlab", "Lot",
+                       lot["widthFt"] * FT, lot["depthFt"] * FT, 0.1,
+                       ctx.X(cx), ctx.Y(cz), -0.11, predefined="BASESLAB", color=(0.46, 0.55, 0.34))
+    run("spatial.assign_container", ctx.model, products=[lotmesh], relating_structure=ctx.storey)
+    return lotmesh
+
+
+def _newell_normal(loop):
+    """Unnormalised face normal of a 3-D polygon loop (Newell's method)."""
+    n = [0.0, 0.0, 0.0]
+    L = len(loop)
+    for i in range(L):
+        a, b = loop[i], loop[(i + 1) % L]
+        n[0] += (a[1] - b[1]) * (a[2] + b[2])
+        n[1] += (a[2] - b[2]) * (a[0] + b[0])
+        n[2] += (a[0] - b[0]) * (a[1] + b[1])
+    return n
+
+
+def add_brep(ctx, name, verts, faces, color, predefined=None, ifc_class="IfcRoof"):
+    """Create a product whose body is a faceted-BREP closed solid from `verts`
+    (metres) and `faces` (vertex-index loops). Each face loop is auto-oriented
+    so its normal points away from the solid centroid (outward) — valid for the
+    convex roof solids here, so the renderer never culls a face."""
+    m = ctx.model
+    cen = [sum(v[k] for v in verts) / len(verts) for k in range(3)]
+    pts = [m.create_entity("IfcCartesianPoint", Coordinates=(float(v[0]), float(v[1]), float(v[2]))) for v in verts]
+    ifc_faces = []
+    for f in faces:
+        loop = [verts[i] for i in f]
+        nrm = _newell_normal(loop)
+        fc = [sum(p[k] for p in loop) / len(loop) for k in range(3)]
+        outward = sum((fc[k] - cen[k]) * nrm[k] for k in range(3)) >= 0
+        idx = list(f) if outward else list(f)[::-1]
+        poly = m.create_entity("IfcPolyLoop", Polygon=[pts[i] for i in idx])
+        bound = m.create_entity("IfcFaceOuterBound", Bound=poly, Orientation=True)
+        ifc_faces.append(m.create_entity("IfcFace", Bounds=[bound]))
+    shell = m.create_entity("IfcClosedShell", CfsFaces=ifc_faces)
+    brep = m.create_entity("IfcFacetedBrep", Outer=shell)
+    rep = m.create_entity("IfcShapeRepresentation", ContextOfItems=ctx.body,
+                          RepresentationIdentifier="Body", RepresentationType="Brep", Items=[brep])
+    if color is not None:
+        assign_color(ctx, rep, color)
+    kwargs = {"ifc_class": ifc_class, "name": name}
+    if predefined:
+        kwargs["predefined_type"] = predefined
+    product = run("root.create_entity", m, **kwargs)
+    run("geometry.assign_representation", m, product=product, representation=rep)
+    run("geometry.edit_object_placement", m, product=product, matrix=matrix(0, 0, 0))
+    run("spatial.assign_container", m, products=[product], relating_structure=ctx.storey)
+    return product
+
+
+def _hip_solid(x1, x2, y1, y2, eave, pitch):
+    """Hip-roof closed solid over a rectangle. Ridge runs along the longer side;
+    equal-pitch hips inset the ridge by half the short span. Returns verts,faces."""
+    w, d = x2 - x1, y2 - y1
+    if w >= d:
+        half = d / 2.0; hr = eave + half * pitch; yc = (y1 + y2) / 2.0
+        verts = [(x1, y1, eave), (x2, y1, eave), (x2, y2, eave), (x1, y2, eave),
+                 (x1 + half, yc, hr), (x2 - half, yc, hr)]
+        faces = [[0, 1, 5, 4], [2, 3, 4, 5], [1, 2, 5], [3, 0, 4], [0, 1, 2, 3]]
+    else:
+        half = w / 2.0; hr = eave + half * pitch; xc = (x1 + x2) / 2.0
+        verts = [(x1, y1, eave), (x2, y1, eave), (x2, y2, eave), (x1, y2, eave),
+                 (xc, y1 + half, hr), (xc, y2 - half, hr)]
+        faces = [[0, 1, 4], [2, 3, 5], [1, 2, 5, 4], [3, 0, 4, 5], [0, 1, 2, 3]]
+    return verts, faces
+
+
+def _shed_solid(x1, x2, y1, y2, eave, pitch, high):
+    """Mono-pitch (shed) closed solid; `high` ('x1'|'x2'|'y1'|'y2') is the raised
+    eave that abuts the taller structure, sloping down to the opposite side."""
+    if high in ("x1", "x2"):
+        run_len = x2 - x1; rise = run_len * pitch
+        z = (lambda x: eave + rise - (x - x1) / run_len * rise) if high == "x1" \
+            else (lambda x: eave + (x - x1) / run_len * rise)
+        top = [(x1, y1, z(x1)), (x2, y1, z(x2)), (x2, y2, z(x2)), (x1, y2, z(x1))]
+    else:
+        run_len = y2 - y1; rise = run_len * pitch
+        z = (lambda y: eave + rise - (y - y1) / run_len * rise) if high == "y1" \
+            else (lambda y: eave + (y - y1) / run_len * rise)
+        top = [(x1, y1, z(y1)), (x2, y1, z(y1)), (x2, y2, z(y2)), (x1, y2, z(y2))]
+    base = [(x1, y1, eave), (x2, y1, eave), (x2, y2, eave), (x1, y2, eave)]
+    verts = base + top
+    faces = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
+    return verts, faces
+
+
+def _shedhip_solid(x1, x2, y1, y2, eave, pitch, high, hip):
+    """Shed (mono-pitch) closed solid whose two flanking ends are HIPPED (sloped
+    inward by `hip`) instead of gabled. `high` is the raised eave (abutting the
+    taller structure); the surface slopes down to the opposite side."""
+    base = [(x1, y1, eave), (x2, y1, eave), (x2, y2, eave), (x1, y2, eave)]  # 0,1,2,3
+    if high in ("y1", "y2"):
+        hi = eave + (y2 - y1) * pitch
+        yh = y1 if high == "y1" else y2
+        verts = base + [(x1 + hip, yh, hi), (x2 - hip, yh, hi)]              # 4,5
+        if high == "y2":   # high at y2, slopes to y1; hips at x1 / x2
+            faces = [[0, 1, 2, 3], [4, 5, 1, 0], [3, 0, 4], [1, 2, 5], [3, 2, 5, 4]]
+        else:              # high at y1, slopes to y2
+            faces = [[0, 1, 2, 3], [4, 5, 2, 3], [0, 3, 4], [2, 1, 5], [0, 1, 5, 4]]
+    else:
+        hi = eave + (x2 - x1) * pitch
+        xh = x1 if high == "x1" else x2
+        verts = base + [(xh, y1 + hip, hi), (xh, y2 - hip, hi)]              # 4,5
+        if high == "x2":   # high at x2, slopes to x1; hips at y1 / y2
+            faces = [[0, 1, 2, 3], [4, 5, 3, 0], [0, 1, 4], [3, 2, 5], [1, 2, 5, 4]]
+        else:              # high at x1, slopes to x2
+            faces = [[0, 1, 2, 3], [4, 5, 2, 1], [1, 0, 4], [2, 3, 5], [0, 3, 5, 4]]
+    return verts, faces
+
+
+def _high_edge(part, ref):
+    """Which edge ('x1'|'x2'|'y1'|'y2') of rectangle `part` faces rectangle
+    `ref` — i.e. the high side of a shed that abuts the taller structure."""
+    pcx, pcy = (part[0] + part[1]) / 2, (part[2] + part[3]) / 2
+    rcx, rcy = (ref[0] + ref[1]) / 2, (ref[2] + ref[3]) / 2
+    if abs(rcx - pcx) >= abs(rcy - pcy):
+        return "x1" if rcx < pcx else "x2"
+    return "y1" if rcy < pcy else "y2"
+
+
+def add_massing(ctx, groups, rooms_cache):
+    """Build the exterior as solid massing blocks (so the interior is never
+    visible) capped with roofs: a two-storey primary under a hip, a two-storey
+    extension under a shed sloping away from the primary, and a one-storey
+    scullery under a hipped shed. Storey heights come from `groups[*].storeys`."""
+    WALL = (0.87, 0.86, 0.83)   # light massing
+    ROOF = (0.30, 0.30, 0.33)   # charcoal shingle
+
+    def union(ids):
+        rects = [ifc_bounds(ctx, rooms_cache[s]["bounds"]) for s in ids]
+        return (min(r[0] for r in rects), max(r[1] for r in rects),
+                min(r[2] for r in rects), max(r[3] for r in rects))
+
+    rects = {k: union(g["rooms"]) for k, g in groups.items()}
+    prim = rects.get("primary")
+    for key, g in groups.items():
+        x1, x2, y1, y2 = rects[key]
+        eave = g.get("storeys", 1) * ctx.H
+        block = make_box(ctx, "IfcBuildingElementProxy", f"Massing - {key}",
+                         abs(x2 - x1), abs(y2 - y1), eave,
+                         (x1 + x2) / 2, (y1 + y2) / 2, 0.0, color=WALL)
+        run("spatial.assign_container", ctx.model, products=[block], relating_structure=ctx.storey)
+
+        t = g["type"]
+        if t == "hip":
+            v, f = _hip_solid(x1, x2, y1, y2, eave, g.get("pitch", 0.5))
+            pd = "HIP_ROOF"
+        elif t == "shed":
+            v, f = _shed_solid(x1, x2, y1, y2, eave, g.get("pitch", 1 / 12), _high_edge(rects[key], prim))
+            pd = "SHED_ROOF"
+        else:  # "shedhip"
+            v, f = _shedhip_solid(x1, x2, y1, y2, eave, g.get("pitch", 0.45), _high_edge(rects[key], prim), abs(y2 - y1))
+            pd = "SHED_ROOF"
+        add_brep(ctx, f"Roof - {key}", v, f, ROOF, predefined=pd)
+
+
 def add_slab(ctx, r):
     x1, x2, y1, y2 = ifc_bounds(ctx, r["bounds"])
     slab = make_box(ctx, "IfcSlab", f"Slab - {r['name']}",

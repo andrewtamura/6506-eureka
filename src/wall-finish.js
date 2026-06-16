@@ -14,9 +14,9 @@ const FIELD = 0xdcd7cb;  // slightly deeper field/frieze so the millwork reads
 const BATTEN_W = 0.0254;        // 1" battens
 const BATTEN_SPACING_FT = 14 / 12;  // 14" board grid, anchored at the wall corner
 
-export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl }) {
+export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manifestFile = "paneling.json" }) {
   let data;
-  try { data = await (await fetch(`${baseUrl}paneling.json`)).json(); } catch (e) { return; }
+  try { data = await (await fetch(`${baseUrl}${manifestFile}`)).json(); } catch (e) { return; }
   const { ft = 0.3048, xs = -1, zs = 1, baseboardFt = 10 / 12, headFt = 7, casingFt = 0.33, walls = [] } = data || {};
   const mill = new THREE.MeshStandardMaterial({ color: MILL, roughness: 0.8 });
   const field = new THREE.MeshStandardMaterial({ color: FIELD, roughness: 0.85 });
