@@ -576,42 +576,70 @@ def add_porch(ctx, rooms_cache, base, width_ft=12.0):
 
 def add_entry(ctx, px, pz, dw_ft, base):
     """Classical pedimented door surround over the (North-facing) front door:
-    flanking pilasters carrying an entablature and a triangular pediment, with a
-    transom light above the door. `px,pz` are the door's plan coords, `dw_ft` its
-    width. Pieces project outward from the wall face (+Y, the street side)."""
+    flanking pilasters (with plinths + capitals) carrying a dentilled entablature
+    and a shallow triangular pediment, a transom over the door, a keystone in the
+    frieze, and a tablet in the tympanum. `px,pz` are the door's plan coords,
+    `dw_ft` its width. Pieces are a shallow relief projecting from the wall face
+    (+Y, the street side) so the surround sits nearly flat against the wall."""
     TRIM = (0.93, 0.92, 0.88)
     GLASS = (0.42, 0.52, 0.60)
     ix, fy = ctx.X(px), ctx.Y(pz)
     out = 1.0 if ctx.zs > 0 else -1.0      # outward (away from the house)
     dh = ctx.door_h_ft                      # door head (ft above the threshold)
+    PIL_D, ENT_D, PED_D = 0.10, 0.14, 0.12  # shallow relief depths (m)
 
-    def place(name, w_ft, dep, h, cxp, cy, cz):
-        b = make_box(ctx, "IfcBuildingElementProxy", name, w_ft * FT, dep, h,
-                     ctx.X(cxp), cy, cz, color=TRIM)
+    def place(name, cxp, w_ft, dep, z_lo, z_hi, color=TRIM):
+        if z_hi - z_lo <= 0 or w_ft <= 0:
+            return
+        b = make_box(ctx, "IfcBuildingElementProxy", name, w_ft * FT, dep, z_hi - z_lo,
+                     ctx.X(cxp), fy + out * dep / 2, z_lo, color=color)
         run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
-    # transom light just above the door
+    # transom over the door
     tr = make_box(ctx, "IfcWindow", "Entry transom", dw_ft * FT, 0.08, 1.0 * FT,
                   ix, fy, base + dh * FT, color=GLASS)
     run("spatial.assign_container", ctx.model, products=[tr], relating_structure=ctx.storey)
 
-    pil_off = dw_ft / 2 + 0.35              # pilaster centre offset from door centre
-    pil_h = dh + 1.3                        # up to the entablature underside
-    for s in (-1, 1):                       # flanking pilasters
-        place("Entry pilaster", 0.5, 0.30, pil_h * FT, px + s * pil_off, fy + out * 0.15, base)
-    eW = dw_ft + 2 * pil_off - 0.5 + 0.9    # entablature spans the pilasters
-    place("Entry entablature", eW, 0.40, 0.6 * FT, px, fy + out * 0.20, base + pil_h * FT)
+    pil_w = 0.8                             # pilaster shaft width (ft)
+    cap_w = pil_w + 0.4                      # plinth / capital wider than the shaft
+    ent_h = 0.8                             # entablature height (ft)
+    pil_off = dw_ft / 2 + 0.2 + pil_w / 2   # flank the door with a small reveal
+    pil_h = dh + 1.0                        # entablature underside == transom top (no wall gap)
+    eW = 2 * (pil_off + pil_w / 2) + 0.6    # entablature / pediment width, with a cornice overhang (ft)
+    ent_lo, ent_hi = base + pil_h * FT, base + (pil_h + ent_h) * FT
 
-    # triangular pediment on top of the entablature, extruded outward
-    z0 = base + (pil_h + 0.6) * FT
-    ph = 1.2 * FT
-    half = eW / 2 * FT
-    y0, y1 = fy, fy + out * 0.45
+    for s in (-1, 1):                       # flanking pilasters with plinth + capital
+        cxp = px + s * pil_off
+        place("Entry pilaster", cxp, pil_w, PIL_D, base, base + pil_h * FT)
+        place("Entry pilaster plinth", cxp, cap_w, PIL_D + 0.03, base, base + 0.6 * FT)
+        place("Entry pilaster capital", cxp, cap_w, PIL_D + 0.05, base + (pil_h - 0.6) * FT, base + pil_h * FT)
+        # fluting: three slender reeds up the shaft, between plinth and capital
+        for ri in (-1, 0, 1):
+            place("Entry pilaster flute", cxp + ri * 0.22, 0.1, PIL_D + 0.025,
+                  base + 0.7 * FT, base + (pil_h - 0.7) * FT)
+
+    place("Entry entablature", px, eW, ENT_D, ent_lo, ent_hi)
+
+    # dentil course in the upper entablature, just under the cornice
+    pitch_ft, dent_ft = 0.46, 0.23
+    n = max(3, int(eW / pitch_ft))
+    for i in range(n):
+        place("Entry dentil", px + (i - (n - 1) / 2) * pitch_ft, dent_ft, ENT_D + 0.04,
+              ent_hi - 0.13, ent_hi - 0.01)
+
+    # keystone in the frieze, centred over the door
+    place("Entry keystone", px, 0.7, ENT_D + 0.06, base + (dh + 1.0) * FT, ent_hi + 0.05)
+
+    # shallow pediment on the entablature (height scaled to its width), with a
+    # tablet in the tympanum
+    z0, ph, half = ent_hi, (eW * 0.22) * FT, eW / 2 * FT
+    y0, y1 = fy, fy + out * PED_D
     L, R, P = (ix - half, ix + half, ix)
     verts = [(L, y0, z0), (R, y0, z0), (P, y0, z0 + ph),
              (L, y1, z0), (R, y1, z0), (P, y1, z0 + ph)]
     faces = [[2, 1, 0], [3, 4, 5], [0, 1, 4, 3], [0, 3, 5, 2], [1, 2, 5, 4]]
     add_brep(ctx, "Entry pediment", verts, faces, TRIM, ifc_class="IfcBuildingElementProxy")
+    place("Entry tympanum tablet", px, 1.4, PED_D + 0.04, z0 + 0.08, z0 + 0.08 + 0.4 * ph)
 
 
 def add_fenestration(ctx, groups, rooms_cache, base=0.0):
