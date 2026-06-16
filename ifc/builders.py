@@ -489,6 +489,7 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
     WALL = (0.87, 0.86, 0.83)   # light massing
     ROOF = (0.30, 0.30, 0.33)   # charcoal shingle
     FOUND = (0.55, 0.54, 0.52)  # crawlspace / foundation
+    TRIM = (0.93, 0.92, 0.88)   # near-white classical trim
 
     def union(ids):
         rects = [ifc_bounds(ctx, rooms_cache[s]["bounds"]) for s in ids]
@@ -523,6 +524,19 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
                                   abs(y2 - y1), g.get("overhangFt", 0) * FT)
             pd = "SHED_ROOF"
         add_brep(ctx, f"Roof - {key}", v, f, ROOF, predefined=pd)
+
+        # Classical trim: a projecting cornice band just under the eaves, and a
+        # water-table belt at the top of the crawlspace — horizontal lines that
+        # unify the elevation and visually ground the raised box.
+        ch, cp = 0.30, 0.12
+        corn = make_box(ctx, "IfcBuildingElementProxy", f"Cornice - {key}",
+                        w + 2 * cp, d + 2 * cp, ch, cx, cy, ez - ch, color=TRIM)
+        run("spatial.assign_container", ctx.model, products=[corn], relating_structure=ctx.storey)
+        if crawl > 0:
+            wh, wp = 0.15, 0.06
+            wt = make_box(ctx, "IfcBuildingElementProxy", f"Water table - {key}",
+                          w + 2 * wp, d + 2 * wp, wh, cx, cy, crawl - wh + 0.05, color=TRIM)
+            run("spatial.assign_container", ctx.model, products=[wt], relating_structure=ctx.storey)
 
     if crawl > 0:
         add_porch(ctx, rooms_cache, crawl)
@@ -560,17 +574,60 @@ def add_porch(ctx, rooms_cache, base, width_ft=12.0):
         run("spatial.assign_container", ctx.model, products=[step], relating_structure=ctx.storey)
 
 
+def add_entry(ctx, px, pz, dw_ft, base):
+    """Classical pedimented door surround over the (North-facing) front door:
+    flanking pilasters carrying an entablature and a triangular pediment, with a
+    transom light above the door. `px,pz` are the door's plan coords, `dw_ft` its
+    width. Pieces project outward from the wall face (+Y, the street side)."""
+    TRIM = (0.93, 0.92, 0.88)
+    GLASS = (0.42, 0.52, 0.60)
+    ix, fy = ctx.X(px), ctx.Y(pz)
+    out = 1.0 if ctx.zs > 0 else -1.0      # outward (away from the house)
+    dh = ctx.door_h_ft                      # door head (ft above the threshold)
+
+    def place(name, w_ft, dep, h, cxp, cy, cz):
+        b = make_box(ctx, "IfcBuildingElementProxy", name, w_ft * FT, dep, h,
+                     ctx.X(cxp), cy, cz, color=TRIM)
+        run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
+
+    # transom light just above the door
+    tr = make_box(ctx, "IfcWindow", "Entry transom", dw_ft * FT, 0.08, 1.0 * FT,
+                  ix, fy, base + dh * FT, color=GLASS)
+    run("spatial.assign_container", ctx.model, products=[tr], relating_structure=ctx.storey)
+
+    pil_off = dw_ft / 2 + 0.35              # pilaster centre offset from door centre
+    pil_h = dh + 1.3                        # up to the entablature underside
+    for s in (-1, 1):                       # flanking pilasters
+        place("Entry pilaster", 0.5, 0.30, pil_h * FT, px + s * pil_off, fy + out * 0.15, base)
+    eW = dw_ft + 2 * pil_off - 0.5 + 0.9    # entablature spans the pilasters
+    place("Entry entablature", eW, 0.40, 0.6 * FT, px, fy + out * 0.20, base + pil_h * FT)
+
+    # triangular pediment on top of the entablature, extruded outward
+    z0 = base + (pil_h + 0.6) * FT
+    ph = 1.2 * FT
+    half = eW / 2 * FT
+    y0, y1 = fy, fy + out * 0.45
+    L, R, P = (ix - half, ix + half, ix)
+    verts = [(L, y0, z0), (R, y0, z0), (P, y0, z0 + ph),
+             (L, y1, z0), (R, y1, z0), (P, y1, z0 + ph)]
+    faces = [[2, 1, 0], [3, 4, 5], [0, 1, 4, 3], [0, 3, 5, 2], [1, 2, 5, 4]]
+    add_brep(ctx, "Entry pediment", verts, faces, TRIM, ifc_class="IfcBuildingElementProxy")
+
+
 def add_fenestration(ctx, groups, rooms_cache, base=0.0):
     """Low-fidelity windows + exterior door openings on the massing faces. The
     per-room windows/doors are reused: an opening is exterior when one side of
     its wall is inside a room and the other is open air. Windows become glass
-    panels at the authored sill/head; exterior doors become dark opening panels
-    (floor to door head). Only the ground-floor openings are placed — the upper
-    storeys aren't modelled yet, so they stay blank."""
+    panels at the authored sill/head (flanked by a pair of louvered shutters);
+    exterior doors become dark opening panels (floor to door head). The primary's
+    front (North) face also gets a symmetric upper-floor window row aligned over
+    the ground openings, plus a pedimented entry surround at the front door."""
     GLASS = (0.42, 0.52, 0.60)   # muted blue-grey glazing
     DOOR = (0.18, 0.16, 0.15)    # dark opening
+    SHUT = (0.24, 0.30, 0.26)    # dark-green louvered shutters
     DEPTH = 0.08                  # panel thickness (m)
     EPS = 0.35                    # plan feet just past the wall face
+    SHW = 1.25                    # shutter leaf width (ft)
 
     grp_rooms = [s for g in groups.values() for s in g["rooms"]]
     rects = [rooms_cache[s]["bounds"] for s in grp_rooms]
@@ -596,6 +653,19 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
                          ctx.X(pos), ctx.Y(fixed), sill_m, color=color)
         run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
 
+    def window(name, orient, fixed, pos, w, sill_m, head_m):
+        """A glass panel plus a flanking pair of louvered shutters."""
+        panel("IfcWindow", name, orient, fixed, pos, w, sill_m, head_m, GLASS)
+        h, off = head_m - sill_m, w / 2 + SHW / 2 + 0.05
+        for sgn in (-1, 1):
+            if orient == "V":
+                b = make_box(ctx, "IfcBuildingElementProxy", f"Shutter - {name}", DEPTH, SHW * FT, h,
+                             ctx.X(fixed), ctx.Y(pos + sgn * off), sill_m, color=SHUT)
+            else:
+                b = make_box(ctx, "IfcBuildingElementProxy", f"Shutter - {name}", SHW * FT, DEPTH, h,
+                             ctx.X(pos + sgn * off), ctx.Y(fixed), sill_m, color=SHUT)
+            run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
+
     for g in groups.values():
         for s in g["rooms"]:
             r = rooms_cache[s]
@@ -603,8 +673,8 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
                 o, f, p = win["orient"], win["fixed"], win["pos"]
                 if not is_exterior(o, f, p):
                     continue
-                panel("IfcWindow", win["name"], o, f, p, win["width"],
-                      base + win["sill"] * FT, base + win["head"] * FT, GLASS)
+                window(win["name"], o, f, p, win["width"],
+                       base + win["sill"] * FT, base + win["head"] * FT)
             for d in r.get("doors", []):
                 if d.get("opening"):          # interior cased opening, skip
                     continue
@@ -612,6 +682,26 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
                 if not is_exterior(o, f, p):
                     continue
                 panel("IfcDoor", d["name"], o, f, p, d["width"], base, base + ctx.door_h_ft * FT, DOOR)
+
+    # Symmetric upper-floor window row + pedimented entry on the primary's front
+    # (North) face. The front line is the primary's max plan z; place an upper
+    # window over each ground-floor front opening (the two windows AND the door)
+    # so the elevation reads as a balanced, vertically-aligned Colonial grid.
+    prim = groups.get("primary")
+    if prim:
+        front_z = max(rooms_cache[s]["bounds"]["z2"] for s in prim["rooms"])
+        u_sill, u_head = base + ctx.H + 2.5 * FT, base + ctx.H + 7 * FT
+        door = None
+        for s in prim["rooms"]:
+            r = rooms_cache[s]
+            for o in r.get("windows", []) + r.get("doors", []):
+                if o["orient"] != "H" or abs(o["fixed"] - front_z) > 1e-3 or o.get("opening"):
+                    continue
+                window(f"Upper - {o['name']}", "H", front_z, o["pos"], 3.5, u_sill, u_head)
+                if "Front Door" in o.get("name", ""):
+                    door = o
+        if door:
+            add_entry(ctx, door["pos"], front_z, door["width"], base)
 
 
 def add_slab(ctx, r):
