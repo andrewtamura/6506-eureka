@@ -401,9 +401,22 @@ def _hip_solid(x1, x2, y1, y2, eave, pitch, oh=0.0):
     return verts, faces
 
 
-def _shed_solid(x1, x2, y1, y2, eave, pitch, high):
+def _shed_solid(x1, x2, y1, y2, eave, pitch, high, oh=0.0):
     """Mono-pitch (shed) closed solid; `high` ('x1'|'x2'|'y1'|'y2') is the raised
-    eave that abuts the taller structure, sloping down to the opposite side."""
+    eave that abuts the taller structure, sloping down to the opposite side. An
+    overhang `oh` (m) extends ONLY the low (downslope) eave out past the wall,
+    dropping it by oh*pitch (the slope simply continues); the high side and the
+    flanks stay flush."""
+    if oh:
+        if high == "x1":
+            x2 += oh
+        elif high == "x2":
+            x1 -= oh
+        elif high == "y1":
+            y2 += oh
+        else:
+            y1 -= oh
+        eave -= oh * pitch
     if high in ("x1", "x2"):
         run_len = x2 - x1; rise = run_len * pitch
         z = (lambda x: eave + rise - (x - x1) / run_len * rise) if high == "x1" \
@@ -420,10 +433,22 @@ def _shed_solid(x1, x2, y1, y2, eave, pitch, high):
     return verts, faces
 
 
-def _shedhip_solid(x1, x2, y1, y2, eave, pitch, high, hip):
+def _shedhip_solid(x1, x2, y1, y2, eave, pitch, high, hip, oh=0.0):
     """Shed (mono-pitch) closed solid whose two flanking ends are HIPPED (sloped
     inward by `hip`) instead of gabled. `high` is the raised eave (abutting the
-    taller structure); the surface slopes down to the opposite side."""
+    taller structure); the surface slopes down to the opposite side. An overhang
+    `oh` (m) extends the low eave and the two hipped ends past the walls (not the
+    high side, which abuts the taller structure), dropping them by oh*pitch."""
+    if oh:
+        if high in ("y1", "y2"):
+            x1 -= oh; x2 += oh                       # both hipped ends
+            if high == "y2": y1 -= oh                # low eave
+            else: y2 += oh
+        else:
+            y1 -= oh; y2 += oh                       # both hipped ends
+            if high == "x2": x1 -= oh                # low eave
+            else: x2 += oh
+        eave -= oh * pitch
     base = [(x1, y1, eave), (x2, y1, eave), (x2, y2, eave), (x1, y2, eave)]  # 0,1,2,3
     if high in ("y1", "y2"):
         hi = eave + (y2 - y1) * pitch
@@ -490,10 +515,12 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
             v, f = _hip_solid(x1, x2, y1, y2, ez, g.get("pitch", 0.5), g.get("overhangFt", 0) * FT)
             pd = "HIP_ROOF"
         elif t == "shed":
-            v, f = _shed_solid(x1, x2, y1, y2, ez, g.get("pitch", 1 / 12), _high_edge(rects[key], prim))
+            v, f = _shed_solid(x1, x2, y1, y2, ez, g.get("pitch", 1 / 12), _high_edge(rects[key], prim),
+                               g.get("overhangFt", 0) * FT)
             pd = "SHED_ROOF"
         else:  # "shedhip"
-            v, f = _shedhip_solid(x1, x2, y1, y2, ez, g.get("pitch", 0.45), _high_edge(rects[key], prim), abs(y2 - y1))
+            v, f = _shedhip_solid(x1, x2, y1, y2, ez, g.get("pitch", 0.45), _high_edge(rects[key], prim),
+                                  abs(y2 - y1), g.get("overhangFt", 0) * FT)
             pd = "SHED_ROOF"
         add_brep(ctx, f"Roof - {key}", v, f, ROOF, predefined=pd)
 
@@ -501,9 +528,11 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
         add_porch(ctx, rooms_cache, crawl)
 
 
-def add_porch(ctx, rooms_cache, base):
-    """A small straight-run front porch: a landing at the raised threshold and a
-    straight flight of steps down to grade, projecting out from the front door."""
+def add_porch(ctx, rooms_cache, base, width_ft=12.0):
+    """A straight-run front porch: a landing at the raised threshold and a
+    straight flight of steps down to grade, projecting out from the front door.
+    `width_ft` is the E-W landing length; the landing depth (N-S) and the stair
+    width are fixed so widening the porch doesn't change the stairs."""
     fd = None
     for r in rooms_cache.values():
         for d in r.get("doors", []):
@@ -517,15 +546,16 @@ def add_porch(ctx, rooms_cache, base):
     # -Y (interior) side of the face, so the porch projects to +Y (outward/North).
     ix, fy = ctx.X(fd["pos"]), ctx.Y(fd["fixed"])
     WOOD = (0.62, 0.60, 0.56)
-    pw = (fd["width"] + 3.0) * FT     # landing a bit wider than the door
-    pd = 3.5 * FT                     # landing depth
+    pw = width_ft * FT                # E-W landing length
+    pd = 3.5 * FT                     # N-S landing depth
+    stair_w = 4.8 * FT                # stair width (unchanged as the porch widens)
     landing = make_box(ctx, "IfcSlab", "Porch landing", pw, pd, base, ix, fy + pd / 2, 0.0, color=WOOD)
     run("spatial.assign_container", ctx.model, products=[landing], relating_structure=ctx.storey)
     nsteps, tread = 4, 0.28
     riser = base / nsteps
     for k in range(1, nsteps):        # descending treads out to grade
         h = base - k * riser
-        step = make_box(ctx, "IfcSlab", f"Porch step {k}", pw * 0.8, tread, h,
+        step = make_box(ctx, "IfcSlab", f"Porch step {k}", stair_w, tread, h,
                         ix, fy + pd + (k - 0.5) * tread, 0.0, color=WOOD)
         run("spatial.assign_container", ctx.model, products=[step], relating_structure=ctx.storey)
 
