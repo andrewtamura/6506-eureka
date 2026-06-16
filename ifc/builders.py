@@ -378,9 +378,15 @@ def add_brep(ctx, name, verts, faces, color, predefined=None, ifc_class="IfcRoof
     return product
 
 
-def _hip_solid(x1, x2, y1, y2, eave, pitch):
+def _hip_solid(x1, x2, y1, y2, eave, pitch, oh=0.0):
     """Hip-roof closed solid over a rectangle. Ridge runs along the longer side;
-    equal-pitch hips inset the ridge by half the short span. Returns verts,faces."""
+    equal-pitch hips inset the ridge by half the short span. An overhang `oh`
+    (m) extends every eave out past the walls, dropping the eave edge by
+    oh*pitch (the slopes simply continue), which keeps the ridge height and the
+    wall-top intersection unchanged. Returns verts,faces."""
+    if oh:
+        x1 -= oh; x2 += oh; y1 -= oh; y2 += oh
+        eave -= oh * pitch
     w, d = x2 - x1, y2 - y1
     if w >= d:
         half = d / 2.0; hr = eave + half * pitch; yc = (y1 + y2) / 2.0
@@ -481,7 +487,7 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
         ez = crawl + eave                          # roof springs from the (raised) wall top
         t = g["type"]
         if t == "hip":
-            v, f = _hip_solid(x1, x2, y1, y2, ez, g.get("pitch", 0.5))
+            v, f = _hip_solid(x1, x2, y1, y2, ez, g.get("pitch", 0.5), g.get("overhangFt", 0) * FT)
             pd = "HIP_ROOF"
         elif t == "shed":
             v, f = _shed_solid(x1, x2, y1, y2, ez, g.get("pitch", 1 / 12), _high_edge(rects[key], prim))

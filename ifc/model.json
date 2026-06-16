@@ -19,7 +19,7 @@
       "crawlspaceFt": 2.5,
       "rooms": ["family", "kitchen", "sitting", "dining", "foyer", "vestibule", "ext_bath", "wc", "ext_vestibule", "ext_laundry", "scullery"],
       "roofGroups": {
-        "primary": { "rooms": ["family", "kitchen", "sitting", "dining", "foyer", "vestibule"], "storeys": 2, "type": "hip", "pitch": 0.5 },
+        "primary": { "rooms": ["family", "kitchen", "sitting", "dining", "foyer", "vestibule"], "storeys": 2, "type": "hip", "pitch": 0.5, "overhangFt": 1.5 },
         "extension": { "rooms": ["ext_bath", "wc", "ext_vestibule", "ext_laundry"], "storeys": 2, "trimFt": 2, "type": "shed", "pitch": 0.0833 },
         "scullery": { "rooms": ["scullery"], "storeys": 1, "type": "shedhip", "pitch": 0.45 }
       }
