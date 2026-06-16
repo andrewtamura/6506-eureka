@@ -131,9 +131,11 @@ def build_level(cfg, rooms_cache, level):
     elif kind == "exterior":
         B.add_lot(ctx, cfg["lot"], rooms)
         # Solid massing blocks (per building part, at their storey heights) +
-        # roofs — closed, so the interior is never visible from any angle.
-        B.add_massing(ctx, level["roofGroups"], rooms_cache)
-        B.add_fenestration(ctx, level["roofGroups"], rooms_cache)
+        # roofs — closed, so the interior is never visible from any angle. A
+        # crawlspace band raises the whole thing off grade.
+        crawl = level.get("crawlspaceFt", 0) * B.FT
+        B.add_massing(ctx, level["roofGroups"], rooms_cache, crawl)
+        B.add_fenestration(ctx, level["roofGroups"], rooms_cache, crawl)
 
     ifc_name = f"{lid}.ifc"
     m.write(os.path.join(HERE, ifc_name))
