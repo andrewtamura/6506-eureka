@@ -133,6 +133,7 @@ def build_level(cfg, rooms_cache, level):
         # Solid massing blocks (per building part, at their storey heights) +
         # roofs — closed, so the interior is never visible from any angle.
         B.add_massing(ctx, level["roofGroups"], rooms_cache)
+        B.add_fenestration(ctx, level["roofGroups"], rooms_cache)
 
     ifc_name = f"{lid}.ifc"
     m.write(os.path.join(HERE, ifc_name))

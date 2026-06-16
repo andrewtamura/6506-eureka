@@ -484,6 +484,60 @@ def add_massing(ctx, groups, rooms_cache):
         add_brep(ctx, f"Roof - {key}", v, f, ROOF, predefined=pd)
 
 
+def add_fenestration(ctx, groups, rooms_cache):
+    """Low-fidelity windows + exterior door openings on the massing faces. The
+    per-room windows/doors are reused: an opening is exterior when one side of
+    its wall is inside a room and the other is open air. Windows become glass
+    panels at the authored sill/head; exterior doors become dark opening panels
+    (floor to door head). Only the ground-floor openings are placed — the upper
+    storeys aren't modelled yet, so they stay blank."""
+    GLASS = (0.42, 0.52, 0.60)   # muted blue-grey glazing
+    DOOR = (0.18, 0.16, 0.15)    # dark opening
+    DEPTH = 0.08                  # panel thickness (m)
+    EPS = 0.35                    # plan feet just past the wall face
+
+    grp_rooms = [s for g in groups.values() for s in g["rooms"]]
+    rects = [rooms_cache[s]["bounds"] for s in grp_rooms]
+    rects = [(b["x1"], b["x2"], b["z1"], b["z2"]) for b in rects]
+
+    def inside(px, pz):
+        return any(x1 - 1e-6 < px < x2 + 1e-6 and z1 - 1e-6 < pz < z2 + 1e-6 for x1, x2, z1, z2 in rects)
+
+    def is_exterior(orient, fixed, pos):
+        if orient == "V":
+            return inside(fixed + EPS, pos) != inside(fixed - EPS, pos)
+        return inside(pos, fixed + EPS) != inside(pos, fixed - EPS)
+
+    def panel(ifc_class, name, orient, fixed, pos, w, sill_m, head_m, color):
+        h = head_m - sill_m
+        if h <= 0.05:
+            return
+        if orient == "V":   # wall runs along Z; width spans Y, thin in X
+            p = make_box(ctx, ifc_class, name, DEPTH, abs(w) * FT, h,
+                         ctx.X(fixed), ctx.Y(pos), sill_m, color=color)
+        else:               # wall runs along X; width spans X, thin in Y
+            p = make_box(ctx, ifc_class, name, abs(w) * FT, DEPTH, h,
+                         ctx.X(pos), ctx.Y(fixed), sill_m, color=color)
+        run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
+
+    for g in groups.values():
+        for s in g["rooms"]:
+            r = rooms_cache[s]
+            for win in r.get("windows", []):
+                o, f, p = win["orient"], win["fixed"], win["pos"]
+                if not is_exterior(o, f, p):
+                    continue
+                panel("IfcWindow", win["name"], o, f, p, win["width"],
+                      win["sill"] * FT, win["head"] * FT, GLASS)
+            for d in r.get("doors", []):
+                if d.get("opening"):          # interior cased opening, skip
+                    continue
+                o, f, p = d["orient"], d["fixed"], d["pos"]
+                if not is_exterior(o, f, p):
+                    continue
+                panel("IfcDoor", d["name"], o, f, p, d["width"], 0.0, ctx.door_h_ft * FT, DOOR)
+
+
 def add_slab(ctx, r):
     x1, x2, y1, y2 = ifc_bounds(ctx, r["bounds"])
     slab = make_box(ctx, "IfcSlab", f"Slab - {r['name']}",
