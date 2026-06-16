@@ -200,6 +200,26 @@ async function main() {
     world.camera.controls.setLookAt(c.x, viewBox.max.y + Math.max(s.x, s.z) * 1.1, c.z + 0.001, c.x, viewBox.min.y, c.z, false);
     world.camera.controls.fitToBox(viewBox, transition);
   };
+  // Bounding box of just the "building" meshes of an object — tall geometry,
+  // skipping flat ground planes (the lot) — so framing centres on the house,
+  // not the lot it sits on.
+  const buildingBox = (obj) => {
+    const bb = new THREE.Box3();
+    obj.traverse((o) => {
+      if (!o.isMesh) return;
+      const b = new THREE.Box3().setFromObject(o);
+      if (!b.isEmpty() && b.max.y - b.min.y > 0.5) bb.union(b);
+    });
+    return bb.isEmpty() ? new THREE.Box3().setFromObject(obj) : bb;
+  };
+  // Glide to a 3/4 view of a model: from the front (North = world -Z), a little
+  // to the East and elevated, so the model reads as a building with sky around.
+  const frameModel = (box, transition) => {
+    const c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3());
+    const d = Math.hypot(s.x, s.y, s.z) * 1.15;
+    world.camera.controls.setLookAt(
+      c.x + d * 0.42, c.y + d * 0.40, c.z - d * 0.92, c.x, c.y, c.z, transition);
+  };
   if (!box.isEmpty()) {
     model.object.position.y -= box.min.y;
     model.object.updateMatrixWorld(true);
@@ -330,17 +350,20 @@ async function main() {
     ctrls.truckSpeed = 0;                 // no two-finger pan (would exit the room)
     setPlanView(false);                   // inside a room: opaque ceiling overhead
   }
-  function exitToOverview() {
-    setPlanView(true);                    // looking down on the plan: see-through ceiling
+  function overviewControls() {
+    setPlanView(true);                    // see-through ceilings (dollhouse from above)
     ctrls.boundaryEnclosesCamera = false;
     ctrls.setBoundary(undefined);
-    ctrls.azimuthRotateSpeed = 1;        // normal orbit for the overview
+    ctrls.azimuthRotateSpeed = 1;        // normal orbit
     ctrls.polarRotateSpeed = 1;
-    ctrls.minPolarAngle = 0;             // free orbit again
+    ctrls.minPolarAngle = 0;             // free orbit
     ctrls.maxPolarAngle = Math.PI;
     ctrls.minDistance = 0;
     ctrls.maxDistance = Infinity;
     ctrls.truckSpeed = 2;
+  }
+  function exitToOverview() {
+    overviewControls();
     framePlan(true);                      // return to the top-down plan view
   }
   const roomAt = (x, z) => roomBoxes.find(
@@ -448,10 +471,12 @@ async function main() {
   // only exhibits beside it, each lifted so its slab rests on the grid.
   //
   // With the North-up / East-right plan camera, world X (E-W) runs HORIZONTALLY
-  // on screen, so the row is laid out ALONG world X: screen-left = -X (West),
-  // screen-right = +X (East). We want [ Exterior | Ground | Level 2 | Attic ],
-  // so the exterior sits to -X (West) of the ground floor and Level 2 / Attic
-  // march off toward +X (East).
+  // on screen. The levels run WESTWARD starting from the exterior lot, so the
+  // exterior sits at the East end (+X) and Ground, Level 2, Attic march off
+  // toward -X (West): screen order [ Attic | Level 2 | Ground | Exterior ].
+  // `modelViews` (per model: id, label, building box) drives the camera presets.
+  const modelViews = [{ id: groundLevel.id, label: groundLevel.label || groundLevel.storey, box: buildingBox(model.object) }];
+  let exteriorFrameBox = null;
   {
     const GAP = 9;                                         // spacing between views (m)
     let westX = modelBox.min.x, eastX = modelBox.max.x;    // -X / +X frontiers
@@ -472,7 +497,7 @@ async function main() {
         m.object.position.y -= b0.min.y;                     // slab on the grid
         m.object.updateMatrixWorld(true);
         const b = new THREE.Box3().setFromObject(m.object);
-        const left = lvl.id === "exterior";                  // exterior to the left (West) of ground
+        const left = lvl.id !== "exterior";                  // exterior to the East (+X); the rest run West
         const dx = left ? (westX - GAP - b.max.x) : (eastX + GAP - b.min.x);
         m.object.position.x += dx;
         m.object.updateMatrixWorld(true);
@@ -480,6 +505,9 @@ async function main() {
         m.object.traverse((o) => { if (o.isMesh) { o.frustumCulled = false; o.castShadow = true; o.receiveShadow = true; } });
         const fb = new THREE.Box3().setFromObject(m.object);
         views.push({ label: lvl.label || lvl.storey, box: fb });
+        const fbx = buildingBox(m.object);
+        modelViews.push({ id: lvl.id, label: lvl.label || lvl.storey, box: fbx });
+        if (lvl.id === "exterior") exteriorFrameBox = fbx;
         viewBox.expandByObject(m.object);
       } catch (err) { console.warn(`exhibit ${lvl.id} failed`, err); }
     }
@@ -526,7 +554,7 @@ async function main() {
 
     viewBox.expandByScalar(1.0);   // headroom so the titles never touch the frame edge
     await fragments.core.update(true);
-    framePlan(false);    // reframe to the whole row
+    frameModel(exteriorFrameBox || modelBox, false);   // land on the exterior lot model
     refreshShadow();
   }
 
@@ -643,24 +671,16 @@ async function main() {
     btn.addEventListener("click", fn);
     viewsEl.appendChild(btn);
   };
-  addView("\u{1F3E0} Overview", () => exitToOverview());
-  {
-    // One eye-level view per room (reusing the room index built earlier): stand
-    // at the room centre looking toward the building centre.
-    const c = modelBox.getCenter(new THREE.Vector3());
-    const rc = new THREE.Vector3(), dir = new THREE.Vector3();
-    for (const { name, box } of roomBoxes) {
-      box.getCenter(rc);
-      dir.set(c.x - rc.x, 0, c.z - rc.z);
-      if (dir.lengthSq() < 0.25) dir.set(0, 0, -1);
-      dir.normalize();
-      const y = FLOOR + EYE, cx = rc.x, cz = rc.z;
-      const tx = cx + dir.x * LOOK_DIST, tz = cz + dir.z * LOOK_DIST;
-      addView(name, async () => {
-        await ctrls.setLookAt(cx, y, cz, tx, y, tz, true);
-        enterRoom();
-      });
-    }
+  // One preset per model: glide to a 3/4 view of that level (in levels.json
+  // order — Exterior, Ground, Second Floor, Attic).
+  for (const lvl of levelsCfg) {
+    const mv = modelViews.find((v) => v.id === lvl.id);
+    if (!mv) continue;
+    addView(mv.label, async () => {
+      await clearSelection();
+      overviewControls();
+      frameModel(mv.box, true);
+    });
   }
 
   // --- build swinging door overlays ---------------------------------------
