@@ -378,35 +378,51 @@ def add_brep(ctx, name, verts, faces, color, predefined=None, ifc_class="IfcRoof
     return product
 
 
-def _hip_solid(x1, x2, y1, y2, eave, pitch, oh=0.0):
-    """Hip-roof closed solid over a rectangle. Ridge runs along the longer side;
-    equal-pitch hips inset the ridge by half the short span. An overhang `oh`
-    (m) extends every eave out past the walls, dropping the eave edge by
-    oh*pitch (the slopes simply continue), which keeps the ridge height and the
-    wall-top intersection unchanged. Returns verts,faces."""
+def _roof_slab(surf, slopes, eave_loop, t):
+    """Thicken a roof top surface into a closed slab of vertical thickness `t`:
+    the given surface becomes the soffit, the roofing is it raised by `t`, and a
+    vertical fascia closes the eave boundary. So the roof reads as a real
+    assembly (not a knife edge) and its top sits above the wall — which keeps the
+    wall from bleeding through the roof in plan. add_brep orients every face."""
+    n = len(surf)
+    verts = [tuple(v) for v in surf] + [(v[0], v[1], v[2] + t) for v in surf]
+    faces = []
+    for f in slopes:
+        faces.append(list(f))                       # soffit (underside)
+        faces.append([i + n for i in f])            # roofing (top)
+    for a, b in zip(eave_loop, eave_loop[1:] + eave_loop[:1]):
+        faces.append([a, b, b + n, a + n])          # fascia at the eave edge
+    return verts, faces
+
+
+def _hip_solid(x1, x2, y1, y2, eave, pitch, thick, oh=0.0):
+    """Hip roof as a closed slab of vertical thickness `thick`. Ridge runs along
+    the longer side; equal-pitch hips inset the ridge by half the short span. An
+    overhang `oh` (m) extends every eave out past the walls, dropping the eave
+    edge by oh*pitch (the slopes simply continue). Returns verts,faces."""
     if oh:
         x1 -= oh; x2 += oh; y1 -= oh; y2 += oh
         eave -= oh * pitch
     w, d = x2 - x1, y2 - y1
     if w >= d:
         half = d / 2.0; hr = eave + half * pitch; yc = (y1 + y2) / 2.0
-        verts = [(x1, y1, eave), (x2, y1, eave), (x2, y2, eave), (x1, y2, eave),
-                 (x1 + half, yc, hr), (x2 - half, yc, hr)]
-        faces = [[0, 1, 5, 4], [2, 3, 4, 5], [1, 2, 5], [3, 0, 4], [0, 1, 2, 3]]
+        surf = [(x1, y1, eave), (x2, y1, eave), (x2, y2, eave), (x1, y2, eave),
+                (x1 + half, yc, hr), (x2 - half, yc, hr)]
+        slopes = [[0, 1, 5, 4], [2, 3, 4, 5], [1, 2, 5], [3, 0, 4]]
     else:
         half = w / 2.0; hr = eave + half * pitch; xc = (x1 + x2) / 2.0
-        verts = [(x1, y1, eave), (x2, y1, eave), (x2, y2, eave), (x1, y2, eave),
-                 (xc, y1 + half, hr), (xc, y2 - half, hr)]
-        faces = [[0, 1, 4], [2, 3, 5], [1, 2, 5, 4], [3, 0, 4, 5], [0, 1, 2, 3]]
-    return verts, faces
+        surf = [(x1, y1, eave), (x2, y1, eave), (x2, y2, eave), (x1, y2, eave),
+                (xc, y1 + half, hr), (xc, y2 - half, hr)]
+        slopes = [[0, 1, 4], [2, 3, 5], [1, 2, 5, 4], [3, 0, 4, 5]]
+    return _roof_slab(surf, slopes, [0, 1, 2, 3], thick)
 
 
-def _shed_solid(x1, x2, y1, y2, eave, pitch, high, oh=0.0):
-    """Mono-pitch (shed) closed solid; `high` ('x1'|'x2'|'y1'|'y2') is the raised
-    eave that abuts the taller structure, sloping down to the opposite side. An
-    overhang `oh` (m) extends ONLY the low (downslope) eave out past the wall,
-    dropping it by oh*pitch (the slope simply continues); the high side and the
-    flanks stay flush."""
+def _shed_solid(x1, x2, y1, y2, eave, pitch, high, thick, oh=0.0):
+    """Mono-pitch (shed) roof as a sloped slab of vertical thickness `thick`;
+    `high` ('x1'|'x2'|'y1'|'y2') is the raised eave that abuts the taller
+    structure, sloping down to the opposite side. An overhang `oh` (m) extends
+    ONLY the low (downslope) eave out past the wall; the high side and flanks
+    stay flush."""
     if oh:
         if high == "x1":
             x2 += oh
@@ -421,24 +437,20 @@ def _shed_solid(x1, x2, y1, y2, eave, pitch, high, oh=0.0):
         run_len = x2 - x1; rise = run_len * pitch
         z = (lambda x: eave + rise - (x - x1) / run_len * rise) if high == "x1" \
             else (lambda x: eave + (x - x1) / run_len * rise)
-        top = [(x1, y1, z(x1)), (x2, y1, z(x2)), (x2, y2, z(x2)), (x1, y2, z(x1))]
+        surf = [(x1, y1, z(x1)), (x2, y1, z(x2)), (x2, y2, z(x2)), (x1, y2, z(x1))]
     else:
         run_len = y2 - y1; rise = run_len * pitch
         z = (lambda y: eave + rise - (y - y1) / run_len * rise) if high == "y1" \
             else (lambda y: eave + (y - y1) / run_len * rise)
-        top = [(x1, y1, z(y1)), (x2, y1, z(y1)), (x2, y2, z(y2)), (x1, y2, z(y2))]
-    base = [(x1, y1, eave), (x2, y1, eave), (x2, y2, eave), (x1, y2, eave)]
-    verts = base + top
-    faces = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
-    return verts, faces
+        surf = [(x1, y1, z(y1)), (x2, y1, z(y1)), (x2, y2, z(y2)), (x1, y2, z(y2))]
+    return _roof_slab(surf, [[0, 1, 2, 3]], [0, 1, 2, 3], thick)
 
 
-def _shedhip_solid(x1, x2, y1, y2, eave, pitch, high, hip, oh=0.0):
-    """Shed (mono-pitch) closed solid whose two flanking ends are HIPPED (sloped
-    inward by `hip`) instead of gabled. `high` is the raised eave (abutting the
-    taller structure); the surface slopes down to the opposite side. An overhang
-    `oh` (m) extends the low eave and the two hipped ends past the walls (not the
-    high side, which abuts the taller structure), dropping them by oh*pitch."""
+def _shedhip_solid(x1, x2, y1, y2, eave, pitch, high, hip, thick, oh=0.0):
+    """Shed roof slab (vertical thickness `thick`) whose two flanking ends are
+    HIPPED (sloped inward by `hip`) instead of gabled. `high` is the raised eave
+    (abutting the taller structure). An overhang `oh` (m) extends the low eave
+    and the two hipped ends past the walls (not the high side)."""
     if oh:
         if high in ("y1", "y2"):
             x1 -= oh; x2 += oh                       # both hipped ends
@@ -453,20 +465,20 @@ def _shedhip_solid(x1, x2, y1, y2, eave, pitch, high, hip, oh=0.0):
     if high in ("y1", "y2"):
         hi = eave + (y2 - y1) * pitch
         yh = y1 if high == "y1" else y2
-        verts = base + [(x1 + hip, yh, hi), (x2 - hip, yh, hi)]              # 4,5
+        surf = base + [(x1 + hip, yh, hi), (x2 - hip, yh, hi)]               # 4,5
         if high == "y2":   # high at y2, slopes to y1; hips at x1 / x2
-            faces = [[0, 1, 2, 3], [4, 5, 1, 0], [3, 0, 4], [1, 2, 5], [3, 2, 5, 4]]
+            slopes = [[4, 5, 1, 0], [3, 0, 4], [1, 2, 5], [3, 2, 5, 4]]
         else:              # high at y1, slopes to y2
-            faces = [[0, 1, 2, 3], [4, 5, 2, 3], [0, 3, 4], [2, 1, 5], [0, 1, 5, 4]]
+            slopes = [[4, 5, 2, 3], [0, 3, 4], [2, 1, 5], [0, 1, 5, 4]]
     else:
         hi = eave + (x2 - x1) * pitch
         xh = x1 if high == "x1" else x2
-        verts = base + [(xh, y1 + hip, hi), (xh, y2 - hip, hi)]              # 4,5
+        surf = base + [(xh, y1 + hip, hi), (xh, y2 - hip, hi)]               # 4,5
         if high == "x2":   # high at x2, slopes to x1; hips at y1 / y2
-            faces = [[0, 1, 2, 3], [4, 5, 3, 0], [0, 1, 4], [3, 2, 5], [1, 2, 5, 4]]
+            slopes = [[4, 5, 3, 0], [0, 1, 4], [3, 2, 5], [1, 2, 5, 4]]
         else:              # high at x1, slopes to x2
-            faces = [[0, 1, 2, 3], [4, 5, 2, 1], [1, 0, 4], [2, 3, 5], [0, 3, 5, 4]]
-    return verts, faces
+            slopes = [[4, 5, 2, 1], [1, 0, 4], [2, 3, 5], [0, 3, 5, 4]]
+    return _roof_slab(surf, slopes, [0, 1, 2, 3], thick)
 
 
 def _high_edge(part, ref):
@@ -511,17 +523,18 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
         run("spatial.assign_container", ctx.model, products=[block], relating_structure=ctx.storey)
 
         ez = crawl + eave                          # roof springs from the (raised) wall top
+        oh = g.get("overhangFt", 0) * FT
+        rt = (5.5 + 2.0) / 12 * FT                  # assembly depth: 2x6 rafters + >=2"
         t = g["type"]
         if t == "hip":
-            v, f = _hip_solid(x1, x2, y1, y2, ez, g.get("pitch", 0.5), g.get("overhangFt", 0) * FT)
+            v, f = _hip_solid(x1, x2, y1, y2, ez, g.get("pitch", 0.5), rt, oh)
             pd = "HIP_ROOF"
         elif t == "shed":
-            v, f = _shed_solid(x1, x2, y1, y2, ez, g.get("pitch", 1 / 12), _high_edge(rects[key], prim),
-                               g.get("overhangFt", 0) * FT)
+            v, f = _shed_solid(x1, x2, y1, y2, ez, g.get("pitch", 1 / 12), _high_edge(rects[key], prim), rt, oh)
             pd = "SHED_ROOF"
         else:  # "shedhip"
             v, f = _shedhip_solid(x1, x2, y1, y2, ez, g.get("pitch", 0.45), _high_edge(rects[key], prim),
-                                  abs(y2 - y1), g.get("overhangFt", 0) * FT)
+                                  abs(y2 - y1), rt, oh)
             pd = "SHED_ROOF"
         add_brep(ctx, f"Roof - {key}", v, f, ROOF, predefined=pd)
 
