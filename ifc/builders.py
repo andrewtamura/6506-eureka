@@ -378,9 +378,15 @@ def add_brep(ctx, name, verts, faces, color, predefined=None, ifc_class="IfcRoof
     return product
 
 
-def _hip_solid(x1, x2, y1, y2, eave, pitch):
+def _hip_solid(x1, x2, y1, y2, eave, pitch, oh=0.0):
     """Hip-roof closed solid over a rectangle. Ridge runs along the longer side;
-    equal-pitch hips inset the ridge by half the short span. Returns verts,faces."""
+    equal-pitch hips inset the ridge by half the short span. An overhang `oh`
+    (m) extends every eave out past the walls, dropping the eave edge by
+    oh*pitch (the slopes simply continue), which keeps the ridge height and the
+    wall-top intersection unchanged. Returns verts,faces."""
+    if oh:
+        x1 -= oh; x2 += oh; y1 -= oh; y2 += oh
+        eave -= oh * pitch
     w, d = x2 - x1, y2 - y1
     if w >= d:
         half = d / 2.0; hr = eave + half * pitch; yc = (y1 + y2) / 2.0
@@ -395,9 +401,22 @@ def _hip_solid(x1, x2, y1, y2, eave, pitch):
     return verts, faces
 
 
-def _shed_solid(x1, x2, y1, y2, eave, pitch, high):
+def _shed_solid(x1, x2, y1, y2, eave, pitch, high, oh=0.0):
     """Mono-pitch (shed) closed solid; `high` ('x1'|'x2'|'y1'|'y2') is the raised
-    eave that abuts the taller structure, sloping down to the opposite side."""
+    eave that abuts the taller structure, sloping down to the opposite side. An
+    overhang `oh` (m) extends ONLY the low (downslope) eave out past the wall,
+    dropping it by oh*pitch (the slope simply continues); the high side and the
+    flanks stay flush."""
+    if oh:
+        if high == "x1":
+            x2 += oh
+        elif high == "x2":
+            x1 -= oh
+        elif high == "y1":
+            y2 += oh
+        else:
+            y1 -= oh
+        eave -= oh * pitch
     if high in ("x1", "x2"):
         run_len = x2 - x1; rise = run_len * pitch
         z = (lambda x: eave + rise - (x - x1) / run_len * rise) if high == "x1" \
@@ -414,10 +433,22 @@ def _shed_solid(x1, x2, y1, y2, eave, pitch, high):
     return verts, faces
 
 
-def _shedhip_solid(x1, x2, y1, y2, eave, pitch, high, hip):
+def _shedhip_solid(x1, x2, y1, y2, eave, pitch, high, hip, oh=0.0):
     """Shed (mono-pitch) closed solid whose two flanking ends are HIPPED (sloped
     inward by `hip`) instead of gabled. `high` is the raised eave (abutting the
-    taller structure); the surface slopes down to the opposite side."""
+    taller structure); the surface slopes down to the opposite side. An overhang
+    `oh` (m) extends the low eave and the two hipped ends past the walls (not the
+    high side, which abuts the taller structure), dropping them by oh*pitch."""
+    if oh:
+        if high in ("y1", "y2"):
+            x1 -= oh; x2 += oh                       # both hipped ends
+            if high == "y2": y1 -= oh                # low eave
+            else: y2 += oh
+        else:
+            y1 -= oh; y2 += oh                       # both hipped ends
+            if high == "x2": x1 -= oh                # low eave
+            else: x2 += oh
+        eave -= oh * pitch
     base = [(x1, y1, eave), (x2, y1, eave), (x2, y2, eave), (x1, y2, eave)]  # 0,1,2,3
     if high in ("y1", "y2"):
         hi = eave + (y2 - y1) * pitch
@@ -448,13 +479,16 @@ def _high_edge(part, ref):
     return "y1" if rcy < pcy else "y2"
 
 
-def add_massing(ctx, groups, rooms_cache):
+def add_massing(ctx, groups, rooms_cache, crawl=0.0):
     """Build the exterior as solid massing blocks (so the interior is never
     visible) capped with roofs: a two-storey primary under a hip, a two-storey
     extension under a shed sloping away from the primary, and a one-storey
-    scullery under a hipped shed. Storey heights come from `groups[*].storeys`."""
+    scullery under a hipped shed. Storey heights come from `groups[*].storeys`
+    (less an optional `trimFt`). `crawl` (m) raises every block off grade on a
+    foundation band, and a front porch + stairs bridge grade to the threshold."""
     WALL = (0.87, 0.86, 0.83)   # light massing
     ROOF = (0.30, 0.30, 0.33)   # charcoal shingle
+    FOUND = (0.55, 0.54, 0.52)  # crawlspace / foundation
 
     def union(ids):
         rects = [ifc_bounds(ctx, rooms_cache[s]["bounds"]) for s in ids]
@@ -465,23 +499,119 @@ def add_massing(ctx, groups, rooms_cache):
     prim = rects.get("primary")
     for key, g in groups.items():
         x1, x2, y1, y2 = rects[key]
-        eave = g.get("storeys", 1) * ctx.H
+        eave = g.get("storeys", 1) * ctx.H - g.get("trimFt", 0) * FT
+        cx, cy, w, d = (x1 + x2) / 2, (y1 + y2) / 2, abs(x2 - x1), abs(y2 - y1)
+        if crawl > 0:                              # foundation band, grade -> floor
+            cb = make_box(ctx, "IfcSlab", f"Crawlspace - {key}", w, d, crawl, cx, cy, 0.0,
+                          predefined="BASESLAB", color=FOUND)
+            run("spatial.assign_container", ctx.model, products=[cb], relating_structure=ctx.storey)
         block = make_box(ctx, "IfcBuildingElementProxy", f"Massing - {key}",
-                         abs(x2 - x1), abs(y2 - y1), eave,
-                         (x1 + x2) / 2, (y1 + y2) / 2, 0.0, color=WALL)
+                         w, d, eave, cx, cy, crawl, color=WALL)
         run("spatial.assign_container", ctx.model, products=[block], relating_structure=ctx.storey)
 
+        ez = crawl + eave                          # roof springs from the (raised) wall top
         t = g["type"]
         if t == "hip":
-            v, f = _hip_solid(x1, x2, y1, y2, eave, g.get("pitch", 0.5))
+            v, f = _hip_solid(x1, x2, y1, y2, ez, g.get("pitch", 0.5), g.get("overhangFt", 0) * FT)
             pd = "HIP_ROOF"
         elif t == "shed":
-            v, f = _shed_solid(x1, x2, y1, y2, eave, g.get("pitch", 1 / 12), _high_edge(rects[key], prim))
+            v, f = _shed_solid(x1, x2, y1, y2, ez, g.get("pitch", 1 / 12), _high_edge(rects[key], prim),
+                               g.get("overhangFt", 0) * FT)
             pd = "SHED_ROOF"
         else:  # "shedhip"
-            v, f = _shedhip_solid(x1, x2, y1, y2, eave, g.get("pitch", 0.45), _high_edge(rects[key], prim), abs(y2 - y1))
+            v, f = _shedhip_solid(x1, x2, y1, y2, ez, g.get("pitch", 0.45), _high_edge(rects[key], prim),
+                                  abs(y2 - y1), g.get("overhangFt", 0) * FT)
             pd = "SHED_ROOF"
         add_brep(ctx, f"Roof - {key}", v, f, ROOF, predefined=pd)
+
+    if crawl > 0:
+        add_porch(ctx, rooms_cache, crawl)
+
+
+def add_porch(ctx, rooms_cache, base, width_ft=12.0):
+    """A straight-run front porch: a landing at the raised threshold and a
+    straight flight of steps down to grade, projecting out from the front door.
+    `width_ft` is the E-W landing length; the landing depth (N-S) and the stair
+    width are fixed so widening the porch doesn't change the stairs."""
+    fd = None
+    for r in rooms_cache.values():
+        for d in r.get("doors", []):
+            if "Front Door" in d.get("name", ""):
+                fd = d
+        if fd:
+            break
+    if not fd:
+        return
+    # front door is an H wall (fixed = plan z, pos = plan x); the house is on the
+    # -Y (interior) side of the face, so the porch projects to +Y (outward/North).
+    ix, fy = ctx.X(fd["pos"]), ctx.Y(fd["fixed"])
+    WOOD = (0.62, 0.60, 0.56)
+    pw = width_ft * FT                # E-W landing length
+    pd = 3.5 * FT                     # N-S landing depth
+    stair_w = 4.8 * FT                # stair width (unchanged as the porch widens)
+    landing = make_box(ctx, "IfcSlab", "Porch landing", pw, pd, base, ix, fy + pd / 2, 0.0, color=WOOD)
+    run("spatial.assign_container", ctx.model, products=[landing], relating_structure=ctx.storey)
+    nsteps, tread = 4, 0.28
+    riser = base / nsteps
+    for k in range(1, nsteps):        # descending treads out to grade
+        h = base - k * riser
+        step = make_box(ctx, "IfcSlab", f"Porch step {k}", stair_w, tread, h,
+                        ix, fy + pd + (k - 0.5) * tread, 0.0, color=WOOD)
+        run("spatial.assign_container", ctx.model, products=[step], relating_structure=ctx.storey)
+
+
+def add_fenestration(ctx, groups, rooms_cache, base=0.0):
+    """Low-fidelity windows + exterior door openings on the massing faces. The
+    per-room windows/doors are reused: an opening is exterior when one side of
+    its wall is inside a room and the other is open air. Windows become glass
+    panels at the authored sill/head; exterior doors become dark opening panels
+    (floor to door head). Only the ground-floor openings are placed — the upper
+    storeys aren't modelled yet, so they stay blank."""
+    GLASS = (0.42, 0.52, 0.60)   # muted blue-grey glazing
+    DOOR = (0.18, 0.16, 0.15)    # dark opening
+    DEPTH = 0.08                  # panel thickness (m)
+    EPS = 0.35                    # plan feet just past the wall face
+
+    grp_rooms = [s for g in groups.values() for s in g["rooms"]]
+    rects = [rooms_cache[s]["bounds"] for s in grp_rooms]
+    rects = [(b["x1"], b["x2"], b["z1"], b["z2"]) for b in rects]
+
+    def inside(px, pz):
+        return any(x1 - 1e-6 < px < x2 + 1e-6 and z1 - 1e-6 < pz < z2 + 1e-6 for x1, x2, z1, z2 in rects)
+
+    def is_exterior(orient, fixed, pos):
+        if orient == "V":
+            return inside(fixed + EPS, pos) != inside(fixed - EPS, pos)
+        return inside(pos, fixed + EPS) != inside(pos, fixed - EPS)
+
+    def panel(ifc_class, name, orient, fixed, pos, w, sill_m, head_m, color):
+        h = head_m - sill_m
+        if h <= 0.05:
+            return
+        if orient == "V":   # wall runs along Z; width spans Y, thin in X
+            p = make_box(ctx, ifc_class, name, DEPTH, abs(w) * FT, h,
+                         ctx.X(fixed), ctx.Y(pos), sill_m, color=color)
+        else:               # wall runs along X; width spans X, thin in Y
+            p = make_box(ctx, ifc_class, name, abs(w) * FT, DEPTH, h,
+                         ctx.X(pos), ctx.Y(fixed), sill_m, color=color)
+        run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
+
+    for g in groups.values():
+        for s in g["rooms"]:
+            r = rooms_cache[s]
+            for win in r.get("windows", []):
+                o, f, p = win["orient"], win["fixed"], win["pos"]
+                if not is_exterior(o, f, p):
+                    continue
+                panel("IfcWindow", win["name"], o, f, p, win["width"],
+                      base + win["sill"] * FT, base + win["head"] * FT, GLASS)
+            for d in r.get("doors", []):
+                if d.get("opening"):          # interior cased opening, skip
+                    continue
+                o, f, p = d["orient"], d["fixed"], d["pos"]
+                if not is_exterior(o, f, p):
+                    continue
+                panel("IfcDoor", d["name"], o, f, p, d["width"], base, base + ctx.door_h_ft * FT, DOOR)
 
 
 def add_slab(ctx, r):
