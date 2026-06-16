@@ -395,11 +395,27 @@ def _roof_slab(surf, slopes, eave_loop, t):
     return verts, faces
 
 
-def _hip_solid(x1, x2, y1, y2, eave, pitch, thick, oh=0.0):
-    """Hip roof as a closed slab of vertical thickness `thick`. Ridge runs along
-    the longer side; equal-pitch hips inset the ridge by half the short span. An
-    overhang `oh` (m) extends every eave out past the walls, dropping the eave
-    edge by oh*pitch (the slopes simply continue). Returns verts,faces."""
+def _filled_block(surf, slopes, eave_loop, z0):
+    """Filled solid from a flat bottom at `z0` up to the given top surface — a
+    sloped-ceiling massing the matching roof slab sits directly on (no floating
+    gap between a flat ceiling and the pitched roof). add_brep orients faces."""
+    verts = [tuple(v) for v in surf]
+    base = []
+    for i in eave_loop:
+        base.append(len(verts)); verts.append((surf[i][0], surf[i][1], z0))
+    faces = [list(f) for f in slopes]                       # sloped top
+    faces.append(list(base))                                 # flat bottom
+    m = len(eave_loop)
+    for k in range(m):                                       # walls
+        faces.append([eave_loop[k], eave_loop[(k + 1) % m], base[(k + 1) % m], base[k]])
+    return verts, faces
+
+
+def _hip_surface(x1, x2, y1, y2, eave, pitch, oh=0.0):
+    """Hip-roof top surface: returns (verts, slope_faces, eave_loop). Ridge runs
+    along the longer side; equal-pitch hips inset the ridge by half the short
+    span. An overhang `oh` (m) extends every eave past the walls, dropping the
+    eave edge by oh*pitch (the slopes simply continue)."""
     if oh:
         x1 -= oh; x2 += oh; y1 -= oh; y2 += oh
         eave -= oh * pitch
@@ -414,15 +430,14 @@ def _hip_solid(x1, x2, y1, y2, eave, pitch, thick, oh=0.0):
         surf = [(x1, y1, eave), (x2, y1, eave), (x2, y2, eave), (x1, y2, eave),
                 (xc, y1 + half, hr), (xc, y2 - half, hr)]
         slopes = [[0, 1, 4], [2, 3, 5], [1, 2, 5, 4], [3, 0, 4, 5]]
-    return _roof_slab(surf, slopes, [0, 1, 2, 3], thick)
+    return surf, slopes, [0, 1, 2, 3]
 
 
-def _shed_solid(x1, x2, y1, y2, eave, pitch, high, thick, oh=0.0):
-    """Mono-pitch (shed) roof as a sloped slab of vertical thickness `thick`;
-    `high` ('x1'|'x2'|'y1'|'y2') is the raised eave that abuts the taller
-    structure, sloping down to the opposite side. An overhang `oh` (m) extends
-    ONLY the low (downslope) eave out past the wall; the high side and flanks
-    stay flush."""
+def _shed_surface(x1, x2, y1, y2, eave, pitch, high, oh=0.0):
+    """Mono-pitch (shed) top surface; `high` ('x1'|'x2'|'y1'|'y2') is the raised
+    eave that abuts the taller structure, sloping down to the opposite side. An
+    overhang `oh` (m) extends ONLY the low (downslope) eave; the high side and
+    flanks stay flush. Returns (verts, slope_faces, eave_loop)."""
     if oh:
         if high == "x1":
             x2 += oh
@@ -443,14 +458,14 @@ def _shed_solid(x1, x2, y1, y2, eave, pitch, high, thick, oh=0.0):
         z = (lambda y: eave + rise - (y - y1) / run_len * rise) if high == "y1" \
             else (lambda y: eave + (y - y1) / run_len * rise)
         surf = [(x1, y1, z(y1)), (x2, y1, z(y1)), (x2, y2, z(y2)), (x1, y2, z(y2))]
-    return _roof_slab(surf, [[0, 1, 2, 3]], [0, 1, 2, 3], thick)
+    return surf, [[0, 1, 2, 3]], [0, 1, 2, 3]
 
 
-def _shedhip_solid(x1, x2, y1, y2, eave, pitch, high, hip, thick, oh=0.0):
-    """Shed roof slab (vertical thickness `thick`) whose two flanking ends are
-    HIPPED (sloped inward by `hip`) instead of gabled. `high` is the raised eave
-    (abutting the taller structure). An overhang `oh` (m) extends the low eave
-    and the two hipped ends past the walls (not the high side)."""
+def _shedhip_surface(x1, x2, y1, y2, eave, pitch, high, hip, oh=0.0):
+    """Shed top surface whose two flanking ends are HIPPED (sloped inward by
+    `hip`) instead of gabled. `high` is the raised eave (abutting the taller
+    structure). An overhang `oh` (m) extends the low eave and the two hipped
+    ends (not the high side). Returns (verts, slope_faces, eave_loop)."""
     if oh:
         if high in ("y1", "y2"):
             x1 -= oh; x2 += oh                       # both hipped ends
@@ -478,7 +493,7 @@ def _shedhip_solid(x1, x2, y1, y2, eave, pitch, high, hip, thick, oh=0.0):
             slopes = [[4, 5, 3, 0], [0, 1, 4], [3, 2, 5], [1, 2, 5, 4]]
         else:              # high at x1, slopes to x2
             slopes = [[4, 5, 2, 1], [1, 0, 4], [2, 3, 5], [0, 3, 5, 4]]
-    return _roof_slab(surf, slopes, [0, 1, 2, 3], thick)
+    return surf, slopes, [0, 1, 2, 3]
 
 
 def _high_edge(part, ref):
@@ -510,6 +525,7 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
 
     rects = {k: union(g["rooms"]) for k, g in groups.items()}
     prim = rects.get("primary")
+    rt = (5.5 + 2.0) / 12 * FT                      # assembly depth: 2x6 rafters + >=2"
     for key, g in groups.items():
         x1, x2, y1, y2 = rects[key]
         eave = g.get("storeys", 1) * ctx.H - g.get("trimFt", 0) * FT
@@ -518,34 +534,38 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
             cb = make_box(ctx, "IfcSlab", f"Crawlspace - {key}", w, d, crawl, cx, cy, 0.0,
                           predefined="BASESLAB", color=FOUND)
             run("spatial.assign_container", ctx.model, products=[cb], relating_structure=ctx.storey)
-        block = make_box(ctx, "IfcBuildingElementProxy", f"Massing - {key}",
-                         w, d, eave, cx, cy, crawl, color=WALL)
-        run("spatial.assign_container", ctx.model, products=[block], relating_structure=ctx.storey)
 
         ez = crawl + eave                          # roof springs from the (raised) wall top
         oh = g.get("overhangFt", 0) * FT
-        rt = (5.5 + 2.0) / 12 * FT                  # assembly depth: 2x6 rafters + >=2"
+        pitch = g.get("pitch", 0.5)
         t = g["type"]
+        high = _high_edge(rects[key], prim) if t != "hip" else None
         if t == "hip":
-            v, f = _hip_solid(x1, x2, y1, y2, ez, g.get("pitch", 0.5), rt, oh)
-            pd = "HIP_ROOF"
+            surf = lambda o: _hip_surface(x1, x2, y1, y2, ez, pitch, o)
         elif t == "shed":
-            v, f = _shed_solid(x1, x2, y1, y2, ez, g.get("pitch", 1 / 12), _high_edge(rects[key], prim), rt, oh)
-            pd = "SHED_ROOF"
+            surf = lambda o: _shed_surface(x1, x2, y1, y2, ez, pitch, high, o)
         else:  # "shedhip"
-            v, f = _shedhip_solid(x1, x2, y1, y2, ez, g.get("pitch", 0.45), _high_edge(rects[key], prim),
-                                  abs(y2 - y1), rt, oh)
-            pd = "SHED_ROOF"
-        add_brep(ctx, f"Roof - {key}", v, f, ROOF, predefined=pd)
+            surf = lambda o: _shedhip_surface(x1, x2, y1, y2, ez, pitch, high, abs(y2 - y1), o)
 
-        # Classical trim: a projecting cornice band just under the eaves, and a
-        # water-table belt at the top of the crawlspace — horizontal lines that
-        # unify the elevation and visually ground the raised box.
-        ch, cp = 0.30, 0.12
-        corn = make_box(ctx, "IfcBuildingElementProxy", f"Cornice - {key}",
-                        w + 2 * cp, d + 2 * cp, ch, cx, cy, ez - ch, color=TRIM)
-        run("spatial.assign_container", ctx.model, products=[corn], relating_structure=ctx.storey)
-        if crawl > 0:
+        if t == "hip":
+            # main block: flat ceiling with an attic under the hip
+            block = make_box(ctx, "IfcBuildingElementProxy", f"Massing - {key}",
+                             w, d, eave, cx, cy, crawl, color=WALL)
+            run("spatial.assign_container", ctx.model, products=[block], relating_structure=ctx.storey)
+            # cornice band just under the eaves (only the main block)
+            ch, cp = 0.30, 0.12
+            corn = make_box(ctx, "IfcBuildingElementProxy", f"Cornice - {key}",
+                            w + 2 * cp, d + 2 * cp, ch, cx, cy, ez - ch, color=TRIM)
+            run("spatial.assign_container", ctx.model, products=[corn], relating_structure=ctx.storey)
+        else:
+            # lean-to wing: sloped ceiling, so the shed roof sits directly on top
+            mv, mf = _filled_block(*surf(0.0), crawl)
+            add_brep(ctx, f"Massing - {key}", mv, mf, WALL, ifc_class="IfcBuildingElementProxy")
+
+        rv, rf = _roof_slab(*surf(oh), rt)
+        add_brep(ctx, f"Roof - {key}", rv, rf, ROOF, predefined=("HIP_ROOF" if t == "hip" else "SHED_ROOF"))
+
+        if crawl > 0:                              # water-table belt at the crawlspace top
             wh, wp = 0.15, 0.06
             wt = make_box(ctx, "IfcBuildingElementProxy", f"Water table - {key}",
                           w + 2 * wp, d + 2 * wp, wh, cx, cy, crawl - wh + 0.05, color=TRIM)
