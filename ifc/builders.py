@@ -749,14 +749,22 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
             tbox(f"Casing - {name}", pos - (w + CW) / 2, CW, sill_bot, head_top, 0.12)   # left jamb
             tbox(f"Casing - {name}", pos + (w + CW) / 2, CW, sill_bot, head_top, 0.12)   # right jamb
         else:
-            # full surround: flat head + jambs, projecting sill + apron, cornice head
+            # full surround: jambs + projecting sill + apron + cornice head. The
+            # "crossette" variant gives an eared architrave — the head steps out
+            # past the jambs with short down-turned lugs at the top corners.
             tbox(f"Casing - {name}", pos - (w + CW) / 2, CW, sill_m, head_top, 0.12)
             tbox(f"Casing - {name}", pos + (w + CW) / 2, CW, sill_m, head_top, 0.12)
-            tbox(f"Casing - {name}", pos, w + 2 * CW, head_m, head_top, 0.12)
+            ear = 0.4 if trim == "crossette" else 0.0
+            hw = w + 2 * CW + 2 * ear
+            tbox(f"Casing - {name}", pos, hw, head_m, head_top, 0.12)
+            if trim == "crossette":
+                for sgn in (-1, 1):     # down-turned ears at the top corners
+                    tbox(f"Casing - {name}", pos + sgn * (w / 2 + CW + ear / 2), ear,
+                         head_m - 0.6 * FT, head_m, 0.12)
             sill_bot = sill_m - 0.12
             tbox(f"Sill - {name}", pos, w + 2 * CW + 0.3, sill_bot, sill_m, 0.18)
             tbox(f"Apron - {name}", pos, w, sill_bot - 0.22, sill_bot, 0.12)
-            tbox(f"Header - {name}", pos, w + 2 * CW + 0.4, head_top, head_top + 0.12, 0.20)
+            tbox(f"Header - {name}", pos, hw + 0.3, head_top, head_top + 0.12, 0.20)
         # divided lights: muntin grid sized to ~square panes
         cols = max(2, round(w / 1.3))
         rows = max(2, round((h / FT) / 1.4))
@@ -766,6 +774,8 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
             zc = sill_m + j * (h / rows)
             tbox(f"Muntin - {name}", pos, w, zc - 0.025, zc + 0.025, 0.10)
 
+    prim = groups.get("primary")
+    front_z = max((rooms_cache[s]["bounds"]["z2"] for s in prim["rooms"]), default=None) if prim else None
     for g in groups.values():
         for s in g["rooms"]:
             r = rooms_cache[s]
@@ -773,8 +783,11 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
                 o, f, p = win["orient"], win["fixed"], win["pos"]
                 if not is_exterior(o, f, p):
                     continue
+                # front ground-floor windows get an eared (crossette) architrave
+                front = g is prim and o == "H" and front_z is not None and abs(f - front_z) < 1e-3
                 window(win["name"], o, f, p, win["width"],
-                       base + win["sill"] * FT, base + win["head"] * FT)
+                       base + win["sill"] * FT, base + win["head"] * FT,
+                       trim="crossette" if front else "full")
             for d in r.get("doors", []):
                 if d.get("opening"):          # interior cased opening, skip
                     continue
@@ -788,9 +801,7 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
     # window over each ground-floor front opening (the two windows AND the door).
     # The upper windows are graduated — shorter and narrower than the ground
     # floor (a classic Georgian/Colonial device) — for a balanced, tapering grid.
-    prim = groups.get("primary")
     if prim:
-        front_z = max(rooms_cache[s]["bounds"]["z2"] for s in prim["rooms"])
         u_sill, u_head = base + ctx.story + 2.5 * FT, base + ctx.story + 6.0 * FT  # 3.5' tall
         door = None
         for s in prim["rooms"]:
