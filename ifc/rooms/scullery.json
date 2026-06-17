@@ -18,6 +18,7 @@
       "width": 3.0,
       "headFt": 7.0,
       "doorStyle": "8lite",
+      "paint": "white",
       "swing": "neg",
       "hinge": "max"
     }

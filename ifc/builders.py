@@ -757,15 +757,16 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
                          ctx.X(pos), ctx.Y(fixed), sill_m, color=color)
         run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
 
-    def door_leaf(name, orient, fixed, pos, w_ft, z0, z1, style="panel"):
+    def door_leaf(name, orient, fixed, pos, w_ft, z0, z1, style="panel", paint=None):
         """An architectural stile-and-rail door leaf, built from boxes on the
         wall face (the solid massing sits behind it). A backing slab carries the
         IfcDoor; frame members + panels/glazing add relief on top.
           - "panel"  -> a raised six-panel door (2 cols x 3 rows).
           - "8lite"  -> a divided-light glazed door (2 cols x 4 rows = 8 lites).
         Depths step outward (slab < panel/glass < frame < muntin) so panels read
-        raised and the muntin grid sits proud of the glass."""
-        WOOD = (0.38, 0.24, 0.13)
+        raised and the muntin grid sits proud of the glass. `paint` overrides the
+        default stained-wood colour (e.g. "white" for a painted door)."""
+        WOOD = {"white": (0.92, 0.92, 0.89)}.get(paint, (0.38, 0.24, 0.13))
         w, H = abs(w_ft), z1 - z0
         if H <= 0.1 or w <= 0:
             return
@@ -897,7 +898,7 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
                 if not is_exterior(o, f, p):
                     continue
                 door_leaf(d["name"], o, f, p, d["width"], base, base + ctx.door_h_ft * FT,
-                          d.get("doorStyle", "panel"))
+                          d.get("doorStyle", "panel"), d.get("paint"))
 
     # Symmetric upper-floor window row + pedimented entry on the primary's front
     # (North) face. The front line is the primary's max plan z; place an upper
