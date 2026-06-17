@@ -856,67 +856,58 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
 
 
 def add_kitchen_feature(ctx, rooms_cache, base):
-    """Make the kitchen picture window special: a standing-seam copper hood — a
-    shallow segmental "bonnet" on two console brackets (a classical hood, not a
-    flat shed) — above it, and a copper planter box hung below, its bottom level
-    with the dining-room window sills."""
+    """Make the kitchen picture window special: a standing-seam copper hood —
+    shaped like the scullery's shed-with-hips, with 45° hipped ends — above the
+    window cornice, and a white planter box (greenery on top) hung on the wall
+    below, its top 6" beneath the glass."""
     kw = next((w for r in rooms_cache.values() for w in r.get("windows", [])
                if "Kitchen W (picture)" in w.get("name", "")), None)
     if kw is None:
         return
-    COPPER, GREEN = (0.69, 0.43, 0.24), (0.30, 0.45, 0.26)
+    COPPER, GREEN, BOX = (0.69, 0.43, 0.24), (0.30, 0.45, 0.26), (0.93, 0.92, 0.88)
     fx = ctx.X(kw["fixed"])
     out_x = -1.0 if ctx.X(kw["fixed"] + 1) < fx else 1.0   # outward (away from the wall)
     cy = ctx.Y(kw["pos"])
     sill_m = base + kw["sill"] * FT
     head_m = base + kw["head"] * FT
 
-    def curved_slab(pts, y0, y1, th, color, name):
-        """Closed slab whose top follows `pts` [(out, z)] and bottom is `th` below."""
-        V = []
-        for out, z in pts:
-            x = fx + out_x * out
-            V += [(x, y0, z), (x, y1, z), (x, y0, z - th), (x, y1, z - th)]
-        F = []
-        for i in range(len(pts) - 1):
-            a, b = 4 * i, 4 * (i + 1)
-            F += [[a, a + 1, b + 1, b], [a + 2, b + 2, b + 3, a + 3],
-                  [a, b, b + 2, a + 2], [a + 1, a + 3, b + 3, b + 1]]
-        e = 4 * (len(pts) - 1)
-        F += [[0, 2, 3, 1], [e, e + 1, e + 3, e + 2]]
-        add_brep(ctx, name, V, F, color, ifc_class="IfcBuildingElementProxy")
-
-    # segmental "bonnet" hood: springs above the window head, curving out + down
-    proj, drop, crown = 2.5 * FT, 1.0 * FT, 0.4 * FT
-    spring = head_m + 0.7 * FT
-    hw = (kw["width"] / 2 + 0.5) * FT
+    # standing-seam copper hood shaped like the scullery's shed-with-hips: high at
+    # the wall, sloping down to a front eave, the two ends hipped in (not gabled).
+    proj, drop, th = 2.5 * FT, 0.9 * FT, 0.06
+    hip = proj                                # hip inset == projection -> 45° hip in plan
+    z_hi = head_m + 1.1 * FT                  # ridge, on the wall above the window cornice
+    z_lo = z_hi - drop                        # front eave
+    hw = (kw["width"] / 2 + 1.5) * FT         # wide enough to cover the window + side trim
     ylo, yhi = cy - hw, cy + hw
-    Nf = 8
-    prof = [(proj * (i / Nf), spring - drop * (i / Nf) + crown * math.sin(math.pi * i / Nf))
-            for i in range(Nf + 1)]
-    curved_slab(prof, ylo, yhi, 0.06, COPPER, "Kitchen awning")
-    # standing seams: raised ribs running down the hood, evenly across its width
+    xf = fx + out_x * proj                   # front eave (projected out)
+    top = [(xf, ylo, z_lo), (xf, yhi, z_lo),            # 0,1 front eave
+           (fx, ylo, z_lo), (fx, yhi, z_lo),            # 2,3 wall, low (ends)
+           (fx, ylo + hip, z_hi), (fx, yhi - hip, z_hi)]  # 4,5 ridge (inset)
+    verts = top + [(x, y, z - th) for x, y, z in top]   # 6..11 soffit
+    faces = [[4, 5, 1, 0], [2, 0, 4], [1, 3, 5], [2, 4, 5, 3],          # top: main slope, 2 hips, wall gable
+             [10, 11, 7, 6], [8, 6, 10], [7, 9, 11], [8, 10, 11, 9],     # soffit
+             [0, 1, 7, 6], [1, 3, 9, 7], [3, 2, 8, 9], [2, 0, 6, 8]]     # edges (front, sides, wall)
+    add_brep(ctx, "Kitchen awning", verts, faces, COPPER, ifc_class="IfcBuildingElementProxy")
+    # standing seams: raised ribs down the main slope (ridge -> front eave)
+    rw, rh = 0.015, 0.04
     nseam = 6
     for k in range(nseam):
-        ys = ylo + (k + 0.5) * (yhi - ylo) / nseam
-        curved_slab([(o, z + 0.04) for o, z in prof], ys - 0.015, ys + 0.015, 0.04, COPPER,
-                    "Kitchen awning seam")
-    # console brackets carrying the hood ends
-    for s in (-1, 1):
-        by, bw = cy + s * (hw - 0.15), 0.12
-        bp, z_t, z_b = 1.0 * FT, spring, spring - 1.3 * FT
-        x1 = fx + out_x * bp
-        V = [(fx, by - bw, z_t), (fx, by + bw, z_t), (fx, by - bw, z_b), (fx, by + bw, z_b),
-             (x1, by - bw, z_t), (x1, by + bw, z_t)]
-        F = [[0, 2, 4], [1, 3, 5], [0, 1, 5, 4], [0, 2, 3, 1], [2, 3, 5, 4]]
-        add_brep(ctx, "Kitchen awning bracket", V, F, COPPER, ifc_class="IfcBuildingElementProxy")
+        u = (k + 0.5) / nseam
+        ry = (ylo + hip) + u * (yhi - ylo - 2 * hip)
+        ey = ylo + u * (yhi - ylo)
+        fv = [(fx, ry - rw, z_hi), (fx, ry + rw, z_hi), (xf, ey - rw, z_lo), (xf, ey + rw, z_lo)]
+        fv += [(x, y, z + rh) for x, y, z in fv]
+        ff = [[0, 1, 3, 2], [4, 5, 7, 6], [0, 2, 6, 4], [1, 5, 7, 3], [0, 4, 5, 1], [2, 3, 7, 6]]
+        add_brep(ctx, "Kitchen awning seam", fv, ff, COPPER, ifc_class="IfcBuildingElementProxy")
 
-    # planter box hung below the window, bottom at the dining-sill level (~2.5')
-    pb_bot, pdepth = base + 2.5 * FT, 1.0 * FT
+    # planter box on the wall below the sill: its top sits 6" below the glass,
+    # with greenery filling the gap up to the glass.
+    box_top = sill_m - 0.5 * FT          # 6" below the bottom of the glass
+    box_h, pdepth = 0.83 * FT, 1.0 * FT
     pw = (kw["width"] / 2 - 0.25) * FT
     pcx = fx + out_x * pdepth / 2
-    for nm, z0, hgt, col in (("Kitchen planter box", pb_bot, sill_m - pb_bot, COPPER),
-                             ("Kitchen planter greenery", sill_m, 0.12, GREEN)):
+    for nm, z0, hgt, col in (("Kitchen planter box", box_top - box_h, box_h, BOX),
+                             ("Kitchen planter greenery", box_top, 0.5 * FT, GREEN)):
         b = make_box(ctx, "IfcBuildingElementProxy", nm, pdepth, 2 * pw, hgt, pcx, cy, z0, color=col)
         run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
