@@ -906,8 +906,10 @@ def add_kitchen_feature(ctx, rooms_cache, base):
     dining_sill = next((w["sill"] for r in rooms_cache.values() for w in r.get("windows", [])
                         if "Dining W" in w.get("name", "")), 2.5)
     box_top = sill_m - 0.5 * FT                  # 6" below the kitchen glass
-    box_bot = base + dining_sill * FT            # bottom level with the dining-window sills,
-    pdepth = 1.0 * FT                            # so all three windows read as starting together
+    # bottom level with the dining windows' apron (sill 0.12 + apron 0.22 below
+    # their glass), so the kitchen window assembly starts at the same height
+    box_bot = base + dining_sill * FT - 0.34
+    pdepth = 1.0 * FT
     pw = (kw["width"] / 2 - 0.25) * FT
     pcx = fx + out_x * pdepth / 2
     for nm, z0, hgt, col in (("Kitchen planter box", box_bot, box_top - box_bot, BOX),
