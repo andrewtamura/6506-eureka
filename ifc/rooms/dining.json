@@ -34,7 +34,7 @@
       "orient": "H",
       "fixed": 16.0833,
       "pos": 18.1,
-      "width": 3.5,
+      "width": 3.0,
       "sill": 2.5,
       "head": 7.0
     },
@@ -43,7 +43,7 @@
       "orient": "H",
       "fixed": 16.0833,
       "pos": 26.7,
-      "width": 3.5,
+      "width": 3.0,
       "sill": 2.5,
       "head": 7.0
     }
