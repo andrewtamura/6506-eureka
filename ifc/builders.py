@@ -789,9 +789,9 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
         # backing slab (the IfcDoor itself) covers the whole opening
         dbox(pos, w, z0, z1, DSLAB, WOOD, cls="IfcDoor", nm=name)
         fw = w - 2 * STILE                                       # inner field width (ft)
-        # an 8-lite door is full-glazed: thin rails so the lites run top to
-        # bottom; the panel door seats its panels on heavier rails.
-        botm = (0.42 if style == "8lite" else BRAIL) * FT        # bottom rail (m)
+        # glazed doors (8-lite, patio) get thin rails so the glass runs top to
+        # bottom; the panel door seats its panels on a heavier bottom rail.
+        botm = (0.42 if style in ("8lite", "patio") else BRAIL) * FT  # bottom rail (m)
         fz0, fz1 = z0 + botm, z1 - TRAILm                        # inner field height (m)
         # frame relief (proud): stiles + top + bottom rails
         dbox(pos - (w - STILE) / 2, STILE, z0, z1, DFRAME, WOOD)
@@ -806,6 +806,15 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
             for j in range(1, 4):                                # 3 horizontal -> 4 rows
                 zc = fz0 + j * (fz1 - fz0) / 4
                 dbox(pos, fw, zc - mh, zc + mh, DMUN, WOOD)
+        elif style == "patio":
+            # two leaves, each a single large glass pane (no muntins), meeting
+            # at a centre post
+            CP = 0.5                                             # centre meeting post (ft)
+            dbox(pos, CP, fz0, fz1, DFRAME, WOOD)
+            pane = (fw - CP) / 2                                 # one leaf's glass (ft)
+            off = (CP + pane) / 2                                # pane centre from middle
+            for cc in (pos - off, pos + off):
+                dbox(cc, pane, fz0, fz1, DPANE, GLASS)
         else:                                                    # raised six-panel
             MIDm = 0.5 * FT                                      # intermediate rail height (m)
             seg = (fz1 - fz0 - 2 * MIDm) / 3                     # panel-row height

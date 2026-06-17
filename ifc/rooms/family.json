@@ -40,6 +40,7 @@
       "fixed": -11.9167,
       "pos": -4.92,
       "width": 6.67,
+      "doorStyle": "patio",
       "swing": "pos"
     }
   ],
