@@ -757,6 +757,68 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
                          ctx.X(pos), ctx.Y(fixed), sill_m, color=color)
         run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
 
+    def door_leaf(name, orient, fixed, pos, w_ft, z0, z1, style="panel"):
+        """An architectural stile-and-rail door leaf, built from boxes on the
+        wall face (the solid massing sits behind it). A backing slab carries the
+        IfcDoor; frame members + panels/glazing add relief on top.
+          - "panel"  -> a raised six-panel door (2 cols x 3 rows).
+          - "8lite"  -> a divided-light glazed door (2 cols x 4 rows = 8 lites).
+        Depths step outward (slab < panel/glass < frame < muntin) so panels read
+        raised and the muntin grid sits proud of the glass."""
+        WOOD = (0.38, 0.24, 0.13)
+        w, H = abs(w_ft), z1 - z0
+        if H <= 0.1 or w <= 0:
+            return
+        STILE, TRAIL, BRAIL, MUN = 0.46, 0.46, 0.92, 0.10        # member sizes (ft)
+        DSLAB, DPANE, DFRAME, DMUN = 0.09, 0.12, 0.15, 0.17      # depths (m)
+        TRAILm, BRAILm = TRAIL * FT, BRAIL * FT                  # rails in metres (z-axis)
+
+        def dbox(apos, alen, zlo, zhi, dep, color, cls="IfcBuildingElementProxy", nm=None):
+            if zhi - zlo <= 0 or alen <= 0:
+                return
+            nm = nm or f"{name} part"
+            if orient == "H":   # wall runs along X; member spans X, thin in Y
+                b = make_box(ctx, cls, nm, alen * FT, dep, zhi - zlo,
+                             ctx.X(apos), ctx.Y(fixed), zlo, color=color)
+            else:               # wall runs along Z; member spans Y, thin in X
+                b = make_box(ctx, cls, nm, dep, alen * FT, zhi - zlo,
+                             ctx.X(fixed), ctx.Y(apos), zlo, color=color)
+            run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
+
+        # backing slab (the IfcDoor itself) covers the whole opening
+        dbox(pos, w, z0, z1, DSLAB, WOOD, cls="IfcDoor", nm=name)
+        fw = w - 2 * STILE                                       # inner field width (ft)
+        # an 8-lite door is full-glazed: thin rails so the lites run top to
+        # bottom; the panel door seats its panels on heavier rails.
+        botm = (0.42 if style == "8lite" else BRAIL) * FT        # bottom rail (m)
+        fz0, fz1 = z0 + botm, z1 - TRAILm                        # inner field height (m)
+        # frame relief (proud): stiles + top + bottom rails
+        dbox(pos - (w - STILE) / 2, STILE, z0, z1, DFRAME, WOOD)
+        dbox(pos + (w - STILE) / 2, STILE, z0, z1, DFRAME, WOOD)
+        dbox(pos, fw, fz1, z1, DFRAME, WOOD)                     # top rail
+        dbox(pos, fw, z0, fz0, DFRAME, WOOD)                     # bottom rail
+        mh = MUN * FT / 2                                        # half muntin/rail thickness (m)
+        if style == "8lite":
+            # two columns of glass, each split into four lites top-to-bottom
+            dbox(pos, fw, fz0, fz1, DPANE, GLASS)                # glazed field
+            dbox(pos, MUN, fz0, fz1, DMUN, WOOD)                 # 1 vertical -> 2 cols
+            for j in range(1, 4):                                # 3 horizontal -> 4 rows
+                zc = fz0 + j * (fz1 - fz0) / 4
+                dbox(pos, fw, zc - mh, zc + mh, DMUN, WOOD)
+        else:                                                    # raised six-panel
+            MIDm = 0.5 * FT                                      # intermediate rail height (m)
+            seg = (fz1 - fz0 - 2 * MIDm) / 3                     # panel-row height
+            r1, r2 = fz0 + seg, fz0 + 2 * seg + MIDm
+            dbox(pos, MUN, fz0, fz1, DFRAME, WOOD)               # center mullion -> 2 cols
+            dbox(pos, fw, r1, r1 + MIDm, DFRAME, WOOD)           # lower mid rail
+            dbox(pos, fw, r2, r2 + MIDm, DFRAME, WOOD)           # upper mid rail
+            colw = (fw - MUN) / 2                                # one panel column (ft)
+            ins = 0.12                                           # panel inset (ft)
+            rows = ((fz0, r1), (r1 + MIDm, r2), (r2 + MIDm, fz1))
+            for zlo, zhi in rows:
+                for cc in (pos - (colw + MUN) / 2, pos + (colw + MUN) / 2):
+                    dbox(cc, colw - 2 * ins, zlo + ins * FT, zhi - ins * FT, DPANE, WOOD)
+
     def window(name, orient, fixed, pos, w, sill_m, head_m, trim="full"):
         """A glass panel with a classical surround + divided-light muntins. Trim
         styles distinguish the floors / facades:
@@ -834,7 +896,8 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
                 o, f, p = d["orient"], d["fixed"], d["pos"]
                 if not is_exterior(o, f, p):
                     continue
-                panel("IfcDoor", d["name"], o, f, p, d["width"], base, base + ctx.door_h_ft * FT, DOOR)
+                door_leaf(d["name"], o, f, p, d["width"], base, base + ctx.door_h_ft * FT,
+                          d.get("doorStyle", "panel"))
 
     # Symmetric upper-floor window row + pedimented entry on the primary's front
     # (North) face. The front line is the primary's max plan z; place an upper
