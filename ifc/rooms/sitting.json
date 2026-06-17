@@ -12,11 +12,20 @@
   "doors": [],
   "windows": [
     {
-      "name": "Window - Sitting N (picture)",
+      "name": "Window - Sitting N1",
       "orient": "H",
       "fixed": 16.0833,
-      "pos": -3.4,
-      "width": 6.0,
+      "pos": -7.7,
+      "width": 3.5,
+      "sill": 2.5,
+      "head": 7.0
+    },
+    {
+      "name": "Window - Sitting N2",
+      "orient": "H",
+      "fixed": 16.0833,
+      "pos": 0.9,
+      "width": 3.5,
       "sill": 2.5,
       "head": 7.0
     }
