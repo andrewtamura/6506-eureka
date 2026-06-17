@@ -678,6 +678,30 @@ def add_entry(ctx, px, pz, dw_ft, base):
     place("Entry tympanum tablet", px, 1.4, PED_D + 0.04, z0 + 0.08, z0 + 0.08 + 0.4 * ph)
 
 
+def second_floor_front_windows(rooms):
+    """(front_z, specs) for the second-floor front row: one window over each
+    ground-floor front (North) opening — the windows AND the door — graduated to
+    2.5' wide with sill 2.5' / head 6' above the second floor. Shared by the
+    exterior massing's upper row and the second-floor shell so the two match."""
+    fz = max(r["bounds"]["z2"] for r in rooms)
+    specs = []
+    for r in rooms:
+        for o in r.get("windows", []) + r.get("doors", []):
+            if o["orient"] == "H" and abs(o["fixed"] - fz) < 1e-3 and not o.get("opening"):
+                specs.append({"name": f"Upper - {o['name']}", "pos": o["pos"],
+                              "width": 2.5, "sill": 2.5, "head": 6.0})
+    return fz, specs
+
+
+def add_shell_windows(ctx, rooms):
+    """Cut the second-floor front window openings into a shell, kept in sync with
+    the exterior massing's upper row (same positions and size)."""
+    fz, specs = second_floor_front_windows(rooms)
+    for w in specs:
+        cut_opening(ctx, "IfcWindow", w["name"], "H", fz, w["pos"], w["width"],
+                    w["sill"], w["head"], leaf=True)
+
+
 def add_fenestration(ctx, groups, rooms_cache, base=0.0):
     """Low-fidelity windows + exterior door openings on the massing faces. The
     per-room windows/doors are reused: an opening is exterior when one side of
@@ -802,16 +826,13 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
     # The upper windows are graduated — shorter and narrower than the ground
     # floor (a classic Georgian/Colonial device) — for a balanced, tapering grid.
     if prim:
-        u_sill, u_head = base + ctx.story + 2.5 * FT, base + ctx.story + 6.0 * FT  # 3.5' tall
-        door = None
-        for s in prim["rooms"]:
-            r = rooms_cache[s]
-            for o in r.get("windows", []) + r.get("doors", []):
-                if o["orient"] != "H" or abs(o["fixed"] - front_z) > 1e-3 or o.get("opening"):
-                    continue
-                window(f"Upper - {o['name']}", "H", front_z, o["pos"], 2.5, u_sill, u_head, trim="upper")
-                if "Front Door" in o.get("name", ""):
-                    door = o
+        # Second-floor front row — shared with the level2 shell so they stay in sync.
+        _, specs = second_floor_front_windows([rooms_cache[s] for s in prim["rooms"]])
+        for w in specs:
+            window(w["name"], "H", front_z, w["pos"], w["width"],
+                   base + ctx.story + w["sill"] * FT, base + ctx.story + w["head"] * FT, trim="upper")
+        door = next((o for s in prim["rooms"] for o in rooms_cache[s].get("doors", [])
+                     if "Front Door" in o.get("name", "")), None)
         if door:
             add_entry(ctx, door["pos"], front_z, door["width"], base)
 

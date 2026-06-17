@@ -9,8 +9,16 @@
   "slabThickness": 0.2,
   "doorHeight": 7.0,
   "headHeight": 7.0,
-  "orientation": { "xs": -1, "zs": 1 },
-  "lot": { "widthFt": 100, "depthFt": 50, "westMarginFt": 16, "scullerySouthFt": 5 },
+  "orientation": {
+    "xs": -1,
+    "zs": 1
+  },
+  "lot": {
+    "widthFt": 100,
+    "depthFt": 50,
+    "westMarginFt": 16,
+    "scullerySouthFt": 5
+  },
   "levels": [
     {
       "id": "exterior",
@@ -18,11 +26,56 @@
       "label": "Exterior + Lot",
       "kind": "exterior",
       "crawlspaceFt": 2.5,
-      "rooms": ["family", "kitchen", "sitting", "dining", "foyer", "vestibule", "ext_bath", "wc", "ext_vestibule", "ext_laundry", "scullery"],
+      "rooms": [
+        "family",
+        "kitchen",
+        "sitting",
+        "dining",
+        "foyer",
+        "vestibule",
+        "ext_bath",
+        "wc",
+        "ext_vestibule",
+        "ext_laundry",
+        "scullery"
+      ],
       "roofGroups": {
-        "primary": { "rooms": ["family", "kitchen", "sitting", "dining", "foyer", "vestibule"], "storeys": 2, "type": "hip", "pitch": 0.5, "overhangFt": 1.5 },
-        "extension": { "rooms": ["ext_bath", "wc", "ext_vestibule", "ext_laundry"], "storeys": 2, "trimFt": 2, "type": "shed", "pitch": 0.0833, "overhangFt": 1.5 },
-        "scullery": { "rooms": ["scullery"], "storeys": 1, "type": "shedhip", "pitch": 0.45, "overhangFt": 1.5 }
+        "primary": {
+          "rooms": [
+            "family",
+            "kitchen",
+            "sitting",
+            "dining",
+            "foyer",
+            "vestibule"
+          ],
+          "storeys": 2,
+          "type": "hip",
+          "pitch": 0.5,
+          "overhangFt": 1.5
+        },
+        "extension": {
+          "rooms": [
+            "ext_bath",
+            "wc",
+            "ext_vestibule",
+            "ext_laundry"
+          ],
+          "storeys": 2,
+          "trimFt": 2,
+          "type": "shed",
+          "pitch": 0.0833,
+          "overhangFt": 1.5
+        },
+        "scullery": {
+          "rooms": [
+            "scullery"
+          ],
+          "storeys": 1,
+          "type": "shedhip",
+          "pitch": 0.45,
+          "overhangFt": 1.5
+        }
       }
     },
     {
@@ -30,21 +83,52 @@
       "storey": "Ground Floor",
       "label": "Ground Floor",
       "kind": "full",
-      "rooms": ["family", "kitchen", "sitting", "dining", "foyer", "vestibule", "ext_bath", "wc", "ext_vestibule", "ext_laundry", "scullery"]
+      "rooms": [
+        "family",
+        "kitchen",
+        "sitting",
+        "dining",
+        "foyer",
+        "vestibule",
+        "ext_bath",
+        "wc",
+        "ext_vestibule",
+        "ext_laundry",
+        "scullery"
+      ]
     },
     {
       "id": "level2",
       "storey": "Second Floor",
       "label": "Second Floor",
       "kind": "shell",
-      "rooms": ["family", "kitchen", "sitting", "dining", "foyer", "vestibule", "ext_bath", "wc", "ext_vestibule", "ext_laundry"]
+      "rooms": [
+        "family",
+        "kitchen",
+        "sitting",
+        "dining",
+        "foyer",
+        "vestibule",
+        "ext_bath",
+        "wc",
+        "ext_vestibule",
+        "ext_laundry"
+      ],
+      "upperWindows": true
     },
     {
       "id": "attic",
       "storey": "Attic",
       "label": "Attic",
       "kind": "shell",
-      "rooms": ["family", "kitchen", "sitting", "dining", "foyer", "vestibule"]
+      "rooms": [
+        "family",
+        "kitchen",
+        "sitting",
+        "dining",
+        "foyer",
+        "vestibule"
+      ]
     }
   ]
 }

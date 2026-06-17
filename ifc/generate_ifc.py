@@ -128,6 +128,8 @@ def build_level(cfg, rooms_cache, level):
         compute_paneling(ctx, rooms)
     elif kind == "shell":
         B.add_shell(ctx, rooms)
+        if level.get("upperWindows"):     # second-floor windows, synced to the exterior
+            B.add_shell_windows(ctx, rooms)
     elif kind == "exterior":
         B.add_lot(ctx, cfg["lot"], rooms)
         # Solid massing blocks (per building part, at their storey heights) +
