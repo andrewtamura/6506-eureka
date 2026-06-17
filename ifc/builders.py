@@ -687,8 +687,10 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
     GLASS = (0.42, 0.52, 0.60)   # muted blue-grey glazing
     DOOR = (0.18, 0.16, 0.15)    # dark opening
     SHUT = (0.24, 0.30, 0.26)    # dark-green louvered shutters
+    TRIM = (0.93, 0.92, 0.88)    # white window trim (casing / sill / muntins)
     DEPTH = 0.08                  # panel thickness (m)
     EPS = 0.35                    # plan feet just past the wall face
+    CW = 0.5                      # casing board width (ft)
 
     grp_rooms = [s for g in groups.values() for s in g["rooms"]]
     rects = [rooms_cache[s]["bounds"] for s in grp_rooms]
@@ -715,22 +717,57 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
         run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
 
     def window(name, orient, fixed, pos, w, sill_m, head_m, shutters=False):
-        """A glass panel; with `shutters`, a flanking pair of louvered shutters
-        each half the window wide (so a closed pair covers the glass), sitting
-        just outside the window edges."""
+        """A glass panel with a classical Colonial surround — flat casing
+        (architrave), a projecting sill + apron, a projecting header cornice, and
+        divided-light muntins. With `shutters`, a flanking pair each half the
+        window wide (a closed pair would cover the glass), set just outside the
+        casing. A board/box placed on a wall runs along the wall axis (X for an
+        H wall, Z for a V wall) and is centred on the wall face."""
         panel("IfcWindow", name, orient, fixed, pos, w, sill_m, head_m, GLASS)
-        if not shutters:
-            return
-        h, sw = head_m - sill_m, w / 2.0      # each shutter half the window
-        off = w / 2.0 + sw / 2.0              # inner edge flush with the window edge
-        for sgn in (-1, 1):
-            if orient == "V":
-                b = make_box(ctx, "IfcBuildingElementProxy", f"Shutter - {name}", DEPTH, sw * FT, h,
-                             ctx.X(fixed), ctx.Y(pos + sgn * off), sill_m, color=SHUT)
-            else:
-                b = make_box(ctx, "IfcBuildingElementProxy", f"Shutter - {name}", sw * FT, DEPTH, h,
-                             ctx.X(pos + sgn * off), ctx.Y(fixed), sill_m, color=SHUT)
+        h = head_m - sill_m
+
+        def tbox(nm, apos, alen, zlo, zhi, dep, color=TRIM):
+            if zhi - zlo <= 0 or alen <= 0:
+                return
+            if orient == "H":   # wall along X; board spans X, `dep` is the Y depth
+                b = make_box(ctx, "IfcBuildingElementProxy", nm, alen * FT, dep, zhi - zlo,
+                             ctx.X(apos), ctx.Y(fixed), zlo, color=color)
+            else:               # wall along Z; board spans Y, `dep` is the X depth
+                b = make_box(ctx, "IfcBuildingElementProxy", nm, dep, alen * FT, zhi - zlo,
+                             ctx.X(fixed), ctx.Y(apos), zlo, color=color)
             run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
+
+        head_top = head_m + CW * FT
+        # casing: two jambs + a head board
+        tbox(f"Casing - {name}", pos - (w + CW) / 2, CW, sill_m, head_top, 0.12)
+        tbox(f"Casing - {name}", pos + (w + CW) / 2, CW, sill_m, head_top, 0.12)
+        tbox(f"Casing - {name}", pos, w + 2 * CW, head_m, head_top, 0.12)
+        # projecting sill + apron beneath
+        sill_bot = sill_m - 0.12
+        tbox(f"Sill - {name}", pos, w + 2 * CW + 0.3, sill_bot, sill_m, 0.18)
+        tbox(f"Apron - {name}", pos, w, sill_bot - 0.22, sill_bot, 0.12)
+        # projecting header cornice above the head board
+        tbox(f"Header - {name}", pos, w + 2 * CW + 0.4, head_top, head_top + 0.12, 0.20)
+        # divided lights: muntin grid sized to ~square panes
+        cols = max(2, round(w / 1.3))
+        rows = max(2, round((h / FT) / 1.4))
+        for i in range(1, cols):
+            tbox(f"Muntin - {name}", pos - w / 2 + i * (w / cols), 0.06, sill_m + 0.02, head_m - 0.02, 0.10)
+        for j in range(1, rows):
+            zc = sill_m + j * (h / rows)
+            tbox(f"Muntin - {name}", pos, w, zc - 0.025, zc + 0.025, 0.10)
+
+        if shutters:
+            sw = w / 2.0                       # each shutter half the window
+            off = w / 2.0 + CW + sw / 2.0      # just outside the casing
+            for sgn in (-1, 1):
+                if orient == "V":
+                    b = make_box(ctx, "IfcBuildingElementProxy", f"Shutter - {name}", DEPTH, sw * FT, h,
+                                 ctx.X(fixed), ctx.Y(pos + sgn * off), sill_m, color=SHUT)
+                else:
+                    b = make_box(ctx, "IfcBuildingElementProxy", f"Shutter - {name}", sw * FT, DEPTH, h,
+                                 ctx.X(pos + sgn * off), ctx.Y(fixed), sill_m, color=SHUT)
+                run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
     for g in groups.values():
         for s in g["rooms"]:
