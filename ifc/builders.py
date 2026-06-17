@@ -68,7 +68,10 @@ class Ctx:
         o = cfg.get("orientation", {"xs": 1, "zs": 1})
         self.xs, self.zs = o["xs"], o["zs"]
         self.T = cfg["wallThickness"] * FT          # wall thickness (m)
-        self.H = cfg["wallHeight"] * FT             # wall / ceiling height (m)
+        self.H = cfg["wallHeight"] * FT             # interior floor-to-ceiling (m)
+        # Floor-to-floor story height for the structure (ceiling + floor/joist
+        # zone); drives the exterior massing & upper-floor placement.
+        self.story = cfg.get("storyHeight", cfg["wallHeight"]) * FT
         self.slab_t = cfg["slabThickness"]          # floor slab thickness (m)
         self.door_h_ft = cfg["doorHeight"]          # door head height (ft)
         # Uniform head height for ALL doors and windows above the finish floor.
@@ -528,7 +531,7 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
     rt = (5.5 + 2.0) / 12 * FT                      # assembly depth: 2x6 rafters + >=2"
     for key, g in groups.items():
         x1, x2, y1, y2 = rects[key]
-        eave = g.get("storeys", 1) * ctx.H - g.get("trimFt", 0) * FT
+        eave = g.get("storeys", 1) * ctx.story - g.get("trimFt", 0) * FT
         cx, cy, w, d = (x1 + x2) / 2, (y1 + y2) / 2, abs(x2 - x1), abs(y2 - y1)
         if crawl > 0:                              # foundation band, grade -> floor
             cb = make_box(ctx, "IfcSlab", f"Crawlspace - {key}", w, d, crawl, cx, cy, 0.0,
@@ -777,7 +780,7 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
     prim = groups.get("primary")
     if prim:
         front_z = max(rooms_cache[s]["bounds"]["z2"] for s in prim["rooms"])
-        u_sill, u_head = base + ctx.H + 2.5 * FT, base + ctx.H + 7 * FT
+        u_sill, u_head = base + ctx.story + 2.5 * FT, base + ctx.story + 7 * FT
         door = None
         for s in prim["rooms"]:
             r = rooms_cache[s]
