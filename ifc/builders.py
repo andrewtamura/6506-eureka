@@ -852,6 +852,74 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
         if door:
             add_entry(ctx, door["pos"], front_z, door["width"], base)
 
+    add_kitchen_feature(ctx, rooms_cache, base)
+
+
+def add_kitchen_feature(ctx, rooms_cache, base):
+    """Make the kitchen picture window special: a standing-seam copper hood — a
+    shallow segmental "bonnet" on two console brackets (a classical hood, not a
+    flat shed) — above it, and a copper planter box hung below, its bottom level
+    with the dining-room window sills."""
+    kw = next((w for r in rooms_cache.values() for w in r.get("windows", [])
+               if "Kitchen W (picture)" in w.get("name", "")), None)
+    if kw is None:
+        return
+    COPPER, GREEN = (0.69, 0.43, 0.24), (0.30, 0.45, 0.26)
+    fx = ctx.X(kw["fixed"])
+    out_x = -1.0 if ctx.X(kw["fixed"] + 1) < fx else 1.0   # outward (away from the wall)
+    cy = ctx.Y(kw["pos"])
+    sill_m = base + kw["sill"] * FT
+    head_m = base + kw["head"] * FT
+
+    def curved_slab(pts, y0, y1, th, color, name):
+        """Closed slab whose top follows `pts` [(out, z)] and bottom is `th` below."""
+        V = []
+        for out, z in pts:
+            x = fx + out_x * out
+            V += [(x, y0, z), (x, y1, z), (x, y0, z - th), (x, y1, z - th)]
+        F = []
+        for i in range(len(pts) - 1):
+            a, b = 4 * i, 4 * (i + 1)
+            F += [[a, a + 1, b + 1, b], [a + 2, b + 2, b + 3, a + 3],
+                  [a, b, b + 2, a + 2], [a + 1, a + 3, b + 3, b + 1]]
+        e = 4 * (len(pts) - 1)
+        F += [[0, 2, 3, 1], [e, e + 1, e + 3, e + 2]]
+        add_brep(ctx, name, V, F, color, ifc_class="IfcBuildingElementProxy")
+
+    # segmental "bonnet" hood: springs above the window head, curving out + down
+    proj, drop, crown = 2.5 * FT, 1.0 * FT, 0.4 * FT
+    spring = head_m + 0.7 * FT
+    hw = (kw["width"] / 2 + 0.5) * FT
+    ylo, yhi = cy - hw, cy + hw
+    Nf = 8
+    prof = [(proj * (i / Nf), spring - drop * (i / Nf) + crown * math.sin(math.pi * i / Nf))
+            for i in range(Nf + 1)]
+    curved_slab(prof, ylo, yhi, 0.06, COPPER, "Kitchen awning")
+    # standing seams: raised ribs running down the hood, evenly across its width
+    nseam = 6
+    for k in range(nseam):
+        ys = ylo + (k + 0.5) * (yhi - ylo) / nseam
+        curved_slab([(o, z + 0.04) for o, z in prof], ys - 0.015, ys + 0.015, 0.04, COPPER,
+                    "Kitchen awning seam")
+    # console brackets carrying the hood ends
+    for s in (-1, 1):
+        by, bw = cy + s * (hw - 0.15), 0.12
+        bp, z_t, z_b = 1.0 * FT, spring, spring - 1.3 * FT
+        x1 = fx + out_x * bp
+        V = [(fx, by - bw, z_t), (fx, by + bw, z_t), (fx, by - bw, z_b), (fx, by + bw, z_b),
+             (x1, by - bw, z_t), (x1, by + bw, z_t)]
+        F = [[0, 2, 4], [1, 3, 5], [0, 1, 5, 4], [0, 2, 3, 1], [2, 3, 5, 4]]
+        add_brep(ctx, "Kitchen awning bracket", V, F, COPPER, ifc_class="IfcBuildingElementProxy")
+
+    # planter box hung below the window, bottom at the dining-sill level (~2.5')
+    pb_bot, pdepth = base + 2.5 * FT, 1.0 * FT
+    pw = (kw["width"] / 2 - 0.25) * FT
+    pcx = fx + out_x * pdepth / 2
+    for nm, z0, hgt, col in (("Kitchen planter box", pb_bot, sill_m - pb_bot, COPPER),
+                             ("Kitchen planter greenery", sill_m, 0.12, GREEN)):
+        b = make_box(ctx, "IfcBuildingElementProxy", nm, pdepth, 2 * pw, hgt, pcx, cy, z0, color=col)
+        run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
+
 
 def add_slab(ctx, r):
     x1, x2, y1, y2 = ifc_bounds(ctx, r["bounds"])
