@@ -679,28 +679,31 @@ def add_entry(ctx, px, pz, dw_ft, base):
 
 
 def second_floor_windows(rooms):
-    """(front_z, specs) for the second-floor windows, stacked over the ground-
-    floor openings on the primary's front (North) and west walls. One upper over
-    a narrow opening; a flanking pair over a wide one (>5'). Graduated to 2.5'
-    wide, sill 2.5' / head 6' above the second floor. Shared by the exterior
-    massing's upper row and the second-floor shell so the two stay in sync."""
+    """(front_z, specs) for the second-floor windows. The North (front) row stacks
+    one upper over each ground-floor front opening (already the even 5-bay
+    rhythm); the West wall gets four equally-spaced uppers across its length. All
+    graduated to 2.5' wide, sill 2.5' / head 6' above the second floor. Shared by
+    the exterior massing's upper row and the second-floor shell so they stay in
+    sync."""
     front_z = max(r["bounds"]["z2"] for r in rooms)   # North wall
     west_x = max(r["bounds"]["x2"] for r in rooms)     # West wall
     specs = []
+    # North: one upper over each ground-floor front opening (windows + door)
     for r in rooms:
         for o in r.get("windows", []) + r.get("doors", []):
-            if o.get("opening"):
-                continue
-            orient, fixed, pos, w = o["orient"], o["fixed"], o["pos"], o["width"]
-            if not ((orient == "H" and abs(fixed - front_z) < 1e-3) or
-                    (orient == "V" and abs(fixed - west_x) < 1e-3)):
-                continue
-            offs = [-w / 4, w / 4] if w > 5.0 else [0.0]   # a pair over a wide window
-            for i, off in enumerate(offs):
-                suffix = f" {i + 1}" if len(offs) > 1 else ""
-                specs.append({"name": f"Upper - {o['name']}{suffix}", "orient": orient,
-                              "fixed": fixed, "pos": pos + off,
-                              "width": 2.5, "sill": 2.5, "head": 6.0})
+            if not o.get("opening") and o["orient"] == "H" and abs(o["fixed"] - front_z) < 1e-3:
+                specs.append({"name": f"Upper - {o['name']}", "orient": "H", "fixed": front_z,
+                              "pos": o["pos"], "width": 2.5, "sill": 2.5, "head": 6.0})
+    # West: four equally-spaced uppers across the wall's length
+    west_rooms = [r for r in rooms if abs(r["bounds"]["x2"] - west_x) < 1e-3]
+    if west_rooms:
+        z1 = min(r["bounds"]["z1"] for r in west_rooms)
+        z2 = max(r["bounds"]["z2"] for r in west_rooms)
+        n = 4
+        for i in range(n):
+            specs.append({"name": f"Upper - West {i + 1}", "orient": "V", "fixed": west_x,
+                          "pos": z1 + (i + 0.5) * (z2 - z1) / n,
+                          "width": 2.5, "sill": 2.5, "head": 6.0})
     return front_z, specs
 
 
