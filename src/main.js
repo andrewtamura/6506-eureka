@@ -169,9 +169,10 @@ async function main() {
   });
 
   // --- load the levels ----------------------------------------------------
-  // The scene is a left-to-right ROW of views: [ Exterior+lot | Ground | Level 2
-  // | Attic ]. The Ground floor is the primary, fully-interactive model at the
-  // origin; the other levels load as offset "exhibits" beside it (see below).
+  // The scene is a ROW of views running WESTWARD from the exterior lot:
+  // [ Attic | Level 2 | Ground | Exterior+lot ] (West -> East). The Ground floor
+  // is the primary, fully-interactive model at the origin; the other levels load
+  // as offset "exhibits" beside it. The exterior loads first and is the landing.
   setStatus("Loading model…");
   const levelsCfg = (await (await fetch(`${BASE}levels.json${VER}`)).json()).levels;
   const groundLevel = levelsCfg.find((l) => l.id === "ground") || levelsCfg[0];
@@ -226,7 +227,47 @@ async function main() {
     await fragments.core.update(true);
     modelBox = new THREE.Box3().setFromObject(model.object);
     viewBox = modelBox.clone();
-    framePlan(true);
+  }
+
+  // --- the level row + default camera --------------------------------------
+  // The levels run WESTWARD from the exterior lot: the exterior sits at the East
+  // end (+X) and Ground / Level 2 / Attic march West. Ground stays the only
+  // interactive model (selection/teleport target it). The exterior loads FIRST
+  // and the camera lands on it straight away — so the viewer never shows the
+  // ground plan and never re-snaps once the rest of the row streams in behind it.
+  const GAP = 9;                                        // spacing between views (m)
+  let westX = modelBox.min.x, eastX = modelBox.max.x;   // -X / +X frontiers
+  const modelViews = [{ id: groundLevel.id, label: groundLevel.label || groundLevel.storey, box: buildingBox(model.object) }];
+  const labelViews = [{ label: groundLevel.label || groundLevel.storey, box: modelBox }];
+  const placeExhibit = async (lvl, toEast) => {
+    const m = await loadIfc(lvl.ifc, lvl.storey);
+    // The smaller models can finish tessellating a frame after load(), so their
+    // bounds read empty for a moment; poll until the geometry lands.
+    let b0 = new THREE.Box3().setFromObject(m.object);
+    for (let tries = 0; b0.isEmpty() && tries < 40; tries++) {
+      await new Promise((r) => setTimeout(r, 50));
+      await fragments.core.update(true);
+      b0 = new THREE.Box3().setFromObject(m.object);
+    }
+    if (b0.isEmpty()) { console.warn(`exhibit ${lvl.id}: no geometry, skipping`); return null; }
+    m.object.position.y -= b0.min.y;                    // slab on the grid
+    m.object.updateMatrixWorld(true);
+    const b = new THREE.Box3().setFromObject(m.object);
+    const dx = toEast ? (eastX + GAP - b.min.x) : (westX - GAP - b.max.x);
+    m.object.position.x += dx;
+    m.object.updateMatrixWorld(true);
+    if (toEast) eastX = b.max.x + dx; else westX = b.min.x + dx;
+    m.object.traverse((o) => { if (o.isMesh) { o.frustumCulled = false; o.castShadow = true; o.receiveShadow = true; } });
+    modelViews.push({ id: lvl.id, label: lvl.label || lvl.storey, box: buildingBox(m.object) });
+    labelViews.push({ label: lvl.label || lvl.storey, box: new THREE.Box3().setFromObject(m.object) });
+    viewBox.expandByObject(m.object);
+    return buildingBox(m.object);
+  };
+  // Exterior first, at the East end → frame it immediately (the landing view).
+  const exteriorLvl = levelsCfg.find((l) => l.id === "exterior");
+  if (exteriorLvl) {
+    const bld = await placeExhibit(exteriorLvl, true);
+    if (bld) frameModel(bld, false);
   }
   setStatus("");
 
@@ -465,58 +506,19 @@ async function main() {
   focusShadow(modelBox.getCenter(new THREE.Vector3()), Math.max(_sz.x, _sz.z) * 0.6);
   setPlanView(true);   // the viewer opens in the overview
 
-  // --- the rest of the row: Exterior (left) + Level 2 / Attic (right) -----
-  // Ground stays at the origin and stays the only interactive model (teleport,
-  // selection, and POV views all target it). The other levels load as display-
-  // only exhibits beside it, each lifted so its slab rests on the grid.
-  //
-  // With the North-up / East-right plan camera, world X (E-W) runs HORIZONTALLY
-  // on screen. The levels run WESTWARD starting from the exterior lot, so the
-  // exterior sits at the East end (+X) and Ground, Level 2, Attic march off
-  // toward -X (West): screen order [ Attic | Level 2 | Ground | Exterior ].
-  // `modelViews` (per model: id, label, building box) drives the camera presets.
-  const modelViews = [{ id: groundLevel.id, label: groundLevel.label || groundLevel.storey, box: buildingBox(model.object) }];
-  let exteriorFrameBox = null;
+  // Stream in the remaining levels (Level 2, Attic) to the West — display-only
+  // exhibits beside the ground floor. The exterior is already loaded + framed.
+  for (const lvl of levelsCfg) {
+    if (lvl.id === groundLevel.id || lvl.id === exteriorLvl?.id) continue;
+    try { await placeExhibit(lvl, false); }
+    catch (err) { console.warn(`exhibit ${lvl.id} failed`, err); }
+  }
   {
-    const GAP = 9;                                         // spacing between views (m)
-    let westX = modelBox.min.x, eastX = modelBox.max.x;    // -X / +X frontiers
-    const views = [{ label: groundLevel.label || groundLevel.storey, box: modelBox }];
-    for (const lvl of levelsCfg) {
-      if (lvl.id === groundLevel.id) continue;
-      try {
-        const m = await loadIfc(lvl.ifc, lvl.storey);
-        // The last/smallest model can finish tessellating a frame after load(),
-        // so its bounds read empty for a moment; poll until the geometry lands.
-        let b0 = new THREE.Box3().setFromObject(m.object);
-        for (let tries = 0; b0.isEmpty() && tries < 40; tries++) {
-          await new Promise((r) => setTimeout(r, 50));
-          await fragments.core.update(true);
-          b0 = new THREE.Box3().setFromObject(m.object);
-        }
-        if (b0.isEmpty()) { console.warn(`exhibit ${lvl.id}: no geometry, skipping`); continue; }
-        m.object.position.y -= b0.min.y;                     // slab on the grid
-        m.object.updateMatrixWorld(true);
-        const b = new THREE.Box3().setFromObject(m.object);
-        const left = lvl.id !== "exterior";                  // exterior to the East (+X); the rest run West
-        const dx = left ? (westX - GAP - b.max.x) : (eastX + GAP - b.min.x);
-        m.object.position.x += dx;
-        m.object.updateMatrixWorld(true);
-        if (left) westX = b.min.x + dx; else eastX = b.max.x + dx;
-        m.object.traverse((o) => { if (o.isMesh) { o.frustumCulled = false; o.castShadow = true; o.receiveShadow = true; } });
-        const fb = new THREE.Box3().setFromObject(m.object);
-        views.push({ label: lvl.label || lvl.storey, box: fb });
-        const fbx = buildingBox(m.object);
-        modelViews.push({ id: lvl.id, label: lvl.label || lvl.storey, box: fbx });
-        if (lvl.id === "exterior") exteriorFrameBox = fbx;
-        viewBox.expandByObject(m.object);
-      } catch (err) { console.warn(`exhibit ${lvl.id} failed`, err); }
-    }
-
     // Title each view with a flat label laid on the grid above it (top of the
     // plan = -Z / North on screen). The plane is oriented so the text reads
     // left-to-right and upright when viewed from the top-down plan camera.
     const labelUp = new THREE.Vector3(0, 0, -1);     // toward top of screen (world -Z, North)
-    for (const v of views) {
+    for (const v of labelViews) {
       const c = v.box.getCenter(new THREE.Vector3());
       const cnv = document.createElement("canvas");
       cnv.width = 1024; cnv.height = 192;
@@ -554,7 +556,6 @@ async function main() {
 
     viewBox.expandByScalar(1.0);   // headroom so the titles never touch the frame edge
     await fragments.core.update(true);
-    frameModel(exteriorFrameBox || modelBox, false);   // land on the exterior lot model
     refreshShadow();
   }
 
