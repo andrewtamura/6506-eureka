@@ -25,6 +25,17 @@ const statusEl = document.getElementById("status");
 const propsEl = document.getElementById("props-menu");
 const propsBody = document.getElementById("props-body");
 const propsTitle = document.getElementById("props-title");
+// Loading cover: revealed (faded out) once the scene is framed on the exterior,
+// so the load-time camera setup never shows. Safety timeout reveals regardless.
+const coverEl = document.getElementById("cover");
+let coverHidden = false;
+function hideCover() {
+  if (coverHidden || !coverEl) return;
+  coverHidden = true;
+  coverEl.classList.add("hide");
+  setTimeout(() => coverEl.remove(), 600);
+}
+setTimeout(hideCover, 30000);   // safety only (the exterior frame reveals it first)
 const PROPS_HINT = '<div class="muted">Tap an element — a wall, the floor, a window — to see what it is.</div>';
 const setStatus = (t) => { statusEl.textContent = t; statusEl.style.display = t ? "block" : "none"; };
 
@@ -556,6 +567,8 @@ async function main() {
     await fragments.core.update(true);
     frameModel(exteriorFrameBox || modelBox, false);   // land on the exterior lot model
     refreshShadow();
+    await fragments.core.update(true);
+    requestAnimationFrame(hideCover);   // reveal once the exterior frame is rendered
   }
 
   const _tdir = new THREE.Vector3();

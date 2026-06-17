@@ -81,10 +81,18 @@
       display: inline-block; margin-top: 9px; font: 600 12px sans-serif;
       color: #2563c9; text-decoration: none; }
     .page-link:hover { text-decoration: underline; }
+    /* Loading cover: hides the camera setup (ground load + reframe) so the
+       viewer reveals already framed on the exterior, with no on-plan flash. */
+    #cover { position: fixed; inset: 0; z-index: 50; background: #b0d4f1;
+      display: flex; align-items: center; justify-content: center;
+      color: #46607a; font: 600 15px -apple-system, system-ui, sans-serif;
+      transition: opacity 0.5s ease; }
+    #cover.hide { opacity: 0; pointer-events: none; }
   </style>
 </head>
 <body>
   <div id="viewer"></div>
+  <div id="cover">Loading…</div>
   <div id="ui-left">
     <div class="menu" data-menu>
       <div class="menu-header"><span>🏠 6506 Eureka</span><span class="chev">▸</span></div>
