@@ -763,7 +763,7 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
             for o in r.get("windows", []) + r.get("doors", []):
                 if o["orient"] != "H" or abs(o["fixed"] - front_z) > 1e-3 or o.get("opening"):
                     continue
-                window(f"Upper - {o['name']}", "H", front_z, o["pos"], 3.5, u_sill, u_head, shutters=True)
+                window(f"Upper - {o['name']}", "H", front_z, o["pos"], 3.0, u_sill, u_head, shutters=True)
                 if "Front Door" in o.get("name", ""):
                     door = o
         if door:
