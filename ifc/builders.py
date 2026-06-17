@@ -679,14 +679,12 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
     """Low-fidelity windows + exterior door openings on the massing faces. The
     per-room windows/doors are reused: an opening is exterior when one side of
     its wall is inside a room and the other is open air. Windows become glass
-    panels at the authored sill/head; exterior doors become dark opening panels
-    (floor to door head). The primary's front (North) face also gets a symmetric
-    upper-floor window row aligned over the ground openings; only those upper
-    front windows carry shutters (a flanking pair, each half the window wide so a
-    closed pair would cover the glass). A pedimented entry surrounds the door."""
+    panels at the authored sill/head, each with a classical trim surround;
+    exterior doors become dark opening panels (floor to door head). The primary's
+    front (North) face also gets a symmetric upper-floor window row aligned over
+    the ground openings, plus a pedimented entry surround at the front door."""
     GLASS = (0.42, 0.52, 0.60)   # muted blue-grey glazing
     DOOR = (0.18, 0.16, 0.15)    # dark opening
-    SHUT = (0.24, 0.30, 0.26)    # dark-green louvered shutters
     TRIM = (0.93, 0.92, 0.88)    # white window trim (casing / sill / muntins)
     DEPTH = 0.08                  # panel thickness (m)
     EPS = 0.35                    # plan feet just past the wall face
@@ -716,13 +714,11 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
                          ctx.X(pos), ctx.Y(fixed), sill_m, color=color)
         run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
 
-    def window(name, orient, fixed, pos, w, sill_m, head_m, shutters=False):
+    def window(name, orient, fixed, pos, w, sill_m, head_m):
         """A glass panel with a classical Colonial surround — flat casing
         (architrave), a projecting sill + apron, a projecting header cornice, and
-        divided-light muntins. With `shutters`, a flanking pair each half the
-        window wide (a closed pair would cover the glass), set just outside the
-        casing. A board/box placed on a wall runs along the wall axis (X for an
-        H wall, Z for a V wall) and is centred on the wall face."""
+        divided-light muntins. A board/box placed on a wall runs along the wall
+        axis (X for an H wall, Z for a V wall) and is centred on the wall face."""
         panel("IfcWindow", name, orient, fixed, pos, w, sill_m, head_m, GLASS)
         h = head_m - sill_m
 
@@ -757,18 +753,6 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
             zc = sill_m + j * (h / rows)
             tbox(f"Muntin - {name}", pos, w, zc - 0.025, zc + 0.025, 0.10)
 
-        if shutters:
-            sw = w / 2.0                       # each shutter half the window
-            off = w / 2.0 + CW + sw / 2.0      # just outside the casing
-            for sgn in (-1, 1):
-                if orient == "V":
-                    b = make_box(ctx, "IfcBuildingElementProxy", f"Shutter - {name}", DEPTH, sw * FT, h,
-                                 ctx.X(fixed), ctx.Y(pos + sgn * off), sill_m, color=SHUT)
-                else:
-                    b = make_box(ctx, "IfcBuildingElementProxy", f"Shutter - {name}", sw * FT, DEPTH, h,
-                                 ctx.X(pos + sgn * off), ctx.Y(fixed), sill_m, color=SHUT)
-                run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
-
     for g in groups.values():
         for s in g["rooms"]:
             r = rooms_cache[s]
@@ -800,7 +784,7 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
             for o in r.get("windows", []) + r.get("doors", []):
                 if o["orient"] != "H" or abs(o["fixed"] - front_z) > 1e-3 or o.get("opening"):
                     continue
-                window(f"Upper - {o['name']}", "H", front_z, o["pos"], 3.0, u_sill, u_head, shutters=True)
+                window(f"Upper - {o['name']}", "H", front_z, o["pos"], 3.0, u_sill, u_head)
                 if "Front Door" in o.get("name", ""):
                     door = o
         if door:
