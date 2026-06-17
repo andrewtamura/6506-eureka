@@ -717,11 +717,15 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
                          ctx.X(pos), ctx.Y(fixed), sill_m, color=color)
         run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
 
-    def window(name, orient, fixed, pos, w, sill_m, head_m):
-        """A glass panel with a classical Colonial surround — flat casing
-        (architrave), a projecting sill + apron, a projecting header cornice, and
-        divided-light muntins. A board/box placed on a wall runs along the wall
-        axis (X for an H wall, Z for a V wall) and is centred on the wall face."""
+    def window(name, orient, fixed, pos, w, sill_m, head_m, trim="full"):
+        """A glass panel with a classical surround + divided-light muntins. Two
+        trim styles distinguish the floors:
+          - "full" (ground): flat head + jamb casing, a projecting sill + apron,
+            and a projecting header cornice.
+          - "flat" (upper): a plain flat backband on all four sides (head, jambs,
+            and a flat bottom board) — no projecting sill or cornice.
+        A board/box runs along the wall axis (X for an H wall, Z for a V) and is
+        centred on the wall face."""
         panel("IfcWindow", name, orient, fixed, pos, w, sill_m, head_m, GLASS)
         h = head_m - sill_m
 
@@ -737,16 +741,22 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
             run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
         head_top = head_m + CW * FT
-        # casing: two jambs + a head board
-        tbox(f"Casing - {name}", pos - (w + CW) / 2, CW, sill_m, head_top, 0.12)
-        tbox(f"Casing - {name}", pos + (w + CW) / 2, CW, sill_m, head_top, 0.12)
-        tbox(f"Casing - {name}", pos, w + 2 * CW, head_m, head_top, 0.12)
-        # projecting sill + apron beneath
-        sill_bot = sill_m - 0.12
-        tbox(f"Sill - {name}", pos, w + 2 * CW + 0.3, sill_bot, sill_m, 0.18)
-        tbox(f"Apron - {name}", pos, w, sill_bot - 0.22, sill_bot, 0.12)
-        # projecting header cornice above the head board
-        tbox(f"Header - {name}", pos, w + 2 * CW + 0.4, head_top, head_top + 0.12, 0.20)
+        if trim == "flat":
+            # plain flat backband: head, sill board, and two jambs — all flat
+            sill_bot = sill_m - CW * FT
+            tbox(f"Casing - {name}", pos, w + 2 * CW, head_m, head_top, 0.12)            # head
+            tbox(f"Casing - {name}", pos, w + 2 * CW, sill_bot, sill_m, 0.12)            # flat bottom board
+            tbox(f"Casing - {name}", pos - (w + CW) / 2, CW, sill_bot, head_top, 0.12)   # left jamb
+            tbox(f"Casing - {name}", pos + (w + CW) / 2, CW, sill_bot, head_top, 0.12)   # right jamb
+        else:
+            # full surround: flat head + jambs, projecting sill + apron, cornice head
+            tbox(f"Casing - {name}", pos - (w + CW) / 2, CW, sill_m, head_top, 0.12)
+            tbox(f"Casing - {name}", pos + (w + CW) / 2, CW, sill_m, head_top, 0.12)
+            tbox(f"Casing - {name}", pos, w + 2 * CW, head_m, head_top, 0.12)
+            sill_bot = sill_m - 0.12
+            tbox(f"Sill - {name}", pos, w + 2 * CW + 0.3, sill_bot, sill_m, 0.18)
+            tbox(f"Apron - {name}", pos, w, sill_bot - 0.22, sill_bot, 0.12)
+            tbox(f"Header - {name}", pos, w + 2 * CW + 0.4, head_top, head_top + 0.12, 0.20)
         # divided lights: muntin grid sized to ~square panes
         cols = max(2, round(w / 1.3))
         rows = max(2, round((h / FT) / 1.4))
@@ -788,7 +798,7 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
             for o in r.get("windows", []) + r.get("doors", []):
                 if o["orient"] != "H" or abs(o["fixed"] - front_z) > 1e-3 or o.get("opening"):
                     continue
-                window(f"Upper - {o['name']}", "H", front_z, o["pos"], 2.5, u_sill, u_head)
+                window(f"Upper - {o['name']}", "H", front_z, o["pos"], 2.5, u_sill, u_head, trim="flat")
                 if "Front Door" in o.get("name", ""):
                     door = o
         if door:
