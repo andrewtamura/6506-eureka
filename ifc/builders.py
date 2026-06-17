@@ -694,11 +694,13 @@ def second_floor_windows(rooms):
             if not o.get("opening") and o["orient"] == "H" and abs(o["fixed"] - front_z) < 1e-3:
                 specs.append({"name": f"Upper - {o['name']}", "orient": "H", "fixed": front_z,
                               "pos": o["pos"], "width": 2.5, "sill": 2.5, "head": 6.0})
-    # West: four equally-spaced uppers across the wall's length
+    # West: four equally-spaced uppers, inset from the corners so the end
+    # windows aren't tight to them
     west_rooms = [r for r in rooms if abs(r["bounds"]["x2"] - west_x) < 1e-3]
     if west_rooms:
-        z1 = min(r["bounds"]["z1"] for r in west_rooms)
-        z2 = max(r["bounds"]["z2"] for r in west_rooms)
+        margin = 2.0
+        z1 = min(r["bounds"]["z1"] for r in west_rooms) + margin
+        z2 = max(r["bounds"]["z2"] for r in west_rooms) - margin
         n = 4
         for i in range(n):
             specs.append({"name": f"Upper - West {i + 1}", "orient": "V", "fixed": west_x,
