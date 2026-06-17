@@ -718,10 +718,12 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
         run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
 
     def window(name, orient, fixed, pos, w, sill_m, head_m, trim="full"):
-        """A glass panel with a classical surround + divided-light muntins. Two
-        trim styles distinguish the floors:
+        """A glass panel with a classical surround + divided-light muntins. Trim
+        styles distinguish the floors / facades:
           - "full" (ground): flat head + jamb casing, a projecting sill + apron,
             and a projecting header cornice.
+          - "brackets" (front ground): like "full" but the cornice is raised on a
+            short frieze carried by two console brackets.
           - "flat" (upper): a plain flat backband on all four sides (head, jambs,
             and a flat bottom board) — no projecting sill or cornice.
         A board/box runs along the wall axis (X for an H wall, Z for a V) and is
@@ -749,22 +751,23 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
             tbox(f"Casing - {name}", pos - (w + CW) / 2, CW, sill_bot, head_top, 0.12)   # left jamb
             tbox(f"Casing - {name}", pos + (w + CW) / 2, CW, sill_bot, head_top, 0.12)   # right jamb
         else:
-            # full surround: jambs + projecting sill + apron + cornice head. The
-            # "crossette" variant gives an eared architrave — the head steps out
-            # past the jambs with short down-turned lugs at the top corners.
+            # full surround: jambs + head casing + projecting sill + apron +
+            # cornice. The "brackets" variant raises the cornice on a short frieze
+            # carried by two console brackets at the ends.
             tbox(f"Casing - {name}", pos - (w + CW) / 2, CW, sill_m, head_top, 0.12)
             tbox(f"Casing - {name}", pos + (w + CW) / 2, CW, sill_m, head_top, 0.12)
-            ear = 0.4 if trim == "crossette" else 0.0
-            hw = w + 2 * CW + 2 * ear
-            tbox(f"Casing - {name}", pos, hw, head_m, head_top, 0.12)
-            if trim == "crossette":
-                for sgn in (-1, 1):     # down-turned ears at the top corners
-                    tbox(f"Casing - {name}", pos + sgn * (w / 2 + CW + ear / 2), ear,
-                         head_m - 0.6 * FT, head_m, 0.12)
+            tbox(f"Casing - {name}", pos, w + 2 * CW, head_m, head_top, 0.12)
             sill_bot = sill_m - 0.12
             tbox(f"Sill - {name}", pos, w + 2 * CW + 0.3, sill_bot, sill_m, 0.18)
             tbox(f"Apron - {name}", pos, w, sill_bot - 0.22, sill_bot, 0.12)
-            tbox(f"Header - {name}", pos, hw + 0.3, head_top, head_top + 0.12, 0.20)
+            if trim == "brackets":
+                fz = 0.7 * FT                          # frieze the brackets carry
+                for sgn in (-1, 1):                    # console brackets at the ends
+                    tbox(f"Bracket - {name}", pos + sgn * (w / 2 + CW / 2), 0.4,
+                         head_top, head_top + fz, 0.18)
+                tbox(f"Header - {name}", pos, w + 2 * CW + 0.5, head_top + fz, head_top + fz + 0.12, 0.20)
+            else:
+                tbox(f"Header - {name}", pos, w + 2 * CW + 0.4, head_top, head_top + 0.12, 0.20)
         # divided lights: muntin grid sized to ~square panes
         cols = max(2, round(w / 1.3))
         rows = max(2, round((h / FT) / 1.4))
@@ -783,11 +786,11 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
                 o, f, p = win["orient"], win["fixed"], win["pos"]
                 if not is_exterior(o, f, p):
                     continue
-                # front ground-floor windows get an eared (crossette) architrave
+                # front ground-floor windows get a cornice carried on console brackets
                 front = g is prim and o == "H" and front_z is not None and abs(f - front_z) < 1e-3
                 window(win["name"], o, f, p, win["width"],
                        base + win["sill"] * FT, base + win["head"] * FT,
-                       trim="crossette" if front else "full")
+                       trim="brackets" if front else "full")
             for d in r.get("doors", []):
                 if d.get("opening"):          # interior cased opening, skip
                     continue
