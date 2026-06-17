@@ -30,11 +30,20 @@
       "head": 7.0
     },
     {
-      "name": "Window - Dining N (picture)",
+      "name": "Window - Dining N1",
       "orient": "H",
       "fixed": 16.0833,
-      "pos": 22.4,
-      "width": 7.0,
+      "pos": 18.1,
+      "width": 3.0,
+      "sill": 2.5,
+      "head": 7.0
+    },
+    {
+      "name": "Window - Dining N2",
+      "orient": "H",
+      "fixed": 16.0833,
+      "pos": 26.7,
+      "width": 3.0,
       "sill": 2.5,
       "head": 7.0
     }

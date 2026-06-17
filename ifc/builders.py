@@ -68,7 +68,10 @@ class Ctx:
         o = cfg.get("orientation", {"xs": 1, "zs": 1})
         self.xs, self.zs = o["xs"], o["zs"]
         self.T = cfg["wallThickness"] * FT          # wall thickness (m)
-        self.H = cfg["wallHeight"] * FT             # wall / ceiling height (m)
+        self.H = cfg["wallHeight"] * FT             # interior floor-to-ceiling (m)
+        # Floor-to-floor story height for the structure (ceiling + floor/joist
+        # zone); drives the exterior massing & upper-floor placement.
+        self.story = cfg.get("storyHeight", cfg["wallHeight"]) * FT
         self.slab_t = cfg["slabThickness"]          # floor slab thickness (m)
         self.door_h_ft = cfg["doorHeight"]          # door head height (ft)
         # Uniform head height for ALL doors and windows above the finish floor.
@@ -528,7 +531,7 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
     rt = (5.5 + 2.0) / 12 * FT                      # assembly depth: 2x6 rafters + >=2"
     for key, g in groups.items():
         x1, x2, y1, y2 = rects[key]
-        eave = g.get("storeys", 1) * ctx.H - g.get("trimFt", 0) * FT
+        eave = g.get("storeys", 1) * ctx.story - g.get("trimFt", 0) * FT
         cx, cy, w, d = (x1 + x2) / 2, (y1 + y2) / 2, abs(x2 - x1), abs(y2 - y1)
         if crawl > 0:                              # foundation band, grade -> floor
             cb = make_box(ctx, "IfcSlab", f"Crawlspace - {key}", w, d, crawl, cx, cy, 0.0,
@@ -679,16 +682,16 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
     """Low-fidelity windows + exterior door openings on the massing faces. The
     per-room windows/doors are reused: an opening is exterior when one side of
     its wall is inside a room and the other is open air. Windows become glass
-    panels at the authored sill/head (flanked by a pair of louvered shutters);
+    panels at the authored sill/head, each with a classical trim surround;
     exterior doors become dark opening panels (floor to door head). The primary's
     front (North) face also gets a symmetric upper-floor window row aligned over
     the ground openings, plus a pedimented entry surround at the front door."""
     GLASS = (0.42, 0.52, 0.60)   # muted blue-grey glazing
     DOOR = (0.18, 0.16, 0.15)    # dark opening
-    SHUT = (0.24, 0.30, 0.26)    # dark-green louvered shutters
+    TRIM = (0.93, 0.92, 0.88)    # white window trim (casing / sill / muntins)
     DEPTH = 0.08                  # panel thickness (m)
     EPS = 0.35                    # plan feet just past the wall face
-    SHW = 1.25                    # shutter leaf width (ft)
+    CW = 0.5                      # casing board width (ft)
 
     grp_rooms = [s for g in groups.values() for s in g["rooms"]]
     rects = [rooms_cache[s]["bounds"] for s in grp_rooms]
@@ -714,19 +717,65 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
                          ctx.X(pos), ctx.Y(fixed), sill_m, color=color)
         run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
 
-    def window(name, orient, fixed, pos, w, sill_m, head_m):
-        """A glass panel plus a flanking pair of louvered shutters."""
+    def window(name, orient, fixed, pos, w, sill_m, head_m, trim="full"):
+        """A glass panel with a classical surround + divided-light muntins. Trim
+        styles distinguish the floors / facades:
+          - "full" (side/rear ground): casing, a projecting sill + apron, and a
+            projecting header cornice.
+          - "lintel" (front ground): a flat lintel band + central keystone over a
+            projecting sill + apron.
+          - "upper": casing + a projecting sill (nothing below it) + a small
+            cornice — lighter than the ground floor.
+        A board/box runs along the wall axis (X for an H wall, Z for a V) and is
+        centred on the wall face."""
         panel("IfcWindow", name, orient, fixed, pos, w, sill_m, head_m, GLASS)
-        h, off = head_m - sill_m, w / 2 + SHW / 2 + 0.05
-        for sgn in (-1, 1):
-            if orient == "V":
-                b = make_box(ctx, "IfcBuildingElementProxy", f"Shutter - {name}", DEPTH, SHW * FT, h,
-                             ctx.X(fixed), ctx.Y(pos + sgn * off), sill_m, color=SHUT)
-            else:
-                b = make_box(ctx, "IfcBuildingElementProxy", f"Shutter - {name}", SHW * FT, DEPTH, h,
-                             ctx.X(pos + sgn * off), ctx.Y(fixed), sill_m, color=SHUT)
+        h = head_m - sill_m
+
+        def tbox(nm, apos, alen, zlo, zhi, dep, color=TRIM):
+            if zhi - zlo <= 0 or alen <= 0:
+                return
+            if orient == "H":   # wall along X; board spans X, `dep` is the Y depth
+                b = make_box(ctx, "IfcBuildingElementProxy", nm, alen * FT, dep, zhi - zlo,
+                             ctx.X(apos), ctx.Y(fixed), zlo, color=color)
+            else:               # wall along Z; board spans Y, `dep` is the X depth
+                b = make_box(ctx, "IfcBuildingElementProxy", nm, dep, alen * FT, zhi - zlo,
+                             ctx.X(fixed), ctx.Y(apos), zlo, color=color)
             run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
+        head_top = head_m + CW * FT
+        # jambs + head casing are common to every style
+        tbox(f"Casing - {name}", pos - (w + CW) / 2, CW, sill_m, head_top, 0.12)
+        tbox(f"Casing - {name}", pos + (w + CW) / 2, CW, sill_m, head_top, 0.12)
+        sill_bot = sill_m - 0.12
+        if trim == "upper":
+            # casing + a projecting sill (nothing below it) + a small cornice
+            tbox(f"Casing - {name}", pos, w + 2 * CW, head_m, head_top, 0.12)
+            tbox(f"Sill - {name}", pos, w + 2 * CW + 0.2, sill_m - 0.10, sill_m, 0.15)
+            tbox(f"Header - {name}", pos, w + 2 * CW + 0.25, head_top, head_top + 0.08, 0.15)
+        elif trim == "lintel":
+            # flat lintel band + central keystone, over a projecting sill + apron
+            lh = head_m + 0.6 * FT
+            tbox(f"Lintel - {name}", pos, w + 2 * CW + 0.2, head_m, lh, 0.13)
+            tbox(f"Keystone - {name}", pos, 0.55, head_m, lh + 0.28 * FT, 0.16)
+            tbox(f"Sill - {name}", pos, w + 2 * CW + 0.3, sill_bot, sill_m, 0.18)
+            tbox(f"Apron - {name}", pos, w, sill_bot - 0.22, sill_bot, 0.12)
+        else:
+            # full surround: head casing + projecting sill + apron + cornice
+            tbox(f"Casing - {name}", pos, w + 2 * CW, head_m, head_top, 0.12)
+            tbox(f"Sill - {name}", pos, w + 2 * CW + 0.3, sill_bot, sill_m, 0.18)
+            tbox(f"Apron - {name}", pos, w, sill_bot - 0.22, sill_bot, 0.12)
+            tbox(f"Header - {name}", pos, w + 2 * CW + 0.4, head_top, head_top + 0.12, 0.20)
+        # divided lights: muntin grid sized to ~square panes
+        cols = max(2, round(w / 1.3))
+        rows = max(2, round((h / FT) / 1.4))
+        for i in range(1, cols):
+            tbox(f"Muntin - {name}", pos - w / 2 + i * (w / cols), 0.06, sill_m + 0.02, head_m - 0.02, 0.10)
+        for j in range(1, rows):
+            zc = sill_m + j * (h / rows)
+            tbox(f"Muntin - {name}", pos, w, zc - 0.025, zc + 0.025, 0.10)
+
+    prim = groups.get("primary")
+    front_z = max((rooms_cache[s]["bounds"]["z2"] for s in prim["rooms"]), default=None) if prim else None
     for g in groups.values():
         for s in g["rooms"]:
             r = rooms_cache[s]
@@ -734,8 +783,11 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
                 o, f, p = win["orient"], win["fixed"], win["pos"]
                 if not is_exterior(o, f, p):
                     continue
+                # front ground-floor windows get a flat lintel + keystone head
+                front = g is prim and o == "H" and front_z is not None and abs(f - front_z) < 1e-3
                 window(win["name"], o, f, p, win["width"],
-                       base + win["sill"] * FT, base + win["head"] * FT)
+                       base + win["sill"] * FT, base + win["head"] * FT,
+                       trim="lintel" if front else "full")
             for d in r.get("doors", []):
                 if d.get("opening"):          # interior cased opening, skip
                     continue
@@ -746,19 +798,18 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
 
     # Symmetric upper-floor window row + pedimented entry on the primary's front
     # (North) face. The front line is the primary's max plan z; place an upper
-    # window over each ground-floor front opening (the two windows AND the door)
-    # so the elevation reads as a balanced, vertically-aligned Colonial grid.
-    prim = groups.get("primary")
+    # window over each ground-floor front opening (the two windows AND the door).
+    # The upper windows are graduated — shorter and narrower than the ground
+    # floor (a classic Georgian/Colonial device) — for a balanced, tapering grid.
     if prim:
-        front_z = max(rooms_cache[s]["bounds"]["z2"] for s in prim["rooms"])
-        u_sill, u_head = base + ctx.H + 2.5 * FT, base + ctx.H + 7 * FT
+        u_sill, u_head = base + ctx.story + 2.5 * FT, base + ctx.story + 6.0 * FT  # 3.5' tall
         door = None
         for s in prim["rooms"]:
             r = rooms_cache[s]
             for o in r.get("windows", []) + r.get("doors", []):
                 if o["orient"] != "H" or abs(o["fixed"] - front_z) > 1e-3 or o.get("opening"):
                     continue
-                window(f"Upper - {o['name']}", "H", front_z, o["pos"], 3.5, u_sill, u_head)
+                window(f"Upper - {o['name']}", "H", front_z, o["pos"], 2.5, u_sill, u_head, trim="upper")
                 if "Front Door" in o.get("name", ""):
                     door = o
         if door:
