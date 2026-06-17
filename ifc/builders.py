@@ -698,7 +698,7 @@ def second_floor_windows(rooms):
     # windows aren't tight to them
     west_rooms = [r for r in rooms if abs(r["bounds"]["x2"] - west_x) < 1e-3]
     if west_rooms:
-        margin = 2.0
+        margin = 1.0   # end windows ~3' off the corners (2.5' wide, so edge at z1+3)
         z1 = min(r["bounds"]["z1"] for r in west_rooms) + margin
         z2 = max(r["bounds"]["z2"] for r in west_rooms) - margin
         n = 4
