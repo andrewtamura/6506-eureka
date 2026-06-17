@@ -775,19 +775,20 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
 
     # Symmetric upper-floor window row + pedimented entry on the primary's front
     # (North) face. The front line is the primary's max plan z; place an upper
-    # window over each ground-floor front opening (the two windows AND the door)
-    # so the elevation reads as a balanced, vertically-aligned Colonial grid.
+    # window over each ground-floor front opening (the two windows AND the door).
+    # The upper windows are graduated — shorter and narrower than the ground
+    # floor (a classic Georgian/Colonial device) — for a balanced, tapering grid.
     prim = groups.get("primary")
     if prim:
         front_z = max(rooms_cache[s]["bounds"]["z2"] for s in prim["rooms"])
-        u_sill, u_head = base + ctx.story + 2.5 * FT, base + ctx.story + 7 * FT
+        u_sill, u_head = base + ctx.story + 2.5 * FT, base + ctx.story + 6.0 * FT  # 3.5' tall
         door = None
         for s in prim["rooms"]:
             r = rooms_cache[s]
             for o in r.get("windows", []) + r.get("doors", []):
                 if o["orient"] != "H" or abs(o["fixed"] - front_z) > 1e-3 or o.get("opening"):
                     continue
-                window(f"Upper - {o['name']}", "H", front_z, o["pos"], 3.0, u_sill, u_head)
+                window(f"Upper - {o['name']}", "H", front_z, o["pos"], 2.5, u_sill, u_head)
                 if "Front Door" in o.get("name", ""):
                     door = o
         if door:
