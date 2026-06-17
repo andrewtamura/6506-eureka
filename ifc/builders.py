@@ -903,12 +903,15 @@ def add_kitchen_feature(ctx, rooms_cache, base):
 
     # planter box on the wall below the sill: its top sits 6" below the glass,
     # with greenery filling the gap up to the glass.
-    box_top = sill_m - 0.5 * FT          # 6" below the bottom of the glass
-    box_h, pdepth = 0.83 * FT, 1.0 * FT
+    dining_sill = next((w["sill"] for r in rooms_cache.values() for w in r.get("windows", [])
+                        if "Dining W" in w.get("name", "")), 2.5)
+    box_top = sill_m - 0.5 * FT                  # 6" below the kitchen glass
+    box_bot = base + dining_sill * FT            # bottom level with the dining-window sills,
+    pdepth = 1.0 * FT                            # so all three windows read as starting together
     pw = (kw["width"] / 2 - 0.25) * FT
     pcx = fx + out_x * pdepth / 2
-    for nm, z0, hgt, col in (("Kitchen planter box", box_top - box_h, box_h, BOX),
-                             ("Kitchen planter greenery", box_top, 0.5 * FT, GREEN)):
+    for nm, z0, hgt, col in (("Kitchen planter box", box_bot, box_top - box_bot, BOX),
+                             ("Kitchen planter greenery", box_top, sill_m - box_top, GREEN)):
         b = make_box(ctx, "IfcBuildingElementProxy", nm, pdepth, 2 * pw, hgt, pcx, cy, z0, color=col)
         run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
