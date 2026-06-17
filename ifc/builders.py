@@ -873,11 +873,11 @@ def add_kitchen_feature(ctx, rooms_cache, base):
 
     # standing-seam copper hood shaped like the scullery's shed-with-hips: high at
     # the wall, sloping down to a front eave, the two ends hipped in (not gabled).
-    proj, drop, th = 2.5 * FT, 0.9 * FT, 0.06
-    hip = proj                                # hip inset == projection -> 45° hip in plan
-    z_hi = head_m + 1.1 * FT                  # ridge, on the wall above the window cornice
-    z_lo = z_hi - drop                        # front eave
-    hw = (kw["width"] / 2 + 1.5) * FT         # wide enough to cover the window + side trim
+    proj, drop, th = 2.0 * FT, 0.7 * FT, 0.06   # 24" projection
+    hip = proj                                  # hip inset == projection -> 45° hip in plan
+    z_lo = head_m + 1.1 * FT                     # eave kept above the window cornice top...
+    z_hi = z_lo + drop                           # ...so the whole hood clears + covers the cornice
+    hw = (kw["width"] / 2 + 1.5) * FT            # wide enough to cover the window + side trim
     ylo, yhi = cy - hw, cy + hw
     xf = fx + out_x * proj                   # front eave (projected out)
     top = [(xf, ylo, z_lo), (xf, yhi, z_lo),            # 0,1 front eave
