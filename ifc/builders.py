@@ -679,16 +679,16 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
     """Low-fidelity windows + exterior door openings on the massing faces. The
     per-room windows/doors are reused: an opening is exterior when one side of
     its wall is inside a room and the other is open air. Windows become glass
-    panels at the authored sill/head (flanked by a pair of louvered shutters);
-    exterior doors become dark opening panels (floor to door head). The primary's
-    front (North) face also gets a symmetric upper-floor window row aligned over
-    the ground openings, plus a pedimented entry surround at the front door."""
+    panels at the authored sill/head; exterior doors become dark opening panels
+    (floor to door head). The primary's front (North) face also gets a symmetric
+    upper-floor window row aligned over the ground openings; only those upper
+    front windows carry shutters (a flanking pair, each half the window wide so a
+    closed pair would cover the glass). A pedimented entry surrounds the door."""
     GLASS = (0.42, 0.52, 0.60)   # muted blue-grey glazing
     DOOR = (0.18, 0.16, 0.15)    # dark opening
     SHUT = (0.24, 0.30, 0.26)    # dark-green louvered shutters
     DEPTH = 0.08                  # panel thickness (m)
     EPS = 0.35                    # plan feet just past the wall face
-    SHW = 1.25                    # shutter leaf width (ft)
 
     grp_rooms = [s for g in groups.values() for s in g["rooms"]]
     rects = [rooms_cache[s]["bounds"] for s in grp_rooms]
@@ -714,16 +714,21 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
                          ctx.X(pos), ctx.Y(fixed), sill_m, color=color)
         run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
 
-    def window(name, orient, fixed, pos, w, sill_m, head_m):
-        """A glass panel plus a flanking pair of louvered shutters."""
+    def window(name, orient, fixed, pos, w, sill_m, head_m, shutters=False):
+        """A glass panel; with `shutters`, a flanking pair of louvered shutters
+        each half the window wide (so a closed pair covers the glass), sitting
+        just outside the window edges."""
         panel("IfcWindow", name, orient, fixed, pos, w, sill_m, head_m, GLASS)
-        h, off = head_m - sill_m, w / 2 + SHW / 2 + 0.05
+        if not shutters:
+            return
+        h, sw = head_m - sill_m, w / 2.0      # each shutter half the window
+        off = w / 2.0 + sw / 2.0              # inner edge flush with the window edge
         for sgn in (-1, 1):
             if orient == "V":
-                b = make_box(ctx, "IfcBuildingElementProxy", f"Shutter - {name}", DEPTH, SHW * FT, h,
+                b = make_box(ctx, "IfcBuildingElementProxy", f"Shutter - {name}", DEPTH, sw * FT, h,
                              ctx.X(fixed), ctx.Y(pos + sgn * off), sill_m, color=SHUT)
             else:
-                b = make_box(ctx, "IfcBuildingElementProxy", f"Shutter - {name}", SHW * FT, DEPTH, h,
+                b = make_box(ctx, "IfcBuildingElementProxy", f"Shutter - {name}", sw * FT, DEPTH, h,
                              ctx.X(pos + sgn * off), ctx.Y(fixed), sill_m, color=SHUT)
             run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
@@ -758,7 +763,7 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
             for o in r.get("windows", []) + r.get("doors", []):
                 if o["orient"] != "H" or abs(o["fixed"] - front_z) > 1e-3 or o.get("opening"):
                     continue
-                window(f"Upper - {o['name']}", "H", front_z, o["pos"], 3.5, u_sill, u_head)
+                window(f"Upper - {o['name']}", "H", front_z, o["pos"], 3.5, u_sill, u_head, shutters=True)
                 if "Front Door" in o.get("name", ""):
                     door = o
         if door:
