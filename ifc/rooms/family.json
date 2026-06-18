@@ -41,6 +41,7 @@
       "pos": -4.92,
       "width": 6.67,
       "doorStyle": "patio",
+      "paint": "white",
       "swing": "pos"
     }
   ],

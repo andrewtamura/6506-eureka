@@ -631,16 +631,49 @@ def add_entry(ctx, px, pz, dw_ft, base):
                      ctx.X(cxp), fy + out * dep / 2, z_lo, color=color)
         run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
-    # transom over the door
-    tr = make_box(ctx, "IfcWindow", "Entry transom", dw_ft * FT, 0.08, 1.0 * FT,
-                  ix, fy, base + dh * FT, color=GLASS)
-    run("spatial.assign_container", ctx.model, products=[tr], relating_structure=ctx.storey)
+    # --- semicircular fanlight over the door (a Colonial Revival hallmark) ----
+    spring = base + dh * FT                 # door head = the fanlight springing line
+    R = (dw_ft / 2 + 0.1) * FT              # fan radius (m) ~ the door half-width
+    NSEG = 9                                # arc segments / radiating bays
+    arc = [(ix + R * math.cos(math.pi * k / NSEG), spring + R * math.sin(math.pi * k / NSEG))
+           for k in range(NSEG + 1)]
+
+    def bar(x0, z0, x1, z1, thick, dep, name="Entry fan muntin"):
+        """A thin TRIM bar between two points in the wall (X-Z) plane, projecting
+        outward; lets the fan's radiating muntins + arch rim be drawn at angles."""
+        dx, dz = x1 - x0, z1 - z0
+        L = math.hypot(dx, dz)
+        if L < 1e-6:
+            return
+        nx, nz = -dz / L * thick / 2, dx / L * thick / 2     # half-thickness normal
+        ya, yb = fy, fy + out * dep
+        quad = [(x0 + nx, z0 + nz), (x1 + nx, z1 + nz), (x1 - nx, z1 - nz), (x0 - nx, z0 - nz)]
+        verts = [(qx, ya, qz) for qx, qz in quad] + [(qx, yb, qz) for qx, qz in quad]
+        faces = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
+        add_brep(ctx, name, verts, faces, TRIM, ifc_class="IfcBuildingElementProxy")
+
+    # glazing: a half-disk pane (front + back faces, curved rim, flat diameter)
+    ya, yb = fy - 0.03, fy + 0.03
+    fv = [(ix, ya, spring)] + [(x, ya, z) for x, z in arc]   # front: centre + arc
+    bv = [(ix, yb, spring)] + [(x, yb, z) for x, z in arc]   # back
+    nb = len(fv)
+    gverts = fv + bv
+    gfaces = ([[0, 1 + k, 2 + k] for k in range(NSEG)] +                       # front fan
+              [[nb, nb + 2 + k, nb + 1 + k] for k in range(NSEG)] +            # back fan
+              [[1 + k, 2 + k, nb + 2 + k, nb + 1 + k] for k in range(NSEG)] +  # curved rim
+              [[0, 1, nb + 1, nb], [0, nb, nb + 1 + NSEG, 1 + NSEG]])          # diameter ends
+    add_brep(ctx, "Entry fanlight", gverts, gfaces, GLASS, ifc_class="IfcWindow")
+    for k in range(1, NSEG):                                 # radiating muntins
+        bar(ix, spring, arc[k][0], arc[k][1], 0.05, 0.11)
+    for k in range(NSEG):                                    # arch rim (chord segments)
+        bar(arc[k][0], arc[k][1], arc[k + 1][0], arc[k + 1][1], 0.10, 0.13, "Entry fan rim")
+    bar(ix - R, spring, ix + R, spring, 0.13, 0.14, "Entry transom bar")
 
     pil_w = 0.8                             # pilaster shaft width (ft)
     cap_w = pil_w + 0.4                      # plinth / capital wider than the shaft
     ent_h = 0.8                             # entablature height (ft)
     pil_off = dw_ft / 2 + 0.2 + pil_w / 2   # flank the door with a small reveal
-    pil_h = dh + 1.0                        # entablature underside == transom top (no wall gap)
+    pil_h = dh + dw_ft / 2 + 0.6            # entablature underside clears the fanlight
     eW = 2 * (pil_off + pil_w / 2) + 0.6    # entablature / pediment width, with a cornice overhang (ft)
     ent_lo, ent_hi = base + pil_h * FT, base + (pil_h + ent_h) * FT
 
@@ -663,8 +696,8 @@ def add_entry(ctx, px, pz, dw_ft, base):
         place("Entry dentil", px + (i - (n - 1) / 2) * pitch_ft, dent_ft, ENT_D + 0.04,
               ent_hi - 0.13, ent_hi - 0.01)
 
-    # keystone in the frieze, centred over the door
-    place("Entry keystone", px, 0.7, ENT_D + 0.06, base + (dh + 1.0) * FT, ent_hi + 0.05)
+    # keystone bridging the fanlight crown up into the frieze, centred over the door
+    place("Entry keystone", px, 0.7, ENT_D + 0.06, spring + R - 0.1 * FT, ent_hi + 0.05)
 
     # shallow pediment on the entablature (height scaled to its width), with a
     # tablet in the tympanum
@@ -815,19 +848,39 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
             off = (CP + pane) / 2                                # pane centre from middle
             for cc in (pos - off, pos + off):
                 dbox(cc, pane, fz0, fz1, DPANE, GLASS)
-        else:                                                    # raised six-panel
+        else:                                                    # raised panelled door
+            front = style == "front"
             MIDm = 0.5 * FT                                      # intermediate rail height (m)
-            seg = (fz1 - fz0 - 2 * MIDm) / 3                     # panel-row height
-            r1, r2 = fz0 + seg, fz0 + 2 * seg + MIDm
+            usable = fz1 - fz0 - 2 * MIDm
+            # classic six-panel proportions: short top, tall middle, medium
+            # bottom (the front door); plain thirds for ordinary panel doors.
+            f0, f1, _ = (0.22, 0.44, 0.34) if front else (1 / 3, 1 / 3, 1 / 3)
+            r1 = fz0 + usable * f0
+            r2 = r1 + MIDm + usable * f1
             dbox(pos, MUN, fz0, fz1, DFRAME, WOOD)               # center mullion -> 2 cols
             dbox(pos, fw, r1, r1 + MIDm, DFRAME, WOOD)           # lower mid rail
             dbox(pos, fw, r2, r2 + MIDm, DFRAME, WOOD)           # upper mid rail
             colw = (fw - MUN) / 2                                # one panel column (ft)
             ins = 0.12                                           # panel inset (ft)
+            # the front door shades its recessed panels darker and its molding
+            # lighter so the paneling reads even in flat light.
+            panelc = (0.74, 0.74, 0.72) if (front and paint == "white") else \
+                     (0.30, 0.19, 0.10) if front else WOOD
+            moldc = (0.99, 0.99, 0.97) if (front and paint == "white") else \
+                    (0.49, 0.33, 0.19) if front else WOOD
             rows = ((fz0, r1), (r1 + MIDm, r2), (r2 + MIDm, fz1))
             for zlo, zhi in rows:
                 for cc in (pos - (colw + MUN) / 2, pos + (colw + MUN) / 2):
-                    dbox(cc, colw - 2 * ins, zlo + ins * FT, zhi - ins * FT, DPANE, WOOD)
+                    mw = colw - 2 * ins                          # panel width (ft)
+                    dbox(cc, mw, zlo + ins * FT, zhi - ins * FT, DPANE, panelc)  # raised panel
+                    if front:
+                        # applied bolection molding: a thin proud lip framing
+                        # each raised panel (a classic front-door detail)
+                        lip, pz0, pz1 = 0.06, zlo + ins * FT, zhi - ins * FT
+                        dbox(cc, mw, pz1 - lip * FT, pz1, DMUN, moldc)          # top
+                        dbox(cc, mw, pz0, pz0 + lip * FT, DMUN, moldc)          # bottom
+                        dbox(cc - (mw - lip) / 2, lip, pz0, pz1, DMUN, moldc)   # left
+                        dbox(cc + (mw - lip) / 2, lip, pz0, pz1, DMUN, moldc)   # right
 
     def window(name, orient, fixed, pos, w, sill_m, head_m, trim="full"):
         """A glass panel with a classical surround + divided-light muntins. Trim
