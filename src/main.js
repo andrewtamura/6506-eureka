@@ -147,7 +147,17 @@ async function main() {
   // arc. Summer (high sun) sits at top, winter (low) at bottom, and the equinoxes
   // (spring / autumn) at the sides — so declination = 23.44°·cos(angle from top).
   const TILT = 23.44;                                   // Earth's axial tilt (deg)
-  const SEASONS = ["Summer", "Autumn", "Winter", "Spring"];  // clockwise from top
+  // The dial's top (angle 0) is the summer solstice (~Jun 21, day 172); turning
+  // clockwise advances through the year. Centre label shows that month + day.
+  const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const MDAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  const fmtDate = (a) => {
+    let doy = Math.round((172 + a / (2 * Math.PI) * 365 - 1)) % 365;   // 0-based day of year
+    if (doy < 0) doy += 365;
+    let d = doy, mi = 0;
+    while (d >= MDAYS[mi]) { d -= MDAYS[mi]; mi++; }
+    return `${MONTHS[mi]} ${d + 1}`;
+  };
   const sdial = el("svg", { viewBox: `0 0 ${SZ} ${SZ}` });
   sdial.style.cssText = "width:150px;height:150px;touch-action:none;cursor:grab";
   sdial.appendChild(el("path", { d: `M ${C - RR} ${C} A ${RR} ${RR} 0 0 1 ${C + RR} ${C}`, fill: "none", stroke: "#8fc46a", "stroke-width": "8", "stroke-linecap": "round" })); // warm seasons (top)
@@ -163,7 +173,7 @@ async function main() {
   const placeSeason = (a) => {
     sknob.setAttribute("cx", C + RR * Math.sin(a));
     sknob.setAttribute("cy", C - RR * Math.cos(a));
-    slabel.textContent = SEASONS[Math.round(a / (2 * Math.PI) * 4) % 4];
+    slabel.textContent = fmtDate(a);
   };
   const applySeason = (a) => {
     a = ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
