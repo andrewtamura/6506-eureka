@@ -180,10 +180,11 @@ def multi_solid_product(ctx, ifc_class, name, solids, predefined=None):
 
 
 def make_box(ctx, ifc_class, name, xdim, ydim, height, cx, cy, cz,
-             long_name=None, predefined=None, color=None, rot=0.0):
+             long_name=None, predefined=None, color=None, rot=0.0, transparency=0.0):
     """Create a product with a centered rectangular extruded body at (cx,cy,cz).
 
     If ``color`` (r,g,b in 0..1) is given, the body is shaded that colour.
+    ``transparency`` (0..1) makes it see-through (e.g. glass).
     ``rot`` (radians) rotates the box about the vertical axis (for furniture).
     """
     m = ctx.model
@@ -195,7 +196,7 @@ def make_box(ctx, ifc_class, name, xdim, ydim, height, cx, cy, cz,
         product.LongName = long_name
     rep = rect_rep(ctx, xdim, ydim, height)
     if color is not None:
-        assign_color(ctx, rep, color)
+        assign_color(ctx, rep, color, transparency=transparency)
     run("geometry.assign_representation", m, product=product, representation=rep)
     run("geometry.edit_object_placement", m, product=product, matrix=matrix(cx, cy, cz, rot))
     return product
@@ -347,7 +348,7 @@ def _newell_normal(loop):
     return n
 
 
-def add_brep(ctx, name, verts, faces, color, predefined=None, ifc_class="IfcRoof"):
+def add_brep(ctx, name, verts, faces, color, predefined=None, ifc_class="IfcRoof", transparency=0.0):
     """Create a product whose body is a faceted-BREP closed solid from `verts`
     (metres) and `faces` (vertex-index loops). Each face loop is auto-oriented
     so its normal points away from the solid centroid (outward) — valid for the
@@ -370,7 +371,7 @@ def add_brep(ctx, name, verts, faces, color, predefined=None, ifc_class="IfcRoof
     rep = m.create_entity("IfcShapeRepresentation", ContextOfItems=ctx.body,
                           RepresentationIdentifier="Body", RepresentationType="Brep", Items=[brep])
     if color is not None:
-        assign_color(ctx, rep, color)
+        assign_color(ctx, rep, color, transparency=transparency)
     kwargs = {"ifc_class": ifc_class, "name": name}
     if predefined:
         kwargs["predefined_type"] = predefined
@@ -631,16 +632,113 @@ def add_entry(ctx, px, pz, dw_ft, base):
                      ctx.X(cxp), fy + out * dep / 2, z_lo, color=color)
         run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
-    # transom over the door
-    tr = make_box(ctx, "IfcWindow", "Entry transom", dw_ft * FT, 0.08, 1.0 * FT,
-                  ix, fy, base + dh * FT, color=GLASS)
-    run("spatial.assign_container", ctx.model, products=[tr], relating_structure=ctx.storey)
+    # --- rectangular transom over the door: a stained-glass house-number panel --
+    spring = base + dh * FT                 # door head = transom sill line
+    NUM = "6506"
+    glaz_w = dw_ft                           # glazed opening width (ft)
+    glaz_h = 1.6                             # transom height (ft)
+    glaz_h_m = glaz_h * FT
+    cz0 = spring + glaz_h_m / 2               # field centre (m)
+    INK = (0.10, 0.14, 0.34)                 # dark navy numbers
+    NAVY = (0.13, 0.18, 0.44)                # roundel rings / side fans
+    CREAM = (0.92, 0.89, 0.73)               # roundel ground
+    LEAD = (0.14, 0.13, 0.12)                # dark lead came backing
+    MOS = [(0.46, 0.55, 0.33), (0.63, 0.70, 0.43), (0.80, 0.67, 0.30), (0.87, 0.80, 0.49),
+           (0.56, 0.43, 0.29), (0.34, 0.54, 0.54), (0.72, 0.62, 0.36)]  # green/gold/brown/teal
+
+    def tile(cxf, wf, zlo, zhi, dep, color, name="Entry transom", cls="IfcWindow", tr=0.0):
+        if zhi - zlo <= 0 or wf <= 0:
+            return
+        b = make_box(ctx, cls, name, wf * FT, dep, zhi - zlo,
+                     ctx.X(cxf), fy + out * dep / 2, zlo, color=color, transparency=tr)
+        run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
+
+    def poly(pts, dep, color, name="Entry glass", tr=0.0):   # flat slab from an (x_ft, z_m) loop
+        ya, yb = fy, fy + out * dep
+        n = len(pts)
+        verts = [(ctx.X(x), ya, z) for x, z in pts] + [(ctx.X(x), yb, z) for x, z in pts]
+        faces = [list(range(n)), list(range(2 * n - 1, n - 1, -1))]
+        for i in range(n):
+            faces.append([i, (i + 1) % n, n + (i + 1) % n, n + i])
+        add_brep(ctx, name, verts, faces, color, ifc_class="IfcWindow", transparency=tr)
+
+    def circ(cx, cz, rx, rzf, n=30):                 # full ellipse loop (rx, rzf ft)
+        return [(cx + rx * math.cos(2 * math.pi * k / n), cz + rzf * FT * math.sin(2 * math.pi * k / n))
+                for k in range(n)]
+
+    def rnd(a, b, s):                                # deterministic pseudo-random in [0,1)
+        n = ((a * 73856093) ^ (b * 19349663) ^ (s * 83492791)) & 0x7fffffff
+        return ((n * 2654435761) % 1009) / 1009.0
+
+    # 1) dark lead backing. Everything is kept FLAT: pieces are thin sheets with
+    #    tiny (~1.5 mm) ordered depth steps — enough to layer + read the cames,
+    #    not so much that the panel looks like stacked 3D discs.
+    tile(px, glaz_w, spring, spring + glaz_h_m, 0.002, LEAD, "Entry leading")
+    # 2) irregular leaded mosaic field: jitter a grid of shared vertices (rim
+    #    vertices pinned to the edge) into irregular quarries, inset toward each
+    #    centroid so the gaps read as cames; earthy green/gold/brown/teal glass
+    ncol, nrow = 12, 6
+    xl = px - glaz_w / 2
+    V = {}
+    for i in range(ncol + 1):
+        for j in range(nrow + 1):
+            jx = 0.0 if i in (0, ncol) else (rnd(i, j, 1) - 0.5) * 0.7
+            jz = 0.0 if j in (0, nrow) else (rnd(i, j, 2) - 0.5) * 0.7
+            V[(i, j)] = (xl + (i + jx) / ncol * glaz_w, spring + (j + jz) / nrow * glaz_h_m)
+    for i in range(ncol):
+        for j in range(nrow):
+            q = [V[(i, j)], V[(i + 1, j)], V[(i + 1, j + 1)], V[(i, j + 1)]]
+            gx, gz = sum(p[0] for p in q) / 4.0, sum(p[1] for p in q) / 4.0
+            pp = [(p[0] + (gx - p[0]) * 0.12, p[1] + (gz - p[1]) * 0.12) for p in q]
+            poly(pp, 0.005, MOS[int(rnd(i, j, 3) * 997) % len(MOS)], "Entry quarry", tr=0.4)
+    # 3) a single central roundel: concentric navy/cream rings framing the number
+    for k, (rx, rzf, c) in enumerate([(0.82, 0.64, NAVY), (0.76, 0.58, CREAM),
+                                      (0.69, 0.51, NAVY), (0.63, 0.45, CREAM)]):
+        poly(circ(px, cz0, rx, rzf), 0.013 + 0.0015 * k, c, "Entry roundel", tr=0.35)
+    # 5) the house number in rounded serif-style numerals (strokes + arcs), like
+    #    the reference photo — drawn opaque on the medallion's cream ground
+    DW, DH, s = 0.24, 0.42, 0.075           # digit width / height / stroke (ft)
+    sz, dnum, gap = s * FT, 0.022, 0.085
+    total = len(NUM) * DW + (len(NUM) - 1) * gap
+    x_left, z_bot = px - total / 2, cz0 - DH / 2 * FT
+
+    def vbar(dl, nx, n0, n1):               # vertical stroke (normalised cell coords)
+        tile(dl + nx * DW, s, z_bot + n0 * DH * FT, z_bot + n1 * DH * FT, dnum, INK, "Entry number")
+
+    def hbar(dl, nz, nx0, nx1):             # horizontal stroke
+        zc = z_bot + nz * DH * FT
+        tile(dl + (nx0 + nx1) / 2 * DW, (nx1 - nx0) * DW, zc - sz / 2, zc + sz / 2, dnum, INK, "Entry number")
+
+    def narc(dl, ncx, ncy, nrx, nry, a0, a1, n=20):   # thick elliptical stroke band
+        cxf, czm, rx, rzf = dl + ncx * DW, z_bot + ncy * DH * FT, nrx * DW, nry * DH
+        rxi, rzi = max(0.01, rx - s), max(0.01, rzf - s)
+        a0r, a1r = math.radians(a0), math.radians(a1)
+        ang = [a0r + (a1r - a0r) * k / n for k in range(n + 1)]
+        outer = [(cxf + rx * math.cos(t), czm + rzf * FT * math.sin(t)) for t in ang]
+        inner = [(cxf + rxi * math.cos(t), czm + rzi * FT * math.sin(t)) for t in reversed(ang)]
+        poly(outer + inner, dnum, INK, "Entry number")
+
+    GLYPH = {
+        "0": lambda dl: narc(dl, 0.5, 0.5, 0.42, 0.46, 0, 360),
+        "5": lambda dl: (hbar(dl, 0.9, 0.12, 0.84), vbar(dl, 0.17, 0.5, 0.9),
+                         hbar(dl, 0.52, 0.12, 0.6), narc(dl, 0.46, 0.28, 0.42, 0.30, 95, -150)),
+        "6": lambda dl: (narc(dl, 0.5, 0.30, 0.40, 0.30, 0, 360),
+                         narc(dl, 0.52, 0.52, 0.42, 0.45, 60, 205)),
+    }
+    for i, ch in enumerate(NUM):
+        GLYPH[ch](x_left + i * (DW + gap))
+    # 6) slim white wood rim around the transom (a shallow casing, not chunky)
+    CW2 = 0.30
+    tile(px, glaz_w + 2 * CW2, spring + glaz_h_m, spring + glaz_h_m + CW2 * FT, 0.04, TRIM, "Entry transom rail")
+    tile(px, glaz_w + 2 * CW2, spring - CW2 * FT, spring, 0.04, TRIM, "Entry transom bar")
+    for sx in (-1, 1):
+        tile(px + sx * (glaz_w + CW2) / 2, CW2, spring, spring + glaz_h_m, 0.04, TRIM, "Entry transom stile")
 
     pil_w = 0.8                             # pilaster shaft width (ft)
     cap_w = pil_w + 0.4                      # plinth / capital wider than the shaft
     ent_h = 0.8                             # entablature height (ft)
     pil_off = dw_ft / 2 + 0.2 + pil_w / 2   # flank the door with a small reveal
-    pil_h = dh + 1.0                        # entablature underside == transom top (no wall gap)
+    pil_h = dh + glaz_h + 0.3               # entablature underside clears the transom
     eW = 2 * (pil_off + pil_w / 2) + 0.6    # entablature / pediment width, with a cornice overhang (ft)
     ent_lo, ent_hi = base + pil_h * FT, base + (pil_h + ent_h) * FT
 
@@ -663,8 +761,8 @@ def add_entry(ctx, px, pz, dw_ft, base):
         place("Entry dentil", px + (i - (n - 1) / 2) * pitch_ft, dent_ft, ENT_D + 0.04,
               ent_hi - 0.13, ent_hi - 0.01)
 
-    # keystone in the frieze, centred over the door
-    place("Entry keystone", px, 0.7, ENT_D + 0.06, base + (dh + 1.0) * FT, ent_hi + 0.05)
+    # keystone bridging the transom head up into the frieze, centred over the door
+    place("Entry keystone", px, 0.7, ENT_D + 0.06, spring + glaz_h_m, ent_hi + 0.05)
 
     # shallow pediment on the entablature (height scaled to its width), with a
     # tablet in the tympanum
@@ -676,6 +774,46 @@ def add_entry(ctx, px, pz, dw_ft, base):
     faces = [[2, 1, 0], [3, 4, 5], [0, 1, 4, 3], [0, 3, 5, 2], [1, 2, 5, 4]]
     add_brep(ctx, "Entry pediment", verts, faces, TRIM, ifc_class="IfcBuildingElementProxy")
     place("Entry tympanum tablet", px, 1.4, PED_D + 0.04, z0 + 0.08, z0 + 0.08 + 0.4 * ph)
+
+
+def second_floor_windows(rooms):
+    """(front_z, specs) for the second-floor windows. The North (front) row stacks
+    one upper over each ground-floor front opening (already the even 5-bay
+    rhythm); the West wall gets four equally-spaced uppers across its length. All
+    graduated to 2.5' wide, sill 2.5' / head 6' above the second floor. Shared by
+    the exterior massing's upper row and the second-floor shell so they stay in
+    sync."""
+    front_z = max(r["bounds"]["z2"] for r in rooms)   # North wall
+    west_x = max(r["bounds"]["x2"] for r in rooms)     # West wall
+    specs = []
+    # North: one upper over each ground-floor front opening (windows + door)
+    for r in rooms:
+        for o in r.get("windows", []) + r.get("doors", []):
+            if not o.get("opening") and o["orient"] == "H" and abs(o["fixed"] - front_z) < 1e-3:
+                specs.append({"name": f"Upper - {o['name']}", "orient": "H", "fixed": front_z,
+                              "pos": o["pos"], "width": 2.5, "sill": 2.5, "head": 6.0})
+    # West: four equally-spaced uppers, inset from the corners so the end
+    # windows aren't tight to them
+    west_rooms = [r for r in rooms if abs(r["bounds"]["x2"] - west_x) < 1e-3]
+    if west_rooms:
+        margin = 1.0   # end windows ~3' off the corners (2.5' wide, so edge at z1+3)
+        z1 = min(r["bounds"]["z1"] for r in west_rooms) + margin
+        z2 = max(r["bounds"]["z2"] for r in west_rooms) - margin
+        n = 4
+        for i in range(n):
+            specs.append({"name": f"Upper - West {i + 1}", "orient": "V", "fixed": west_x,
+                          "pos": z1 + (i + 0.5) * (z2 - z1) / n,
+                          "width": 2.5, "sill": 2.5, "head": 6.0})
+    return front_z, specs
+
+
+def add_shell_windows(ctx, rooms):
+    """Cut the second-floor window openings into a shell, kept in sync with the
+    exterior massing's upper row (same walls, positions, and size)."""
+    _, specs = second_floor_windows(rooms)
+    for w in specs:
+        cut_opening(ctx, "IfcWindow", w["name"], w["orient"], w["fixed"], w["pos"],
+                    w["width"], w["sill"], w["head"], leaf=True)
 
 
 def add_fenestration(ctx, groups, rooms_cache, base=0.0):
@@ -716,6 +854,98 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
             p = make_box(ctx, ifc_class, name, abs(w) * FT, DEPTH, h,
                          ctx.X(pos), ctx.Y(fixed), sill_m, color=color)
         run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
+
+    def door_leaf(name, orient, fixed, pos, w_ft, z0, z1, style="panel", paint=None):
+        """An architectural stile-and-rail door leaf, built from boxes on the
+        wall face (the solid massing sits behind it). A backing slab carries the
+        IfcDoor; frame members + panels/glazing add relief on top.
+          - "panel"  -> a raised six-panel door (2 cols x 3 rows).
+          - "8lite"  -> a divided-light glazed door (2 cols x 4 rows = 8 lites).
+        Depths step outward (slab < panel/glass < frame < muntin) so panels read
+        raised and the muntin grid sits proud of the glass. `paint` overrides the
+        default stained-wood colour (e.g. "white" for a painted door)."""
+        WOOD = {"white": (0.92, 0.92, 0.89)}.get(paint, (0.38, 0.24, 0.13))
+        w, H = abs(w_ft), z1 - z0
+        if H <= 0.1 or w <= 0:
+            return
+        STILE, TRAIL, BRAIL, MUN = 0.46, 0.46, 0.92, 0.10        # member sizes (ft)
+        DSLAB, DPANE, DFRAME, DMUN = 0.09, 0.12, 0.15, 0.17      # depths (m)
+        TRAILm, BRAILm = TRAIL * FT, BRAIL * FT                  # rails in metres (z-axis)
+
+        def dbox(apos, alen, zlo, zhi, dep, color, cls="IfcBuildingElementProxy", nm=None):
+            if zhi - zlo <= 0 or alen <= 0:
+                return
+            nm = nm or f"{name} part"
+            if orient == "H":   # wall runs along X; member spans X, thin in Y
+                b = make_box(ctx, cls, nm, alen * FT, dep, zhi - zlo,
+                             ctx.X(apos), ctx.Y(fixed), zlo, color=color)
+            else:               # wall runs along Z; member spans Y, thin in X
+                b = make_box(ctx, cls, nm, dep, alen * FT, zhi - zlo,
+                             ctx.X(fixed), ctx.Y(apos), zlo, color=color)
+            run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
+
+        # backing slab (the IfcDoor itself) covers the whole opening
+        dbox(pos, w, z0, z1, DSLAB, WOOD, cls="IfcDoor", nm=name)
+        fw = w - 2 * STILE                                       # inner field width (ft)
+        # glazed doors (8-lite, patio) get thin rails so the glass runs top to
+        # bottom; the panel door seats its panels on a heavier bottom rail.
+        botm = (0.42 if style in ("8lite", "patio") else BRAIL) * FT  # bottom rail (m)
+        fz0, fz1 = z0 + botm, z1 - TRAILm                        # inner field height (m)
+        # frame relief (proud): stiles + top + bottom rails
+        dbox(pos - (w - STILE) / 2, STILE, z0, z1, DFRAME, WOOD)
+        dbox(pos + (w - STILE) / 2, STILE, z0, z1, DFRAME, WOOD)
+        dbox(pos, fw, fz1, z1, DFRAME, WOOD)                     # top rail
+        dbox(pos, fw, z0, fz0, DFRAME, WOOD)                     # bottom rail
+        mh = MUN * FT / 2                                        # half muntin/rail thickness (m)
+        if style == "8lite":
+            # two columns of glass, each split into four lites top-to-bottom
+            dbox(pos, fw, fz0, fz1, DPANE, GLASS)                # glazed field
+            dbox(pos, MUN, fz0, fz1, DMUN, WOOD)                 # 1 vertical -> 2 cols
+            for j in range(1, 4):                                # 3 horizontal -> 4 rows
+                zc = fz0 + j * (fz1 - fz0) / 4
+                dbox(pos, fw, zc - mh, zc + mh, DMUN, WOOD)
+        elif style == "patio":
+            # two leaves, each a single large glass pane (no muntins), meeting
+            # at a centre post
+            CP = 0.5                                             # centre meeting post (ft)
+            dbox(pos, CP, fz0, fz1, DFRAME, WOOD)
+            pane = (fw - CP) / 2                                 # one leaf's glass (ft)
+            off = (CP + pane) / 2                                # pane centre from middle
+            for cc in (pos - off, pos + off):
+                dbox(cc, pane, fz0, fz1, DPANE, GLASS)
+        else:                                                    # raised panelled door
+            front = style == "front"
+            MIDm = 0.5 * FT                                      # intermediate rail height (m)
+            usable = fz1 - fz0 - 2 * MIDm
+            # classic six-panel proportions: short top, tall middle, medium
+            # bottom (the front door); plain thirds for ordinary panel doors.
+            f0, f1, _ = (0.22, 0.44, 0.34) if front else (1 / 3, 1 / 3, 1 / 3)
+            r1 = fz0 + usable * f0
+            r2 = r1 + MIDm + usable * f1
+            dbox(pos, MUN, fz0, fz1, DFRAME, WOOD)               # center mullion -> 2 cols
+            dbox(pos, fw, r1, r1 + MIDm, DFRAME, WOOD)           # lower mid rail
+            dbox(pos, fw, r2, r2 + MIDm, DFRAME, WOOD)           # upper mid rail
+            colw = (fw - MUN) / 2                                # one panel column (ft)
+            ins = 0.12                                           # panel inset (ft)
+            # the front door shades its recessed panels darker and its molding
+            # lighter so the paneling reads even in flat light.
+            panelc = (0.74, 0.74, 0.72) if (front and paint == "white") else \
+                     (0.30, 0.19, 0.10) if front else WOOD
+            moldc = (0.99, 0.99, 0.97) if (front and paint == "white") else \
+                    (0.49, 0.33, 0.19) if front else WOOD
+            rows = ((fz0, r1), (r1 + MIDm, r2), (r2 + MIDm, fz1))
+            for zlo, zhi in rows:
+                for cc in (pos - (colw + MUN) / 2, pos + (colw + MUN) / 2):
+                    mw = colw - 2 * ins                          # panel width (ft)
+                    dbox(cc, mw, zlo + ins * FT, zhi - ins * FT, DPANE, panelc)  # raised panel
+                    if front:
+                        # applied bolection molding: a thin proud lip framing
+                        # each raised panel (a classic front-door detail)
+                        lip, pz0, pz1 = 0.06, zlo + ins * FT, zhi - ins * FT
+                        dbox(cc, mw, pz1 - lip * FT, pz1, DMUN, moldc)          # top
+                        dbox(cc, mw, pz0, pz0 + lip * FT, DMUN, moldc)          # bottom
+                        dbox(cc - (mw - lip) / 2, lip, pz0, pz1, DMUN, moldc)   # left
+                        dbox(cc + (mw - lip) / 2, lip, pz0, pz1, DMUN, moldc)   # right
 
     def window(name, orient, fixed, pos, w, sill_m, head_m, trim="full"):
         """A glass panel with a classical surround + divided-light muntins. Trim
@@ -794,7 +1024,8 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
                 o, f, p = d["orient"], d["fixed"], d["pos"]
                 if not is_exterior(o, f, p):
                     continue
-                panel("IfcDoor", d["name"], o, f, p, d["width"], base, base + ctx.door_h_ft * FT, DOOR)
+                door_leaf(d["name"], o, f, p, d["width"], base, base + ctx.door_h_ft * FT,
+                          d.get("doorStyle", "panel"), d.get("paint"))
 
     # Symmetric upper-floor window row + pedimented entry on the primary's front
     # (North) face. The front line is the primary's max plan z; place an upper
@@ -802,18 +1033,80 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
     # The upper windows are graduated — shorter and narrower than the ground
     # floor (a classic Georgian/Colonial device) — for a balanced, tapering grid.
     if prim:
-        u_sill, u_head = base + ctx.story + 2.5 * FT, base + ctx.story + 6.0 * FT  # 3.5' tall
-        door = None
-        for s in prim["rooms"]:
-            r = rooms_cache[s]
-            for o in r.get("windows", []) + r.get("doors", []):
-                if o["orient"] != "H" or abs(o["fixed"] - front_z) > 1e-3 or o.get("opening"):
-                    continue
-                window(f"Upper - {o['name']}", "H", front_z, o["pos"], 2.5, u_sill, u_head, trim="upper")
-                if "Front Door" in o.get("name", ""):
-                    door = o
+        # Second-floor windows (front + west) — shared with the level2 shell.
+        _, specs = second_floor_windows([rooms_cache[s] for s in prim["rooms"]])
+        for w in specs:
+            window(w["name"], w["orient"], w["fixed"], w["pos"], w["width"],
+                   base + ctx.story + w["sill"] * FT, base + ctx.story + w["head"] * FT, trim="upper")
+        door = next((o for s in prim["rooms"] for o in rooms_cache[s].get("doors", [])
+                     if "Front Door" in o.get("name", "")), None)
         if door:
             add_entry(ctx, door["pos"], front_z, door["width"], base)
+
+    add_kitchen_feature(ctx, rooms_cache, base)
+
+
+def add_kitchen_feature(ctx, rooms_cache, base):
+    """Make the kitchen picture window special: a standing-seam copper hood —
+    shaped like the scullery's shed-with-hips, with 45° hipped ends — above the
+    window cornice, and a white planter box (greenery on top) hung on the wall
+    below, its top 6" beneath the glass."""
+    kw = next((w for r in rooms_cache.values() for w in r.get("windows", [])
+               if "Kitchen W (picture)" in w.get("name", "")), None)
+    if kw is None:
+        return
+    COPPER, GREEN, BOX = (0.69, 0.43, 0.24), (0.30, 0.45, 0.26), (0.93, 0.92, 0.88)
+    fx = ctx.X(kw["fixed"])
+    out_x = -1.0 if ctx.X(kw["fixed"] + 1) < fx else 1.0   # outward (away from the wall)
+    cy = ctx.Y(kw["pos"])
+    sill_m = base + kw["sill"] * FT
+    head_m = base + kw["head"] * FT
+
+    # standing-seam copper hood shaped like the scullery's shed-with-hips: high at
+    # the wall, sloping down to a front eave, the two ends hipped in (not gabled).
+    proj, th = 2.0 * FT, 0.06                    # 24" projection
+    drop = proj * (10 / 12)                      # 10/12 pitch (rise/run)
+    hip = proj                                   # hip inset == projection -> 45° hip in plan
+    z_lo = head_m + 1.1 * FT                      # eave kept above the window cornice top...
+    z_hi = z_lo + drop                            # ...so the whole hood clears + covers the cornice
+    hw = (kw["width"] / 2 + 1.5) * FT             # wide enough to cover the window + side trim
+    ylo, yhi = cy - hw, cy + hw
+    xf = fx + out_x * proj                   # front eave (projected out)
+    top = [(xf, ylo, z_lo), (xf, yhi, z_lo),            # 0,1 front eave
+           (fx, ylo, z_lo), (fx, yhi, z_lo),            # 2,3 wall, low (ends)
+           (fx, ylo + hip, z_hi), (fx, yhi - hip, z_hi)]  # 4,5 ridge (inset)
+    verts = top + [(x, y, z - th) for x, y, z in top]   # 6..11 soffit
+    faces = [[4, 5, 1, 0], [2, 0, 4], [1, 3, 5], [2, 4, 5, 3],          # top: main slope, 2 hips, wall gable
+             [10, 11, 7, 6], [8, 6, 10], [7, 9, 11], [8, 10, 11, 9],     # soffit
+             [0, 1, 7, 6], [1, 3, 9, 7], [3, 2, 8, 9], [2, 0, 6, 8]]     # edges (front, sides, wall)
+    add_brep(ctx, "Kitchen awning", verts, faces, COPPER, ifc_class="IfcBuildingElementProxy")
+    # standing seams: raised ribs down the main slope (ridge -> front eave)
+    rw, rh = 0.015, 0.04
+    nseam = 6
+    for k in range(nseam):
+        u = (k + 0.5) / nseam
+        ry = (ylo + hip) + u * (yhi - ylo - 2 * hip)
+        ey = ylo + u * (yhi - ylo)
+        fv = [(fx, ry - rw, z_hi), (fx, ry + rw, z_hi), (xf, ey - rw, z_lo), (xf, ey + rw, z_lo)]
+        fv += [(x, y, z + rh) for x, y, z in fv]
+        ff = [[0, 1, 3, 2], [4, 5, 7, 6], [0, 2, 6, 4], [1, 5, 7, 3], [0, 4, 5, 1], [2, 3, 7, 6]]
+        add_brep(ctx, "Kitchen awning seam", fv, ff, COPPER, ifc_class="IfcBuildingElementProxy")
+
+    # planter box on the wall below the sill: its top sits 6" below the glass,
+    # with greenery filling the gap up to the glass.
+    dining_sill = next((w["sill"] for r in rooms_cache.values() for w in r.get("windows", [])
+                        if "Dining W" in w.get("name", "")), 2.5)
+    box_top = sill_m - 0.5 * FT                  # 6" below the kitchen glass
+    # bottom level with the dining windows' apron (sill 0.12 + apron 0.22 below
+    # their glass), so the kitchen window assembly starts at the same height
+    box_bot = base + dining_sill * FT - 0.34
+    pdepth = 1.0 * FT
+    pw = (kw["width"] / 2 - 0.25) * FT
+    pcx = fx + out_x * pdepth / 2
+    for nm, z0, hgt, col in (("Kitchen planter box", box_bot, box_top - box_bot, BOX),
+                             ("Kitchen planter greenery", box_top, sill_m - box_top, GREEN)):
+        b = make_box(ctx, "IfcBuildingElementProxy", nm, pdepth, 2 * pw, hgt, pcx, cy, z0, color=col)
+        run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
 
 def add_slab(ctx, r):
