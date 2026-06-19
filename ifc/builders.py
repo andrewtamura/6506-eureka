@@ -634,16 +634,15 @@ def add_entry(ctx, px, pz, dw_ft, base):
     # --- rectangular transom over the door: a stained-glass house-number panel --
     spring = base + dh * FT                 # door head = transom sill line
     NUM = "6506"
-    FONT = {"0": ("111", "101", "101", "101", "111"),     # 3x5 mosaic glyphs
+    FONT = {"0": ("111", "101", "101", "101", "111"),     # 3x5 glyphs
             "5": ("111", "100", "111", "001", "111"),
             "6": ("111", "100", "111", "101", "111")}
-    cols = len(NUM) * 3 + (len(NUM) - 1)    # 3-wide glyphs + 1-wide gaps
-    u = (dw_ft * 0.76) / cols               # mosaic cell (ft)
-    num_w = cols * u                         # number block width (ft)
     glaz_w = dw_ft                           # glazed opening width (ft)
-    glaz_h = 8.0 * u                         # 5 rows + top/bottom margin (ft)
+    glaz_h = 1.35                            # transom height (ft)
     glaz_h_m = glaz_h * FT
-    LIGHT, INK = (0.90, 0.85, 0.60), (0.16, 0.26, 0.55)   # amber glass, cobalt digits
+    INK = (0.13, 0.20, 0.46)                 # cobalt digits
+    PAL = [(0.88, 0.79, 0.50), (0.82, 0.70, 0.72), (0.60, 0.73, 0.73),
+           (0.72, 0.79, 0.88), (0.86, 0.84, 0.66)]   # muted leaded-glass palette
 
     def tile(cxf, wf, zlo, zhi, dep, color, name="Entry transom", cls="IfcWindow"):
         if zhi - zlo <= 0 or wf <= 0:
@@ -652,23 +651,37 @@ def add_entry(ctx, px, pz, dw_ft, base):
                      ctx.X(cxf), fy + out * dep / 2, zlo, color=color)
         run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
-    # background glazing + a slim wood rim (stiles, head + sill bar) around it
-    tile(px, glaz_w, spring, spring + glaz_h_m, 0.04, LIGHT, "Entry transom glass")
+    # stained-glass mosaic field: small leaded tiles in a concentric-diamond
+    # colour pattern over a dark leading panel (so the gaps read as seams),
+    # framed by a slim white wood rim
+    tile(px, glaz_w, spring, spring + glaz_h_m, 0.02, (0.18, 0.17, 0.16), "Entry leading")
+    ncol, nrow = round(glaz_w / 0.2), round(glaz_h / 0.2)
+    cw, chf = glaz_w / ncol, glaz_h / nrow
+    for ri in range(nrow):
+        for ci in range(ncol):
+            d = abs(ci - (ncol - 1) / 2) + abs(ri - (nrow - 1) / 2)
+            cxf = px - glaz_w / 2 + (ci + 0.5) * cw
+            zlo = spring + ri * chf * FT
+            tile(cxf, cw * 0.86, zlo, zlo + chf * 0.86 * FT, 0.03, PAL[int(d) % len(PAL)], "Entry glass")
     CW2 = 0.33
     tile(px, glaz_w + 2 * CW2, spring + glaz_h_m, spring + glaz_h_m + CW2 * FT, 0.10, TRIM, "Entry transom rail")
     tile(px, glaz_w + 2 * CW2, spring - CW2 * FT, spring, 0.10, TRIM, "Entry transom bar")
     for sx in (-1, 1):
         tile(px + sx * (glaz_w + CW2) / 2, CW2, spring, spring + glaz_h_m, 0.10, TRIM, "Entry transom stile")
-    # the house number, as cobalt mosaic tiles (small gaps read as leaded seams)
-    block_left = px - num_w / 2
-    block_bot = spring + (glaz_h_m - 5 * u * FT) / 2        # vertically centre the 5-row block
+    # a small house number on a clear cartouche, centred in the mosaic field
+    u = 0.085                                # digit mosaic cell (ft) — small
+    nw, nh = (len(NUM) * 4 - 1) * u, 5 * u   # number block size (ft)
+    cz = spring + glaz_h_m / 2               # field centre (m)
+    tile(px, nw + 4 * u, cz - (nh / 2 + 1.5 * u) * FT, cz + (nh / 2 + 1.5 * u) * FT,
+         0.05, (0.93, 0.92, 0.84), "Entry number ground")
+    bl, bb = px - nw / 2, cz - nh / 2 * FT
     for di, ch in enumerate(NUM):
-        gleft = block_left + di * 4 * u                     # 3 cells + 1 gap per glyph
+        gl = bl + di * 4 * u                 # 3 cells + 1 gap per glyph
         for r in range(5):
             for c in range(3):
                 if FONT[ch][r][c] == "1":
-                    zlo = block_bot + (4 - r) * u * FT
-                    tile(gleft + (c + 0.5) * u, u * 0.9, zlo, zlo + u * 0.9 * FT, 0.06, INK, "Entry number")
+                    zlo = bb + (4 - r) * u * FT
+                    tile(gl + (c + 0.5) * u, u * 0.9, zlo, zlo + u * 0.9 * FT, 0.07, INK, "Entry number")
 
     pil_w = 0.8                             # pilaster shaft width (ft)
     cap_w = pil_w + 0.4                      # plinth / capital wider than the shaft
