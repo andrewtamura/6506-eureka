@@ -947,7 +947,7 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
                         dbox(cc - (mw - lip) / 2, lip, pz0, pz1, DMUN, moldc)   # left
                         dbox(cc + (mw - lip) / 2, lip, pz0, pz1, DMUN, moldc)   # right
 
-    def window(name, orient, fixed, pos, w, sill_m, head_m, trim="full"):
+    def window(name, orient, fixed, pos, w, sill_m, head_m, trim="full", muntins=True):
         """A glass panel with a classical surround + divided-light muntins. Trim
         styles distinguish the floors / facades:
           - "full" (side/rear ground): casing, a projecting sill + apron, and a
@@ -995,7 +995,10 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
             tbox(f"Sill - {name}", pos, w + 2 * CW + 0.3, sill_bot, sill_m, 0.18)
             tbox(f"Apron - {name}", pos, w, sill_bot - 0.22, sill_bot, 0.12)
             tbox(f"Header - {name}", pos, w + 2 * CW + 0.4, head_top, head_top + 0.12, 0.20)
-        # divided lights: muntin grid sized to ~square panes
+        # divided lights: muntin grid sized to ~square panes (a picture window
+        # can opt out for a single clear sheet)
+        if not muntins:
+            return
         cols = max(2, round(w / 1.3))
         rows = max(2, round((h / FT) / 1.4))
         for i in range(1, cols):
@@ -1017,7 +1020,7 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
                 front = g is prim and o == "H" and front_z is not None and abs(f - front_z) < 1e-3
                 window(win["name"], o, f, p, win["width"],
                        base + win["sill"] * FT, base + win["head"] * FT,
-                       trim="lintel" if front else "full")
+                       trim="lintel" if front else "full", muntins=win.get("muntins", True))
             for d in r.get("doors", []):
                 if d.get("opening"):          # interior cased opening, skip
                     continue
