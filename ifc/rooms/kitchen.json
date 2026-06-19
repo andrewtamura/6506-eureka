@@ -51,7 +51,8 @@
       "pos": -4.92,
       "width": 8.0,
       "sill": 3.33,
-      "head": 7.0
+      "head": 7.0,
+      "muntins": false
     }
   ],
   "interior": {

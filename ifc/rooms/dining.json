@@ -33,8 +33,8 @@
       "name": "Window - Dining N1",
       "orient": "H",
       "fixed": 16.0833,
-      "pos": 18.0,
-      "width": 3.0,
+      "pos": 17.875,
+      "width": 3.5,
       "sill": 2.5,
       "head": 7.0
     },
@@ -42,8 +42,8 @@
       "name": "Window - Dining N2",
       "orient": "H",
       "fixed": 16.0833,
-      "pos": 26.5,
-      "width": 3.0,
+      "pos": 26.25,
+      "width": 3.5,
       "sill": 2.5,
       "head": 7.0
     }
