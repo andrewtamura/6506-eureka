@@ -426,6 +426,7 @@ async function main() {
   const LOOK_DIST = 0.05;              // orbit radius indoors: ~0 so you spin in place
   const ROOM_INSET = 0.55;             // keep the standing point this far from walls (m)
   const ctrls = world.camera.controls;
+  let inPov = false;                   // true while standing in a first-person POV
   const roomBoxes = [];                // { name, box } filled when POV views build
   const skipIds = new Set();           // door + opening ids to ignore when teleporting
   const floorIds = new Set();          // slab + floor-finish ids: the only teleport targets
@@ -448,12 +449,14 @@ async function main() {
     ctrls.polarRotateSpeed = -1;
     ctrls.minPolarAngle = Math.PI * 0.30; // look up to ~54° above horizontal
     ctrls.maxPolarAngle = Math.PI * 0.70; // and ~54° below — no straight up/down
-    ctrls.minDistance = LOOK_DIST;        // lock the orbit radius so pinch-zoom
-    ctrls.maxDistance = LOOK_DIST;        // can't dolly the camera out of the room
+    ctrls.minDistance = LOOK_DIST;        // lock the orbit radius: you spin in place,
+    ctrls.maxDistance = LOOK_DIST;        // and a zoom-out gesture exits to overview (below)
     ctrls.truckSpeed = 0;                 // no two-finger pan (would exit the room)
     setPlanView(false);                   // inside a room: opaque ceiling overhead
+    inPov = true;
   }
   function overviewControls() {
+    inPov = false;
     setPlanView(true);                    // see-through ceilings (dollhouse from above)
     ctrls.boundaryEnclosesCamera = false;
     ctrls.setBoundary(undefined);
@@ -469,6 +472,34 @@ async function main() {
     overviewControls();
     framePlan(true);                      // return to the top-down plan view
   }
+  // Pinch/scroll to zoom OUT while in a POV -> glide back to an orbital 3/4 view
+  // of whichever model you were standing in (the natural "back out" gesture).
+  const _tmp = new THREE.Vector3();
+  function exitPov() {
+    if (!inPov) return;
+    overviewControls();                   // re-enable free orbit (clears inPov)
+    const cam = world.camera.three.position;
+    let best = null, bd = Infinity;       // the model the camera is currently over
+    for (const v of modelViews) {
+      const c = v.box.getCenter(_tmp);
+      const d = (c.x - cam.x) ** 2 + (c.z - cam.z) ** 2;
+      if (d < bd) { bd = d; best = v; }
+    }
+    frameModel(best ? best.box : viewBox, true);
+  }
+  let pinch0 = 0;
+  dom.addEventListener("wheel", (e) => { if (inPov && e.deltaY > 0) exitPov(); }, { passive: true });
+  dom.addEventListener("touchstart", (e) => {
+    if (e.touches.length === 2)
+      pinch0 = Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
+                          e.touches[0].clientY - e.touches[1].clientY);
+  }, { passive: true });
+  dom.addEventListener("touchmove", (e) => {
+    if (!inPov || e.touches.length !== 2 || !pinch0) return;
+    const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX,
+                         e.touches[0].clientY - e.touches[1].clientY);
+    if (d < pinch0 - 40) { pinch0 = 0; exitPov(); }   // fingers pinched together = zoom out
+  }, { passive: true });
   const roomAt = (x, z) => roomBoxes.find(
     (r) => x >= r.box.min.x && x <= r.box.max.x && z >= r.box.min.z && z <= r.box.max.z);
 
