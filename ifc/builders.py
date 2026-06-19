@@ -611,6 +611,48 @@ def add_porch(ctx, rooms_cache, base, width_ft=12.0):
         run("spatial.assign_container", ctx.model, products=[step], relating_structure=ctx.storey)
 
 
+def add_deck(ctx, lot, rooms_cache, base):
+    """A raised rear deck off the family-room patio doors, level with the finished
+    floor (= `base`, 30" above grade). It runs the south face of the house from
+    the extension's east wall out to the south lot line, then wraps west along the
+    scullery's south wall to the scullery's west wall. Three-step flights descend
+    to grade off the east edge (exiting east) and the west edge (scullery wall)."""
+    if base <= 0:
+        return
+    DECK = (0.60, 0.47, 0.34)                       # warm deck wood
+    B = {k: v["bounds"] for k, v in rooms_cache.items()}
+    xlo = lambda b: min(b["x1"], b["x2"]); xhi = lambda b: max(b["x1"], b["x2"])
+    zlo = lambda b: min(b["z1"], b["z2"])
+    south = min(zlo(v) for v in B.values()) - lot["scullerySouthFt"]   # south lot line (plan z)
+    ext_east = min(xlo(B[k]) for k in ("ext_bath", "wc", "ext_vestibule", "ext_laundry") if k in B)
+    house_south = zlo(B["family"])                  # family / extension south wall (plan z)
+    scu = B["scullery"]
+    scu_east, scu_west, scu_south = xlo(scu), xhi(scu), zlo(scu)
+
+    def slab(name, x1, x2, z1, z2, h):
+        w, d = abs(x2 - x1), abs(z2 - z1)
+        if w <= 0 or d <= 0 or h <= 0:
+            return
+        b = make_box(ctx, "IfcSlab", name, w * FT, d * FT, h,
+                     ctx.X((x1 + x2) / 2), ctx.Y((z1 + z2) / 2), 0.0, color=DECK)
+        run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
+
+    # platform: the main section (against family + extension) and the scullery
+    # section (south of the scullery, which juts into the yard)
+    slab("Deck", ext_east, scu_east, house_south, south, base)
+    slab("Deck - scullery", scu_east, scu_west, scu_south, south, base)
+
+    # three-step flights down to grade (4 risers; treads project past the edge)
+    nst, t = 4, 0.92
+    riser = base / nst
+    ez = (house_south + south) / 2                  # east stair centred on its edge
+    wz = (scu_south + south) / 2                    # west stair centred on the scullery section
+    for k in (1, 2, 3):
+        h = base - k * riser
+        slab(f"Deck step E{k}", ext_east - k * t, ext_east - (k - 1) * t, ez - 2.5, ez + 2.5, h)
+        slab(f"Deck step W{k}", scu_west + (k - 1) * t, scu_west + k * t, wz - 2.25, wz + 2.25, h)
+
+
 def add_entry(ctx, px, pz, dw_ft, base):
     """Classical pedimented door surround over the (North-facing) front door:
     flanking pilasters (with plinths + capitals) carrying a dentilled entablature

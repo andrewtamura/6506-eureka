@@ -295,10 +295,12 @@ async function main() {
   // ground plan and never re-snaps once the rest of the row streams in behind it.
   const GAP = 9;                                        // spacing between views (m)
   let westX = modelBox.min.x, eastX = modelBox.max.x;   // -X / +X frontiers
+  let exteriorModel = null;                             // captured for the walk-the-lot POV
   const modelViews = [{ id: groundLevel.id, label: groundLevel.label || groundLevel.storey, box: buildingBox(model.object) }];
   const labelViews = [{ label: groundLevel.label || groundLevel.storey, box: modelBox }];
   const placeExhibit = async (lvl, toEast) => {
     const m = await loadIfc(lvl.ifc, lvl.storey);
+    if (lvl.id === "exterior") exteriorModel = m;
     // The smaller models can finish tessellating a frame after load(), so their
     // bounds read empty for a moment; poll until the geometry lands.
     let b0 = new THREE.Box3().setFromObject(m.object);
@@ -426,6 +428,9 @@ async function main() {
   const roomBoxes = [];                // { name, box } filled when POV views build
   const skipIds = new Set();           // door + opening ids to ignore when teleporting
   const floorIds = new Set();          // slab + floor-finish ids: the only teleport targets
+  const extFloorIds = new Set();       // exterior slabs (lot / deck / porch / steps): walk targets
+  let walking = false;                 // true while in the "walk the lot" exterior POV
+  let deckStand = null;                // {x, y, z, lookZ} world spot to start the walk on the deck
   // Stand inside a room with a first-person feel. The orbit pivot sits just in
   // front of the eye (LOOK_DIST), so looking around rotates almost in place
   // instead of swinging the camera on a wide arc into the walls. The boundary
@@ -450,6 +455,7 @@ async function main() {
     setPlanView(false);                   // inside a room: opaque ceiling overhead
   }
   function overviewControls() {
+    walking = false;
     setPlanView(true);                    // see-through ceilings (dollhouse from above)
     ctrls.boundaryEnclosesCamera = false;
     ctrls.setBoundary(undefined);
@@ -518,6 +524,23 @@ async function main() {
         const pt = cdata[i]?.PredefinedType;
         const v = String((pt && typeof pt === "object" && "value" in pt) ? pt.value : pt);
         if (v !== "CEILING") floorIds.add(id); // FLOORING (and anything not a ceiling)
+      });
+    }
+    // Exterior walk targets: every exterior IfcSlab (lot, deck, porch, steps).
+    // The house body / roofs are IfcBuildingElementProxy / IfcRoof, so they're
+    // excluded and you can't climb a wall.
+    if (exteriorModel) {
+      const es = Object.values(await exteriorModel.getItemsOfCategories([/IFCSLAB/])).flat();
+      for (const id of es) extFloorIds.add(id);
+      // find the rear deck slab's world box -> a start spot for the walk POV
+      const edata = await exteriorModel.getItemsData(es, { attributesDefault: true });
+      const eboxes = await exteriorModel.getBoxes(es);
+      es.forEach((id, i) => {
+        if (String(edata[i]?.Name?.value ?? "") === "Deck" && eboxes[i]) {
+          const bb = eboxes[i];
+          deckStand = { x: (bb.min.x + bb.max.x) / 2, y: bb.max.y,
+                        z: (bb.min.z + bb.max.z) / 2, lookZ: bb.min.z }; // min z edge faces the house
+        }
       });
     }
   }
@@ -662,6 +685,29 @@ async function main() {
     enterRoom();
   }
 
+  // --- walk-the-lot POV (exterior) ---------------------------------------
+  // Same first-person idiom as indoors, but double-tap moves you across the
+  // EXTERIOR model's ground surfaces (lot, deck, porch, steps).
+  async function walkTeleport(lx, ly) {
+    if (!exteriorModel) return;
+    pointer.set(lx, ly);
+    const hits = await exteriorModel.raycastAll({ camera: world.camera.three, mouse: pointer, dom });
+    if (!hits || !hits.length) return;
+    const cam = world.camera.three.position;
+    const hit = hits
+      .filter((h) => extFloorIds.has(h.localId))     // stand only on ground slabs, not walls/roofs
+      .sort((a, b) => a.point.distanceTo(cam) - b.point.distanceTo(cam))[0];
+    if (!hit) return;
+    world.camera.three.getWorldDirection(_tdir); _tdir.y = 0;
+    let fx, fz;
+    if (_tdir.lengthSq() > 1e-3) { _tdir.normalize(); fx = _tdir.x; fz = _tdir.z; }
+    else { const az = ctrls.azimuthAngle; fx = -Math.sin(az); fz = -Math.cos(az); }
+    const y = hit.point.y + EYE;
+    await clearSelection();
+    await glideTo(hit.point.x, y, hit.point.z, hit.point.x + fx * LOOK_DIST, y, hit.point.z + fz * LOOK_DIST);
+    enterRoom();
+  }
+
   // --- interactive doors (double-tap a door to swing it open/closed) ------
   const doorMeshes = []; // door panel meshes (for raycasting)
   const doors = [];      // { pivot, openAngle, target, current }
@@ -707,6 +753,7 @@ async function main() {
     const now = performance.now();
     if (now - lastTap < 350 && Math.hypot(e.clientX - lastX, e.clientY - lastY) < 25) {
       lastTap = 0;
+      if (walking) { await walkTeleport(lx, ly); return; }
       const door = pickDoor(lx, ly);
       if (door) { toggleDoor(door); return; }
       const chair = pickChair(lx, ly);
@@ -741,6 +788,17 @@ async function main() {
       frameModel(mv.box, true);
     });
   }
+  // Walk-the-lot: stand on the rear deck at eye height, then double-tap any
+  // ground surface (deck, lawn, porch, steps) to stride there and look around.
+  if (exteriorModel && deckStand) addView("🚶 Walk the lot", async () => {
+    await clearSelection();
+    enterRoom();
+    walking = true;
+    const y = deckStand.y + EYE;                    // stand on the deck at eye height
+    const look = deckStand.lookZ - deckStand.z;     // toward the house (its south wall)
+    await glideTo(deckStand.x, y, deckStand.z, deckStand.x, y, deckStand.z + Math.sign(look) * 6);
+    refreshShadow();
+  });
 
   // --- build swinging door overlays ---------------------------------------
   // Hide the baked IFC door panels (can't cheaply animate them) and overlay our
