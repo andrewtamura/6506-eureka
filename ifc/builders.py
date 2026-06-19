@@ -613,13 +613,17 @@ def add_porch(ctx, rooms_cache, base, width_ft=12.0):
 
 def add_deck(ctx, lot, rooms_cache, base):
     """A raised rear deck off the family-room patio doors, level with the finished
-    floor (= `base`, 30" above grade). It runs the south face of the house from
-    the extension's east wall out to the south lot line, then wraps west along the
-    scullery's south wall to the scullery's west wall. Three-step flights descend
-    to grade off the east edge (exiting east) and the west edge (scullery wall)."""
+    floor (= `base`, 30" above grade). It runs the south face from the extension's
+    east wall out to the south lot line, then wraps west along the scullery's south
+    wall to the scullery's west wall. Two flights of steps are INSET (notched into
+    the platform, so the runs never project past the deck): the west flight spans
+    the full scullery section and rises from the scullery's west wall; the east
+    flight runs along the extension's south wall and rises from a bottom tread
+    aligned with the extension's east wall. A 32" railing guards the east drop."""
     if base <= 0:
         return
     DECK = (0.60, 0.47, 0.34)                       # warm deck wood
+    RAIL = (0.40, 0.30, 0.20)                       # darker rail wood
     B = {k: v["bounds"] for k, v in rooms_cache.items()}
     xlo = lambda b: min(b["x1"], b["x2"]); xhi = lambda b: max(b["x1"], b["x2"])
     zlo = lambda b: min(b["z1"], b["z2"])
@@ -629,28 +633,60 @@ def add_deck(ctx, lot, rooms_cache, base):
     scu = B["scullery"]
     scu_east, scu_west, scu_south = xlo(scu), xhi(scu), zlo(scu)
 
-    def slab(name, x1, x2, z1, z2, h):
+    def slab(name, x1, x2, z1, z2, z0, h, cls="IfcSlab", color=DECK):
         w, d = abs(x2 - x1), abs(z2 - z1)
-        if w <= 0 or d <= 0 or h <= 0:
+        if w <= 1e-6 or d <= 1e-6 or h <= 1e-6:
             return
-        b = make_box(ctx, "IfcSlab", name, w * FT, d * FT, h,
-                     ctx.X((x1 + x2) / 2), ctx.Y((z1 + z2) / 2), 0.0, color=DECK)
+        b = make_box(ctx, cls, name, w * FT, d * FT, h,
+                     ctx.X((x1 + x2) / 2), ctx.Y((z1 + z2) / 2), z0, color=color)
         run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
-    # platform: the main section (against family + extension) and the scullery
-    # section (south of the scullery, which juts into the yard)
-    slab("Deck", ext_east, scu_east, house_south, south, base)
-    slab("Deck - scullery", scu_east, scu_west, scu_south, south, base)
+    # --- inset stairs: 4 risers up the 30" drop, runs contained in the platform
+    nst, tread = 4, 0.92
+    riser, run_len = base / nst, nst * 0.92
+    ew = 4.5                                         # east flight width (out from the wall)
+    e_z1, e_z2 = house_south - ew, house_south       # east flight z-band (along the wall)
 
-    # three-step flights down to grade (4 risers; treads project past the edge)
-    nst, t = 4, 0.92
-    riser = base / nst
-    ez = (house_south + south) / 2                  # east stair centred on its edge
-    wz = (scu_south + south) / 2                    # west stair centred on the scullery section
-    for k in (1, 2, 3):
-        h = base - k * riser
-        slab(f"Deck step E{k}", ext_east - k * t, ext_east - (k - 1) * t, ez - 2.5, ez + 2.5, h)
-        slab(f"Deck step W{k}", scu_west + (k - 1) * t, scu_west + k * t, wz - 2.25, wz + 2.25, h)
+    # --- platform (full height), notched where the two flights descend --------
+    # main section, minus the NE notch for the east flight (x: ext_east..+run):
+    slab("Deck", ext_east, scu_east, south, e_z1, 0.0, base)                 # south of the east flight
+    slab("Deck", ext_east + run_len, scu_east, e_z1, e_z2, 0.0, base)            # wall strip west of the notch
+    # scullery section, minus the west notch (full depth, x: scu_west-run..scu_west):
+    slab("Deck - scullery", scu_east, scu_west - run_len, scu_south, south, 0.0, base)
+
+    # --- the inset step treads (grade -> deck), lowest tread at the outer wall -
+    for k in range(nst):
+        h = (k + 1) * riser                          # k=0 lowest (one riser up), k=nst-1 == deck
+        # east: rises west from the extension's east wall, along the south wall
+        slab(f"Deck step E{k}", ext_east + k * tread, ext_east + (k + 1) * tread, e_z1, e_z2, 0.0, h)
+        # west: full-width, rises east from the scullery's west wall
+        slab(f"Deck step W{k}", scu_west - (k + 1) * tread, scu_west - k * tread, south, scu_south, 0.0, h)
+
+    # --- 32" railing: guards the east drop AND wraps the stair's south side ---
+    # so you can't fall off the east edge or into the inset stairwell. Kept just
+    # inboard of the east edge so it sits ON the deck, never floating past it.
+    RH = 32 / 12 * FT                                # 32" guard height (m)
+
+    def rail(along, fixed, a, b, nm):
+        y0 = base
+        lo, hi = min(a, b), max(a, b)
+        cuts = [lo] + [lo + (i + 1) * 0.5 for i in range(int((hi - lo) / 0.5))] + [hi]
+        if along == "z":                             # runs in z at plan x = fixed
+            slab(nm + " cap", fixed - 0.08, fixed + 0.08, lo, hi, y0 + RH - 0.1, 0.1, "IfcRailing", RAIL)
+            for zc in cuts:
+                w = 0.16 if zc in (lo, hi) else 0.07
+                slab(nm + " post", fixed - w / 2, fixed + w / 2, zc - w / 2, zc + w / 2, y0, RH, "IfcRailing", RAIL)
+        else:                                        # runs in x at plan z = fixed
+            slab(nm + " cap", lo, hi, fixed - 0.08, fixed + 0.08, y0 + RH - 0.1, 0.1, "IfcRailing", RAIL)
+            for xc in cuts:
+                w = 0.16 if xc in (lo, hi) else 0.07
+                slab(nm + " post", xc - w / 2, xc + w / 2, fixed - w / 2, fixed + w / 2, y0, RH, "IfcRailing", RAIL)
+
+    xr = ext_east + 0.2                              # inboard of the east edge (sits on the deck)
+    zr = e_z1 - 0.1                                  # just south of the stairwell, on the deck
+    rail("z", xr, south, zr, "Deck rail E")          # along the east drop, up to the stair corner
+    rail("x", zr, xr, ext_east + run_len, "Deck rail S")  # turns west to guard the stairwell's south side
+
 
 
 def add_entry(ctx, px, pz, dw_ft, base):
