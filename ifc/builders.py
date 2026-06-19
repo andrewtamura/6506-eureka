@@ -734,6 +734,7 @@ def add_picket_fence(ctx, lot, rooms_cache):
     south = min(pzs) - lot["scullerySouthFt"]        # south lot line (plan z)
     scu_west = max(B["scullery"]["x1"], B["scullery"]["x2"])  # CMU south wall ends here
     north = max(pzs)                                 # house north exterior wall plane
+    house_west = max(pxs)                            # house's west exterior wall (NW corner at z=north)
 
     def box(name, xc, zc, xd, zd, z0, h):
         b = make_box(ctx, "IfcRailing", name, xd * FT, zd * FT, h, ctx.X(xc), ctx.Y(zc), z0, color=WHITE)
@@ -772,8 +773,36 @@ def add_picket_fence(ctx, lot, rooms_cache):
             pc = lo + (hi - lo) * i / n
             post(pc, fixed) if axis == "x" else post(fixed, pc)
 
+    def gate_trellis(xg, zf, gw=3.5):
+        """A garden gate (picket panel) under a white trellis arbor, centred at
+        xg on the north leg (z = zf)."""
+        gl, gr = xg - gw / 2, xg + gw / 2            # gate jambs
+        ad, ah = 1.0, 84 / 12 * FT                   # arbor half-depth (z) / height
+        for px in (gl, gr):                          # 4 arbor posts (4x4, 84")
+            for pz in (zf - ad, zf + ad):
+                box("Trellis post", px, pz, 0.33, 0.33, 0.0, ah)
+        for pz in (zf - ad, zf + ad):                # top beams (along x), front + back
+            box("Trellis beam", xg, pz, gw + 0.8, 0.22, ah - 0.25 * FT, 0.25 * FT)
+        for i in range(6):                           # rafters (along z) — the trellis slats
+            box("Trellis rafter", gl + gw * i / 5, zf, 0.14, 2 * ad + 0.5, ah, 0.14 * FT)
+        for pz in (zf - ad * 0.45, zf + ad * 0.45):  # crossing slats -> lattice
+            box("Trellis slat", xg, pz, gw + 0.2, 0.1, ah + 0.14 * FT, 0.08 * FT)
+        for zc in (8 / 12 * FT, 30 / 12 * FT):       # gate rails
+            box("Gate rail", xg, zf, gw - 0.1, Tp * 1.6, zc, 2 / 12 * FT)
+        c = gl + 0.28                                # gate pickets
+        while c < gr - 0.2:
+            picket("x", c, zf)
+            c += oc
+
+    # The west side of the lot is the SIDE YARD; the fence encloses it.
     run_fence("x", south, scu_west, west)            # south: end of CMU -> SW corner
-    run_fence("z", west, south, north)               # west: SW corner -> north wall plane
+    run_fence("z", west, south, north)               # west (side yard): SW corner -> north wall plane
+    # north leg: extend east from the west line to the house's NW corner, with a
+    # gated trellis arbor in the middle of the leg.
+    xg = (house_west + west) / 2
+    run_fence("x", north, house_west, xg - 1.75)     # house -> gate
+    run_fence("x", north, xg + 1.75, west)           # gate -> west corner
+    gate_trellis(xg, north)
 
 
 
