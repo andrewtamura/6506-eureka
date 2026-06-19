@@ -580,12 +580,11 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
 
 
 def add_porch(ctx, rooms_cache, base, width_ft=10.5):
-    """A raised front stoop on a stucco skirt (matching the house base) with a
-    painted, overhanging floor and a slim white balustrade. The flight is INSET
-    (notched into the deep platform, so nothing projects past it) and centred,
-    with raked side handrails. Kept narrow enough to clear the flanking windows.
-    Built in IFC coords (the porch projects to +Y / outward from the front door);
-    all members are sized in metres."""
+    """A grand front stoop: a painted floor on a stucco skirt, framed by solid
+    stucco cheek walls (white-capped) that ramp down each side of a WIDE,
+    full-width cascade of steps — no wood handrail. The cascade is inset (nothing
+    projects past the platform) and the porch is narrow enough to clear the
+    flanking windows. Built in IFC coords (projects +Y / outward; metres)."""
     fd = None
     for r in rooms_cache.values():
         for d in r.get("doors", []):
@@ -595,16 +594,16 @@ def add_porch(ctx, rooms_cache, base, width_ft=10.5):
             break
     if not fd or base <= 0:
         return
-    BASE_C, FLOOR_C, RAIL_C = (0.84, 0.82, 0.78), (0.74, 0.73, 0.70), (0.95, 0.95, 0.93)
+    BASE_C, FLOOR_C, CAP_C = (0.84, 0.82, 0.78), (0.74, 0.73, 0.70), (0.95, 0.95, 0.93)
     ix, fy = ctx.X(fd["pos"]), ctx.Y(fd["fixed"])      # IFC X (door) / Y (front wall)
-    PWh, PD = width_ft / 2 * FT, 6.5 * FT              # half-width, depth (trimmed for a front setback)
-    SWh = 2.5 * FT                                      # half stair width (5')
-    nst, tread = 4, 0.92 * FT
-    riser, run_len = base / nst, nst * 0.92 * FT
-    RH, ins, ft_t = 0.86, 0.04, 0.06                   # rail height / skirt inset / floor thickness (m)
-    zF = fy + PD                                        # porch front edge (outward)
-    zT = zF - run_len                                  # stair top (flush with the platform)
-    xL, xR, sL, sR = ix - PWh, ix + PWh, ix - SWh, ix + SWh
+    PWh, PD = width_ft / 2 * FT, 6.5 * FT
+    nst, tread = 4, 0.9 * FT
+    riser, run_len = base / nst, nst * 0.9 * FT
+    wt, ph, ins, ft_t = 0.5 * FT, 2.2 * FT, 0.04, 0.06  # cheek-wall thk / parapet ht / inset / floor (m)
+    zF = fy + PD                                        # front edge (outward)
+    zT = zF - run_len                                  # cascade top (flush with terrace)
+    xL, xR = ix - PWh, ix + PWh
+    cL, cR = xL + wt, xR - wt                           # the wide cascade, between the cheek walls
 
     def box(name, x0, x1, y0, y1, z0, h, cls="IfcSlab", color=FLOOR_C):
         if abs(x1 - x0) <= 1e-6 or abs(y1 - y0) <= 1e-6 or h <= 1e-6:
@@ -613,53 +612,29 @@ def add_porch(ctx, rooms_cache, base, width_ft=10.5):
                      (x0 + x1) / 2, (y0 + y1) / 2, z0, color=color)
         run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
-    # skirt (3 pieces wrapping the stair notch) + a white water-table band that
-    # ties the base to the house + an overhanging painted floor + inset treads
-    wt0, wth = base - 0.18, 0.12                        # water-table band (m)
-    for (x0, x1, y0, y1) in ((xL, xR, fy, zT), (xL, sL, zT, zF), (sR, xR, zT, zF)):
-        box("Porch skirt", x0 + (ins if x0 == xL else 0), x1 - (ins if x1 == xR else 0),
-            y0, y1 - (ins if y1 == zF else 0), 0.0, wt0, color=BASE_C)   # stucco skirt (inset, up to the band)
-        box("Porch water table", x0, x1, y0, y1, wt0, wth, color=RAIL_C)  # white belt (full footprint)
-        box("Porch floor", x0, x1, y0, y1, base - ft_t, ft_t)            # painted floor on top
-    for k in range(nst):                                # inset treads: lowest at the front, up to the platform
-        box(f"Porch step {k}", sL, sR, zF - (k + 1) * tread, zF - k * tread, 0.0, (k + 1) * riser)
+    def prism(name, x0, x1, prof, color, cls):          # (y, vertical) profile extruded along x
+        n = len(prof)
+        v = [(x0, y, z) for y, z in prof] + [(x1, y, z) for y, z in prof]
+        faces = [list(range(n)), list(range(2 * n - 1, n - 1, -1))]
+        for i in range(n):
+            faces.append([i, (i + 1) % n, n + (i + 1) % n, n + i])
+        add_brep(ctx, name, v, faces, color, ifc_class=cls)
 
-    def newel(xc, yc, z0, h):
-        box("Porch newel", xc - 0.05, xc + 0.05, yc - 0.05, yc + 0.05, z0, h, "IfcRailing", RAIL_C)
-        box("Porch newel cap", xc - 0.075, xc + 0.075, yc - 0.075, yc + 0.075, z0 + h, 0.05, "IfcRailing", RAIL_C)
-
-    def balrun(orient, fixed, a, b):                    # slim white balustrade on the porch floor
-        lo, hi = min(a, b), max(a, b)
-        for yc, th in ((base + RH - 0.05, 0.05), (base + 0.22, 0.04)):     # top + bottom rail
-            if orient == "x":
-                box("Porch rail", lo, hi, fixed - 0.025, fixed + 0.025, yc, th, "IfcRailing", RAIL_C)
-            else:
-                box("Porch rail", fixed - 0.025, fixed + 0.025, lo, hi, yc, th, "IfcRailing", RAIL_C)
-        c = lo + 0.13
-        while c < hi - 0.06:                             # balusters
-            if orient == "x":
-                box("Porch baluster", c - 0.018, c + 0.018, fixed - 0.018, fixed + 0.018, base + 0.22, RH - 0.27, "IfcRailing", RAIL_C)
-            else:
-                box("Porch baluster", fixed - 0.018, fixed + 0.018, c - 0.018, c + 0.018, base + 0.22, RH - 0.27, "IfcRailing", RAIL_C)
-            c += 0.13
-
-    balrun("x", zF, xL, sL); balrun("x", zF, sR, xR)     # front, flanking the inset stair
-    balrun("y", xL, fy, zF); balrun("y", xR, fy, zF)     # the two sides
-    for xc, yc in ((xL, zF), (xR, zF), (sL, zF), (sR, zF), (xL, fy), (xR, fy)):
-        newel(xc, yc, base, RH)                          # perimeter + stair-jamb posts
-
-    def sloperail(xf, y0, v0, y1, v1, w=0.05, t=0.05):   # raked stair handrail
-        dy, dv = y1 - y0, v1 - v0
-        L = math.hypot(dy, dv)
-        ny, nv = -dv / L * t / 2, dy / L * t / 2
-        prof = [(y0 + ny, v0 + nv), (y1 + ny, v1 + nv), (y1 - ny, v1 - nv), (y0 - ny, v0 - nv)]
-        verts = [(xf - w / 2, y, v) for y, v in prof] + [(xf + w / 2, y, v) for y, v in prof]
-        faces = [[0, 1, 2, 3], [7, 6, 5, 4], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
-        add_brep(ctx, "Porch stair rail", verts, faces, RAIL_C, ifc_class="IfcRailing")
-
-    for xj in (sL, sR):                                  # raked handrail down each side of the inset stair
-        newel(xj, zT, base, RH)                          # post at the stair head (on the platform)
-        sloperail(xj, zT, base + RH - 0.04, zF, RH - 0.04)
+    # terrace (the landing at the threshold): stucco skirt + painted floor
+    box("Porch skirt", xL + ins, xR - ins, fy, zT, 0.0, base - ft_t, color=BASE_C)
+    box("Porch floor", xL, xR, fy, zT, base - ft_t, ft_t, color=FLOOR_C)
+    # the wide full-width cascade between the cheek walls (inset; lowest at front)
+    for k in range(nst):
+        box(f"Porch step {k}", cL, cR, zF - (k + 1) * tread, zF - k * tread, 0.0, (k + 1) * riser)
+    # solid stucco cheek walls each side, white-capped, level on the terrace and
+    # ramping down beside the cascade — the "wall up" that frames the stair
+    cap = 0.08
+    for x0, x1 in ((xL, xL + wt), (xR - wt, xR)):
+        box("Porch cheek wall", x0, x1, fy, zT, 0.0, base + ph, "IfcWall", BASE_C)
+        box("Porch cheek cap", x0 - 0.04, x1 + 0.04, fy, zT, base + ph, cap, "IfcBuildingElementProxy", CAP_C)
+        prism("Porch cheek wall", x0, x1, [(zT, 0.0), (zF, 0.0), (zF, ph), (zT, base + ph)], BASE_C, "IfcWall")
+        prism("Porch cheek cap", x0 - 0.04, x1 + 0.04,
+              [(zT, base + ph), (zF, ph), (zF, ph + cap), (zT, base + ph + cap)], CAP_C, "IfcBuildingElementProxy")
 
 
 
