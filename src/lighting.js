@@ -10,7 +10,7 @@ import * as THREE from "three";
 
 const DEG = Math.PI / 180;
 const LAT = 37.9 * DEG;     // El Cerrito, CA
-const DECL = 0;             // solar declination (~equinox)
+let decl = 0;              // solar declination (radians); set by the season dial
 const clamp = (v, a, b) => Math.min(Math.max(v, a), b);
 const lerp = (a, b, t) => a + (b - a) * t;
 const mix = (c1, c2, t) => new THREE.Color(c1).lerp(new THREE.Color(c2), t);
@@ -40,9 +40,9 @@ export function setupLighting(scene) {
   const setTime = (h) => {
     hour = h;
     const H = (h - 12) * 15 * DEG;                       // hour angle
-    const altSin = Math.sin(LAT) * Math.sin(DECL) + Math.cos(LAT) * Math.cos(DECL) * Math.cos(H);
+    const altSin = Math.sin(LAT) * Math.sin(decl) + Math.cos(LAT) * Math.cos(decl) * Math.cos(H);
     const alt = Math.asin(clamp(altSin, -1, 1));
-    let az = Math.acos(clamp((Math.sin(DECL) - altSin * Math.sin(LAT)) / (Math.cos(alt) * Math.cos(LAT) || 1e-6), -1, 1));
+    let az = Math.acos(clamp((Math.sin(decl) - altSin * Math.sin(LAT)) / (Math.cos(alt) * Math.cos(LAT) || 1e-6), -1, 1));
     if (H > 0) az = 2 * Math.PI - az;                    // afternoon -> western sky
 
     const day = clamp(altSin * 1.8, 0, 1);               // 0 below horizon, 1 when well up
@@ -78,5 +78,10 @@ export function setupLighting(scene) {
   };
   const refreshShadow = () => { sun.shadow.needsUpdate = true; };
 
-  return { setTime, focusShadow, refreshShadow };
+  // Set the solar declination for the time of YEAR (degrees: +23.44 at the
+  // summer solstice, 0 at the equinoxes, -23.44 at the winter solstice) and
+  // re-place the sun at the current hour.
+  const setSeason = (declDeg) => { decl = declDeg * DEG; setTime(hour); };
+
+  return { setTime, setSeason, focusShadow, refreshShadow };
 }

@@ -89,8 +89,14 @@ async function main() {
   // sun knob around the ring. Noon is at top, midnight at the bottom; the sun
   // rises on the left (dawn) and sets on the right (dusk) — its daily arc. The
   // top half of the ring is tinted day, the bottom half night.
-  const { setTime, focusShadow, refreshShadow } = setupLighting(scene);
+  const { setTime, setSeason, focusShadow, refreshShadow } = setupLighting(scene);
   const lightEl = document.getElementById("lighting");
+  const caption = (t) => {
+    const d = document.createElement("div");
+    d.textContent = t;
+    d.style.cssText = "flex-basis:100%;font-size:11px;color:#889;font-weight:600;margin:4px 0 -2px";
+    return d;
+  };
   const fmtHour = (h) => {
     const hr = Math.floor(h) % 24, mn = Math.round((h - Math.floor(h)) * 60) % 60;
     const ap = hr < 12 ? "AM" : "PM", h12 = ((hr + 11) % 12) + 1;
@@ -113,6 +119,7 @@ async function main() {
   const knob = el("circle", { r: "8", fill: "#f5b942", stroke: "#fff", "stroke-width": "2" });
   const label = el("text", { x: C, y: C + 4, "text-anchor": "middle", "font-size": "13", fill: "#445", "font-weight": "600" });
   dial.append(knob, label);
+  lightEl.appendChild(caption("Time of day"));
   lightEl.appendChild(dial);
 
   let hour = 14;
@@ -134,6 +141,47 @@ async function main() {
   dial.addEventListener("pointermove", (e) => { if (dragging) fromPointer(e); });
   dial.addEventListener("pointerup", () => { dragging = false; });
   apply(14);   // initialize at 2:00 PM
+
+  // --- season dial -------------------------------------------------------
+  // A second ring for the time of YEAR: drag the knob to move the sun's seasonal
+  // arc. Summer (high sun) sits at top, winter (low) at bottom, and the equinoxes
+  // (spring / autumn) at the sides — so declination = 23.44°·cos(angle from top).
+  const TILT = 23.44;                                   // Earth's axial tilt (deg)
+  const SEASONS = ["Summer", "Autumn", "Winter", "Spring"];  // clockwise from top
+  const sdial = el("svg", { viewBox: `0 0 ${SZ} ${SZ}` });
+  sdial.style.cssText = "width:150px;height:150px;touch-action:none;cursor:grab";
+  sdial.appendChild(el("path", { d: `M ${C - RR} ${C} A ${RR} ${RR} 0 0 1 ${C + RR} ${C}`, fill: "none", stroke: "#8fc46a", "stroke-width": "8", "stroke-linecap": "round" })); // warm seasons (top)
+  sdial.appendChild(el("path", { d: `M ${C + RR} ${C} A ${RR} ${RR} 0 0 1 ${C - RR} ${C}`, fill: "none", stroke: "#9fc1e0", "stroke-width": "8", "stroke-linecap": "round" })); // cool seasons (bottom)
+  for (const [t, x, y, a] of [["Summer", C, C - RR - 5, "middle"], ["Fall", C + RR + 6, C + 3, "start"], ["Winter", C, C + RR + 13, "middle"], ["Spring", C - RR - 6, C + 3, "end"]])
+    sdial.appendChild(el("text", { x, y, "text-anchor": a, "font-size": "9", fill: "#889" }, t));
+  const sknob = el("circle", { r: "8", fill: "#6fae3a", stroke: "#fff", "stroke-width": "2" });
+  const slabel = el("text", { x: C, y: C + 4, "text-anchor": "middle", "font-size": "12", fill: "#445", "font-weight": "600" });
+  sdial.append(sknob, slabel);
+  lightEl.appendChild(caption("Season"));
+  lightEl.appendChild(sdial);
+
+  const placeSeason = (a) => {
+    sknob.setAttribute("cx", C + RR * Math.sin(a));
+    sknob.setAttribute("cy", C - RR * Math.cos(a));
+    slabel.textContent = SEASONS[Math.round(a / (2 * Math.PI) * 4) % 4];
+  };
+  const applySeason = (a) => {
+    a = ((a % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+    setSeason(TILT * Math.cos(a));      // +tilt at top (summer), -tilt at bottom (winter)
+    placeSeason(a);
+    refreshShadow();
+  };
+  const seasonFromPointer = (e) => {
+    const r = sdial.getBoundingClientRect();
+    const px = (e.clientX - r.left) / r.width * SZ - C, py = (e.clientY - r.top) / r.height * SZ - C;
+    let a = Math.atan2(px, -py); if (a < 0) a += 2 * Math.PI;  // 0 at top, clockwise
+    applySeason(a);
+  };
+  let sdragging = false;
+  sdial.addEventListener("pointerdown", (e) => { sdragging = true; sdial.setPointerCapture(e.pointerId); seasonFromPointer(e); });
+  sdial.addEventListener("pointermove", (e) => { if (sdragging) seasonFromPointer(e); });
+  sdial.addEventListener("pointerup", () => { sdragging = false; });
+  applySeason(3 * Math.PI / 2);   // start at the spring equinox (declination 0)
 
   // --- fragments engine ---------------------------------------------------
   const fragments = components.get(OBC.FragmentsManager);
