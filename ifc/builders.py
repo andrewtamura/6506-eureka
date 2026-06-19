@@ -628,6 +628,8 @@ def add_deck(ctx, lot, rooms_cache, base):
     xlo = lambda b: min(b["x1"], b["x2"]); xhi = lambda b: max(b["x1"], b["x2"])
     zlo = lambda b: min(b["z1"], b["z2"])
     south = min(zlo(v) for v in B.values()) - lot["scullerySouthFt"]   # south lot line (plan z)
+    wall_t = 8 / 12                                 # 8" CMU lot wall on the south line
+    deck_south = south + wall_t                     # deck stops at the wall's inner face (8" in)
     ext_east = min(xlo(B[k]) for k in ("ext_bath", "wc", "ext_vestibule", "ext_laundry") if k in B)
     house_south = zlo(B["family"])                  # family / extension south wall (plan z)
     scu = B["scullery"]
@@ -649,10 +651,10 @@ def add_deck(ctx, lot, rooms_cache, base):
 
     # --- platform (full height), notched where the two flights descend --------
     # main section, minus the NE notch for the east flight (x: ext_east..+run):
-    slab("Deck", ext_east, scu_east, south, e_z1, 0.0, base)                 # south of the east flight
+    slab("Deck", ext_east, scu_east, deck_south, e_z1, 0.0, base)            # south of the east flight
     slab("Deck", ext_east + run_len, scu_east, e_z1, e_z2, 0.0, base)            # wall strip west of the notch
     # scullery section, minus the west notch (full depth, x: scu_west-run..scu_west):
-    slab("Deck - scullery", scu_east, scu_west - run_len, scu_south, south, 0.0, base)
+    slab("Deck - scullery", scu_east, scu_west - run_len, scu_south, deck_south, 0.0, base)
 
     # --- the inset step treads (grade -> deck), lowest tread at the outer wall -
     for k in range(nst):
@@ -660,7 +662,7 @@ def add_deck(ctx, lot, rooms_cache, base):
         # east: rises west from the extension's east wall, along the south wall
         slab(f"Deck step E{k}", ext_east + k * tread, ext_east + (k + 1) * tread, e_z1, e_z2, 0.0, h)
         # west: full-width, rises east from the scullery's west wall
-        slab(f"Deck step W{k}", scu_west - (k + 1) * tread, scu_west - k * tread, south, scu_south, 0.0, h)
+        slab(f"Deck step W{k}", scu_west - (k + 1) * tread, scu_west - k * tread, deck_south, scu_south, 0.0, h)
 
     # --- 32" railing: guards the east drop AND wraps the stair's south side ---
     # so you can't fall off the east edge or into the inset stairwell. Kept just
@@ -684,8 +686,36 @@ def add_deck(ctx, lot, rooms_cache, base):
 
     xr = ext_east + 0.2                              # inboard of the east edge (sits on the deck)
     zr = e_z1 - 0.1                                  # just south of the stairwell, on the deck
-    rail("z", xr, south, zr, "Deck rail E")          # along the east drop, up to the stair corner
+    rail("z", xr, deck_south, zr, "Deck rail E")     # along the east drop, up to the stair corner
     rail("x", zr, xr, ext_east + run_len, "Deck rail S")  # turns west to guard the stairwell's south side
+
+
+def add_lot_wall(ctx, lot, rooms_cache, base):
+    """An 8" CMU boundary wall, full-stucco (smooth, uniform), 84" above grade,
+    along the SOUTH and EAST lot lines and placed entirely inside the property
+    (its outer face sits on the line, the 8" thickness runs inward). The south
+    leg spans the SE corner to the scullery's west wall; the east leg runs 35'
+    north from that corner. Foundation is not modelled."""
+    STUCCO = (0.90, 0.88, 0.84)                     # smooth off-white stucco
+    t = 8 / 12                                       # 8" CMU thickness (ft)
+    H = 84 / 12 * FT                                 # 84" above grade (m)
+    B = {k: v["bounds"] for k, v in rooms_cache.items()}
+    pxs = [v for r in B.values() for v in (r["x1"], r["x2"])]
+    pzs = [v for r in B.values() for v in (r["z1"], r["z2"])]
+    west = max(pxs) + lot["westMarginFt"]            # same lot lines as add_lot
+    east = west - lot["widthFt"]                     # east lot line (min plan x)
+    south = min(pzs) - lot["scullerySouthFt"]        # south lot line (min plan z)
+    scu_west = max(B["scullery"]["x1"], B["scullery"]["x2"])
+
+    def wall(name, x1, x2, z1, z2):
+        b = make_box(ctx, "IfcWall", name, abs(x2 - x1) * FT, abs(z2 - z1) * FT, H,
+                     ctx.X((x1 + x2) / 2), ctx.Y((z1 + z2) / 2), 0.0, color=STUCCO)
+        run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
+
+    # south leg: outer (south) face on the south line; 8" runs north (inside)
+    wall("Lot wall - south", east, scu_west, south, south + t)
+    # east leg: outer (east) face on the east line; 8" runs west (inside)
+    wall("Lot wall - east", east, east + t, south, south + 35)
 
 
 
