@@ -585,10 +585,9 @@ async function main() {
     catch (err) { console.warn(`exhibit ${lvl.id} failed`, err); }
   }
   {
-    // Title each view with a flat label laid on the grid above it (top of the
-    // plan = -Z / North on screen). The plane is oriented so the text reads
-    // left-to-right and upright when viewed from the top-down plan camera.
-    const labelUp = new THREE.Vector3(0, 0, -1);     // toward top of screen (world -Z, North)
+    // Title each view with a flat label laid on the grid in FRONT of it (North =
+    // world -Z), set well clear of the building and oriented to read upright from
+    // the default 3/4 view (camera North of the house, looking South at its front).
     for (const v of labelViews) {
       const c = v.box.getCenter(new THREE.Vector3());
       const cnv = document.createElement("canvas");
@@ -610,15 +609,14 @@ async function main() {
       const W = 4.0, H = W * cnv.height / cnv.width;
       const mesh = new THREE.Mesh(
         new THREE.PlaneGeometry(W, H),
-        // depthTest off + a high renderOrder so the perspective-splayed shell
-        // walls of off-centre views never occlude their title.
-        new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false }));
-      mesh.position.set(c.x, 0.02, v.box.min.z - H * 0.75);   // just above (−Z / North of) the view
+        // depth-tested (no special visibility): walls occlude it, so a title is
+        // only seen when it's actually in view, never through the house.
+        new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+      mesh.position.set(c.x, 0.02, v.box.min.z - (H + 3.0));  // set well North (−Z), in front of the model
       mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
-        new THREE.Vector3(1, 0, 0),    // text +X (right) -> world +X (screen right, East)
-        labelUp,                       // text +Y (up)    -> world -Z (screen up, North)
-        new THREE.Vector3(0, 1, 0)));  // normal          -> world +Y (faces camera)
-      mesh.renderOrder = 999;
+        new THREE.Vector3(-1, 0, 0),   // text +X (right) -> world -X  (reads L->R from the front view)
+        new THREE.Vector3(0, 0, 1),    // text +Y (up)    -> world +Z  (toward the house / screen up)
+        new THREE.Vector3(0, 1, 0)));  // normal          -> world +Y  (laid flat on the grid)
       mesh.frustumCulled = false;
       mesh.updateMatrixWorld(true);
       scene.add(mesh);
