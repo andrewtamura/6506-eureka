@@ -638,11 +638,15 @@ def add_entry(ctx, px, pz, dw_ft, base):
             "5": ("111", "100", "111", "001", "111"),
             "6": ("111", "100", "111", "101", "111")}
     glaz_w = dw_ft                           # glazed opening width (ft)
-    glaz_h = 1.35                            # transom height (ft)
+    glaz_h = 1.6                             # transom height (ft)
     glaz_h_m = glaz_h * FT
-    INK = (0.13, 0.20, 0.46)                 # cobalt digits
-    PAL = [(0.86, 0.72, 0.38), (0.80, 0.52, 0.52), (0.42, 0.60, 0.60), (0.52, 0.64, 0.84),
-           (0.66, 0.76, 0.50), (0.82, 0.77, 0.45), (0.74, 0.66, 0.80)]  # amber/rose/teal/blue/green/gold/lilac
+    cz0 = spring + glaz_h_m / 2               # field centre (m)
+    INK = (0.10, 0.14, 0.34)                 # dark navy numbers
+    NAVY = (0.13, 0.18, 0.44)                # roundel rings / side fans
+    CREAM = (0.92, 0.89, 0.73)               # roundel ground
+    LEAD = (0.14, 0.13, 0.12)                # dark lead came backing
+    MOS = [(0.46, 0.55, 0.33), (0.63, 0.70, 0.43), (0.80, 0.67, 0.30), (0.87, 0.80, 0.49),
+           (0.56, 0.43, 0.29), (0.34, 0.54, 0.54), (0.72, 0.62, 0.36)]  # green/gold/brown/teal
 
     def tile(cxf, wf, zlo, zhi, dep, color, name="Entry transom", cls="IfcWindow"):
         if zhi - zlo <= 0 or wf <= 0:
@@ -651,55 +655,74 @@ def add_entry(ctx, px, pz, dw_ft, base):
                      ctx.X(cxf), fy + out * dep / 2, zlo, color=color)
         run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
-    # leaded stained glass: irregular quad "quarries" joined by thin cames. Jitter
-    # a grid of shared vertices (rim vertices stay on the edge) and inset each cell
-    # toward its centroid so the dark backing reads as the thin lead joints.
-    tile(px, glaz_w, spring, spring + glaz_h_m, 0.02, (0.17, 0.16, 0.15), "Entry leading")
+    def poly(pts, dep, color, name="Entry glass"):   # flat slab from an (x_ft, z_m) loop
+        ya, yb = fy, fy + out * dep
+        n = len(pts)
+        verts = [(ctx.X(x), ya, z) for x, z in pts] + [(ctx.X(x), yb, z) for x, z in pts]
+        faces = [list(range(n)), list(range(2 * n - 1, n - 1, -1))]
+        for i in range(n):
+            faces.append([i, (i + 1) % n, n + (i + 1) % n, n + i])
+        add_brep(ctx, name, verts, faces, color, ifc_class="IfcWindow")
 
-    def rnd(a, b, s):                         # deterministic pseudo-random in [0,1)
+    def circ(cx, cz, rx, rzf, n=30):                 # full ellipse loop (rx, rzf ft)
+        return [(cx + rx * math.cos(2 * math.pi * k / n), cz + rzf * FT * math.sin(2 * math.pi * k / n))
+                for k in range(n)]
+
+    def arc(cx, cz, r, a0, a1, m=14):                # arc points a0..a1 (radius r ft)
+        return [(cx + r * math.cos(a0 + (a1 - a0) * k / m), cz + r * FT * math.sin(a0 + (a1 - a0) * k / m))
+                for k in range(m + 1)]
+
+    def rnd(a, b, s):                                # deterministic pseudo-random in [0,1)
         n = ((a * 73856093) ^ (b * 19349663) ^ (s * 83492791)) & 0x7fffffff
         return ((n * 2654435761) % 1009) / 1009.0
 
-    ncol, nrow = 11, 5
-    x0, z0 = px - glaz_w / 2, spring
+    # 1) dark lead backing — every coloured piece sits slightly proud, so the gaps
+    #    between pieces read as the thin lead cames
+    tile(px, glaz_w, spring, spring + glaz_h_m, 0.015, LEAD, "Entry leading")
+    # 2) irregular leaded mosaic field: jitter a grid of shared vertices (rim
+    #    vertices pinned to the edge) into irregular quarries, inset toward each
+    #    centroid so the gaps read as cames; earthy green/gold/brown/teal glass
+    ncol, nrow = 12, 6
+    xl = px - glaz_w / 2
     V = {}
     for i in range(ncol + 1):
         for j in range(nrow + 1):
-            jx = 0.0 if i in (0, ncol) else (rnd(i, j, 1) - 0.5) * 0.72
-            jz = 0.0 if j in (0, nrow) else (rnd(i, j, 2) - 0.5) * 0.72
-            V[(i, j)] = (x0 + (i + jx) / ncol * glaz_w, z0 + (j + jz) / nrow * glaz_h_m)
+            jx = 0.0 if i in (0, ncol) else (rnd(i, j, 1) - 0.5) * 0.7
+            jz = 0.0 if j in (0, nrow) else (rnd(i, j, 2) - 0.5) * 0.7
+            V[(i, j)] = (xl + (i + jx) / ncol * glaz_w, spring + (j + jz) / nrow * glaz_h_m)
     for i in range(ncol):
         for j in range(nrow):
-            quad = [V[(i, j)], V[(i + 1, j)], V[(i + 1, j + 1)], V[(i, j + 1)]]
-            gx, gz = sum(p[0] for p in quad) / 4.0, sum(p[1] for p in quad) / 4.0
-            t = 0.12                          # inset toward centroid -> came gap
-            poly = [(p[0] + (gx - p[0]) * t, p[1] + (gz - p[1]) * t) for p in quad]
-            col = PAL[int(rnd(i, j, 3) * 997) % len(PAL)]
-            ya, yb = fy, fy + out * 0.03
-            verts = ([(ctx.X(x), ya, z) for x, z in poly] +
-                     [(ctx.X(x), yb, z) for x, z in poly])
-            faces = [[0, 1, 2, 3], [7, 6, 5, 4],
-                     [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
-            add_brep(ctx, "Entry glass", verts, faces, col, ifc_class="IfcWindow")
-    CW2 = 0.33
-    tile(px, glaz_w + 2 * CW2, spring + glaz_h_m, spring + glaz_h_m + CW2 * FT, 0.10, TRIM, "Entry transom rail")
-    tile(px, glaz_w + 2 * CW2, spring - CW2 * FT, spring, 0.10, TRIM, "Entry transom bar")
-    for sx in (-1, 1):
-        tile(px + sx * (glaz_w + CW2) / 2, CW2, spring, spring + glaz_h_m, 0.10, TRIM, "Entry transom stile")
-    # a small house number on a clear cartouche, centred in the mosaic field
-    u = 0.085                                # digit mosaic cell (ft) — small
-    nw, nh = (len(NUM) * 4 - 1) * u, 5 * u   # number block size (ft)
-    cz = spring + glaz_h_m / 2               # field centre (m)
-    tile(px, nw + 4 * u, cz - (nh / 2 + 1.5 * u) * FT, cz + (nh / 2 + 1.5 * u) * FT,
-         0.05, (0.93, 0.92, 0.84), "Entry number ground")
-    bl, bb = px - nw / 2, cz - nh / 2 * FT
+            q = [V[(i, j)], V[(i + 1, j)], V[(i + 1, j + 1)], V[(i, j + 1)]]
+            gx, gz = sum(p[0] for p in q) / 4.0, sum(p[1] for p in q) / 4.0
+            pp = [(p[0] + (gx - p[0]) * 0.12, p[1] + (gz - p[1]) * 0.12) for p in q]
+            poly(pp, 0.03, MOS[int(rnd(i, j, 3) * 997) % len(MOS)], "Entry quarry")
+    # 3) two flanking fan roundels (concentric half-discs opening inward)
+    rs = 0.5
+    for ex, (a0, a1) in [(px - glaz_w / 2, (-math.pi / 2, math.pi / 2)),
+                         (px + glaz_w / 2, (math.pi / 2, 3 * math.pi / 2))]:
+        for k, (r, c) in enumerate([(rs, NAVY), (rs - 0.06, CREAM), (rs - 0.13, NAVY)]):
+            poly([(ex, cz0)] + arc(ex, cz0, r, a0, a1), 0.04 + 0.004 * k, c, "Entry side fan")
+    # 4) central roundel: concentric navy/cream rings (the number's focal frame)
+    for k, (rx, rzf, c) in enumerate([(0.82, 0.64, NAVY), (0.76, 0.58, CREAM),
+                                      (0.69, 0.51, NAVY), (0.63, 0.45, CREAM)]):
+        poly(circ(px, cz0, rx, rzf), 0.05 + 0.004 * k, c, "Entry roundel")
+    # 5) the house number, centred on the roundel
+    u = 0.075
+    nw, nh = (len(NUM) * 4 - 1) * u, 5 * u
+    bl, bb = px - nw / 2, cz0 - nh / 2 * FT
     for di, ch in enumerate(NUM):
         gl = bl + di * 4 * u                 # 3 cells + 1 gap per glyph
         for r in range(5):
             for c in range(3):
                 if FONT[ch][r][c] == "1":
                     zlo = bb + (4 - r) * u * FT
-                    tile(gl + (c + 0.5) * u, u * 0.9, zlo, zlo + u * 0.9 * FT, 0.07, INK, "Entry number")
+                    tile(gl + (c + 0.5) * u, u * 0.9, zlo, zlo + u * 0.9 * FT, 0.08, INK, "Entry number")
+    # 6) slim white wood rim around the transom
+    CW2 = 0.30
+    tile(px, glaz_w + 2 * CW2, spring + glaz_h_m, spring + glaz_h_m + CW2 * FT, 0.10, TRIM, "Entry transom rail")
+    tile(px, glaz_w + 2 * CW2, spring - CW2 * FT, spring, 0.10, TRIM, "Entry transom bar")
+    for sx in (-1, 1):
+        tile(px + sx * (glaz_w + CW2) / 2, CW2, spring, spring + glaz_h_m, 0.10, TRIM, "Entry transom stile")
 
     pil_w = 0.8                             # pilaster shaft width (ft)
     cap_w = pil_w + 0.4                      # plinth / capital wider than the shaft
