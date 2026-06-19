@@ -14,6 +14,7 @@ import { buildTileFloor } from "./tile-floor.js";
 import { buildFurniture } from "./furniture.js";
 import { buildWallFinish } from "./wall-finish.js";
 import { buildCeilings } from "./ceilings.js";
+import { createWalker } from "./pov.js";
 
 const BASE = import.meta.env.BASE_URL; // respects Vite `base` on GitHub Pages
 // Cache-buster for the model assets. The JS bundle is content-hashed so it busts
@@ -429,8 +430,6 @@ async function main() {
   const skipIds = new Set();           // door + opening ids to ignore when teleporting
   const floorIds = new Set();          // slab + floor-finish ids: the only teleport targets
   const extFloorIds = new Set();       // exterior slabs (lot / deck / porch / steps): walk targets
-  let walking = false;                 // true while in the "walk the lot" exterior POV
-  let deckStand = null;                // {x, y, z, lookZ} world spot to start the walk on the deck
   // Stand inside a room with a first-person feel. The orbit pivot sits just in
   // front of the eye (LOOK_DIST), so looking around rotates almost in place
   // instead of swinging the camera on a wide arc into the walls. The boundary
@@ -455,7 +454,6 @@ async function main() {
     setPlanView(false);                   // inside a room: opaque ceiling overhead
   }
   function overviewControls() {
-    walking = false;
     setPlanView(true);                    // see-through ceilings (dollhouse from above)
     ctrls.boundaryEnclosesCamera = false;
     ctrls.setBoundary(undefined);
@@ -530,18 +528,10 @@ async function main() {
     // The house body / roofs are IfcBuildingElementProxy / IfcRoof, so they're
     // excluded and you can't climb a wall.
     if (exteriorModel) {
+      // every exterior IfcSlab (lot, deck, porch, steps) is a walk target; the
+      // house body / roofs are proxies / IfcRoof, so you can't climb a wall.
       const es = Object.values(await exteriorModel.getItemsOfCategories([/IFCSLAB/])).flat();
       for (const id of es) extFloorIds.add(id);
-      // find the rear deck slab's world box -> a start spot for the walk POV
-      const edata = await exteriorModel.getItemsData(es, { attributesDefault: true });
-      const eboxes = await exteriorModel.getBoxes(es);
-      es.forEach((id, i) => {
-        if (String(edata[i]?.Name?.value ?? "") === "Deck" && eboxes[i]) {
-          const bb = eboxes[i];
-          deckStand = { x: (bb.min.x + bb.max.x) / 2, y: bb.max.y,
-                        z: (bb.min.z + bb.max.z) / 2, lookZ: bb.min.z }; // min z edge faces the house
-        }
-      });
     }
   }
 
@@ -640,7 +630,6 @@ async function main() {
     refreshShadow();
   }
 
-  const _tdir = new THREE.Vector3();
   // Glide the camera to a new pose by interpolating the eye + look-at point as
   // straight-line (Cartesian) points, snapping each frame. Because we never
   // interpolate the controls' azimuth ANGLE, there's no angle to wrap and thus
@@ -663,50 +652,18 @@ async function main() {
       step();
     });
   }
-  async function teleportTo(lx, ly) {
-    const hit = await raycastSurface(lx, ly);
-    if (!hit) return;
-    // Only floors are teleport targets — double-tapping a wall/window/etc. is a no-op.
-    if (!floorIds.has(hit.localId)) return;
-    // Keep the heading you currently SEE. Use the camera's actual facing
-    // (horizontal). ctrls.azimuthAngle is the *target* spherical angle, which
-    // differs from the visible facing when the view is still settling from a
-    // drag — reading it there snapped the heading. Only fall back to the azimuth
-    // when looking almost straight down (where the horizontal facing vanishes).
-    world.camera.three.getWorldDirection(_tdir); _tdir.y = 0;
-    let fx, fz;
-    if (_tdir.lengthSq() > 1e-3) { _tdir.normalize(); fx = _tdir.x; fz = _tdir.z; }
-    else { const az = ctrls.azimuthAngle; fx = -Math.sin(az); fz = -Math.cos(az); }
-    const { x: ex, z: ez } = clampToRoom(hit.point.x, hit.point.z); // safe standing spot
-    const y = FLOOR + EYE;
-    await clearSelection();
-    // Smooth Cartesian glide (no azimuth-angle interpolation -> no long-way flip).
-    await glideTo(ex, y, ez, ex + fx * LOOK_DIST, y, ez + fz * LOOK_DIST);
-    enterRoom();
-  }
-
-  // --- walk-the-lot POV (exterior) ---------------------------------------
-  // Same first-person idiom as indoors, but double-tap moves you across the
-  // EXTERIOR model's ground surfaces (lot, deck, porch, steps).
-  async function walkTeleport(lx, ly) {
-    if (!exteriorModel) return;
-    pointer.set(lx, ly);
-    const hits = await exteriorModel.raycastAll({ camera: world.camera.three, mouse: pointer, dom });
-    if (!hits || !hits.length) return;
-    const cam = world.camera.three.position;
-    const hit = hits
-      .filter((h) => extFloorIds.has(h.localId))     // stand only on ground slabs, not walls/roofs
-      .sort((a, b) => a.point.distanceTo(cam) - b.point.distanceTo(cam))[0];
-    if (!hit) return;
-    world.camera.three.getWorldDirection(_tdir); _tdir.y = 0;
-    let fx, fz;
-    if (_tdir.lengthSq() > 1e-3) { _tdir.normalize(); fx = _tdir.x; fz = _tdir.z; }
-    else { const az = ctrls.azimuthAngle; fx = -Math.sin(az); fz = -Math.cos(az); }
-    const y = hit.point.y + EYE;
-    await clearSelection();
-    await glideTo(hit.point.x, y, hit.point.z, hit.point.x + fx * LOOK_DIST, y, hit.point.z + fz * LOOK_DIST);
-    enterRoom();
-  }
+  // Shared walk-the-model teleporter: double-tap a walkable surface in any
+  // model to glide to an eye-height POV there (see pov.js). Indoors it clamps
+  // to a safe spot inside the room (constant floor height); outdoors it stands
+  // exactly where tapped (at the surface's own height — deck, lawn, steps).
+  const walker = createWalker({
+    camera: world.camera, glide: glideTo, clearSelection, onEnter: enterRoom,
+    eye: EYE, lookDist: LOOK_DIST,
+  });
+  walker.register(model, (id) => floorIds.has(id),
+    (hit) => { const { x, z } = clampToRoom(hit.point.x, hit.point.z); return { x, y: FLOOR + EYE, z }; });
+  if (exteriorModel) walker.register(exteriorModel, (id) => extFloorIds.has(id),
+    (hit) => ({ x: hit.point.x, y: hit.point.y + EYE, z: hit.point.z }));
 
   // --- interactive doors (double-tap a door to swing it open/closed) ------
   const doorMeshes = []; // door panel meshes (for raycasting)
@@ -753,12 +710,11 @@ async function main() {
     const now = performance.now();
     if (now - lastTap < 350 && Math.hypot(e.clientX - lastX, e.clientY - lastY) < 25) {
       lastTap = 0;
-      if (walking) { await walkTeleport(lx, ly); return; }
       const door = pickDoor(lx, ly);
       if (door) { toggleDoor(door); return; }
       const chair = pickChair(lx, ly);
       if (chair) { chair.toggle(); return; }
-      await teleportTo(lx, ly);
+      await walker.teleport(lx, ly, pointer, dom);
       return;
     }
     lastTap = now; lastX = e.clientX; lastY = e.clientY;
@@ -788,17 +744,6 @@ async function main() {
       frameModel(mv.box, true);
     });
   }
-  // Walk-the-lot: stand on the rear deck at eye height, then double-tap any
-  // ground surface (deck, lawn, porch, steps) to stride there and look around.
-  if (exteriorModel && deckStand) addView("🚶 Walk the lot", async () => {
-    await clearSelection();
-    enterRoom();
-    walking = true;
-    const y = deckStand.y + EYE;                    // stand on the deck at eye height
-    const look = deckStand.lookZ - deckStand.z;     // toward the house (its south wall)
-    await glideTo(deckStand.x, y, deckStand.z, deckStand.x, y, deckStand.z + Math.sign(look) * 6);
-    refreshShadow();
-  });
 
   // --- build swinging door overlays ---------------------------------------
   // Hide the baked IFC door panels (can't cheaply animate them) and overlay our
