@@ -641,8 +641,8 @@ def add_entry(ctx, px, pz, dw_ft, base):
     glaz_h = 1.35                            # transom height (ft)
     glaz_h_m = glaz_h * FT
     INK = (0.13, 0.20, 0.46)                 # cobalt digits
-    PAL = [(0.88, 0.79, 0.50), (0.82, 0.70, 0.72), (0.60, 0.73, 0.73),
-           (0.72, 0.79, 0.88), (0.86, 0.84, 0.66)]   # muted leaded-glass palette
+    PAL = [(0.86, 0.72, 0.38), (0.80, 0.52, 0.52), (0.42, 0.60, 0.60), (0.52, 0.64, 0.84),
+           (0.66, 0.76, 0.50), (0.82, 0.77, 0.45), (0.74, 0.66, 0.80)]  # amber/rose/teal/blue/green/gold/lilac
 
     def tile(cxf, wf, zlo, zhi, dep, color, name="Entry transom", cls="IfcWindow"):
         if zhi - zlo <= 0 or wf <= 0:
@@ -651,18 +651,36 @@ def add_entry(ctx, px, pz, dw_ft, base):
                      ctx.X(cxf), fy + out * dep / 2, zlo, color=color)
         run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
-    # stained-glass mosaic field: small leaded tiles in a concentric-diamond
-    # colour pattern over a dark leading panel (so the gaps read as seams),
-    # framed by a slim white wood rim
-    tile(px, glaz_w, spring, spring + glaz_h_m, 0.02, (0.18, 0.17, 0.16), "Entry leading")
-    ncol, nrow = round(glaz_w / 0.2), round(glaz_h / 0.2)
-    cw, chf = glaz_w / ncol, glaz_h / nrow
-    for ri in range(nrow):
-        for ci in range(ncol):
-            d = abs(ci - (ncol - 1) / 2) + abs(ri - (nrow - 1) / 2)
-            cxf = px - glaz_w / 2 + (ci + 0.5) * cw
-            zlo = spring + ri * chf * FT
-            tile(cxf, cw * 0.86, zlo, zlo + chf * 0.86 * FT, 0.03, PAL[int(d) % len(PAL)], "Entry glass")
+    # leaded stained glass: irregular quad "quarries" joined by thin cames. Jitter
+    # a grid of shared vertices (rim vertices stay on the edge) and inset each cell
+    # toward its centroid so the dark backing reads as the thin lead joints.
+    tile(px, glaz_w, spring, spring + glaz_h_m, 0.02, (0.17, 0.16, 0.15), "Entry leading")
+
+    def rnd(a, b, s):                         # deterministic pseudo-random in [0,1)
+        n = ((a * 73856093) ^ (b * 19349663) ^ (s * 83492791)) & 0x7fffffff
+        return ((n * 2654435761) % 1009) / 1009.0
+
+    ncol, nrow = 11, 5
+    x0, z0 = px - glaz_w / 2, spring
+    V = {}
+    for i in range(ncol + 1):
+        for j in range(nrow + 1):
+            jx = 0.0 if i in (0, ncol) else (rnd(i, j, 1) - 0.5) * 0.72
+            jz = 0.0 if j in (0, nrow) else (rnd(i, j, 2) - 0.5) * 0.72
+            V[(i, j)] = (x0 + (i + jx) / ncol * glaz_w, z0 + (j + jz) / nrow * glaz_h_m)
+    for i in range(ncol):
+        for j in range(nrow):
+            quad = [V[(i, j)], V[(i + 1, j)], V[(i + 1, j + 1)], V[(i, j + 1)]]
+            gx, gz = sum(p[0] for p in quad) / 4.0, sum(p[1] for p in quad) / 4.0
+            t = 0.12                          # inset toward centroid -> came gap
+            poly = [(p[0] + (gx - p[0]) * t, p[1] + (gz - p[1]) * t) for p in quad]
+            col = PAL[int(rnd(i, j, 3) * 997) % len(PAL)]
+            ya, yb = fy, fy + out * 0.03
+            verts = ([(ctx.X(x), ya, z) for x, z in poly] +
+                     [(ctx.X(x), yb, z) for x, z in poly])
+            faces = [[0, 1, 2, 3], [7, 6, 5, 4],
+                     [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
+            add_brep(ctx, "Entry glass", verts, faces, col, ifc_class="IfcWindow")
     CW2 = 0.33
     tile(px, glaz_w + 2 * CW2, spring + glaz_h_m, spring + glaz_h_m + CW2 * FT, 0.10, TRIM, "Entry transom rail")
     tile(px, glaz_w + 2 * CW2, spring - CW2 * FT, spring, 0.10, TRIM, "Entry transom bar")
