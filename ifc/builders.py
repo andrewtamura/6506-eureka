@@ -635,9 +635,6 @@ def add_entry(ctx, px, pz, dw_ft, base):
     # --- rectangular transom over the door: a stained-glass house-number panel --
     spring = base + dh * FT                 # door head = transom sill line
     NUM = "6506"
-    FONT = {"0": ("111", "101", "101", "101", "111"),     # 3x5 glyphs
-            "5": ("111", "100", "111", "001", "111"),
-            "6": ("111", "100", "111", "101", "111")}
     glaz_w = dw_ft                           # glazed opening width (ft)
     glaz_h = 1.6                             # transom height (ft)
     glaz_h_m = glaz_h * FT
@@ -698,17 +695,38 @@ def add_entry(ctx, px, pz, dw_ft, base):
     for k, (rx, rzf, c) in enumerate([(0.82, 0.64, NAVY), (0.76, 0.58, CREAM),
                                       (0.69, 0.51, NAVY), (0.63, 0.45, CREAM)]):
         poly(circ(px, cz0, rx, rzf), 0.013 + 0.0015 * k, c, "Entry roundel", tr=0.35)
-    # 5) the house number, centred on the roundel
-    u = 0.075
-    nw, nh = (len(NUM) * 4 - 1) * u, 5 * u
-    bl, bb = px - nw / 2, cz0 - nh / 2 * FT
-    for di, ch in enumerate(NUM):
-        gl = bl + di * 4 * u                 # 3 cells + 1 gap per glyph
-        for r in range(5):
-            for c in range(3):
-                if FONT[ch][r][c] == "1":
-                    zlo = bb + (4 - r) * u * FT
-                    tile(gl + (c + 0.5) * u, u * 0.9, zlo, zlo + u * 0.9 * FT, 0.021, INK, "Entry number")
+    # 5) the house number in rounded serif-style numerals (strokes + arcs), like
+    #    the reference photo — drawn opaque on the medallion's cream ground
+    DW, DH, s = 0.24, 0.42, 0.075           # digit width / height / stroke (ft)
+    sz, dnum, gap = s * FT, 0.022, 0.085
+    total = len(NUM) * DW + (len(NUM) - 1) * gap
+    x_left, z_bot = px - total / 2, cz0 - DH / 2 * FT
+
+    def vbar(dl, nx, n0, n1):               # vertical stroke (normalised cell coords)
+        tile(dl + nx * DW, s, z_bot + n0 * DH * FT, z_bot + n1 * DH * FT, dnum, INK, "Entry number")
+
+    def hbar(dl, nz, nx0, nx1):             # horizontal stroke
+        zc = z_bot + nz * DH * FT
+        tile(dl + (nx0 + nx1) / 2 * DW, (nx1 - nx0) * DW, zc - sz / 2, zc + sz / 2, dnum, INK, "Entry number")
+
+    def narc(dl, ncx, ncy, nrx, nry, a0, a1, n=20):   # thick elliptical stroke band
+        cxf, czm, rx, rzf = dl + ncx * DW, z_bot + ncy * DH * FT, nrx * DW, nry * DH
+        rxi, rzi = max(0.01, rx - s), max(0.01, rzf - s)
+        a0r, a1r = math.radians(a0), math.radians(a1)
+        ang = [a0r + (a1r - a0r) * k / n for k in range(n + 1)]
+        outer = [(cxf + rx * math.cos(t), czm + rzf * FT * math.sin(t)) for t in ang]
+        inner = [(cxf + rxi * math.cos(t), czm + rzi * FT * math.sin(t)) for t in reversed(ang)]
+        poly(outer + inner, dnum, INK, "Entry number")
+
+    GLYPH = {
+        "0": lambda dl: narc(dl, 0.5, 0.5, 0.42, 0.46, 0, 360),
+        "5": lambda dl: (hbar(dl, 0.9, 0.12, 0.84), vbar(dl, 0.17, 0.5, 0.9),
+                         hbar(dl, 0.52, 0.12, 0.6), narc(dl, 0.46, 0.28, 0.42, 0.30, 95, -150)),
+        "6": lambda dl: (narc(dl, 0.5, 0.30, 0.40, 0.30, 0, 360),
+                         narc(dl, 0.52, 0.52, 0.42, 0.45, 60, 205)),
+    }
+    for i, ch in enumerate(NUM):
+        GLYPH[ch](x_left + i * (DW + gap))
     # 6) slim white wood rim around the transom (a shallow casing, not chunky)
     CW2 = 0.30
     tile(px, glaz_w + 2 * CW2, spring + glaz_h_m, spring + glaz_h_m + CW2 * FT, 0.04, TRIM, "Entry transom rail")
