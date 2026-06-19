@@ -597,7 +597,7 @@ def add_porch(ctx, rooms_cache, base, width_ft=10.5):
         return
     BASE_C, FLOOR_C, RAIL_C = (0.84, 0.82, 0.78), (0.74, 0.73, 0.70), (0.95, 0.95, 0.93)
     ix, fy = ctx.X(fd["pos"]), ctx.Y(fd["fixed"])      # IFC X (door) / Y (front wall)
-    PWh, PD = width_ft / 2 * FT, 7.5 * FT              # half-width, depth (deep porch)
+    PWh, PD = width_ft / 2 * FT, 6.5 * FT              # half-width, depth (trimmed for a front setback)
     SWh = 2.5 * FT                                      # half stair width (5')
     nst, tread = 4, 0.92 * FT
     riser, run_len = base / nst, nst * 0.92 * FT
@@ -613,13 +613,14 @@ def add_porch(ctx, rooms_cache, base, width_ft=10.5):
                      (x0 + x1) / 2, (y0 + y1) / 2, z0, color=color)
         run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
-    # skirt (3 pieces wrapping the stair notch) + overhanging floor + inset treads
-    box("Porch skirt", xL + ins, xR - ins, fy, zT, 0.0, base, color=BASE_C)
-    box("Porch skirt", xL + ins, sL, zT, zF - ins, 0.0, base, color=BASE_C)
-    box("Porch skirt", sR, xR - ins, zT, zF - ins, 0.0, base, color=BASE_C)
-    box("Porch floor", xL, xR, fy, zT, base - ft_t, ft_t)
-    box("Porch floor", xL, sL, zT, zF, base - ft_t, ft_t)
-    box("Porch floor", sR, xR, zT, zF, base - ft_t, ft_t)
+    # skirt (3 pieces wrapping the stair notch) + a white water-table band that
+    # ties the base to the house + an overhanging painted floor + inset treads
+    wt0, wth = base - 0.18, 0.12                        # water-table band (m)
+    for (x0, x1, y0, y1) in ((xL, xR, fy, zT), (xL, sL, zT, zF), (sR, xR, zT, zF)):
+        box("Porch skirt", x0 + (ins if x0 == xL else 0), x1 - (ins if x1 == xR else 0),
+            y0, y1 - (ins if y1 == zF else 0), 0.0, wt0, color=BASE_C)   # stucco skirt (inset, up to the band)
+        box("Porch water table", x0, x1, y0, y1, wt0, wth, color=RAIL_C)  # white belt (full footprint)
+        box("Porch floor", x0, x1, y0, y1, base - ft_t, ft_t)            # painted floor on top
     for k in range(nst):                                # inset treads: lowest at the front, up to the platform
         box(f"Porch step {k}", sL, sR, zF - (k + 1) * tread, zF - k * tread, 0.0, (k + 1) * riser)
 
