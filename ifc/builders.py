@@ -180,10 +180,11 @@ def multi_solid_product(ctx, ifc_class, name, solids, predefined=None):
 
 
 def make_box(ctx, ifc_class, name, xdim, ydim, height, cx, cy, cz,
-             long_name=None, predefined=None, color=None, rot=0.0):
+             long_name=None, predefined=None, color=None, rot=0.0, transparency=0.0):
     """Create a product with a centered rectangular extruded body at (cx,cy,cz).
 
     If ``color`` (r,g,b in 0..1) is given, the body is shaded that colour.
+    ``transparency`` (0..1) makes it see-through (e.g. glass).
     ``rot`` (radians) rotates the box about the vertical axis (for furniture).
     """
     m = ctx.model
@@ -195,7 +196,7 @@ def make_box(ctx, ifc_class, name, xdim, ydim, height, cx, cy, cz,
         product.LongName = long_name
     rep = rect_rep(ctx, xdim, ydim, height)
     if color is not None:
-        assign_color(ctx, rep, color)
+        assign_color(ctx, rep, color, transparency=transparency)
     run("geometry.assign_representation", m, product=product, representation=rep)
     run("geometry.edit_object_placement", m, product=product, matrix=matrix(cx, cy, cz, rot))
     return product
@@ -347,7 +348,7 @@ def _newell_normal(loop):
     return n
 
 
-def add_brep(ctx, name, verts, faces, color, predefined=None, ifc_class="IfcRoof"):
+def add_brep(ctx, name, verts, faces, color, predefined=None, ifc_class="IfcRoof", transparency=0.0):
     """Create a product whose body is a faceted-BREP closed solid from `verts`
     (metres) and `faces` (vertex-index loops). Each face loop is auto-oriented
     so its normal points away from the solid centroid (outward) — valid for the
@@ -370,7 +371,7 @@ def add_brep(ctx, name, verts, faces, color, predefined=None, ifc_class="IfcRoof
     rep = m.create_entity("IfcShapeRepresentation", ContextOfItems=ctx.body,
                           RepresentationIdentifier="Body", RepresentationType="Brep", Items=[brep])
     if color is not None:
-        assign_color(ctx, rep, color)
+        assign_color(ctx, rep, color, transparency=transparency)
     kwargs = {"ifc_class": ifc_class, "name": name}
     if predefined:
         kwargs["predefined_type"] = predefined
@@ -648,29 +649,25 @@ def add_entry(ctx, px, pz, dw_ft, base):
     MOS = [(0.46, 0.55, 0.33), (0.63, 0.70, 0.43), (0.80, 0.67, 0.30), (0.87, 0.80, 0.49),
            (0.56, 0.43, 0.29), (0.34, 0.54, 0.54), (0.72, 0.62, 0.36)]  # green/gold/brown/teal
 
-    def tile(cxf, wf, zlo, zhi, dep, color, name="Entry transom", cls="IfcWindow"):
+    def tile(cxf, wf, zlo, zhi, dep, color, name="Entry transom", cls="IfcWindow", tr=0.0):
         if zhi - zlo <= 0 or wf <= 0:
             return
         b = make_box(ctx, cls, name, wf * FT, dep, zhi - zlo,
-                     ctx.X(cxf), fy + out * dep / 2, zlo, color=color)
+                     ctx.X(cxf), fy + out * dep / 2, zlo, color=color, transparency=tr)
         run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
-    def poly(pts, dep, color, name="Entry glass"):   # flat slab from an (x_ft, z_m) loop
+    def poly(pts, dep, color, name="Entry glass", tr=0.0):   # flat slab from an (x_ft, z_m) loop
         ya, yb = fy, fy + out * dep
         n = len(pts)
         verts = [(ctx.X(x), ya, z) for x, z in pts] + [(ctx.X(x), yb, z) for x, z in pts]
         faces = [list(range(n)), list(range(2 * n - 1, n - 1, -1))]
         for i in range(n):
             faces.append([i, (i + 1) % n, n + (i + 1) % n, n + i])
-        add_brep(ctx, name, verts, faces, color, ifc_class="IfcWindow")
+        add_brep(ctx, name, verts, faces, color, ifc_class="IfcWindow", transparency=tr)
 
     def circ(cx, cz, rx, rzf, n=30):                 # full ellipse loop (rx, rzf ft)
         return [(cx + rx * math.cos(2 * math.pi * k / n), cz + rzf * FT * math.sin(2 * math.pi * k / n))
                 for k in range(n)]
-
-    def arc(cx, cz, r, a0, a1, m=14):                # arc points a0..a1 (radius r ft)
-        return [(cx + r * math.cos(a0 + (a1 - a0) * k / m), cz + r * FT * math.sin(a0 + (a1 - a0) * k / m))
-                for k in range(m + 1)]
 
     def rnd(a, b, s):                                # deterministic pseudo-random in [0,1)
         n = ((a * 73856093) ^ (b * 19349663) ^ (s * 83492791)) & 0x7fffffff
@@ -696,17 +693,11 @@ def add_entry(ctx, px, pz, dw_ft, base):
             q = [V[(i, j)], V[(i + 1, j)], V[(i + 1, j + 1)], V[(i, j + 1)]]
             gx, gz = sum(p[0] for p in q) / 4.0, sum(p[1] for p in q) / 4.0
             pp = [(p[0] + (gx - p[0]) * 0.12, p[1] + (gz - p[1]) * 0.12) for p in q]
-            poly(pp, 0.005, MOS[int(rnd(i, j, 3) * 997) % len(MOS)], "Entry quarry")
-    # 3) two flanking fan roundels (concentric half-discs opening inward)
-    rs = 0.5
-    for ex, (a0, a1) in [(px - glaz_w / 2, (-math.pi / 2, math.pi / 2)),
-                         (px + glaz_w / 2, (math.pi / 2, 3 * math.pi / 2))]:
-        for k, (r, c) in enumerate([(rs, NAVY), (rs - 0.06, CREAM), (rs - 0.13, NAVY)]):
-            poly([(ex, cz0)] + arc(ex, cz0, r, a0, a1), 0.008 + 0.0015 * k, c, "Entry side fan")
-    # 4) central roundel: concentric navy/cream rings (the number's focal frame)
+            poly(pp, 0.005, MOS[int(rnd(i, j, 3) * 997) % len(MOS)], "Entry quarry", tr=0.4)
+    # 3) a single central roundel: concentric navy/cream rings framing the number
     for k, (rx, rzf, c) in enumerate([(0.82, 0.64, NAVY), (0.76, 0.58, CREAM),
                                       (0.69, 0.51, NAVY), (0.63, 0.45, CREAM)]):
-        poly(circ(px, cz0, rx, rzf), 0.013 + 0.0015 * k, c, "Entry roundel")
+        poly(circ(px, cz0, rx, rzf), 0.013 + 0.0015 * k, c, "Entry roundel", tr=0.35)
     # 5) the house number, centred on the roundel
     u = 0.075
     nw, nh = (len(NUM) * 4 - 1) * u, 5 * u
