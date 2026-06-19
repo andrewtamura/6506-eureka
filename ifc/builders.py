@@ -631,57 +631,50 @@ def add_entry(ctx, px, pz, dw_ft, base):
                      ctx.X(cxp), fy + out * dep / 2, z_lo, color=color)
         run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
-    # --- semicircular fanlight over the door (a Colonial Revival hallmark) ----
-    spring = base + dh * FT                 # door head = the fanlight springing line
-    R = (dw_ft / 2 + 0.1) * FT              # fan radius (m) ~ the door half-width
-    NSEG = 9                                # arc segments / radiating bays
-    arc = [(ix + R * math.cos(math.pi * k / NSEG), spring + R * math.sin(math.pi * k / NSEG))
-           for k in range(NSEG + 1)]
+    # --- rectangular transom over the door: a stained-glass house-number panel --
+    spring = base + dh * FT                 # door head = transom sill line
+    NUM = "6506"
+    FONT = {"0": ("111", "101", "101", "101", "111"),     # 3x5 mosaic glyphs
+            "5": ("111", "100", "111", "001", "111"),
+            "6": ("111", "100", "111", "101", "111")}
+    cols = len(NUM) * 3 + (len(NUM) - 1)    # 3-wide glyphs + 1-wide gaps
+    u = (dw_ft * 0.76) / cols               # mosaic cell (ft)
+    num_w = cols * u                         # number block width (ft)
+    glaz_w = dw_ft                           # glazed opening width (ft)
+    glaz_h = 8.0 * u                         # 5 rows + top/bottom margin (ft)
+    glaz_h_m = glaz_h * FT
+    LIGHT, INK = (0.90, 0.85, 0.60), (0.16, 0.26, 0.55)   # amber glass, cobalt digits
 
-    def bar(x0, z0, x1, z1, thick, dep, color, name="Entry fan came"):
-        """A thin flat bar between two points in the wall (X-Z) plane, projecting
-        only slightly outward (so the fan reads flat) — used for the leaded seams
-        and the wood rim."""
-        dx, dz = x1 - x0, z1 - z0
-        L = math.hypot(dx, dz)
-        if L < 1e-6:
+    def tile(cxf, wf, zlo, zhi, dep, color, name="Entry transom", cls="IfcWindow"):
+        if zhi - zlo <= 0 or wf <= 0:
             return
-        nx, nz = -dz / L * thick / 2, dx / L * thick / 2     # half-thickness normal
-        ya, yb = fy, fy + out * dep
-        quad = [(x0 + nx, z0 + nz), (x1 + nx, z1 + nz), (x1 - nx, z1 - nz), (x0 - nx, z0 - nz)]
-        verts = [(qx, ya, qz) for qx, qz in quad] + [(qx, yb, qz) for qx, qz in quad]
-        faces = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
-        add_brep(ctx, name, verts, faces, color, ifc_class="IfcBuildingElementProxy")
+        b = make_box(ctx, cls, name, wf * FT, dep, zhi - zlo,
+                     ctx.X(cxf), fy + out * dep / 2, zlo, color=color)
+        run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
-    # Stained-glass fanlight: flat coloured "pie slice" panes tiling the half-disk
-    # (symmetric tint pattern), with thin dark leaded seams + a slim wood rim.
-    SEAM = (0.24, 0.22, 0.20)               # lead came (dark)
-    PANES = [(0.79, 0.82, 0.85), (0.86, 0.77, 0.50), (0.76, 0.83, 0.77),
-             (0.84, 0.72, 0.73), (0.72, 0.80, 0.88)]   # muted amber/green/rose/blue
-    gdep = 0.02                             # glazing barely proud of the wall (flat)
-    for k in range(NSEG):                   # coloured panes (triangular fan slices)
-        poly = [(ix, spring), arc[k], arc[k + 1]]
-        ya, yb = fy, fy + out * gdep
-        verts = [(x, ya, z) for x, z in poly] + [(x, yb, z) for x, z in poly]
-        faces = [[0, 1, 2], [5, 4, 3], [0, 1, 4, 3], [1, 2, 5, 4], [2, 0, 3, 5]]
-        add_brep(ctx, "Entry fanlight pane", verts, faces,
-                 PANES[min(k, NSEG - 1 - k) % len(PANES)], ifc_class="IfcWindow")
-    rmid = 0.6                              # a concentric came ring at 0.6R
-    for k in range(NSEG):                   # concentric seam (chord segments)
-        a, b = arc[k], arc[k + 1]
-        bar(ix + (a[0] - ix) * rmid, spring + (a[1] - spring) * rmid,
-            ix + (b[0] - ix) * rmid, spring + (b[1] - spring) * rmid, 0.022, 0.035, SEAM)
-    for k in range(1, NSEG):                # radiating seams (cames)
-        bar(ix, spring, arc[k][0], arc[k][1], 0.022, 0.035, SEAM)
-    for k in range(NSEG):                   # slim wood rim (arch)
-        bar(arc[k][0], arc[k][1], arc[k + 1][0], arc[k + 1][1], 0.06, 0.05, TRIM, "Entry fan rim")
-    bar(ix - R, spring, ix + R, spring, 0.11, 0.06, TRIM, "Entry transom bar")
+    # background glazing + a slim wood rim (stiles, head + sill bar) around it
+    tile(px, glaz_w, spring, spring + glaz_h_m, 0.04, LIGHT, "Entry transom glass")
+    CW2 = 0.33
+    tile(px, glaz_w + 2 * CW2, spring + glaz_h_m, spring + glaz_h_m + CW2 * FT, 0.10, TRIM, "Entry transom rail")
+    tile(px, glaz_w + 2 * CW2, spring - CW2 * FT, spring, 0.10, TRIM, "Entry transom bar")
+    for sx in (-1, 1):
+        tile(px + sx * (glaz_w + CW2) / 2, CW2, spring, spring + glaz_h_m, 0.10, TRIM, "Entry transom stile")
+    # the house number, as cobalt mosaic tiles (small gaps read as leaded seams)
+    block_left = px - num_w / 2
+    block_bot = spring + (glaz_h_m - 5 * u * FT) / 2        # vertically centre the 5-row block
+    for di, ch in enumerate(NUM):
+        gleft = block_left + di * 4 * u                     # 3 cells + 1 gap per glyph
+        for r in range(5):
+            for c in range(3):
+                if FONT[ch][r][c] == "1":
+                    zlo = block_bot + (4 - r) * u * FT
+                    tile(gleft + (c + 0.5) * u, u * 0.9, zlo, zlo + u * 0.9 * FT, 0.06, INK, "Entry number")
 
     pil_w = 0.8                             # pilaster shaft width (ft)
     cap_w = pil_w + 0.4                      # plinth / capital wider than the shaft
     ent_h = 0.8                             # entablature height (ft)
     pil_off = dw_ft / 2 + 0.2 + pil_w / 2   # flank the door with a small reveal
-    pil_h = dh + dw_ft / 2 + 0.6            # entablature underside clears the fanlight
+    pil_h = dh + glaz_h + 0.3               # entablature underside clears the transom
     eW = 2 * (pil_off + pil_w / 2) + 0.6    # entablature / pediment width, with a cornice overhang (ft)
     ent_lo, ent_hi = base + pil_h * FT, base + (pil_h + ent_h) * FT
 
@@ -704,8 +697,8 @@ def add_entry(ctx, px, pz, dw_ft, base):
         place("Entry dentil", px + (i - (n - 1) / 2) * pitch_ft, dent_ft, ENT_D + 0.04,
               ent_hi - 0.13, ent_hi - 0.01)
 
-    # keystone bridging the fanlight crown up into the frieze, centred over the door
-    place("Entry keystone", px, 0.7, ENT_D + 0.06, spring + R - 0.1 * FT, ent_hi + 0.05)
+    # keystone bridging the transom head up into the frieze, centred over the door
+    place("Entry keystone", px, 0.7, ENT_D + 0.06, spring + glaz_h_m, ent_hi + 0.05)
 
     # shallow pediment on the entablature (height scaled to its width), with a
     # tablet in the tympanum
