@@ -718,6 +718,64 @@ def add_lot_wall(ctx, lot, rooms_cache, base):
     wall("Lot wall - east", east, east + t, south, south + 35)
 
 
+def add_picket_fence(ctx, lot, rooms_cache):
+    """A waist-high (36") white picket fence continuing the boundary where the CMU
+    wall stops: along the south lot line from the scullery's west wall to the SW
+    corner, then north along the west lot line to the plane of the house's north
+    exterior wall. Pointed pickets on two rails between posts. (IfcRailing, so it
+    isn't a walk-POV surface.)"""
+    WHITE = (0.95, 0.95, 0.93)
+    Tp, Wp, oc = 1 / 12, 3.5 / 12, 6 / 12            # picket thickness / width / on-centre (ft)
+    ht, hs = 36 / 12 * FT, (36 - 4) / 12 * FT         # 36" tall, 4" pointed tip
+    B = {k: v["bounds"] for k, v in rooms_cache.items()}
+    pxs = [v for r in B.values() for v in (r["x1"], r["x2"])]
+    pzs = [v for r in B.values() for v in (r["z1"], r["z2"])]
+    west = max(pxs) + lot["westMarginFt"]            # west lot line (plan x)
+    south = min(pzs) - lot["scullerySouthFt"]        # south lot line (plan z)
+    scu_west = max(B["scullery"]["x1"], B["scullery"]["x2"])  # CMU south wall ends here
+    north = max(pzs)                                 # house north exterior wall plane
+
+    def box(name, xc, zc, xd, zd, z0, h):
+        b = make_box(ctx, "IfcRailing", name, xd * FT, zd * FT, h, ctx.X(xc), ctx.Y(zc), z0, color=WHITE)
+        run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
+
+    def post(xc, zc):
+        box("Fence post", xc, zc, 0.30, 0.30, 0.0, ht + 0.1 * FT)
+        box("Fence post cap", xc, zc, 0.46, 0.46, ht + 0.1 * FT, 0.12 * FT)
+
+    def picket(axis, c, fixed):                      # a pointed picket (pentagon prism)
+        prof = [(c - Wp / 2, 0.0), (c + Wp / 2, 0.0), (c + Wp / 2, hs), (c, ht), (c - Wp / 2, hs)]
+        f1, f2 = fixed - Tp / 2, fixed + Tp / 2
+        if axis == "x":                              # run along x, thin in z
+            fr = [(ctx.X(p), ctx.Y(f1), v) for p, v in prof]
+            bk = [(ctx.X(p), ctx.Y(f2), v) for p, v in prof]
+        else:                                        # run along z, thin in x
+            fr = [(ctx.X(f1), ctx.Y(p), v) for p, v in prof]
+            bk = [(ctx.X(f2), ctx.Y(p), v) for p, v in prof]
+        faces = [[0, 1, 2, 3, 4], [9, 8, 7, 6, 5],
+                 [0, 1, 6, 5], [1, 2, 7, 6], [2, 3, 8, 7], [3, 4, 9, 8], [4, 0, 5, 9]]
+        add_brep(ctx, "Fence picket", fr + bk, faces, WHITE, ifc_class="IfcRailing")
+
+    def run_fence(axis, fixed, a, b):
+        lo, hi = min(a, b), max(a, b)
+        for zc in (8 / 12 * FT, 26 / 12 * FT):       # bottom + top rails
+            if axis == "x":
+                box("Fence rail", (lo + hi) / 2, fixed, hi - lo, Tp * 1.5, zc, 2 / 12 * FT)
+            else:
+                box("Fence rail", fixed, (lo + hi) / 2, Tp * 1.5, hi - lo, zc, 2 / 12 * FT)
+        c = lo + oc / 2
+        while c < hi - 1e-6:                          # pickets
+            picket(axis, c, fixed)
+            c += oc
+        n = max(1, round((hi - lo) / 6))              # posts every ~6'
+        for i in range(n + 1):
+            pc = lo + (hi - lo) * i / n
+            post(pc, fixed) if axis == "x" else post(fixed, pc)
+
+    run_fence("x", south, scu_west, west)            # south: end of CMU -> SW corner
+    run_fence("z", west, south, north)               # west: SW corner -> north wall plane
+
+
 
 def add_entry(ctx, px, pz, dw_ft, base):
     """Classical pedimented door surround over the (North-facing) front door:

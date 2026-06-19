@@ -140,6 +140,7 @@ def build_level(cfg, rooms_cache, level):
         B.add_fenestration(ctx, level["roofGroups"], rooms_cache, crawl)
         B.add_deck(ctx, cfg["lot"], rooms_cache, crawl)
         B.add_lot_wall(ctx, cfg["lot"], rooms_cache, crawl)
+        B.add_picket_fence(ctx, cfg["lot"], rooms_cache)
 
     ifc_name = f"{lid}.ifc"
     m.write(os.path.join(HERE, ifc_name))
