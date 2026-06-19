@@ -676,9 +676,10 @@ def add_entry(ctx, px, pz, dw_ft, base):
         n = ((a * 73856093) ^ (b * 19349663) ^ (s * 83492791)) & 0x7fffffff
         return ((n * 2654435761) % 1009) / 1009.0
 
-    # 1) dark lead backing — every coloured piece sits slightly proud, so the gaps
-    #    between pieces read as the thin lead cames
-    tile(px, glaz_w, spring, spring + glaz_h_m, 0.015, LEAD, "Entry leading")
+    # 1) dark lead backing. Everything is kept FLAT: pieces are thin sheets with
+    #    tiny (~1.5 mm) ordered depth steps — enough to layer + read the cames,
+    #    not so much that the panel looks like stacked 3D discs.
+    tile(px, glaz_w, spring, spring + glaz_h_m, 0.002, LEAD, "Entry leading")
     # 2) irregular leaded mosaic field: jitter a grid of shared vertices (rim
     #    vertices pinned to the edge) into irregular quarries, inset toward each
     #    centroid so the gaps read as cames; earthy green/gold/brown/teal glass
@@ -695,17 +696,17 @@ def add_entry(ctx, px, pz, dw_ft, base):
             q = [V[(i, j)], V[(i + 1, j)], V[(i + 1, j + 1)], V[(i, j + 1)]]
             gx, gz = sum(p[0] for p in q) / 4.0, sum(p[1] for p in q) / 4.0
             pp = [(p[0] + (gx - p[0]) * 0.12, p[1] + (gz - p[1]) * 0.12) for p in q]
-            poly(pp, 0.03, MOS[int(rnd(i, j, 3) * 997) % len(MOS)], "Entry quarry")
+            poly(pp, 0.005, MOS[int(rnd(i, j, 3) * 997) % len(MOS)], "Entry quarry")
     # 3) two flanking fan roundels (concentric half-discs opening inward)
     rs = 0.5
     for ex, (a0, a1) in [(px - glaz_w / 2, (-math.pi / 2, math.pi / 2)),
                          (px + glaz_w / 2, (math.pi / 2, 3 * math.pi / 2))]:
         for k, (r, c) in enumerate([(rs, NAVY), (rs - 0.06, CREAM), (rs - 0.13, NAVY)]):
-            poly([(ex, cz0)] + arc(ex, cz0, r, a0, a1), 0.04 + 0.004 * k, c, "Entry side fan")
+            poly([(ex, cz0)] + arc(ex, cz0, r, a0, a1), 0.008 + 0.0015 * k, c, "Entry side fan")
     # 4) central roundel: concentric navy/cream rings (the number's focal frame)
     for k, (rx, rzf, c) in enumerate([(0.82, 0.64, NAVY), (0.76, 0.58, CREAM),
                                       (0.69, 0.51, NAVY), (0.63, 0.45, CREAM)]):
-        poly(circ(px, cz0, rx, rzf), 0.05 + 0.004 * k, c, "Entry roundel")
+        poly(circ(px, cz0, rx, rzf), 0.013 + 0.0015 * k, c, "Entry roundel")
     # 5) the house number, centred on the roundel
     u = 0.075
     nw, nh = (len(NUM) * 4 - 1) * u, 5 * u
@@ -716,13 +717,13 @@ def add_entry(ctx, px, pz, dw_ft, base):
             for c in range(3):
                 if FONT[ch][r][c] == "1":
                     zlo = bb + (4 - r) * u * FT
-                    tile(gl + (c + 0.5) * u, u * 0.9, zlo, zlo + u * 0.9 * FT, 0.08, INK, "Entry number")
-    # 6) slim white wood rim around the transom
+                    tile(gl + (c + 0.5) * u, u * 0.9, zlo, zlo + u * 0.9 * FT, 0.021, INK, "Entry number")
+    # 6) slim white wood rim around the transom (a shallow casing, not chunky)
     CW2 = 0.30
-    tile(px, glaz_w + 2 * CW2, spring + glaz_h_m, spring + glaz_h_m + CW2 * FT, 0.10, TRIM, "Entry transom rail")
-    tile(px, glaz_w + 2 * CW2, spring - CW2 * FT, spring, 0.10, TRIM, "Entry transom bar")
+    tile(px, glaz_w + 2 * CW2, spring + glaz_h_m, spring + glaz_h_m + CW2 * FT, 0.04, TRIM, "Entry transom rail")
+    tile(px, glaz_w + 2 * CW2, spring - CW2 * FT, spring, 0.04, TRIM, "Entry transom bar")
     for sx in (-1, 1):
-        tile(px + sx * (glaz_w + CW2) / 2, CW2, spring, spring + glaz_h_m, 0.10, TRIM, "Entry transom stile")
+        tile(px + sx * (glaz_w + CW2) / 2, CW2, spring, spring + glaz_h_m, 0.04, TRIM, "Entry transom stile")
 
     pil_w = 0.8                             # pilaster shaft width (ft)
     cap_w = pil_w + 0.4                      # plinth / capital wider than the shaft
