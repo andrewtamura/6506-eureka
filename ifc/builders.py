@@ -638,9 +638,10 @@ def add_entry(ctx, px, pz, dw_ft, base):
     arc = [(ix + R * math.cos(math.pi * k / NSEG), spring + R * math.sin(math.pi * k / NSEG))
            for k in range(NSEG + 1)]
 
-    def bar(x0, z0, x1, z1, thick, dep, name="Entry fan muntin"):
-        """A thin TRIM bar between two points in the wall (X-Z) plane, projecting
-        outward; lets the fan's radiating muntins + arch rim be drawn at angles."""
+    def bar(x0, z0, x1, z1, thick, dep, color, name="Entry fan came"):
+        """A thin flat bar between two points in the wall (X-Z) plane, projecting
+        only slightly outward (so the fan reads flat) — used for the leaded seams
+        and the wood rim."""
         dx, dz = x1 - x0, z1 - z0
         L = math.hypot(dx, dz)
         if L < 1e-6:
@@ -650,24 +651,31 @@ def add_entry(ctx, px, pz, dw_ft, base):
         quad = [(x0 + nx, z0 + nz), (x1 + nx, z1 + nz), (x1 - nx, z1 - nz), (x0 - nx, z0 - nz)]
         verts = [(qx, ya, qz) for qx, qz in quad] + [(qx, yb, qz) for qx, qz in quad]
         faces = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
-        add_brep(ctx, name, verts, faces, TRIM, ifc_class="IfcBuildingElementProxy")
+        add_brep(ctx, name, verts, faces, color, ifc_class="IfcBuildingElementProxy")
 
-    # glazing: a half-disk pane (front + back faces, curved rim, flat diameter)
-    ya, yb = fy - 0.03, fy + 0.03
-    fv = [(ix, ya, spring)] + [(x, ya, z) for x, z in arc]   # front: centre + arc
-    bv = [(ix, yb, spring)] + [(x, yb, z) for x, z in arc]   # back
-    nb = len(fv)
-    gverts = fv + bv
-    gfaces = ([[0, 1 + k, 2 + k] for k in range(NSEG)] +                       # front fan
-              [[nb, nb + 2 + k, nb + 1 + k] for k in range(NSEG)] +            # back fan
-              [[1 + k, 2 + k, nb + 2 + k, nb + 1 + k] for k in range(NSEG)] +  # curved rim
-              [[0, 1, nb + 1, nb], [0, nb, nb + 1 + NSEG, 1 + NSEG]])          # diameter ends
-    add_brep(ctx, "Entry fanlight", gverts, gfaces, GLASS, ifc_class="IfcWindow")
-    for k in range(1, NSEG):                                 # radiating muntins
-        bar(ix, spring, arc[k][0], arc[k][1], 0.05, 0.11)
-    for k in range(NSEG):                                    # arch rim (chord segments)
-        bar(arc[k][0], arc[k][1], arc[k + 1][0], arc[k + 1][1], 0.10, 0.13, "Entry fan rim")
-    bar(ix - R, spring, ix + R, spring, 0.13, 0.14, "Entry transom bar")
+    # Stained-glass fanlight: flat coloured "pie slice" panes tiling the half-disk
+    # (symmetric tint pattern), with thin dark leaded seams + a slim wood rim.
+    SEAM = (0.24, 0.22, 0.20)               # lead came (dark)
+    PANES = [(0.79, 0.82, 0.85), (0.86, 0.77, 0.50), (0.76, 0.83, 0.77),
+             (0.84, 0.72, 0.73), (0.72, 0.80, 0.88)]   # muted amber/green/rose/blue
+    gdep = 0.02                             # glazing barely proud of the wall (flat)
+    for k in range(NSEG):                   # coloured panes (triangular fan slices)
+        poly = [(ix, spring), arc[k], arc[k + 1]]
+        ya, yb = fy, fy + out * gdep
+        verts = [(x, ya, z) for x, z in poly] + [(x, yb, z) for x, z in poly]
+        faces = [[0, 1, 2], [5, 4, 3], [0, 1, 4, 3], [1, 2, 5, 4], [2, 0, 3, 5]]
+        add_brep(ctx, "Entry fanlight pane", verts, faces,
+                 PANES[min(k, NSEG - 1 - k) % len(PANES)], ifc_class="IfcWindow")
+    rmid = 0.6                              # a concentric came ring at 0.6R
+    for k in range(NSEG):                   # concentric seam (chord segments)
+        a, b = arc[k], arc[k + 1]
+        bar(ix + (a[0] - ix) * rmid, spring + (a[1] - spring) * rmid,
+            ix + (b[0] - ix) * rmid, spring + (b[1] - spring) * rmid, 0.022, 0.035, SEAM)
+    for k in range(1, NSEG):                # radiating seams (cames)
+        bar(ix, spring, arc[k][0], arc[k][1], 0.022, 0.035, SEAM)
+    for k in range(NSEG):                   # slim wood rim (arch)
+        bar(arc[k][0], arc[k][1], arc[k + 1][0], arc[k + 1][1], 0.06, 0.05, TRIM, "Entry fan rim")
+    bar(ix - R, spring, ix + R, spring, 0.11, 0.06, TRIM, "Entry transom bar")
 
     pil_w = 0.8                             # pilaster shaft width (ft)
     cap_w = pil_w + 0.4                      # plinth / capital wider than the shaft
