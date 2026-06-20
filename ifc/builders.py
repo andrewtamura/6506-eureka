@@ -352,7 +352,7 @@ def add_attic(ctx, rooms, roof):
              predefined="CEILING", transparency=0.55)
 
     if eave > 0:
-        # raised plate: full-height perimeter walls (these ARE the knee walls)
+        # raised plate: full-height perimeter (exterior) walls at the eave...
         cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
         for nm, bx, by, xd, yd in [
             ("Plate wall S", cx, y1, abs(x2 - x1) + t, t),
@@ -362,6 +362,49 @@ def add_attic(ctx, rooms, roof):
         ]:
             w = make_box(ctx, "IfcWall", nm, xd, yd, eave, bx, by, 0.0, color=KNEE)
             run("spatial.assign_container", ctx.model, products=[w], relating_structure=ctx.storey)
+        # ...plus INSET KNEE WALLS at `knee` height, where the slope reaches that
+        # height (inset = (knee-eave)/pitch). They wall off the low <knee storage
+        # triangles; the strip between plate and knee wall is behind-knee storage.
+        # Openings are left where the dormers are so their alcoves open to the room.
+        dm = (knee - eave) / pitch
+        kx1, kx2, ky1, ky2 = x1 + dm, x2 - dm, y1 + dm, y2 - dm
+        ds = roof.get("dormers") or {}
+        nbays = [ctx.X(px) for px in (aligned_front_bays(rooms, ds.get("count", 3)) or [])] \
+            if ds.get("align") == "bays" else []
+        nwd = ds.get("widthFt", 3.5) * FT
+        n_holes = [(b - nwd / 2, b + nwd / 2) for b in nbays]
+        ss = roof.get("shedDormer") or {}
+        s_holes = []
+        if ss:
+            half = min(x2 - x1, y2 - y1) / 2.0
+            sW = max(2.0 * FT, (x2 - x1) - 2 * half - 2 * ss.get("marginFt", 0.5) * FT)
+            s_holes = [(cx - sW / 2, cx + sW / 2)]
+        for j, (a, b) in enumerate(subtract_intervals(kx1, kx2, n_holes, margin=0.2)):
+            w = make_box(ctx, "IfcWall", f"Knee wall N{j}", b - a + t, t, knee, (a + b) / 2, ky2, 0.0, color=KNEE)
+            run("spatial.assign_container", ctx.model, products=[w], relating_structure=ctx.storey)
+        for j, (a, b) in enumerate(subtract_intervals(kx1, kx2, s_holes, margin=0.2)):
+            w = make_box(ctx, "IfcWall", f"Knee wall S{j}", b - a + t, t, knee, (a + b) / 2, ky1, 0.0, color=KNEE)
+            run("spatial.assign_container", ctx.model, products=[w], relating_structure=ctx.storey)
+        for nm, bx in (("Knee wall W", kx1), ("Knee wall E", kx2)):
+            w = make_box(ctx, "IfcWall", nm, t, abs(ky2 - ky1) + t, knee, bx, (ky1 + ky2) / 2, 0.0, color=KNEE)
+            run("spatial.assign_container", ctx.model, products=[w], relating_structure=ctx.storey)
+        # colored highlight of the usable floor: the knee-walled core room + the
+        # dormer alcoves that reach out past the knee wall to each dormer face.
+        USE = (0.27, 0.74, 0.55)
+
+        def floorbox(nm, xa, xb, ya, yb):
+            if abs(xb - xa) < 1e-3 or abs(yb - ya) < 1e-3:
+                return
+            p = make_box(ctx, "IfcBuildingElementProxy", nm, abs(xb - xa), abs(yb - ya), 0.05,
+                         (xa + xb) / 2, (ya + yb) / 2, 0.05, color=USE, transparency=0.45)
+            run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
+        floorbox("Usable floor area", kx1, kx2, ky1, ky2)
+        nrec = ds.get("recessFt", 0) * FT
+        for a, b in n_holes:
+            floorbox("Usable alcove N", max(a, kx1), min(b, kx2), ky2, y2 - nrec)
+        srec = ss.get("recessFt", 0) * FT
+        for a, b in s_holes:
+            floorbox("Usable alcove S", max(a, kx1), min(b, kx2), y1 + srec, ky1)
     else:
         # inset knee walls where the bare hip ceiling first reaches `knee`
         dk = knee / pitch
