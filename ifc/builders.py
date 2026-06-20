@@ -634,10 +634,10 @@ def add_porch(ctx, rooms_cache, base, width_ft=9.0):
     # foot. A thin white cap rides each segment.
     run_len = zFt - zTf                                 # cascade run (Y span)
     M = 12                                              # curve subdivisions
-    def seg_brep(name, p0, p1, color, cls):             # p = (x_in, y, top)
-        (xi0, y0, t0), (xi1, y1, t1), s = p0, p1, (1 if p1[0] > ix else -1)
+    def seg_brep(name, p0, p1, color, cls, b0=0.0, b1=0.0):   # p = (x_in, y, top); b = bottom
+        (xi0, y0, t0), (xi1, y1, t1), s = p0, p1, (1 if (p1[0] + p0[0]) / 2 > ix else -1)
         xo0, xo1 = xi0 + s * wt, xi1 + s * wt
-        v = [(xi0, y0, 0.0), (xi1, y1, 0.0), (xo1, y1, 0.0), (xo0, y0, 0.0),
+        v = [(xi0, y0, b0), (xi1, y1, b1), (xo1, y1, b1), (xo0, y0, b0),
              (xi0, y0, t0), (xi1, y1, t1), (xo1, y1, t1), (xo0, y0, t0)]
         f = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4],
              [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
@@ -645,23 +645,19 @@ def add_porch(ctx, rooms_cache, base, width_ft=9.0):
 
     def cheekwall(s):                                   # s = -1 (left) / +1 (right)
         side = "L" if s < 0 else "R"
+        # segment list: a straight back run from the house wall to the terrace
+        # front, then the curved cascade run. p = (x_in, y, top).
+        segs = [((ix + s * PWh, fy, base + ph), (ix + s * PWh, zTf, base + ph))]
         for k in range(M):
             t0, t1 = k / M, (k + 1) / M
-            p0 = (ix + s * wcurve(t0), zTf + t0 * run_len, base + ph - base * t0)
-            p1 = (ix + s * wcurve(t1), zTf + t1 * run_len, base + ph - base * t1)
+            segs.append(((ix + s * wcurve(t0), zTf + t0 * run_len, base + ph - base * t0),
+                         (ix + s * wcurve(t1), zTf + t1 * run_len, base + ph - base * t1)))
+        for k, (p0, p1) in enumerate(segs):
             seg_brep(f"Porch cheek wall {side} {k}", p0, p1, BASE_C, "IfcWall")
-            # white cap riding this segment's sloped top
-            cap0 = (p0[0], p0[1], p0[2] + cap)
-            cap1 = (p1[0], p1[1], p1[2] + cap)
-            # cap as a thin slab on top: reuse seg_brep with raised bottom by
-            # building a short wedge whose "bottom" is the wall top
-            xo0, xo1 = p0[0] + s * wt, p1[0] + s * wt
-            v = [(p0[0], p0[1], p0[2]), (p1[0], p1[1], p1[2]), (xo1, p1[1], p1[2]), (xo0, p0[1], p0[2]),
-                 (p0[0], p0[1], cap0[2]), (p1[0], p1[1], cap1[2]), (xo1, p1[1], cap1[2]), (xo0, p0[1], cap0[2])]
-            f = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4],
-                 [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
-            add_brep(ctx, f"Porch cheek cap {side} {k}", v, f, CAP_C,
-                     ifc_class="IfcBuildingElementProxy")
+            # white cap riding this segment's sloped top (uniform-thickness slab)
+            cp0, cp1 = (p0[0], p0[1], p0[2] + cap), (p1[0], p1[1], p1[2] + cap)
+            seg_brep(f"Porch cheek cap {side} {k}", cp0, cp1, CAP_C,
+                     "IfcBuildingElementProxy", b0=p0[2], b1=p1[2])
 
     cheekwall(-1)
     cheekwall(+1)
