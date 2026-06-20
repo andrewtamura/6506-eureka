@@ -87,6 +87,13 @@
             "widthFt": 3.5,
             "plateFt": 6.0,
             "window": { "widthFt": 2.0, "heightFt": 2.5 }
+          },
+          "shedDormer": {
+            "side": "south",
+            "plateFt": 7.0,
+            "marginFt": 0.5,
+            "ridgeMarginFt": 2.0,
+            "window": { "count": 3, "widthFt": 2.0, "heightFt": 2.5, "sillFt": 2.5 }
           }
         },
         "extension": {

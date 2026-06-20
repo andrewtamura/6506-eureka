@@ -364,6 +364,8 @@ def add_attic(ctx, rooms, roof):
 
     if roof.get("dormers"):
         add_dormers(ctx, x1, x2, y1, y2, pitch, roof["dormers"], base_z=0.0, style="interior")
+    if roof.get("shedDormer"):
+        add_shed_dormer(ctx, x1, x2, y1, y2, pitch, roof["shedDormer"], base_z=0.0, style="interior")
 
 
 def _prism(poly, vec):
@@ -463,6 +465,75 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior"):
         prism(f"{nm} roof E", [(xR, yN, plate), (cx, yN, zR), (cx, y_r, zR), (xR, y_p, plate)],
               (0, 0, tz), ROOF, cls="IfcRoof")
 
+
+def add_shed_dormer(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior"):
+    """A single SHED dormer centred on the ridge centre line of the SOUTH slope
+    (south = -Y), sized to maximise full-height attic floor WITHOUT touching the
+    ridge or the hips. Unlike a gable, its near-flat roof gives full standing
+    height over a big rectangle — the most usable floor per dormer.
+
+    Sizing (auto-computed to maximise floor while keeping the roof simple):
+      * Width = the central ridge length (footprint long side - short side), less a
+        small `marginFt` each end, so the cheeks stay off the hipped ends.
+      * The front wall stands `plateFt` tall at the south eave; with plate = 7 ft
+        the WHOLE pocket clears 7 ft (the shed only rises from there).
+      * The shed roof rises at the shallow slope needed to die into the main south
+        slope `ridgeMarginFt` below the ridge (so the ridge + upper slope, and
+        thus the existing roofline, are left intact — no valleys, no new ridge).
+    The same builder serves the attic exhibit (`base_z`=0, light soffit) and the
+    exterior massing (`base_z`=eave, charcoal shingle)."""
+    WALL = (0.87, 0.86, 0.83)
+    ROOF = (0.30, 0.30, 0.33) if style == "exterior" else (0.93, 0.92, 0.90)
+    GLASS = (0.42, 0.52, 0.60)
+    yS = y1                                            # south eave (min Y)
+    half = min(x2 - x1, y2 - y1) / 2.0                 # ridge inset = half the short span
+    ridge_len = (x2 - x1) - 2 * half                   # the simple (un-hipped) central run
+    cx = (x1 + x2) / 2.0
+    margin = spec.get("marginFt", 0.5) * FT
+    W_s = max(2.0 * FT, ridge_len - 2 * margin)
+    xa, xb = cx - W_s / 2, cx + W_s / 2
+    P = spec.get("plateFt", 7.0) * FT
+    d_back = half - spec.get("ridgeMarginFt", 2.0) * FT
+    d_back = max(d_back, P / pitch + 0.5 * FT)         # keep a positive shed slope + depth
+    z_back = pitch * d_back                            # height where the shed meets the slope
+    y_back = yS + d_back
+    ty, tx, tz = 0.12, 0.10, 0.10
+    win = spec.get("window", {})
+    nwin = win.get("count", 3)
+    ww = win.get("widthFt", 2.0) * FT
+    wh = win.get("heightFt", 2.5) * FT
+    wsill = win.get("sillFt", 2.5) * FT
+    whead = min(P - 0.4 * FT, wsill + wh)
+
+    def prism(name, poly, vec, color, cls="IfcWall", tr=0.0):
+        v, f = _prism([(p[0], p[1], p[2] + base_z) for p in poly], vec)
+        add_brep(ctx, name, v, f, color, ifc_class=cls, transparency=tr)
+
+    def box(name, xaa, xbb, za, zb, color, cls="IfcWall", cy=None, dy=ty, tr=0.0):
+        if xbb - xaa <= 1e-6 or zb - za <= 1e-6:
+            return
+        p = make_box(ctx, cls, name, xbb - xaa, dy, zb - za,
+                     (xaa + xbb) / 2, yS if cy is None else cy, za + base_z, color=color, transparency=tr)
+        run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
+
+    # front wall (faces south): full-width sill + head bands, a window ribbon between
+    box("Shed dormer sill", xa, xb, 0.0, wsill, WALL)
+    box("Shed dormer head", xa, xb, whead, P, WALL)
+    edge = xa
+    for i in range(nwin):
+        c = xa + (i + 0.5) * W_s / nwin
+        wl, wr = c - ww / 2, c + ww / 2
+        box(f"Shed dormer jamb {i}", edge, wl, wsill, whead, WALL)
+        box(f"Shed dormer window {i + 1}", wl, wr, wsill, whead, GLASS,
+            cls="IfcWindow", cy=yS - ty / 2, dy=0.05, tr=0.45)
+        edge = wr
+    box("Shed dormer jamb end", edge, xb, wsill, whead, WALL)
+    # cheek walls (triangles sitting on the south slope)
+    prism("Shed dormer cheek W", [(xa, yS, 0.0), (xa, yS, P), (xa, y_back, z_back)], (tx, 0, 0), WALL)
+    prism("Shed dormer cheek E", [(xb, yS, 0.0), (xb, yS, P), (xb, y_back, z_back)], (-tx, 0, 0), WALL)
+    # the single shed roof plane (dies into the main slope at y_back)
+    prism("Shed dormer roof", [(xa, yS, P), (xb, yS, P), (xb, y_back, z_back), (xa, y_back, z_back)],
+          (0, 0, tz), ROOF, cls="IfcRoof")
 
 
 def add_lot(ctx, lot, rooms):
@@ -718,6 +789,8 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
 
         if t == "hip" and g.get("dormers"):           # mirror the attic dormers onto the massing
             add_dormers(ctx, x1, x2, y1, y2, pitch, g["dormers"], base_z=ez, style="exterior")
+        if t == "hip" and g.get("shedDormer"):
+            add_shed_dormer(ctx, x1, x2, y1, y2, pitch, g["shedDormer"], base_z=ez, style="exterior")
 
         if crawl > 0:                              # water-table belt at the crawlspace top
             wh, wp = 0.15, 0.06

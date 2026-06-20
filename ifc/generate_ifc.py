@@ -140,7 +140,8 @@ def build_level(cfg, rooms_cache, level):
         B.add_attic(ctx, rooms, {"type": g.get("type", "hip"),
                                  "pitch": g.get("pitch", 0.5),
                                  "kneeFt": level.get("kneeFt", 4.0),
-                                 "dormers": g.get("dormers")})
+                                 "dormers": g.get("dormers"),
+                                 "shedDormer": g.get("shedDormer")})
     elif kind == "exterior":
         B.add_lot(ctx, cfg["lot"], rooms)
         # Solid massing blocks (per building part, at their storey heights) +
