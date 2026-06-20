@@ -432,6 +432,7 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior", 
     ww = spec.get("window", {}).get("widthFt", 2.0) * FT
     wh = spec.get("window", {}).get("heightFt", 2.5) * FT
     count = spec.get("count", 3)
+    barrel = spec.get("roof") == "barrel"             # half-round vault vs. gable end
     ty, tx, tz = 0.12, 0.10, 0.10                     # member thicknesses (m)
 
     # near-full-width bays: pull the outer dormers in just enough to keep the
@@ -482,18 +483,37 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior", 
         box(f"{nm} jamb E", xWR, xR, 0.0, plate, WALL)
         box(f"{nm} sill", xWL, xWR, 0.0, wsill, WALL)
         box(f"{nm} head", xWL, xWR, whead, plate, WALL)
-        prism(f"{nm} gable", [(xL, yN, plate), (xR, yN, plate), (cx, yN, zR)], (0, ty, 0), WALL)
         # glazing, set just proud of the wall face (north = +Y)
         box(f"{nm} window", xWL, xWR, wsill, whead, GLASS,
             cls="IfcWindow", cy=yN + ty / 2, dy=0.05, tr=0.45)
         # cheek walls (vertical, sitting on the main slope)
         prism(f"{nm} cheek W", [(xL, yN, 0.0), (xL, yN, plate), (xL, y_p, plate)], (tx, 0, 0), WALL)
         prism(f"{nm} cheek E", [(xR, yN, 0.0), (xR, yN, plate), (xR, y_p, plate)], (-tx, 0, 0), WALL)
-        # gable roof (two slopes meeting at the dormer ridge)
-        prism(f"{nm} roof W", [(xL, yN, plate), (cx, yN, zR), (cx, y_r, zR), (xL, y_p, plate)],
-              (0, 0, tz), ROOF, cls="IfcRoof")
-        prism(f"{nm} roof E", [(xR, yN, plate), (cx, yN, zR), (cx, y_r, zR), (xR, y_p, plate)],
-              (0, 0, tz), ROOF, cls="IfcRoof")
+        if barrel:
+            # half-round BARREL: an arched front tympanum + a curved vault roof
+            # springing from the cheek tops (plate) and dying into the main slope
+            # (the crown reaches furthest back).
+            R, N = wd / 2, 14
+            arc = []
+            for i in range(N + 1):
+                th = math.pi * i / N
+                ax = cx - R * math.cos(th)
+                az = plate + R * math.sin(th)          # height above base (springs from plate)
+                ay = yN - az / pitch                    # where that height dies into the slope
+                arc.append((ax, az, ay))
+            prism(f"{nm} tympanum", [(ax, yN, az) for ax, az, ay in arc], (0, ty, 0), WALL)
+            for i in range(N):
+                ax0, az0, ay0 = arc[i]
+                ax1, az1, ay1 = arc[i + 1]
+                prism(f"{nm} barrel {i}", [(ax0, yN, az0), (ax1, yN, az1),
+                      (ax1, ay1, az1), (ax0, ay0, az0)], (0, 0, tz), ROOF, cls="IfcRoof")
+        else:
+            # gable: front triangle + two roof planes meeting at the dormer ridge
+            prism(f"{nm} gable", [(xL, yN, plate), (xR, yN, plate), (cx, yN, zR)], (0, ty, 0), WALL)
+            prism(f"{nm} roof W", [(xL, yN, plate), (cx, yN, zR), (cx, y_r, zR), (xL, y_p, plate)],
+                  (0, 0, tz), ROOF, cls="IfcRoof")
+            prism(f"{nm} roof E", [(xR, yN, plate), (cx, yN, zR), (cx, y_r, zR), (xR, y_p, plate)],
+                  (0, 0, tz), ROOF, cls="IfcRoof")
 
 
 def add_shed_dormer(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior"):
