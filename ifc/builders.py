@@ -852,6 +852,27 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
                 belt = make_box(ctx, "IfcBuildingElementProxy", f"Belt course - {key}",
                                 w + 2 * bp, d + 2 * bp, bh, cx, cy, ez - ewall - bh / 2, color=TRIM)
                 run("spatial.assign_container", ctx.model, products=[belt], relating_structure=ctx.storey)
+            # dentil course running under the eave cornice (classical entablature
+            # over the frieze). One product holds all the little blocks.
+            dh, dpr, dw, dpitch = 0.22 * FT, 0.14 * FT, 0.34 * FT, 0.62 * FT
+            dz = ez - ch - dh                      # tucked directly beneath the cornice band
+            dents = []
+            nx = max(1, round(w / dpitch))
+            for i in range(nx):
+                x = cx - w / 2 + (i + 0.5) * w / nx
+                for fy in (cy + d / 2, cy - d / 2):
+                    yc = fy + (dpr / 2 - 0.03) * (1 if fy > cy else -1)
+                    dents.append(positioned_solid(ctx, dw, dpr + 0.06, dh, x, yc, dz))
+            ny = max(1, round(d / dpitch))
+            for i in range(ny):
+                y = cy - d / 2 + (i + 0.5) * d / ny
+                for fx in (cx + w / 2, cx - w / 2):
+                    xc = fx + (dpr / 2 - 0.03) * (1 if fx > cx else -1)
+                    dents.append(positioned_solid(ctx, dpr + 0.06, dw, dh, xc, y, dz))
+            for s in dents:
+                style_item(ctx, s, TRIM)
+            dent = multi_solid_product(ctx, "IfcBuildingElementProxy", f"Dentils - {key}", dents)
+            run("spatial.assign_container", ctx.model, products=[dent], relating_structure=ctx.storey)
         else:
             # lean-to wing: sloped ceiling, so the shed roof sits directly on top
             mv, mf = _filled_block(*surf(0.0), crawl)
@@ -1548,11 +1569,17 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
             run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
         head_top = head_m + CW * FT
-        # jambs + head casing are common to every style
-        tbox(f"Casing - {name}", pos - (w + CW) / 2, CW, sill_m, head_top, 0.12)
-        tbox(f"Casing - {name}", pos + (w + CW) / 2, CW, sill_m, head_top, 0.12)
+        # jambs + head casing are common to every style (frieze lights stop at the
+        # head — no reveal above — so they clear the dentil course).
+        jamb_top = head_m if trim == "frieze" else head_top
+        tbox(f"Casing - {name}", pos - (w + CW) / 2, CW, sill_m, jamb_top, 0.12)
+        tbox(f"Casing - {name}", pos + (w + CW) / 2, CW, sill_m, jamb_top, 0.12)
         sill_bot = sill_m - 0.12
-        if trim == "upper":
+        if trim == "frieze":
+            # short frieze light: just jambs + a slim sill; the dentil course above
+            # reads as the head, so there is no projecting head cornice to collide.
+            tbox(f"Sill - {name}", pos, w + 2 * CW, sill_m - 0.08, sill_m, 0.12)
+        elif trim == "upper":
             # casing + a projecting sill (nothing below it) + a small cornice
             tbox(f"Casing - {name}", pos, w + 2 * CW, head_m, head_top, 0.12)
             tbox(f"Sill - {name}", pos, w + 2 * CW + 0.2, sill_m - 0.10, sill_m, 0.15)
@@ -1622,10 +1649,11 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
         ewall_ft = prim.get("eaveWallFt", 0.0)
         if ewall_ft >= 1.5:
             band = base + 2 * ctx.story            # plate base = floor-2 top
-            fhead, fsill = ewall_ft - 0.7, ewall_ft - 0.7 - 1.5
+            # short horizontal lights that tuck between the belt course and the
+            # dentil course under the cornice (a classic frieze-window band).
             for w in specs:
                 window(f"Frieze - {w['name']}", w["orient"], w["fixed"], w["pos"], 2.0,
-                       band + fsill * FT, band + fhead * FT, trim="upper", muntins=False)
+                       band + 0.45 * FT, band + 1.10 * FT, trim="frieze", muntins=False)
         door = next((o for s in prim["rooms"] for o in rooms_cache[s].get("doors", [])
                      if "Front Door" in o.get("name", "")), None)
         if door:
