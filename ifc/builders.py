@@ -318,6 +318,51 @@ def add_shell(ctx, rooms):
         add_wall(ctx, orient, fixed, a, b)
 
 
+def add_attic(ctx, rooms, roof):
+    """Attic level shaped to the ACTUAL roof rather than a full-height box: a
+    floor slab over the primary footprint, a sloped ceiling that follows the
+    SAME hip + pitch as the exterior roof (so the two stay in sync), and short
+    knee walls that fence off the unusable low triangles — i.e. the habitable
+    volume you'd actually convert. `roof` carries {type, pitch, kneeFt}.
+
+    The roof springs straight off the attic floor (eave = floor here), so the
+    ceiling rises from z=0 at the perimeter to the ridge; a knee wall stands
+    where that ceiling first reaches `kneeFt` (plan inset = kneeFt / pitch)."""
+    CEIL = (0.93, 0.92, 0.90)   # drywall ceiling soffit
+    KNEE = (0.87, 0.86, 0.83)   # painted knee wall (matches the massing)
+    rects = [ifc_bounds(ctx, r["bounds"]) for r in rooms]
+    x1, x2 = min(r[0] for r in rects), max(r[1] for r in rects)
+    y1, y2 = min(r[2] for r in rects), max(r[3] for r in rects)
+    pitch = roof.get("pitch", 0.5)
+    knee = roof.get("kneeFt", 4.0) * FT
+
+    for r in rooms:                                   # floor over the whole footprint
+        add_slab(ctx, r)
+
+    # sloped ceiling = the hip underside, springing from the floor (eave z=0).
+    # _roof_slab gives it a real thickness so the soffit reads from below.
+    surf, slopes, eave_loop = _hip_surface(x1, x2, y1, y2, 0.0, pitch)
+    cv, cf = _roof_slab(surf, slopes, eave_loop, 0.10)
+    # Translucent so the 3/4 exhibit view reads INTO the room (floor + knee walls
+    # show through) — i.e. you can see the habitable volume under the slope.
+    add_brep(ctx, "Attic ceiling", cv, cf, CEIL, ifc_class="IfcCovering",
+             predefined="CEILING", transparency=0.55)
+
+    # knee walls: a rectangle inset from each eave by the run needed for the
+    # ceiling to reach `knee` height, so each wall top meets the slope.
+    dk = knee / pitch
+    kx1, kx2, ky1, ky2 = x1 + dk, x2 - dk, y1 + dk, y2 - dk
+    cx, cy, t = (kx1 + kx2) / 2, (ky1 + ky2) / 2, ctx.T
+    for nm, bx, by, xd, yd in [
+        ("Knee wall S", cx, ky1, abs(kx2 - kx1) + t, t),
+        ("Knee wall N", cx, ky2, abs(kx2 - kx1) + t, t),
+        ("Knee wall W", kx1, cy, t, abs(ky2 - ky1) + t),
+        ("Knee wall E", kx2, cy, t, abs(ky2 - ky1) + t),
+    ]:
+        kw = make_box(ctx, "IfcWall", nm, xd, yd, knee, bx, by, 0.0, color=KNEE)
+        run("spatial.assign_container", ctx.model, products=[kw], relating_structure=ctx.storey)
+
+
 def add_lot(ctx, lot, rooms):
     """A flat lot plane sized lot.widthFt x lot.depthFt (E-W x N-S), positioned so
     the building sits `westMarginFt` inside the west line (west = +plan x) and the

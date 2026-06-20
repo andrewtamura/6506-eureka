@@ -110,7 +110,8 @@ def new_file(cfg, storey_name):
 def build_level(cfg, rooms_cache, level):
     """Build one level into its own IFC + manifests. Returns the viewer index
     entry. `kind` is: full (walls + slabs + spaces + openings + interior),
-    shell (exterior perimeter walls + slabs only), or exterior (lot + massing)."""
+    shell (exterior perimeter walls + slabs only), exterior (lot + massing), or
+    attic (floor + knee walls + a sloped ceiling that follows the roof)."""
     lid, kind = level["id"], level["kind"]
     m, body, storey = new_file(cfg, level.get("storey", lid))
     ctx = B.Ctx(m, body, storey, cfg)
@@ -130,6 +131,15 @@ def build_level(cfg, rooms_cache, level):
         B.add_shell(ctx, rooms)
         if level.get("upperWindows"):     # second-floor windows, synced to the exterior
             B.add_shell_windows(ctx, rooms)
+    elif kind == "attic":
+        # Habitable attic: shaped to the exterior roof (single source of truth
+        # for type + pitch) rather than drawn as a full-height storey.
+        ref = level["roofRef"]
+        src = next(l for l in cfg["levels"] if l["id"] == ref["from"])
+        g = src["roofGroups"][ref["group"]]
+        B.add_attic(ctx, rooms, {"type": g.get("type", "hip"),
+                                 "pitch": g.get("pitch", 0.5),
+                                 "kneeFt": level.get("kneeFt", 4.0)})
     elif kind == "exterior":
         B.add_lot(ctx, cfg["lot"], rooms)
         # Solid massing blocks (per building part, at their storey heights) +

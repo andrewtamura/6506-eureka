@@ -45,7 +45,7 @@
     {
       "id": "attic",
       "storey": "Attic",
-      "kind": "shell",
+      "kind": "attic",
       "label": "Attic",
       "ifc": "attic.ifc",
       "manifests": {

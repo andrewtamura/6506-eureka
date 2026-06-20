@@ -318,7 +318,14 @@ async function main() {
     m.object.position.x += dx;
     m.object.updateMatrixWorld(true);
     if (toEast) eastX = b.max.x + dx; else westX = b.min.x + dx;
-    m.object.traverse((o) => { if (o.isMesh) { o.frustumCulled = false; o.castShadow = true; o.receiveShadow = true; } });
+    m.object.traverse((o) => {
+      if (!o.isMesh) return;
+      o.frustumCulled = false; o.castShadow = true; o.receiveShadow = true;
+      // Same transparent-glass fix as the ground model: drop depthWrite so a
+      // translucent surface (exterior glass, the attic's slope) reads through.
+      for (const mat of (Array.isArray(o.material) ? o.material : [o.material]))
+        if (mat && mat.transparent && mat.opacity < 1) { mat.depthWrite = false; mat.needsUpdate = true; }
+    });
     modelViews.push({ id: lvl.id, label: lvl.label || lvl.storey, box: buildingBox(m.object) });
     labelViews.push({ label: lvl.label || lvl.storey, box: new THREE.Box3().setFromObject(m.object) });
     viewBox.expandByObject(m.object);
