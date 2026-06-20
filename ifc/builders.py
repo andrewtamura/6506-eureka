@@ -579,13 +579,12 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
         add_porch(ctx, rooms_cache, crawl)
 
 
-def add_porch(ctx, rooms_cache, base, width_ft=10.5):
-    """A raised front stoop on a stucco skirt (matching the house base) with a
-    painted, overhanging floor and a slim white balustrade. The flight is INSET
-    (notched into the deep platform, so nothing projects past it) and centred,
-    with raked side handrails. Kept narrow enough to clear the flanking windows.
-    Built in IFC coords (the porch projects to +Y / outward from the front door);
-    all members are sized in metres."""
+def add_porch(ctx, rooms_cache, base, width_ft=9.0):
+    """A grand HYBRID front stoop: a painted floor on a stucco skirt, with a
+    cascade of steps that flare gently wider toward the bottom, FLANKED by solid
+    splayed stucco cheek walls (white-capped) that follow the flare down into the
+    yard. No thin handrail — the cheek walls are the rail. Built in IFC coords
+    (the porch projects to +Y / outward from the front door; metres)."""
     fd = None
     for r in rooms_cache.values():
         for d in r.get("doors", []):
@@ -595,16 +594,17 @@ def add_porch(ctx, rooms_cache, base, width_ft=10.5):
             break
     if not fd or base <= 0:
         return
-    BASE_C, FLOOR_C, RAIL_C = (0.84, 0.82, 0.78), (0.74, 0.73, 0.70), (0.95, 0.95, 0.93)
+    BASE_C, FLOOR_C = (0.84, 0.82, 0.78), (0.74, 0.73, 0.70)
+    CAP_C = (0.95, 0.95, 0.93)                          # white cheek-wall caps
     ix, fy = ctx.X(fd["pos"]), ctx.Y(fd["fixed"])      # IFC X (door) / Y (front wall)
-    PWh, PD = width_ft / 2 * FT, 7.5 * FT              # half-width, depth (deep porch)
-    SWh = 2.5 * FT                                      # half stair width (5')
-    nst, tread = 4, 0.92 * FT
-    riser, run_len = base / nst, nst * 0.92 * FT
-    RH, ins, ft_t = 0.86, 0.04, 0.06                   # rail height / skirt inset / floor thickness (m)
-    zF = fy + PD                                        # porch front edge (outward)
-    zT = zF - run_len                                  # stair top (flush with the platform)
-    xL, xR, sL, sR = ix - PWh, ix + PWh, ix - SWh, ix + SWh
+    PWh, TD = width_ft / 2 * FT, 3.0 * FT              # terrace half-width, depth
+    nst, tread = 5, 0.95 * FT                          # 5 gentle risers; deep treads
+    riser, Wbot = base / nst, 13.0                     # bottom flare width (ft, reduced)
+    ins, ft_t = 0.04, 0.06
+    wt, ph, cap = 0.5 * FT, 2.2 * FT, 0.08             # cheek-wall thickness/parapet/cap
+    zTf = fy + TD                                      # terrace front (cascade springs from here)
+    zFt = zTf + (nst - 1) * tread                      # cascade foot (where steps land)
+    xL, xR = ix - PWh, ix + PWh
 
     def box(name, x0, x1, y0, y1, z0, h, cls="IfcSlab", color=FLOOR_C):
         if abs(x1 - x0) <= 1e-6 or abs(y1 - y0) <= 1e-6 or h <= 1e-6:
@@ -613,52 +613,54 @@ def add_porch(ctx, rooms_cache, base, width_ft=10.5):
                      (x0 + x1) / 2, (y0 + y1) / 2, z0, color=color)
         run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
-    # skirt (3 pieces wrapping the stair notch) + overhanging floor + inset treads
-    box("Porch skirt", xL + ins, xR - ins, fy, zT, 0.0, base, color=BASE_C)
-    box("Porch skirt", xL + ins, sL, zT, zF - ins, 0.0, base, color=BASE_C)
-    box("Porch skirt", sR, xR - ins, zT, zF - ins, 0.0, base, color=BASE_C)
-    box("Porch floor", xL, xR, fy, zT, base - ft_t, ft_t)
-    box("Porch floor", xL, sL, zT, zF, base - ft_t, ft_t)
-    box("Porch floor", sR, xR, zT, zF, base - ft_t, ft_t)
-    for k in range(nst):                                # inset treads: lowest at the front, up to the platform
-        box(f"Porch step {k}", sL, sR, zF - (k + 1) * tread, zF - k * tread, 0.0, (k + 1) * riser)
+    # the flare follows a gentle curve: the cascade edge eases outward (slow near
+    # the threshold, sweeping wider toward the foot) instead of a straight splay.
+    Whalf = Wbot / 2 * FT                               # foot half-width (m)
+    def wcurve(t):                                      # half-width along run, t in [0,1]
+        return PWh + (Whalf - PWh) * (t ** 1.8)
 
-    def newel(xc, yc, z0, h):
-        box("Porch newel", xc - 0.05, xc + 0.05, yc - 0.05, yc + 0.05, z0, h, "IfcRailing", RAIL_C)
-        box("Porch newel cap", xc - 0.075, xc + 0.075, yc - 0.075, yc + 0.075, z0 + h, 0.05, "IfcRailing", RAIL_C)
+    # terrace landing (stucco skirt + painted floor) at the threshold
+    box("Porch skirt", xL + ins, xR - ins, fy, zTf, 0.0, base - ft_t, color=BASE_C)
+    box("Porch floor", xL, xR, fy, zTf, base - ft_t, ft_t, color=FLOOR_C)
+    # curved cascade: each tread projects further out and widens along the curve
+    for j in range(1, nst):
+        half = wcurve(j / (nst - 1))                    # leading-edge half-width
+        box(f"Porch step {j}", ix - half, ix + half,
+            zTf + (j - 1) * tread, zTf + j * tread + 0.06, 0.0, base - j * riser, color=FLOOR_C)
 
-    def balrun(orient, fixed, a, b):                    # slim white balustrade on the porch floor
-        lo, hi = min(a, b), max(a, b)
-        for yc, th in ((base + RH - 0.05, 0.05), (base + 0.22, 0.04)):     # top + bottom rail
-            if orient == "x":
-                box("Porch rail", lo, hi, fixed - 0.025, fixed + 0.025, yc, th, "IfcRailing", RAIL_C)
-            else:
-                box("Porch rail", fixed - 0.025, fixed + 0.025, lo, hi, yc, th, "IfcRailing", RAIL_C)
-        c = lo + 0.13
-        while c < hi - 0.06:                             # balusters
-            if orient == "x":
-                box("Porch baluster", c - 0.018, c + 0.018, fixed - 0.018, fixed + 0.018, base + 0.22, RH - 0.27, "IfcRailing", RAIL_C)
-            else:
-                box("Porch baluster", fixed - 0.018, fixed + 0.018, c - 0.018, c + 0.018, base + 0.22, RH - 0.27, "IfcRailing", RAIL_C)
-            c += 0.13
+    # curved cheek walls: a solid stucco rail per side whose inner face tracks the
+    # curved step edge (sampled in many short segments so it reads as a smooth
+    # sweep), top ramping from the terrace parapet down to a low parapet at the
+    # foot. A thin white cap rides each segment.
+    run_len = zFt - zTf                                 # cascade run (Y span)
+    M = 12                                              # curve subdivisions
+    def seg_brep(name, p0, p1, color, cls, b0=0.0, b1=0.0):   # p = (x_in, y, top); b = bottom
+        (xi0, y0, t0), (xi1, y1, t1), s = p0, p1, (1 if (p1[0] + p0[0]) / 2 > ix else -1)
+        xo0, xo1 = xi0 + s * wt, xi1 + s * wt
+        v = [(xi0, y0, b0), (xi1, y1, b1), (xo1, y1, b1), (xo0, y0, b0),
+             (xi0, y0, t0), (xi1, y1, t1), (xo1, y1, t1), (xo0, y0, t0)]
+        f = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4],
+             [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
+        add_brep(ctx, name, v, f, color, ifc_class=cls)
 
-    balrun("x", zF, xL, sL); balrun("x", zF, sR, xR)     # front, flanking the inset stair
-    balrun("y", xL, fy, zF); balrun("y", xR, fy, zF)     # the two sides
-    for xc, yc in ((xL, zF), (xR, zF), (sL, zF), (sR, zF), (xL, fy), (xR, fy)):
-        newel(xc, yc, base, RH)                          # perimeter + stair-jamb posts
+    def cheekwall(s):                                   # s = -1 (left) / +1 (right)
+        side = "L" if s < 0 else "R"
+        # segment list: a straight back run from the house wall to the terrace
+        # front, then the curved cascade run. p = (x_in, y, top).
+        segs = [((ix + s * PWh, fy, base + ph), (ix + s * PWh, zTf, base + ph))]
+        for k in range(M):
+            t0, t1 = k / M, (k + 1) / M
+            segs.append(((ix + s * wcurve(t0), zTf + t0 * run_len, base + ph - base * t0),
+                         (ix + s * wcurve(t1), zTf + t1 * run_len, base + ph - base * t1)))
+        for k, (p0, p1) in enumerate(segs):
+            seg_brep(f"Porch cheek wall {side} {k}", p0, p1, BASE_C, "IfcWall")
+            # white cap riding this segment's sloped top (uniform-thickness slab)
+            cp0, cp1 = (p0[0], p0[1], p0[2] + cap), (p1[0], p1[1], p1[2] + cap)
+            seg_brep(f"Porch cheek cap {side} {k}", cp0, cp1, CAP_C,
+                     "IfcBuildingElementProxy", b0=p0[2], b1=p1[2])
 
-    def sloperail(xf, y0, v0, y1, v1, w=0.05, t=0.05):   # raked stair handrail
-        dy, dv = y1 - y0, v1 - v0
-        L = math.hypot(dy, dv)
-        ny, nv = -dv / L * t / 2, dy / L * t / 2
-        prof = [(y0 + ny, v0 + nv), (y1 + ny, v1 + nv), (y1 - ny, v1 - nv), (y0 - ny, v0 - nv)]
-        verts = [(xf - w / 2, y, v) for y, v in prof] + [(xf + w / 2, y, v) for y, v in prof]
-        faces = [[0, 1, 2, 3], [7, 6, 5, 4], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
-        add_brep(ctx, "Porch stair rail", verts, faces, RAIL_C, ifc_class="IfcRailing")
-
-    for xj in (sL, sR):                                  # raked handrail down each side of the inset stair
-        newel(xj, zT, base, RH)                          # post at the stair head (on the platform)
-        sloperail(xj, zT, base + RH - 0.04, zF, RH - 0.04)
+    cheekwall(-1)
+    cheekwall(+1)
 
 
 
@@ -1020,6 +1022,18 @@ def add_entry(ctx, px, pz, dw_ft, base):
     faces = [[2, 1, 0], [3, 4, 5], [0, 1, 4, 3], [0, 3, 5, 2], [1, 2, 5, 4]]
     add_brep(ctx, "Entry pediment", verts, faces, TRIM, ifc_class="IfcBuildingElementProxy")
     place("Entry tympanum tablet", px, 1.4, PED_D + 0.04, z0 + 0.08, z0 + 0.08 + 0.4 * ph)
+
+    # Flanking entry pendants: two large hanging lanterns just outside the
+    # pilasters, hung from a wall bracket up near the entablature. Lighting
+    # fixtures are procedural three.js meshes (never IFC box/cyl proxies), so we
+    # record placements to the furniture manifest and skip IFC geometry here.
+    # set each lantern in the gap between the pilaster capital (~2.7' out) and the
+    # flanking front window (~6.6' out), pulled a touch toward the door surround.
+    lamp_off = 3.9                            # offset from the door centre (ft)
+    mount_z = base + (dh - 0.6) * FT          # bracket height (hung lower than the head)
+    for s in (-1, 1):
+        ctx.furniture.append({"type": "porch_pendant", "px": px + s * lamp_off,
+                              "pz": pz, "y": round(mount_z, 4)})
 
 
 def second_floor_windows(rooms):
