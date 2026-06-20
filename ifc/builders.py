@@ -382,22 +382,22 @@ def _prism(poly, vec):
 
 
 def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior"):
-    """Gable dormers on the NORTH slope (north = +Y, the front), in a full-width
-    `count`-bay rhythm: one centred in each equal bay across the whole façade (NOT
-    stacked on the inner windows). Windows continue the graduated fenestration (the
-    attic = smallest tier). Each dormer is built from open surfaces — a front gable
-    wall with a glazed opening, two cheek walls, and a little gable roof — so the
-    headroom POCKET reads as habitable space; the same builder serves the attic
-    exhibit (`base_z`=0, light soffit) and the exterior massing (`base_z`=eave
-    elevation, charcoal shingle).
+    """Gable dormers on the NORTH slope (north = +Y, the front), in a near-full-
+    width `count`-bay rhythm spread across the facade (NOT stacked on the inner
+    windows). Windows continue the graduated fenestration (the attic = smallest
+    tier). Each dormer is built from open surfaces — a front gable wall with a
+    glazed opening, two cheek walls, and a little gable roof — so the headroom
+    POCKET reads as habitable space; the same builder serves the attic exhibit
+    (`base_z`=0, light soffit) and the exterior massing (`base_z`=eave elevation,
+    charcoal shingle).
 
-    Because the roof HIPS at its ends, an outer dormer's cheeks would poke through
-    the hip if it were as tall as a central one, so the plate is AUTO-FITTED to the
-    least headroom any bay's outer cheek allows (plate <= pitch * distance from the
-    nearest E/W eave to that cheek). Geometry per dormer (world metres, +base_z):
-    the front wall stands at the north eave line (yN) from the eave up to `plate`;
-    the gable roof rises to ridge zR and dies into the main slope at y_p (cheeks)
-    and y_r (ridge)."""
+    Because the roof HIPS at its ends, the two outer dormers are pulled IN just
+    enough to keep the configured `plate` (their outer cheek needs plate <= pitch *
+    run from the side eave), with the rest spaced evenly between them — a wide
+    spread that still keeps full standing height. Geometry per dormer (world
+    metres, +base_z): the front wall stands at the north eave line (yN) from the
+    eave up to `plate`; the gable roof rises to ridge zR and dies into the main
+    slope at y_p (cheeks)/y_r (ridge)."""
     WALL = (0.87, 0.86, 0.83)                       # painted dormer wall / cheeks
     ROOF = (0.30, 0.30, 0.33) if style == "exterior" else (0.93, 0.92, 0.90)
     GLASS = (0.42, 0.52, 0.60)                       # muted blue-grey glazing
@@ -408,14 +408,22 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior"):
     count = spec.get("count", 3)
     ty, tx, tz = 0.12, 0.10, 0.10                     # member thicknesses (m)
 
-    # full-width bays: one dormer centred in each of `count` equal bays
-    span = x2 - x1
-    bays = [x1 + (i + 0.5) * span / count for i in range(count)]
-
-    # auto-fit a uniform plate so every dormer's outer cheek dies into the roof
-    # (the hipped ends cap the height available toward the corners)
-    cap = min(min(cx - wd / 2 - x1, x2 - (cx + wd / 2)) for cx in bays) * pitch
-    plate = min(spec.get("plateFt", 6.0) * FT, cap - 0.20 * FT)
+    # near-full-width bays: pull the outer dormers in just enough to keep the
+    # configured plate (outer cheek run from the side eave >= plate / pitch), then
+    # spread the rest evenly between them. Fall back to even bays + a shrunk plate
+    # only if the footprint is too narrow even for that.
+    plate = spec.get("plateFt", 6.0) * FT
+    m_req = plate / pitch + 0.20 * FT                  # run from a side eave to the outer cheek
+    c_w, c_e = x1 + m_req + wd / 2, x2 - m_req - wd / 2
+    if count == 1:
+        bays = [(x1 + x2) / 2]
+    elif c_e > c_w:
+        bays = [c_w + i * (c_e - c_w) / (count - 1) for i in range(count)]
+    else:                                             # too narrow: even bays, plate shrunk to fit
+        span = x2 - x1
+        bays = [x1 + (i + 0.5) * span / count for i in range(count)]
+        cap = min(min(cx - wd / 2 - x1, x2 - (cx + wd / 2)) for cx in bays) * pitch
+        plate = min(plate, cap - 0.20 * FT)
     whead = plate - 0.40 * FT                          # leave a band under the gable
     wsill = max(0.8 * FT, whead - wh)
 
