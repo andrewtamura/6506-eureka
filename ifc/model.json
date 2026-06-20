@@ -88,7 +88,7 @@
             "count": 3,
             "widthFt": 3.5,
             "plateFt": 4.0,
-            "recessFt": 1.5,
+            "recessFt": 3.0,
             "window": { "widthFt": 2.0, "heightFt": 2.5 }
           },
           "shedDormer": {
