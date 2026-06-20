@@ -158,13 +158,48 @@ function buildBuiltinHutch(p) {
   return g;
 }
 
-const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch };
+// A large flanking entry lantern, hung from a wall bracket beside the front
+// door (front of house = -Z). Local origin sits at the bracket's wall mount;
+// the gooseneck arm scrolls out over the terrace and the lantern hangs below.
+// Dark-bronze frame, warm translucent glass, a glowing bulb, peaked cap +
+// finials. Authored in metres ("large": ~10" wide x 14" tall body).
+function buildPorchPendant(p) {
+  const g = new THREE.Group();
+  const bronze = new THREE.MeshStandardMaterial({ color: 0x2e2a22, roughness: 0.45, metalness: 0.75 });
+  const glass = new THREE.MeshStandardMaterial({ color: 0xfff1c2, roughness: 0.15, transparent: true, opacity: 0.32, emissive: 0xffce82, emissiveIntensity: 0.45, depthWrite: false });
+  const bulb = new THREE.MeshStandardMaterial({ color: 0xfff4d0, emissive: 0xffdd99, emissiveIntensity: 1.8, roughness: 1 });
+  const add = (geo, mat, x, y, z, rx = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); if (rx) m.rotation.x = rx; g.add(m); return m; };
+
+  const reach = 0.36, hz = -0.04 - reach;          // arm projection; lantern z (out front)
+  // wall mount: backplate + top boss
+  add(new THREE.BoxGeometry(0.11, 0.22, 0.04), bronze, 0, -0.02, -0.02);
+  add(new THREE.SphereGeometry(0.032, 12, 10), bronze, 0, 0.07, -0.03);
+  // gooseneck arm reaching out over the terrace, then a short drop to the lantern
+  add(new THREE.CylinderGeometry(0.018, 0.018, reach, 12), bronze, 0, 0.07, -0.04 - reach / 2, Math.PI / 2);
+  add(new THREE.CylinderGeometry(0.016, 0.016, 0.12, 10), bronze, 0, 0.01, hz);
+
+  // lantern body centred below the arm end
+  const cy = -0.42, W = 0.26, H = 0.36;
+  add(new THREE.BoxGeometry(W, H, W), glass, 0, cy, hz);              // glazed cage
+  for (const sx of [-1, 1]) for (const sz of [-1, 1])               // corner posts
+    add(new THREE.BoxGeometry(0.02, H + 0.02, 0.02), bronze, sx * W / 2, cy, hz + sz * W / 2);
+  for (const yy of [cy + H / 2, cy - H / 2])                         // top + bottom rails
+    add(new THREE.BoxGeometry(W + 0.03, 0.035, W + 0.03), bronze, 0, yy, hz);
+  const cap = add(new THREE.ConeGeometry(W * 0.82, 0.15, 4), bronze, 0, cy + H / 2 + 0.075, hz);
+  cap.rotation.y = Math.PI / 4;                                      // square peaked roof
+  add(new THREE.SphereGeometry(0.024, 12, 10), bronze, 0, cy + H / 2 + 0.17, hz);  // top finial
+  add(new THREE.ConeGeometry(0.032, 0.07, 10), bronze, 0, cy - H / 2 - 0.05, hz, Math.PI); // bottom finial
+  add(new THREE.SphereGeometry(0.055, 14, 12), bulb, 0, cy, hz);     // warm bulb
+  return g;
+}
+
+const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant };
 const CHAIRS = new Set(["upholstered_dining_chair", "highback_chair"]);
 const SEAT_FRONT = 0.225;   // chair seat front is +0.225 m toward the table from its centre
 const TUCK = 0.08;          // pushed-in: seat front this far under the table edge
 const SIT = 0.22;           // pulled-out: this gap between seat front and table edge
 
-export async function buildFurniture({ scene, floorY, baseUrl, manifestFile = "furniture.json" }) {
+export async function buildFurniture({ scene, parent = scene, floorY, baseUrl, manifestFile = "furniture.json" }) {
   let data;
   try { data = await (await fetch(`${baseUrl}${manifestFile}`)).json(); } catch (e) { return { chairMeshes: [] }; }
   const { ft = 0.3048, xs = -1, zs = 1, items = [] } = data || {};
@@ -176,9 +211,9 @@ export async function buildFurniture({ scene, floorY, baseUrl, manifestFile = "f
     if (it.type === "round_pedestal_table" || CHAIRS.has(it.type) || !BUILDERS[it.type]) continue;
     const [x, z] = world(it.px, it.pz);
     const obj = BUILDERS[it.type](it);
-    obj.position.set(x, floorY, z);
+    obj.position.set(x, it.y != null ? it.y : floorY, z);   // per-item height (e.g. a hung pendant)
     if (it.rot) obj.rotation.y = (it.rot * Math.PI) / 180;  // e.g. a built-in facing into the room
-    scene.add(obj);
+    parent.add(obj);
   }
 
   // Tables, so chairs can be positioned relative to their nearest table.

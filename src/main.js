@@ -587,6 +587,10 @@ async function main() {
 
   // --- soft furniture as procedural meshes (see furniture.js) -------------
   const furniture = await buildFurniture({ scene, floorY: FLOOR + 0.02, baseUrl: BASE, manifestFile: groundManifests.furniture + VER });
+  // Exterior fixtures (entry pendant lanterns) parent to the exterior model so
+  // they inherit its offset; heights come per-item from the manifest.
+  if (exteriorModel && exteriorLvl)
+    await buildFurniture({ scene, parent: exteriorModel.object, floorY: 0, baseUrl: BASE, manifestFile: exteriorLvl.manifests.furniture + VER });
 
   // --- board-and-batten wall finish + baseboards (see wall-finish.js) -----
   await buildWallFinish({ scene, floorY: FLOOR, ceilingY: modelBox.max.y, baseUrl: BASE, manifestFile: groundManifests.paneling + VER });

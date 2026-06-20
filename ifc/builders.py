@@ -1023,6 +1023,16 @@ def add_entry(ctx, px, pz, dw_ft, base):
     add_brep(ctx, "Entry pediment", verts, faces, TRIM, ifc_class="IfcBuildingElementProxy")
     place("Entry tympanum tablet", px, 1.4, PED_D + 0.04, z0 + 0.08, z0 + 0.08 + 0.4 * ph)
 
+    # Flanking entry pendants: two large hanging lanterns just outside the
+    # pilasters, hung from a wall bracket up near the entablature. Lighting
+    # fixtures are procedural three.js meshes (never IFC box/cyl proxies), so we
+    # record placements to the furniture manifest and skip IFC geometry here.
+    lamp_off = pil_off + cap_w / 2 + 0.6     # clear the pilaster capitals (ft)
+    mount_z = base + (dh + 1.4) * FT          # bracket height, beside the entablature (m)
+    for s in (-1, 1):
+        ctx.furniture.append({"type": "porch_pendant", "px": px + s * lamp_off,
+                              "pz": pz, "y": round(mount_z, 4)})
+
 
 def second_floor_windows(rooms):
     """(front_z, specs) for the second-floor windows. The North (front) row stacks
