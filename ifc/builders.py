@@ -609,8 +609,8 @@ def add_shed_dormer(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interio
     margin = spec.get("marginFt", 0.5) * FT
     W_s = max(2.0 * FT, ridge_len - 2 * margin)
     xa, xb = cx - W_s / 2, cx + W_s / 2
-    flat = spec.get("roof", "shed") == "flat"
-    P = spec.get("plateFt", 7.0) * FT                  # front-wall / flat-roof height (rel. eave)
+    rooftype = spec.get("roof", "shed")
+    P = spec.get("plateFt", 7.0) * FT                  # front-wall / flat-roof / cornice height (rel. eave)
     ty, tx, tz = 0.12, 0.10, 0.10
     win = spec.get("window", {})
     nwin = win.get("count", 3)
@@ -629,7 +629,33 @@ def add_shed_dormer(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interio
                      (xaa + xbb) / 2, yS if cy is None else cy, za + base_z, color=color, transparency=tr)
         run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
 
-    if flat:
+    if rooftype == "pediment":
+        # classical pedimented dormer: a window range under a horizontal cornice,
+        # a low triangular pediment over it, and a PITCHED gable roof behind that
+        # valleys cleanly into the main slope (no flat-roof / steep-slope clash).
+        pp = spec.get("pedimentPitch", 0.33)           # shallow classical pediment slope
+        plate = P                                       # springline / cornice line
+        zR = plate + (W_s / 2) * pp                      # pediment peak = dormer ridge (rel base)
+        y_p = yS + plate / pitch                         # cheek (springline) dies into main slope
+        y_r = yS + zR / pitch                            # ridge dies into main slope
+        whead = min(plate - 0.3 * FT, wsill + wh)
+        wall_top = plate
+        # cheeks (vertical to the springline, sitting on the main slope)
+        prism("Shed dormer cheek W", [(xa, yS, 0.0), (xa, yS, plate), (xa, y_p, plate)], (tx, 0, 0), WALL)
+        prism("Shed dormer cheek E", [(xb, yS, 0.0), (xb, yS, plate), (xb, y_p, plate)], (-tx, 0, 0), WALL)
+        # gable roof: two planes meeting at the ridge, dying into the main slope
+        prism("Shed dormer roof W", [(xa, yS, plate), (cx, yS, zR), (cx, y_r, zR), (xa, y_p, plate)],
+              (0, 0, tz), ROOF, cls="IfcRoof")
+        prism("Shed dormer roof E", [(xb, yS, plate), (cx, yS, zR), (cx, y_r, zR), (xb, y_p, plate)],
+              (0, 0, tz), ROOF, cls="IfcRoof")
+        # pediment face (tympanum) + classical cornices: a horizontal cornice over
+        # the windows and a raking cornice up each slope, framing the triangle.
+        prism("Pediment tympanum", [(xa, yS, plate), (xb, yS, plate), (cx, yS, zR)], (0, ty, 0), WALL)
+        box("Pediment cornice", xa - 0.2, xb + 0.2, plate - 0.18, plate + 0.06, TRIM, cy=yS - 0.09, dy=ty + 0.34)
+        for sx in (xa, xb):
+            prism("Pediment rake", [(sx, yS, plate + 0.06), (cx, yS, zR + 0.06),
+                  (cx, yS, zR - 0.16), (sx, yS, plate - 0.16)], (0, -0.18, 0), TRIM)
+    elif rooftype == "flat":
         parapet = spec.get("parapetFt", 2.0) * FT
         Hp = P + parapet                               # parapet top
         d_flat = P / pitch                             # flat roof meets the main slope here
