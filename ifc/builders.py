@@ -580,10 +580,11 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
 
 
 def add_porch(ctx, rooms_cache, base, width_ft=9.0):
-    """A grand FAN-OUT front stoop: a painted floor on a stucco skirt, with a
-    cascade of steps that flare progressively wider toward the bottom (spilling
-    into the yard like a welcoming fan). No handrail. Built in IFC coords (the
-    porch projects to +Y / outward from the front door; metres)."""
+    """A grand HYBRID front stoop: a painted floor on a stucco skirt, with a
+    cascade of steps that flare gently wider toward the bottom, FLANKED by solid
+    splayed stucco cheek walls (white-capped) that follow the flare down into the
+    yard. No thin handrail — the cheek walls are the rail. Built in IFC coords
+    (the porch projects to +Y / outward from the front door; metres)."""
     fd = None
     for r in rooms_cache.values():
         for d in r.get("doors", []):
@@ -594,12 +595,15 @@ def add_porch(ctx, rooms_cache, base, width_ft=9.0):
     if not fd or base <= 0:
         return
     BASE_C, FLOOR_C = (0.84, 0.82, 0.78), (0.74, 0.73, 0.70)
+    CAP_C = (0.95, 0.95, 0.93)                          # white cheek-wall caps
     ix, fy = ctx.X(fd["pos"]), ctx.Y(fd["fixed"])      # IFC X (door) / Y (front wall)
     PWh, TD = width_ft / 2 * FT, 3.0 * FT              # terrace half-width, depth
     nst, tread = 5, 0.95 * FT                          # 5 gentle risers; deep treads
-    riser, Wbot = base / nst, 16.0                     # bottom flare width (ft)
+    riser, Wbot = base / nst, 13.0                     # bottom flare width (ft, reduced)
     ins, ft_t = 0.04, 0.06
+    wt, ph, cap = 0.5 * FT, 2.2 * FT, 0.08             # cheek-wall thickness/parapet/cap
     zTf = fy + TD                                      # terrace front (cascade springs from here)
+    zFt = zTf + (nst - 1) * tread                      # cascade foot (where steps land)
     xL, xR = ix - PWh, ix + PWh
 
     def box(name, x0, x1, y0, y1, z0, h, cls="IfcSlab", color=FLOOR_C):
@@ -618,6 +622,29 @@ def add_porch(ctx, rooms_cache, base, width_ft=9.0):
         half = (width_ft + (Wbot - width_ft) * frac) / 2 * FT
         box(f"Porch step {j}", ix - half, ix + half,
             zTf + (j - 1) * tread, zTf + j * tread + 0.06, 0.0, base - j * riser, color=FLOOR_C)
+
+    # splayed cheek walls: a solid stucco wedge per side whose inner face follows
+    # the flared step edge (terrace-front corner -> flared foot), top ramping from
+    # the terrace parapet down to a low parapet at the foot. A white cap rides it.
+    def cheekwall(s):                                   # s = -1 (left) / +1 (right)
+        xib, xif = ix + s * PWh, ix + s * (Wbot / 2) * FT   # inner back / front x
+        xob, xof = xib + s * wt, xif + s * wt               # outer back / front x
+        tb, tf = base + ph, ph                              # top: parapet over terrace / foot
+        # 8 verts: bottom A,B,C,D then top A,B,C,D  (A=inner-back .. D=outer-back)
+        v = [(xib, zTf, 0.0), (xif, zFt, 0.0), (xof, zFt, 0.0), (xob, zTf, 0.0),
+             (xib, zTf, tb), (xif, zFt, tf), (xof, zFt, tf), (xob, zTf, tb)]
+        f = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4],
+             [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
+        add_brep(ctx, f"Porch cheek wall {('L' if s < 0 else 'R')}", v, f,
+                 BASE_C, ifc_class="IfcWall")
+        # thin white cap riding the sloped top
+        cv = [(xib, zTf, tb), (xif, zFt, tf), (xof, zFt, tf), (xob, zTf, tb),
+              (xib, zTf, tb + cap), (xif, zFt, tf + cap), (xof, zFt, tf + cap), (xob, zTf, tb + cap)]
+        add_brep(ctx, f"Porch cheek cap {('L' if s < 0 else 'R')}", cv, f,
+                 CAP_C, ifc_class="IfcBuildingElementProxy")
+
+    cheekwall(-1)
+    cheekwall(+1)
 
 
 
