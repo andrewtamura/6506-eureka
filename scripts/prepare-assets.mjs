@@ -32,3 +32,7 @@ for (const f of ["web-ifc.wasm", "web-ifc-mt.wasm"]) {
 copy("node_modules/@thatopen/fragments/dist/Worker/worker.mjs", "public/worker.mjs");
 // Publish the original Three.js model alongside the BIM viewer at /legacy/.
 copy("legacy/index.html", "public/legacy/index.html");
+// PWA icons (committed source; regenerate with scripts/gen-icons.mjs).
+for (const f of ["icon-192.png", "icon-512.png", "icon-maskable-512.png", "apple-touch-icon-180.png"]) {
+  copy(`icons/${f}`, `public/icons/${f}`);
+}
