@@ -86,10 +86,11 @@
           "dormers": {
             "side": "north",
             "count": 3,
+            "roof": "barrel",
             "widthFt": 3.5,
             "plateFt": 4.0,
             "recessFt": 1.5,
-            "spacingFt": 10.0,
+            "align": "bays",
             "window": { "widthFt": 2.0, "heightFt": 2.5 }
           },
           "shedDormer": {

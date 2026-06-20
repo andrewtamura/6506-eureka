@@ -377,7 +377,12 @@ def add_attic(ctx, rooms, roof):
             run("spatial.assign_container", ctx.model, products=[kw], relating_structure=ctx.storey)
 
     if roof.get("dormers"):
-        add_dormers(ctx, x1, x2, y1, y2, pitch, roof["dormers"], base_z=eave, style="interior")
+        dspec = roof["dormers"]
+        bay_xs = None
+        if dspec.get("align") == "bays":
+            pos = aligned_front_bays(rooms, dspec.get("count", 3))
+            bay_xs = [ctx.X(px) for px in pos] if pos else None
+        add_dormers(ctx, x1, x2, y1, y2, pitch, dspec, base_z=eave, style="interior", bay_xs=bay_xs)
     if roof.get("shedDormer"):
         add_shed_dormer(ctx, x1, x2, y1, y2, pitch, roof["shedDormer"], base_z=eave, style="interior")
 
@@ -397,7 +402,7 @@ def _prism(poly, vec):
     return verts, faces
 
 
-def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior"):
+def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior", bay_xs=None):
     """Gable dormers on the NORTH slope (north = +Y, the front), in a near-full-
     width `count`-bay rhythm spread across the facade (NOT stacked on the inner
     windows). Windows continue the graduated fenestration (the attic = smallest
@@ -427,6 +432,7 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior"):
     ww = spec.get("window", {}).get("widthFt", 2.0) * FT
     wh = spec.get("window", {}).get("heightFt", 2.5) * FT
     count = spec.get("count", 3)
+    barrel = spec.get("roof") == "barrel"             # half-round vault vs. gable end
     ty, tx, tz = 0.12, 0.10, 0.10                     # member thicknesses (m)
 
     # near-full-width bays: pull the outer dormers in just enough to keep the
@@ -437,7 +443,9 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior"):
     spacing = spec.get("spacingFt", 0.0) * FT         # if set: fixed centre-to-centre, centred
     m_req = plate / pitch + 0.20 * FT                  # run from a side eave to the outer cheek
     c_w, c_e = x1 + m_req + wd / 2, x2 - m_req - wd / 2
-    if spacing > 0:
+    if bay_xs:                                         # explicit centres (e.g. aligned to window bays)
+        bays = list(bay_xs)
+    elif spacing > 0:
         ctr = (x1 + x2) / 2
         bays = [ctr + (i - (count - 1) / 2.0) * spacing for i in range(count)]
     elif count == 1:
@@ -475,18 +483,38 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior"):
         box(f"{nm} jamb E", xWR, xR, 0.0, plate, WALL)
         box(f"{nm} sill", xWL, xWR, 0.0, wsill, WALL)
         box(f"{nm} head", xWL, xWR, whead, plate, WALL)
-        prism(f"{nm} gable", [(xL, yN, plate), (xR, yN, plate), (cx, yN, zR)], (0, ty, 0), WALL)
         # glazing, set just proud of the wall face (north = +Y)
         box(f"{nm} window", xWL, xWR, wsill, whead, GLASS,
             cls="IfcWindow", cy=yN + ty / 2, dy=0.05, tr=0.45)
         # cheek walls (vertical, sitting on the main slope)
         prism(f"{nm} cheek W", [(xL, yN, 0.0), (xL, yN, plate), (xL, y_p, plate)], (tx, 0, 0), WALL)
         prism(f"{nm} cheek E", [(xR, yN, 0.0), (xR, yN, plate), (xR, y_p, plate)], (-tx, 0, 0), WALL)
-        # gable roof (two slopes meeting at the dormer ridge)
-        prism(f"{nm} roof W", [(xL, yN, plate), (cx, yN, zR), (cx, y_r, zR), (xL, y_p, plate)],
-              (0, 0, tz), ROOF, cls="IfcRoof")
-        prism(f"{nm} roof E", [(xR, yN, plate), (cx, yN, zR), (cx, y_r, zR), (xR, y_p, plate)],
-              (0, 0, tz), ROOF, cls="IfcRoof")
+        if barrel:
+            # half-round BARREL: an arched front tympanum + a curved vault roof
+            # springing from the cheek tops (plate) and dying into the main slope
+            # (the crown reaches furthest back).
+            R, N = wd / 2, 14
+            yF = yN + 0.75 * FT                         # eave: barrel overhangs the glass face by >=6"
+            arc = []
+            for i in range(N + 1):
+                th = math.pi * i / N
+                ax = cx - R * math.cos(th)
+                az = plate + R * math.sin(th)          # height above base (springs from plate)
+                ay = yN - az / pitch                    # where that height dies into the slope
+                arc.append((ax, az, ay))
+            prism(f"{nm} tympanum", [(ax, yN, az) for ax, az, ay in arc], (0, ty, 0), WALL)
+            for i in range(N):
+                ax0, az0, ay0 = arc[i]
+                ax1, az1, ay1 = arc[i + 1]
+                prism(f"{nm} barrel {i}", [(ax0, yF, az0), (ax1, yF, az1),
+                      (ax1, ay1, az1), (ax0, ay0, az0)], (0, 0, tz), ROOF, cls="IfcRoof")
+        else:
+            # gable: front triangle + two roof planes meeting at the dormer ridge
+            prism(f"{nm} gable", [(xL, yN, plate), (xR, yN, plate), (cx, yN, zR)], (0, ty, 0), WALL)
+            prism(f"{nm} roof W", [(xL, yN, plate), (cx, yN, zR), (cx, y_r, zR), (xL, y_p, plate)],
+                  (0, 0, tz), ROOF, cls="IfcRoof")
+            prism(f"{nm} roof E", [(xR, yN, plate), (cx, yN, zR), (cx, y_r, zR), (xR, y_p, plate)],
+                  (0, 0, tz), ROOF, cls="IfcRoof")
 
 
 def add_shed_dormer(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior"):
@@ -845,6 +873,27 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
                 belt = make_box(ctx, "IfcBuildingElementProxy", f"Belt course - {key}",
                                 w + 2 * bp, d + 2 * bp, bh, cx, cy, ez - ewall - bh / 2, color=TRIM)
                 run("spatial.assign_container", ctx.model, products=[belt], relating_structure=ctx.storey)
+            # dentil course running under the eave cornice (classical entablature
+            # over the frieze). One product holds all the little blocks.
+            dh, dpr, dw, dpitch = 0.22 * FT, 0.14 * FT, 0.34 * FT, 0.62 * FT
+            dz = ez - ch - dh                      # tucked directly beneath the cornice band
+            dents = []
+            nx = max(1, round(w / dpitch))
+            for i in range(nx):
+                x = cx - w / 2 + (i + 0.5) * w / nx
+                for fy in (cy + d / 2, cy - d / 2):
+                    yc = fy + (dpr / 2 - 0.03) * (1 if fy > cy else -1)
+                    dents.append(positioned_solid(ctx, dw, dpr + 0.06, dh, x, yc, dz))
+            ny = max(1, round(d / dpitch))
+            for i in range(ny):
+                y = cy - d / 2 + (i + 0.5) * d / ny
+                for fx in (cx + w / 2, cx - w / 2):
+                    xc = fx + (dpr / 2 - 0.03) * (1 if fx > cx else -1)
+                    dents.append(positioned_solid(ctx, dpr + 0.06, dw, dh, xc, y, dz))
+            for s in dents:
+                style_item(ctx, s, TRIM)
+            dent = multi_solid_product(ctx, "IfcBuildingElementProxy", f"Dentils - {key}", dents)
+            run("spatial.assign_container", ctx.model, products=[dent], relating_structure=ctx.storey)
         else:
             # lean-to wing: sloped ceiling, so the shed roof sits directly on top
             mv, mf = _filled_block(*surf(0.0), crawl)
@@ -854,7 +903,12 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
         add_brep(ctx, f"Roof - {key}", rv, rf, ROOF, predefined=("HIP_ROOF" if t == "hip" else "SHED_ROOF"))
 
         if t == "hip" and g.get("dormers"):           # mirror the attic dormers onto the massing
-            add_dormers(ctx, x1, x2, y1, y2, pitch, g["dormers"], base_z=ez, style="exterior")
+            dspec = g["dormers"]
+            bay_xs = None
+            if dspec.get("align") == "bays":
+                pos = aligned_front_bays([rooms_cache[s] for s in g["rooms"]], dspec.get("count", 3))
+                bay_xs = [ctx.X(px) for px in pos] if pos else None
+            add_dormers(ctx, x1, x2, y1, y2, pitch, dspec, base_z=ez, style="exterior", bay_xs=bay_xs)
         if t == "hip" and g.get("shedDormer"):
             add_shed_dormer(ctx, x1, x2, y1, y2, pitch, g["shedDormer"], base_z=ez, style="exterior")
 
@@ -1356,6 +1410,20 @@ def second_floor_windows(rooms):
     return front_z, specs
 
 
+def aligned_front_bays(rooms, count):
+    """`count` north-wall opening plan-x positions, centred within the front
+    bay rhythm — so the dormers line up over the (inner) window bays instead of
+    landing between them. e.g. 3 dormers over a 5-bay front -> the inner 3 bays."""
+    _, specs = second_floor_windows(rooms)
+    xs = sorted(s["pos"] for s in specs if s["orient"] == "H")
+    if not xs or count <= 0:
+        return None
+    if count >= len(xs):
+        return xs
+    start = (len(xs) - count) // 2
+    return xs[start:start + count]
+
+
 def add_shell_windows(ctx, rooms):
     """Cut the second-floor window openings into a shell, kept in sync with the
     exterior massing's upper row (same walls, positions, and size)."""
@@ -1522,11 +1590,17 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
             run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
         head_top = head_m + CW * FT
-        # jambs + head casing are common to every style
-        tbox(f"Casing - {name}", pos - (w + CW) / 2, CW, sill_m, head_top, 0.12)
-        tbox(f"Casing - {name}", pos + (w + CW) / 2, CW, sill_m, head_top, 0.12)
+        # jambs + head casing are common to every style (frieze lights stop at the
+        # head — no reveal above — so they clear the dentil course).
+        jamb_top = head_m if trim == "frieze" else head_top
+        tbox(f"Casing - {name}", pos - (w + CW) / 2, CW, sill_m, jamb_top, 0.12)
+        tbox(f"Casing - {name}", pos + (w + CW) / 2, CW, sill_m, jamb_top, 0.12)
         sill_bot = sill_m - 0.12
-        if trim == "upper":
+        if trim == "frieze":
+            # short frieze light: just jambs + a slim sill; the dentil course above
+            # reads as the head, so there is no projecting head cornice to collide.
+            tbox(f"Sill - {name}", pos, w + 2 * CW, sill_m - 0.08, sill_m, 0.12)
+        elif trim == "upper":
             # casing + a projecting sill (nothing below it) + a small cornice
             tbox(f"Casing - {name}", pos, w + 2 * CW, head_m, head_top, 0.12)
             tbox(f"Sill - {name}", pos, w + 2 * CW + 0.2, sill_m - 0.10, sill_m, 0.15)
@@ -1596,10 +1670,11 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
         ewall_ft = prim.get("eaveWallFt", 0.0)
         if ewall_ft >= 1.5:
             band = base + 2 * ctx.story            # plate base = floor-2 top
-            fhead, fsill = ewall_ft - 0.7, ewall_ft - 0.7 - 1.5
+            # short horizontal lights that tuck between the belt course and the
+            # dentil course under the cornice (a classic frieze-window band).
             for w in specs:
                 window(f"Frieze - {w['name']}", w["orient"], w["fixed"], w["pos"], 2.0,
-                       band + fsill * FT, band + fhead * FT, trim="upper", muntins=False)
+                       band + 0.45 * FT, band + 1.10 * FT, trim="frieze", muntins=False)
         door = next((o for s in prim["rooms"] for o in rooms_cache[s].get("doors", [])
                      if "Front Door" in o.get("name", "")), None)
         if door:
