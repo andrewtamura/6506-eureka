@@ -318,6 +318,263 @@ def add_shell(ctx, rooms):
         add_wall(ctx, orient, fixed, a, b)
 
 
+def add_attic(ctx, rooms, roof):
+    """Attic level shaped to the ACTUAL roof rather than a full-height box: a
+    floor slab over the primary footprint and a sloped ceiling that follows the
+    SAME hip + pitch as the exterior roof (so the two stay in sync). `roof` carries
+    {type, pitch, kneeFt, eaveWallFt, dormers, shedDormer}.
+
+    With `eaveWallFt`=0 the roof springs straight off the attic floor and short
+    inset knee walls fence off the unusable low triangles. With `eaveWallFt`>0
+    (a raised plate / story-and-a-half) the roof springs from full-height
+    perimeter walls of that height — which become the knee walls — so the ceiling
+    is `eaveWallFt` at the walls and the usable floor reaches wall to wall."""
+    CEIL = (0.93, 0.92, 0.90)   # drywall ceiling soffit
+    KNEE = (0.87, 0.86, 0.83)   # painted knee / perimeter wall (matches the massing)
+    rects = [ifc_bounds(ctx, r["bounds"]) for r in rooms]
+    x1, x2 = min(r[0] for r in rects), max(r[1] for r in rects)
+    y1, y2 = min(r[2] for r in rects), max(r[3] for r in rects)
+    pitch = roof.get("pitch", 0.5)
+    knee = roof.get("kneeFt", 4.0) * FT
+    eave = roof.get("eaveWallFt", 0.0) * FT           # raised plate above the attic floor
+    t = ctx.T
+
+    for r in rooms:                                   # floor over the whole footprint
+        add_slab(ctx, r)
+
+    # sloped ceiling = the hip underside, springing from the eave (z = eave).
+    # _roof_slab gives it a real thickness so the soffit reads from below.
+    surf, slopes, eave_loop = _hip_surface(x1, x2, y1, y2, eave, pitch)
+    cv, cf = _roof_slab(surf, slopes, eave_loop, 0.10)
+    # Translucent so the 3/4 exhibit view reads INTO the room (floor + walls show
+    # through) — i.e. you can see the habitable volume under the slope.
+    add_brep(ctx, "Attic ceiling", cv, cf, CEIL, ifc_class="IfcCovering",
+             predefined="CEILING", transparency=0.55)
+
+    if eave > 0:
+        # raised plate: full-height perimeter walls (these ARE the knee walls)
+        cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+        for nm, bx, by, xd, yd in [
+            ("Plate wall S", cx, y1, abs(x2 - x1) + t, t),
+            ("Plate wall N", cx, y2, abs(x2 - x1) + t, t),
+            ("Plate wall W", x1, cy, t, abs(y2 - y1) + t),
+            ("Plate wall E", x2, cy, t, abs(y2 - y1) + t),
+        ]:
+            w = make_box(ctx, "IfcWall", nm, xd, yd, eave, bx, by, 0.0, color=KNEE)
+            run("spatial.assign_container", ctx.model, products=[w], relating_structure=ctx.storey)
+    else:
+        # inset knee walls where the bare hip ceiling first reaches `knee`
+        dk = knee / pitch
+        kx1, kx2, ky1, ky2 = x1 + dk, x2 - dk, y1 + dk, y2 - dk
+        cx, cy = (kx1 + kx2) / 2, (ky1 + ky2) / 2
+        for nm, bx, by, xd, yd in [
+            ("Knee wall S", cx, ky1, abs(kx2 - kx1) + t, t),
+            ("Knee wall N", cx, ky2, abs(kx2 - kx1) + t, t),
+            ("Knee wall W", kx1, cy, t, abs(ky2 - ky1) + t),
+            ("Knee wall E", kx2, cy, t, abs(ky2 - ky1) + t),
+        ]:
+            kw = make_box(ctx, "IfcWall", nm, xd, yd, knee, bx, by, 0.0, color=KNEE)
+            run("spatial.assign_container", ctx.model, products=[kw], relating_structure=ctx.storey)
+
+    if roof.get("dormers"):
+        add_dormers(ctx, x1, x2, y1, y2, pitch, roof["dormers"], base_z=eave, style="interior")
+    if roof.get("shedDormer"):
+        add_shed_dormer(ctx, x1, x2, y1, y2, pitch, roof["shedDormer"], base_z=eave, style="interior")
+
+
+def _prism(poly, vec):
+    """Closed solid from a planar polygon `poly` (list of 3-D pts, metres) swept by
+    `vec`. Returns (verts, faces): the two caps + a quad per edge. add_brep orients
+    every face, and a prism over a convex polygon is convex, so it renders solid."""
+    n = len(poly)
+    b = [(float(p[0]), float(p[1]), float(p[2])) for p in poly]
+    t = [(p[0] + vec[0], p[1] + vec[1], p[2] + vec[2]) for p in b]
+    verts = b + t
+    faces = [list(range(n)), [i + n for i in range(n)]]
+    for i in range(n):
+        j = (i + 1) % n
+        faces.append([i, j, j + n, i + n])
+    return verts, faces
+
+
+def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior"):
+    """Gable dormers on the NORTH slope (north = +Y, the front), in a near-full-
+    width `count`-bay rhythm spread across the facade (NOT stacked on the inner
+    windows). Windows continue the graduated fenestration (the attic = smallest
+    tier). Each dormer is built from open surfaces — a front gable wall with a
+    glazed opening, two cheek walls, and a little gable roof — so the headroom
+    POCKET reads as habitable space; the same builder serves the attic exhibit
+    (`base_z`=0, light soffit) and the exterior massing (`base_z`=eave elevation,
+    charcoal shingle).
+
+    Because the roof HIPS at its ends, the two outer dormers are pulled IN just
+    enough to keep the configured `plate` (their outer cheek needs plate <= pitch *
+    run from the side eave), with the rest spaced evenly between them — a wide
+    spread that still keeps full standing height. Geometry per dormer (world
+    metres, +base_z): the front wall stands at the north eave line (yN) from the
+    eave up to `plate`; the gable roof rises to ridge zR and dies into the main
+    slope at y_p (cheeks)/y_r (ridge)."""
+    WALL = (0.87, 0.86, 0.83)                       # painted dormer wall / cheeks
+    ROOF = (0.30, 0.30, 0.33) if style == "exterior" else (0.93, 0.92, 0.90)
+    GLASS = (0.42, 0.52, 0.60)                       # muted blue-grey glazing
+    yN = y2
+    wd = spec.get("widthFt", 3.5) * FT
+    ww = spec.get("window", {}).get("widthFt", 2.0) * FT
+    wh = spec.get("window", {}).get("heightFt", 2.5) * FT
+    count = spec.get("count", 3)
+    ty, tx, tz = 0.12, 0.10, 0.10                     # member thicknesses (m)
+
+    # near-full-width bays: pull the outer dormers in just enough to keep the
+    # configured plate (outer cheek run from the side eave >= plate / pitch), then
+    # spread the rest evenly between them. Fall back to even bays + a shrunk plate
+    # only if the footprint is too narrow even for that.
+    plate = spec.get("plateFt", 6.0) * FT
+    m_req = plate / pitch + 0.20 * FT                  # run from a side eave to the outer cheek
+    c_w, c_e = x1 + m_req + wd / 2, x2 - m_req - wd / 2
+    if count == 1:
+        bays = [(x1 + x2) / 2]
+    elif c_e > c_w:
+        bays = [c_w + i * (c_e - c_w) / (count - 1) for i in range(count)]
+    else:                                             # too narrow: even bays, plate shrunk to fit
+        span = x2 - x1
+        bays = [x1 + (i + 0.5) * span / count for i in range(count)]
+        cap = min(min(cx - wd / 2 - x1, x2 - (cx + wd / 2)) for cx in bays) * pitch
+        plate = min(plate, cap - 0.20 * FT)
+    whead = plate - 0.40 * FT                          # leave a band under the gable
+    wsill = max(0.8 * FT, whead - wh)
+
+    def prism(name, poly, vec, color, cls="IfcWall", tr=0.0):
+        v, f = _prism([(p[0], p[1], p[2] + base_z) for p in poly], vec)
+        add_brep(ctx, name, v, f, color, ifc_class=cls, transparency=tr)
+
+    def box(name, xa, xb, za, zb, color, cls="IfcWall", cy=None, dy=ty, tr=0.0):
+        if xb - xa <= 1e-6 or zb - za <= 1e-6:
+            return
+        p = make_box(ctx, cls, name, xb - xa, dy, zb - za,
+                     (xa + xb) / 2, yN if cy is None else cy, za + base_z, color=color, transparency=tr)
+        run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
+
+    for k, cx in enumerate(bays, 1):
+        xL, xR = cx - wd / 2, cx + wd / 2
+        xWL, xWR = cx - ww / 2, cx + ww / 2
+        zR = plate + (wd / 2) * pitch                 # dormer ridge (dormer pitch = main)
+        y_p = yN - plate / pitch                      # cheek eaves die into main slope
+        y_r = yN - zR / pitch                         # dormer ridge dies into main slope
+        nm = f"Dormer {k}"
+        # front gable wall: a frame around the opening, then the gable triangle
+        box(f"{nm} jamb W", xL, xWL, 0.0, plate, WALL)
+        box(f"{nm} jamb E", xWR, xR, 0.0, plate, WALL)
+        box(f"{nm} sill", xWL, xWR, 0.0, wsill, WALL)
+        box(f"{nm} head", xWL, xWR, whead, plate, WALL)
+        prism(f"{nm} gable", [(xL, yN, plate), (xR, yN, plate), (cx, yN, zR)], (0, ty, 0), WALL)
+        # glazing, set just proud of the wall face (north = +Y)
+        box(f"{nm} window", xWL, xWR, wsill, whead, GLASS,
+            cls="IfcWindow", cy=yN + ty / 2, dy=0.05, tr=0.45)
+        # cheek walls (vertical, sitting on the main slope)
+        prism(f"{nm} cheek W", [(xL, yN, 0.0), (xL, yN, plate), (xL, y_p, plate)], (tx, 0, 0), WALL)
+        prism(f"{nm} cheek E", [(xR, yN, 0.0), (xR, yN, plate), (xR, y_p, plate)], (-tx, 0, 0), WALL)
+        # gable roof (two slopes meeting at the dormer ridge)
+        prism(f"{nm} roof W", [(xL, yN, plate), (cx, yN, zR), (cx, y_r, zR), (xL, y_p, plate)],
+              (0, 0, tz), ROOF, cls="IfcRoof")
+        prism(f"{nm} roof E", [(xR, yN, plate), (cx, yN, zR), (cx, y_r, zR), (xR, y_p, plate)],
+              (0, 0, tz), ROOF, cls="IfcRoof")
+
+
+def add_shed_dormer(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior"):
+    """A single wide dormer centred on the ridge centre line of the SOUTH slope
+    (south = -Y), sized to maximise full-height attic floor WITHOUT touching the
+    ridge or the hips. Its width is the central ridge length (footprint long side -
+    short side) less a small `marginFt` each end, so the cheeks stay off the hips.
+
+    `roof` selects the cap:
+      * "shed" (default): a single low-slope plane from a `plateFt` front wall up
+        to where it dies into the main slope `ridgeMarginFt` below the ridge.
+      * "flat": a horizontal roof at `plateFt` above the eave, behind a `parapetFt`
+        PARAPET that rises past it. The parapet front gets a decorative cap +
+        cornice + dentil course. The flat roof runs back until the main slope
+        rises to meet it (plate / pitch), leaving the ridge + upper slope intact.
+    Serves the attic exhibit (`base_z`=0, light soffit) and exterior massing
+    (`base_z`=eave, charcoal/membrane)."""
+    WALL = (0.87, 0.86, 0.83)
+    ROOF = (0.30, 0.30, 0.33) if style == "exterior" else (0.93, 0.92, 0.90)
+    GLASS = (0.42, 0.52, 0.60)
+    TRIM = (0.93, 0.92, 0.88)                          # white parapet trim
+    yS = y1                                            # south eave (min Y)
+    half = min(x2 - x1, y2 - y1) / 2.0                 # ridge inset = half the short span
+    ridge_len = (x2 - x1) - 2 * half                   # the simple (un-hipped) central run
+    cx = (x1 + x2) / 2.0
+    margin = spec.get("marginFt", 0.5) * FT
+    W_s = max(2.0 * FT, ridge_len - 2 * margin)
+    xa, xb = cx - W_s / 2, cx + W_s / 2
+    flat = spec.get("roof", "shed") == "flat"
+    P = spec.get("plateFt", 7.0) * FT                  # front-wall / flat-roof height (rel. eave)
+    ty, tx, tz = 0.12, 0.10, 0.10
+    win = spec.get("window", {})
+    nwin = win.get("count", 3)
+    ww = win.get("widthFt", 2.0) * FT
+    wh = win.get("heightFt", 2.5) * FT
+    wsill = win.get("sillFt", 2.5) * FT
+
+    def prism(name, poly, vec, color, cls="IfcWall", tr=0.0):
+        v, f = _prism([(p[0], p[1], p[2] + base_z) for p in poly], vec)
+        add_brep(ctx, name, v, f, color, ifc_class=cls, transparency=tr)
+
+    def box(name, xaa, xbb, za, zb, color, cls="IfcWall", cy=None, dy=ty, tr=0.0):
+        if xbb - xaa <= 1e-6 or zb - za <= 1e-6:
+            return
+        p = make_box(ctx, cls, name, xbb - xaa, dy, zb - za,
+                     (xaa + xbb) / 2, yS if cy is None else cy, za + base_z, color=color, transparency=tr)
+        run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
+
+    if flat:
+        parapet = spec.get("parapetFt", 2.0) * FT
+        Hp = P + parapet                               # parapet top
+        d_flat = P / pitch                             # flat roof meets the main slope here
+        y_back = yS + d_flat
+        whead = min(P - 0.3 * FT, wsill + wh)
+        wall_top = Hp                                  # front wall rises to the parapet top
+        # cheeks: vertical walls up to the parapet at the front, tapering to the
+        # flat-roof line where they meet the main slope
+        prism("Shed dormer cheek W", [(xa, yS, 0.0), (xa, yS, Hp), (xa, y_back, P)], (tx, 0, 0), WALL)
+        prism("Shed dormer cheek E", [(xb, yS, 0.0), (xb, yS, Hp), (xb, y_back, P)], (-tx, 0, 0), WALL)
+        # the flat roof itself (horizontal slab at the plate height)
+        prism("Shed dormer roof", [(xa, yS, P), (xb, yS, P), (xb, y_back, P), (xa, y_back, P)],
+              (0, 0, tz), ROOF, cls="IfcRoof")
+        # --- decorate the parapet: projecting coping cap, cornice band, dentils ---
+        box("Parapet coping", xa - 0.14, xb + 0.14, Hp - 0.06, Hp + 0.08, TRIM, cy=yS - 0.07, dy=ty + 0.28)
+        box("Parapet cornice", xa - 0.07, xb + 0.07, Hp - 0.26, Hp - 0.12, TRIM, cy=yS - 0.05, dy=ty + 0.16)
+        step = 0.20
+        n = max(1, int(round(W_s / step)))
+        for i in range(n):
+            dcx = xa + (i + 0.5) * W_s / n
+            box(f"Parapet dentil {i}", dcx - 0.05, dcx + 0.05, Hp - 0.42, Hp - 0.28,
+                TRIM, cy=yS - 0.04, dy=ty + 0.10)
+    else:
+        d_back = half - spec.get("ridgeMarginFt", 2.0) * FT
+        d_back = max(d_back, P / pitch + 0.5 * FT)
+        z_back = pitch * d_back
+        y_back = yS + d_back
+        whead = min(P - 0.4 * FT, wsill + wh)
+        wall_top = P
+        prism("Shed dormer cheek W", [(xa, yS, 0.0), (xa, yS, P), (xa, y_back, z_back)], (tx, 0, 0), WALL)
+        prism("Shed dormer cheek E", [(xb, yS, 0.0), (xb, yS, P), (xb, y_back, z_back)], (-tx, 0, 0), WALL)
+        prism("Shed dormer roof", [(xa, yS, P), (xb, yS, P), (xb, y_back, z_back), (xa, y_back, z_back)],
+              (0, 0, tz), ROOF, cls="IfcRoof")
+
+    # front wall (faces south): full-width sill + head bands, a window ribbon between
+    box("Shed dormer sill", xa, xb, 0.0, wsill, WALL)
+    box("Shed dormer head", xa, xb, whead, wall_top, WALL)
+    edge = xa
+    for i in range(nwin):
+        c = xa + (i + 0.5) * W_s / nwin
+        wl, wr = c - ww / 2, c + ww / 2
+        box(f"Shed dormer jamb {i}", edge, wl, wsill, whead, WALL)
+        box(f"Shed dormer window {i + 1}", wl, wr, wsill, whead, GLASS,
+            cls="IfcWindow", cy=yS - ty / 2, dy=0.05, tr=0.45)
+        edge = wr
+    box("Shed dormer jamb end", edge, xb, wsill, whead, WALL)
+
+
 def add_lot(ctx, lot, rooms):
     """A flat lot plane sized lot.widthFt x lot.depthFt (E-W x N-S), positioned so
     the building sits `westMarginFt` inside the west line (west = +plan x) and the
@@ -532,7 +789,7 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
     rt = (5.5 + 2.0) / 12 * FT                      # assembly depth: 2x6 rafters + >=2"
     for key, g in groups.items():
         x1, x2, y1, y2 = rects[key]
-        eave = g.get("storeys", 1) * ctx.story - g.get("trimFt", 0) * FT
+        eave = g.get("storeys", 1) * ctx.story - g.get("trimFt", 0) * FT + g.get("eaveWallFt", 0) * FT
         cx, cy, w, d = (x1 + x2) / 2, (y1 + y2) / 2, abs(x2 - x1), abs(y2 - y1)
         if crawl > 0:                              # foundation band, grade -> floor
             cb = make_box(ctx, "IfcSlab", f"Crawlspace - {key}", w, d, crawl, cx, cy, 0.0,
@@ -568,6 +825,11 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
 
         rv, rf = _roof_slab(*surf(oh), rt)
         add_brep(ctx, f"Roof - {key}", rv, rf, ROOF, predefined=("HIP_ROOF" if t == "hip" else "SHED_ROOF"))
+
+        if t == "hip" and g.get("dormers"):           # mirror the attic dormers onto the massing
+            add_dormers(ctx, x1, x2, y1, y2, pitch, g["dormers"], base_z=ez, style="exterior")
+        if t == "hip" and g.get("shedDormer"):
+            add_shed_dormer(ctx, x1, x2, y1, y2, pitch, g["shedDormer"], base_z=ez, style="exterior")
 
         if crawl > 0:                              # water-table belt at the crawlspace top
             wh, wp = 0.15, 0.06

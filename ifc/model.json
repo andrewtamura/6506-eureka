@@ -2,6 +2,35 @@
   "project": "Eureka Residence",
   "site": "Site",
   "building": "Eureka House",
+  "location": {
+    "city": "El Cerrito",
+    "county": "Contra Costa",
+    "state": "CA",
+    "lotSlope": "flat / nearly flat (per owner)"
+  },
+  "zoning": {
+    "district": "RM5",
+    "baseDistrict": "RM (Multi-Family Residential)",
+    "code": "El Cerrito Municipal Code Title 19 (Zoning), §19.06.030 Development Standards",
+    "maxHeightFt": 35,
+    "daylightPlane": false,
+    "tallPortionSetbacks": "portions of building >25 ft tall require 10 ft side setback (and 20 ft rear when abutting an RS zone)",
+    "heightMeasurement": {
+      "code": "El Cerrito Municipal Code §19.03.050 (Measuring height)",
+      "topReference": "highest point of the structure (i.e. the roof ridge / top of covering) — NOT a midpoint; no sloped-roof averaging",
+      "gradeDatum": "ground level directly below, at the lower of natural or finished grade (per part B); not an averaged datum",
+      "allParts": "all parts of the building except listed projections must comply with the max height",
+      "crawlspaceCounts": true
+    },
+    "notes": [
+      "RM has NO daylight-plane requirement (unlike the RS districts); height is governed by the flat 35 ft cap.",
+      "Per §19.03.050, height is measured to the HIGHEST point of the roof from the ground directly below (lower of natural/finished grade) — no midpoint averaging, and the 2.5 ft crawlspace counts (it sits above grade=z=0).",
+      "DESIGN: raised plate (story-and-a-half), 2.5 ft attic perimeter wall -> eave at 25.0 ft AG (overhang fascia ~24.2 ft). Roof 8:12; structural ridge ~34.33 ft, top of covering ~34.96 ft — under the 35 ft cap but by only ~0.5 in. CAUTION: at 8:12 there is essentially no margin; confirm actual roof-assembly thickness or back off to ~7.75:12 for a safe ~3 in. The south shed dormer is a FLAT roof behind a 2 ft decorated parapet (coping + cornice + dentils), which stays well below the ridge.",
+      "Eave wall held AT 25 ft (not over), so the building walls do not trigger RM's >25 ft side/rear setback step; the roof + dormers rise above 25 ft, so confirm how the city applies the >25 ft rule to roof vs wall portions (ECMC §19.06.030 table).",
+      "8:12 yields ~820 sf >=5 ft and ~564 sf >=7 ft of attic floor (vs 643/439 for the eave-at-floor 10:12 scheme); the flat shed dormer gives a 7.5 ft clear ceiling over its bay.",
+      "Remaining to confirm: roof-assembly thickness keeps the ridge <35 ft; any RM story/floor-area cap; parcel designation 'RM5' shares the base RM standards in the §19.06.030 table."
+    ]
+  },
   "units": "feet",
   "wallThickness": 0.4583,
   "wallHeight": 9.0,
@@ -51,8 +80,24 @@
           ],
           "storeys": 2,
           "type": "hip",
-          "pitch": 0.5,
-          "overhangFt": 1.5
+          "pitch": 0.6667,
+          "eaveWallFt": 2.5,
+          "overhangFt": 1.5,
+          "dormers": {
+            "side": "north",
+            "count": 3,
+            "widthFt": 3.5,
+            "plateFt": 4.0,
+            "window": { "widthFt": 2.0, "heightFt": 2.5 }
+          },
+          "shedDormer": {
+            "side": "south",
+            "roof": "flat",
+            "plateFt": 5.0,
+            "parapetFt": 2.0,
+            "marginFt": 0.5,
+            "window": { "count": 3, "widthFt": 2.0, "heightFt": 2.5, "sillFt": 0.8 }
+          }
         },
         "extension": {
           "rooms": [
@@ -120,7 +165,9 @@
       "id": "attic",
       "storey": "Attic",
       "label": "Attic",
-      "kind": "shell",
+      "kind": "attic",
+      "kneeFt": 4.0,
+      "roofRef": { "from": "exterior", "group": "primary" },
       "rooms": [
         "family",
         "kitchen",
