@@ -362,6 +362,97 @@ def add_attic(ctx, rooms, roof):
         kw = make_box(ctx, "IfcWall", nm, xd, yd, knee, bx, by, 0.0, color=KNEE)
         run("spatial.assign_container", ctx.model, products=[kw], relating_structure=ctx.storey)
 
+    if roof.get("dormers"):
+        add_dormers(ctx, x1, x2, y1, y2, pitch, rooms, roof["dormers"])
+
+
+def _prism(poly, vec):
+    """Closed solid from a planar polygon `poly` (list of 3-D pts, metres) swept by
+    `vec`. Returns (verts, faces): the two caps + a quad per edge. add_brep orients
+    every face, and a prism over a convex polygon is convex, so it renders solid."""
+    n = len(poly)
+    b = [(float(p[0]), float(p[1]), float(p[2])) for p in poly]
+    t = [(p[0] + vec[0], p[1] + vec[1], p[2] + vec[2]) for p in b]
+    verts = b + t
+    faces = [list(range(n)), [i + n for i in range(n)]]
+    for i in range(n):
+        j = (i + 1) % n
+        faces.append([i, j, j + n, i + n])
+    return verts, faces
+
+
+def add_dormers(ctx, x1, x2, y1, y2, pitch, rooms, spec):
+    """Gable dormers on the NORTH slope (north = +Y, the front), sized to continue
+    the graduated fenestration (the attic = smallest tier). Each is built from open
+    surfaces — a front gable wall with a glazed opening, two cheek walls, and a
+    little gable roof — rather than a filled block, so the headroom POCKET it adds
+    reads as habitable space in the attic exhibit. Dormers are centred over the
+    middle `count` north-facing openings so they stack over the windows below.
+
+    Geometry (per dormer, world metres): the front wall stands at the north eave
+    (yN) from the floor to the `plate`; the gable roof rises to a ridge zR and runs
+    south until it dies into the main slope (z = pitch * distance south of yN), at
+    y_p for the eaves and y_r for the ridge."""
+    WALL = (0.87, 0.86, 0.83)    # painted dormer wall / cheeks (matches knee walls)
+    ROOF = (0.93, 0.92, 0.90)    # dormer ceiling soffit (matches the main ceiling)
+    GLASS = (0.42, 0.52, 0.60)   # muted blue-grey glazing (matches the massing)
+    yN = y2
+    wd = spec.get("widthFt", 3.5) * FT
+    plate = spec.get("plateFt", 6.0) * FT
+    win = spec.get("window", {})
+    ww = win.get("widthFt", 2.0) * FT
+    wh = win.get("heightFt", 2.5) * FT
+    wsill = win.get("sillFt", 2.5) * FT
+    whead = wsill + wh
+    count = spec.get("count", 3)
+    ty, tx, tz = 0.12, 0.10, 0.10                     # member thicknesses (m)
+
+    # bays: align over the middle `count` north-facing (H, at zmax) openings
+    zmax = max(r["bounds"]["z2"] for r in rooms)
+    pos = sorted(o["pos"] for r in rooms
+                 for o in r.get("windows", []) + r.get("doors", [])
+                 if o.get("orient") == "H" and not o.get("opening")
+                 and abs(o["fixed"] - zmax) < 1e-6)
+    s = max(0, (len(pos) - count) // 2)
+    bays = pos[s:s + count] if len(pos) >= count else pos
+
+    def prism(name, poly, vec, color, cls="IfcWall", tr=0.0):
+        v, f = _prism(poly, vec)
+        add_brep(ctx, name, v, f, color, ifc_class=cls, transparency=tr)
+
+    def box(name, xa, xb, za, zb, color, cls="IfcWall", cy=None, dy=ty, tr=0.0):
+        if xb - xa <= 1e-6 or zb - za <= 1e-6:
+            return
+        p = make_box(ctx, cls, name, xb - xa, dy, zb - za,
+                     (xa + xb) / 2, yN if cy is None else cy, za, color=color, transparency=tr)
+        run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
+
+    for k, bp in enumerate(bays, 1):
+        cx = ctx.X(bp)
+        xL, xR = cx - wd / 2, cx + wd / 2
+        xWL, xWR = cx - ww / 2, cx + ww / 2
+        zR = plate + (wd / 2) * pitch                 # dormer ridge (dormer pitch = main)
+        y_p = yN - plate / pitch                      # cheek eaves die into main slope
+        y_r = yN - zR / pitch                         # dormer ridge dies into main slope
+        nm = f"Dormer {k}"
+        # front gable wall: a frame around the opening, then the gable triangle
+        box(f"{nm} jamb W", xL, xWL, 0.0, plate, WALL)
+        box(f"{nm} jamb E", xWR, xR, 0.0, plate, WALL)
+        box(f"{nm} sill", xWL, xWR, 0.0, wsill, WALL)
+        box(f"{nm} head", xWL, xWR, whead, plate, WALL)
+        prism(f"{nm} gable", [(xL, yN, plate), (xR, yN, plate), (cx, yN, zR)], (0, ty, 0), WALL)
+        # glazing, set just proud of the wall face (north = +Y)
+        box(f"{nm} window", xWL, xWR, wsill, whead, GLASS,
+            cls="IfcWindow", cy=yN + ty / 2, dy=0.05, tr=0.45)
+        # cheek walls (vertical, sitting on the main slope)
+        prism(f"{nm} cheek W", [(xL, yN, 0.0), (xL, yN, plate), (xL, y_p, plate)], (tx, 0, 0), WALL)
+        prism(f"{nm} cheek E", [(xR, yN, 0.0), (xR, yN, plate), (xR, y_p, plate)], (-tx, 0, 0), WALL)
+        # gable roof (two slopes meeting at the dormer ridge)
+        prism(f"{nm} roof W", [(xL, yN, plate), (cx, yN, zR), (cx, y_r, zR), (xL, y_p, plate)],
+              (0, 0, tz), ROOF, cls="IfcRoof")
+        prism(f"{nm} roof E", [(xR, yN, plate), (cx, yN, zR), (cx, y_r, zR), (xR, y_p, plate)],
+              (0, 0, tz), ROOF, cls="IfcRoof")
+
 
 def add_lot(ctx, lot, rooms):
     """A flat lot plane sized lot.widthFt x lot.depthFt (E-W x N-S), positioned so
