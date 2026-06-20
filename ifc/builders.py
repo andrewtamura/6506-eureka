@@ -405,6 +405,24 @@ def add_attic(ctx, rooms, roof):
         srec = ss.get("recessFt", 0) * FT
         for a, b in s_holes:
             floorbox("Usable alcove S", max(a, kx1), min(b, kx2), y1 + srec, ky1)
+        # separate, taller volume marking the FULL-HEIGHT (>=7 ft clear) space:
+        # inset further (where the slope reaches 7 ft) + the dormer fingers, drawn
+        # as a 3D box from the floor up to 7 ft.
+        FULL = (0.36, 0.55, 0.92)
+        dm7 = (7.0 * FT - eave) / pitch
+        hx1, hx2, hy1, hy2 = x1 + dm7, x2 - dm7, y1 + dm7, y2 - dm7
+
+        def volbox(nm, xa, xb, ya, yb):
+            if abs(xb - xa) < 1e-3 or abs(yb - ya) < 1e-3:
+                return
+            p = make_box(ctx, "IfcBuildingElementProxy", nm, abs(xb - xa), abs(yb - ya), 7.0 * FT - 0.12,
+                         (xa + xb) / 2, (ya + yb) / 2, 0.12, color=FULL, transparency=0.55)
+            run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
+        volbox("Full-height area", hx1, hx2, hy1, hy2)
+        for a, b in n_holes:
+            volbox("Full-height alcove N", max(a, kx1), min(b, kx2), hy2, y2 - nrec)
+        for a, b in s_holes:
+            volbox("Full-height alcove S", max(a, kx1), min(b, kx2), y1 + srec, hy1)
     else:
         # inset knee walls where the bare hip ceiling first reaches `knee`
         dk = knee / pitch
