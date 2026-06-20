@@ -80,7 +80,14 @@
           "storeys": 2,
           "type": "hip",
           "pitch": 0.8333,
-          "overhangFt": 1.5
+          "overhangFt": 1.5,
+          "dormers": {
+            "side": "north",
+            "count": 3,
+            "widthFt": 3.5,
+            "plateFt": 6.0,
+            "window": { "widthFt": 2.0, "heightFt": 2.5 }
+          }
         },
         "extension": {
           "rooms": [
@@ -151,13 +158,6 @@
       "kind": "attic",
       "kneeFt": 4.0,
       "roofRef": { "from": "exterior", "group": "primary" },
-      "dormers": {
-        "side": "north",
-        "count": 3,
-        "widthFt": 3.5,
-        "plateFt": 6.0,
-        "window": { "widthFt": 2.0, "heightFt": 2.5, "sillFt": 2.5 }
-      },
       "rooms": [
         "family",
         "kitchen",

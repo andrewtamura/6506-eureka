@@ -363,7 +363,7 @@ def add_attic(ctx, rooms, roof):
         run("spatial.assign_container", ctx.model, products=[kw], relating_structure=ctx.storey)
 
     if roof.get("dormers"):
-        add_dormers(ctx, x1, x2, y1, y2, pitch, rooms, roof["dormers"])
+        add_dormers(ctx, x1, x2, y1, y2, pitch, roof["dormers"], base_z=0.0, style="interior")
 
 
 def _prism(poly, vec):
@@ -381,54 +381,56 @@ def _prism(poly, vec):
     return verts, faces
 
 
-def add_dormers(ctx, x1, x2, y1, y2, pitch, rooms, spec):
-    """Gable dormers on the NORTH slope (north = +Y, the front), sized to continue
-    the graduated fenestration (the attic = smallest tier). Each is built from open
-    surfaces — a front gable wall with a glazed opening, two cheek walls, and a
-    little gable roof — rather than a filled block, so the headroom POCKET it adds
-    reads as habitable space in the attic exhibit. Dormers are centred over the
-    middle `count` north-facing openings so they stack over the windows below.
+def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior"):
+    """Gable dormers on the NORTH slope (north = +Y, the front), in a full-width
+    `count`-bay rhythm: one centred in each equal bay across the whole façade (NOT
+    stacked on the inner windows). Windows continue the graduated fenestration (the
+    attic = smallest tier). Each dormer is built from open surfaces — a front gable
+    wall with a glazed opening, two cheek walls, and a little gable roof — so the
+    headroom POCKET reads as habitable space; the same builder serves the attic
+    exhibit (`base_z`=0, light soffit) and the exterior massing (`base_z`=eave
+    elevation, charcoal shingle).
 
-    Geometry (per dormer, world metres): the front wall stands at the north eave
-    (yN) from the floor to the `plate`; the gable roof rises to a ridge zR and runs
-    south until it dies into the main slope (z = pitch * distance south of yN), at
-    y_p for the eaves and y_r for the ridge."""
-    WALL = (0.87, 0.86, 0.83)    # painted dormer wall / cheeks (matches knee walls)
-    ROOF = (0.93, 0.92, 0.90)    # dormer ceiling soffit (matches the main ceiling)
-    GLASS = (0.42, 0.52, 0.60)   # muted blue-grey glazing (matches the massing)
+    Because the roof HIPS at its ends, an outer dormer's cheeks would poke through
+    the hip if it were as tall as a central one, so the plate is AUTO-FITTED to the
+    least headroom any bay's outer cheek allows (plate <= pitch * distance from the
+    nearest E/W eave to that cheek). Geometry per dormer (world metres, +base_z):
+    the front wall stands at the north eave line (yN) from the eave up to `plate`;
+    the gable roof rises to ridge zR and dies into the main slope at y_p (cheeks)
+    and y_r (ridge)."""
+    WALL = (0.87, 0.86, 0.83)                       # painted dormer wall / cheeks
+    ROOF = (0.30, 0.30, 0.33) if style == "exterior" else (0.93, 0.92, 0.90)
+    GLASS = (0.42, 0.52, 0.60)                       # muted blue-grey glazing
     yN = y2
     wd = spec.get("widthFt", 3.5) * FT
-    plate = spec.get("plateFt", 6.0) * FT
-    win = spec.get("window", {})
-    ww = win.get("widthFt", 2.0) * FT
-    wh = win.get("heightFt", 2.5) * FT
-    wsill = win.get("sillFt", 2.5) * FT
-    whead = wsill + wh
+    ww = spec.get("window", {}).get("widthFt", 2.0) * FT
+    wh = spec.get("window", {}).get("heightFt", 2.5) * FT
     count = spec.get("count", 3)
     ty, tx, tz = 0.12, 0.10, 0.10                     # member thicknesses (m)
 
-    # bays: align over the middle `count` north-facing (H, at zmax) openings
-    zmax = max(r["bounds"]["z2"] for r in rooms)
-    pos = sorted(o["pos"] for r in rooms
-                 for o in r.get("windows", []) + r.get("doors", [])
-                 if o.get("orient") == "H" and not o.get("opening")
-                 and abs(o["fixed"] - zmax) < 1e-6)
-    s = max(0, (len(pos) - count) // 2)
-    bays = pos[s:s + count] if len(pos) >= count else pos
+    # full-width bays: one dormer centred in each of `count` equal bays
+    span = x2 - x1
+    bays = [x1 + (i + 0.5) * span / count for i in range(count)]
+
+    # auto-fit a uniform plate so every dormer's outer cheek dies into the roof
+    # (the hipped ends cap the height available toward the corners)
+    cap = min(min(cx - wd / 2 - x1, x2 - (cx + wd / 2)) for cx in bays) * pitch
+    plate = min(spec.get("plateFt", 6.0) * FT, cap - 0.20 * FT)
+    whead = plate - 0.40 * FT                          # leave a band under the gable
+    wsill = max(0.8 * FT, whead - wh)
 
     def prism(name, poly, vec, color, cls="IfcWall", tr=0.0):
-        v, f = _prism(poly, vec)
+        v, f = _prism([(p[0], p[1], p[2] + base_z) for p in poly], vec)
         add_brep(ctx, name, v, f, color, ifc_class=cls, transparency=tr)
 
     def box(name, xa, xb, za, zb, color, cls="IfcWall", cy=None, dy=ty, tr=0.0):
         if xb - xa <= 1e-6 or zb - za <= 1e-6:
             return
         p = make_box(ctx, cls, name, xb - xa, dy, zb - za,
-                     (xa + xb) / 2, yN if cy is None else cy, za, color=color, transparency=tr)
+                     (xa + xb) / 2, yN if cy is None else cy, za + base_z, color=color, transparency=tr)
         run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
 
-    for k, bp in enumerate(bays, 1):
-        cx = ctx.X(bp)
+    for k, cx in enumerate(bays, 1):
         xL, xR = cx - wd / 2, cx + wd / 2
         xWL, xWR = cx - ww / 2, cx + ww / 2
         zR = plate + (wd / 2) * pitch                 # dormer ridge (dormer pitch = main)
@@ -452,6 +454,7 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, rooms, spec):
               (0, 0, tz), ROOF, cls="IfcRoof")
         prism(f"{nm} roof E", [(xR, yN, plate), (cx, yN, zR), (cx, y_r, zR), (xR, y_p, plate)],
               (0, 0, tz), ROOF, cls="IfcRoof")
+
 
 
 def add_lot(ctx, lot, rooms):
@@ -704,6 +707,9 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
 
         rv, rf = _roof_slab(*surf(oh), rt)
         add_brep(ctx, f"Roof - {key}", rv, rf, ROOF, predefined=("HIP_ROOF" if t == "hip" else "SHED_ROOF"))
+
+        if t == "hip" and g.get("dormers"):           # mirror the attic dormers onto the massing
+            add_dormers(ctx, x1, x2, y1, y2, pitch, g["dormers"], base_z=ez, style="exterior")
 
         if crawl > 0:                              # water-table belt at the crawlspace top
             wh, wp = 0.15, 0.06
