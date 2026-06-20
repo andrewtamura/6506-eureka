@@ -613,35 +613,55 @@ def add_porch(ctx, rooms_cache, base, width_ft=9.0):
                      (x0 + x1) / 2, (y0 + y1) / 2, z0, color=color)
         run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
+    # the flare follows a gentle curve: the cascade edge eases outward (slow near
+    # the threshold, sweeping wider toward the foot) instead of a straight splay.
+    Whalf = Wbot / 2 * FT                               # foot half-width (m)
+    def wcurve(t):                                      # half-width along run, t in [0,1]
+        return PWh + (Whalf - PWh) * (t ** 1.8)
+
     # terrace landing (stucco skirt + painted floor) at the threshold
     box("Porch skirt", xL + ins, xR - ins, fy, zTf, 0.0, base - ft_t, color=BASE_C)
     box("Porch floor", xL, xR, fy, zTf, base - ft_t, ft_t, color=FLOOR_C)
-    # flared cascade: each tread projects further out and widens toward the foot
+    # curved cascade: each tread projects further out and widens along the curve
     for j in range(1, nst):
-        frac = (j - 1) / (nst - 2)                      # 0 at the top tread, 1 at the foot
-        half = (width_ft + (Wbot - width_ft) * frac) / 2 * FT
+        half = wcurve(j / (nst - 1))                    # leading-edge half-width
         box(f"Porch step {j}", ix - half, ix + half,
             zTf + (j - 1) * tread, zTf + j * tread + 0.06, 0.0, base - j * riser, color=FLOOR_C)
 
-    # splayed cheek walls: a solid stucco wedge per side whose inner face follows
-    # the flared step edge (terrace-front corner -> flared foot), top ramping from
-    # the terrace parapet down to a low parapet at the foot. A white cap rides it.
-    def cheekwall(s):                                   # s = -1 (left) / +1 (right)
-        xib, xif = ix + s * PWh, ix + s * (Wbot / 2) * FT   # inner back / front x
-        xob, xof = xib + s * wt, xif + s * wt               # outer back / front x
-        tb, tf = base + ph, ph                              # top: parapet over terrace / foot
-        # 8 verts: bottom A,B,C,D then top A,B,C,D  (A=inner-back .. D=outer-back)
-        v = [(xib, zTf, 0.0), (xif, zFt, 0.0), (xof, zFt, 0.0), (xob, zTf, 0.0),
-             (xib, zTf, tb), (xif, zFt, tf), (xof, zFt, tf), (xob, zTf, tb)]
+    # curved cheek walls: a solid stucco rail per side whose inner face tracks the
+    # curved step edge (sampled in many short segments so it reads as a smooth
+    # sweep), top ramping from the terrace parapet down to a low parapet at the
+    # foot. A thin white cap rides each segment.
+    run_len = zFt - zTf                                 # cascade run (Y span)
+    M = 12                                              # curve subdivisions
+    def seg_brep(name, p0, p1, color, cls):             # p = (x_in, y, top)
+        (xi0, y0, t0), (xi1, y1, t1), s = p0, p1, (1 if p1[0] > ix else -1)
+        xo0, xo1 = xi0 + s * wt, xi1 + s * wt
+        v = [(xi0, y0, 0.0), (xi1, y1, 0.0), (xo1, y1, 0.0), (xo0, y0, 0.0),
+             (xi0, y0, t0), (xi1, y1, t1), (xo1, y1, t1), (xo0, y0, t0)]
         f = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4],
              [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
-        add_brep(ctx, f"Porch cheek wall {('L' if s < 0 else 'R')}", v, f,
-                 BASE_C, ifc_class="IfcWall")
-        # thin white cap riding the sloped top
-        cv = [(xib, zTf, tb), (xif, zFt, tf), (xof, zFt, tf), (xob, zTf, tb),
-              (xib, zTf, tb + cap), (xif, zFt, tf + cap), (xof, zFt, tf + cap), (xob, zTf, tb + cap)]
-        add_brep(ctx, f"Porch cheek cap {('L' if s < 0 else 'R')}", cv, f,
-                 CAP_C, ifc_class="IfcBuildingElementProxy")
+        add_brep(ctx, name, v, f, color, ifc_class=cls)
+
+    def cheekwall(s):                                   # s = -1 (left) / +1 (right)
+        side = "L" if s < 0 else "R"
+        for k in range(M):
+            t0, t1 = k / M, (k + 1) / M
+            p0 = (ix + s * wcurve(t0), zTf + t0 * run_len, base + ph - base * t0)
+            p1 = (ix + s * wcurve(t1), zTf + t1 * run_len, base + ph - base * t1)
+            seg_brep(f"Porch cheek wall {side} {k}", p0, p1, BASE_C, "IfcWall")
+            # white cap riding this segment's sloped top
+            cap0 = (p0[0], p0[1], p0[2] + cap)
+            cap1 = (p1[0], p1[1], p1[2] + cap)
+            # cap as a thin slab on top: reuse seg_brep with raised bottom by
+            # building a short wedge whose "bottom" is the wall top
+            xo0, xo1 = p0[0] + s * wt, p1[0] + s * wt
+            v = [(p0[0], p0[1], p0[2]), (p1[0], p1[1], p1[2]), (xo1, p1[1], p1[2]), (xo0, p0[1], p0[2]),
+                 (p0[0], p0[1], cap0[2]), (p1[0], p1[1], cap1[2]), (xo1, p1[1], cap1[2]), (xo0, p0[1], cap0[2])]
+            f = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4],
+                 [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
+            add_brep(ctx, f"Porch cheek cap {side} {k}", v, f, CAP_C,
+                     ifc_class="IfcBuildingElementProxy")
 
     cheekwall(-1)
     cheekwall(+1)
