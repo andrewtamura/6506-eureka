@@ -321,10 +321,17 @@ async function main() {
     m.object.traverse((o) => {
       if (!o.isMesh) return;
       o.frustumCulled = false; o.castShadow = true; o.receiveShadow = true;
-      // Same transparent-glass fix as the ground model: drop depthWrite so a
-      // translucent surface (exterior glass, the attic's slope) reads through.
-      for (const mat of (Array.isArray(o.material) ? o.material : [o.material]))
-        if (mat && mat.transparent && mat.opacity < 1) { mat.depthWrite = false; mat.needsUpdate = true; }
+      for (const mat of (Array.isArray(o.material) ? o.material : [o.material])) {
+        if (!mat) continue;
+        // Render both faces so downward-facing surfaces (the roof soffit / eave
+        // overhang undersides) are visible when looking up — otherwise back-face
+        // culling makes the roof read as see-through from below.
+        mat.side = THREE.DoubleSide;
+        // Same transparent-glass fix as the ground model: drop depthWrite so a
+        // translucent surface (exterior glass, the attic's slope) reads through.
+        if (mat.transparent && mat.opacity < 1) mat.depthWrite = false;
+        mat.needsUpdate = true;
+      }
     });
     modelViews.push({ id: lvl.id, label: lvl.label || lvl.storey, box: buildingBox(m.object) });
     labelViews.push({ label: lvl.label || lvl.storey, box: new THREE.Box3().setFromObject(m.object) });

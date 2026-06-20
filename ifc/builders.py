@@ -494,6 +494,7 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior", 
             # springing from the cheek tops (plate) and dying into the main slope
             # (the crown reaches furthest back).
             R, N = wd / 2, 14
+            yF = yN + 0.75 * FT                         # eave: barrel overhangs the glass face by >=6"
             arc = []
             for i in range(N + 1):
                 th = math.pi * i / N
@@ -505,7 +506,7 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior", 
             for i in range(N):
                 ax0, az0, ay0 = arc[i]
                 ax1, az1, ay1 = arc[i + 1]
-                prism(f"{nm} barrel {i}", [(ax0, yN, az0), (ax1, yN, az1),
+                prism(f"{nm} barrel {i}", [(ax0, yF, az0), (ax1, yF, az1),
                       (ax1, ay1, az1), (ax0, ay0, az0)], (0, 0, tz), ROOF, cls="IfcRoof")
         else:
             # gable: front triangle + two roof planes meeting at the dormer ridge
