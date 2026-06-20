@@ -170,7 +170,7 @@
       "storey": "Attic",
       "label": "Attic",
       "kind": "attic",
-      "kneeFt": 4.0,
+      "kneeFt": 5.0,
       "roofRef": { "from": "exterior", "group": "primary" },
       "rooms": [
         "family",
