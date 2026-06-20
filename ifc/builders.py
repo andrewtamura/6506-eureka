@@ -434,9 +434,13 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior"):
     # spread the rest evenly between them. Fall back to even bays + a shrunk plate
     # only if the footprint is too narrow even for that.
     plate = spec.get("plateFt", 6.0) * FT
+    spacing = spec.get("spacingFt", 0.0) * FT         # if set: fixed centre-to-centre, centred
     m_req = plate / pitch + 0.20 * FT                  # run from a side eave to the outer cheek
     c_w, c_e = x1 + m_req + wd / 2, x2 - m_req - wd / 2
-    if count == 1:
+    if spacing > 0:
+        ctr = (x1 + x2) / 2
+        bays = [ctr + (i - (count - 1) / 2.0) * spacing for i in range(count)]
+    elif count == 1:
         bays = [(x1 + x2) / 2]
     elif c_e > c_w:
         bays = [c_w + i * (c_e - c_w) / (count - 1) for i in range(count)]
