@@ -481,24 +481,24 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior"):
 
 
 def add_shed_dormer(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior"):
-    """A single SHED dormer centred on the ridge centre line of the SOUTH slope
+    """A single wide dormer centred on the ridge centre line of the SOUTH slope
     (south = -Y), sized to maximise full-height attic floor WITHOUT touching the
-    ridge or the hips. Unlike a gable, its near-flat roof gives full standing
-    height over a big rectangle — the most usable floor per dormer.
+    ridge or the hips. Its width is the central ridge length (footprint long side -
+    short side) less a small `marginFt` each end, so the cheeks stay off the hips.
 
-    Sizing (auto-computed to maximise floor while keeping the roof simple):
-      * Width = the central ridge length (footprint long side - short side), less a
-        small `marginFt` each end, so the cheeks stay off the hipped ends.
-      * The front wall stands `plateFt` tall at the south eave; with plate = 7 ft
-        the WHOLE pocket clears 7 ft (the shed only rises from there).
-      * The shed roof rises at the shallow slope needed to die into the main south
-        slope `ridgeMarginFt` below the ridge (so the ridge + upper slope, and
-        thus the existing roofline, are left intact — no valleys, no new ridge).
-    The same builder serves the attic exhibit (`base_z`=0, light soffit) and the
-    exterior massing (`base_z`=eave, charcoal shingle)."""
+    `roof` selects the cap:
+      * "shed" (default): a single low-slope plane from a `plateFt` front wall up
+        to where it dies into the main slope `ridgeMarginFt` below the ridge.
+      * "flat": a horizontal roof at `plateFt` above the eave, behind a `parapetFt`
+        PARAPET that rises past it. The parapet front gets a decorative cap +
+        cornice + dentil course. The flat roof runs back until the main slope
+        rises to meet it (plate / pitch), leaving the ridge + upper slope intact.
+    Serves the attic exhibit (`base_z`=0, light soffit) and exterior massing
+    (`base_z`=eave, charcoal/membrane)."""
     WALL = (0.87, 0.86, 0.83)
     ROOF = (0.30, 0.30, 0.33) if style == "exterior" else (0.93, 0.92, 0.90)
     GLASS = (0.42, 0.52, 0.60)
+    TRIM = (0.93, 0.92, 0.88)                          # white parapet trim
     yS = y1                                            # south eave (min Y)
     half = min(x2 - x1, y2 - y1) / 2.0                 # ridge inset = half the short span
     ridge_len = (x2 - x1) - 2 * half                   # the simple (un-hipped) central run
@@ -506,18 +506,14 @@ def add_shed_dormer(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interio
     margin = spec.get("marginFt", 0.5) * FT
     W_s = max(2.0 * FT, ridge_len - 2 * margin)
     xa, xb = cx - W_s / 2, cx + W_s / 2
-    P = spec.get("plateFt", 7.0) * FT
-    d_back = half - spec.get("ridgeMarginFt", 2.0) * FT
-    d_back = max(d_back, P / pitch + 0.5 * FT)         # keep a positive shed slope + depth
-    z_back = pitch * d_back                            # height where the shed meets the slope
-    y_back = yS + d_back
+    flat = spec.get("roof", "shed") == "flat"
+    P = spec.get("plateFt", 7.0) * FT                  # front-wall / flat-roof height (rel. eave)
     ty, tx, tz = 0.12, 0.10, 0.10
     win = spec.get("window", {})
     nwin = win.get("count", 3)
     ww = win.get("widthFt", 2.0) * FT
     wh = win.get("heightFt", 2.5) * FT
     wsill = win.get("sillFt", 2.5) * FT
-    whead = min(P - 0.4 * FT, wsill + wh)
 
     def prism(name, poly, vec, color, cls="IfcWall", tr=0.0):
         v, f = _prism([(p[0], p[1], p[2] + base_z) for p in poly], vec)
@@ -530,9 +526,44 @@ def add_shed_dormer(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interio
                      (xaa + xbb) / 2, yS if cy is None else cy, za + base_z, color=color, transparency=tr)
         run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
 
+    if flat:
+        parapet = spec.get("parapetFt", 2.0) * FT
+        Hp = P + parapet                               # parapet top
+        d_flat = P / pitch                             # flat roof meets the main slope here
+        y_back = yS + d_flat
+        whead = min(P - 0.3 * FT, wsill + wh)
+        wall_top = Hp                                  # front wall rises to the parapet top
+        # cheeks: vertical walls up to the parapet at the front, tapering to the
+        # flat-roof line where they meet the main slope
+        prism("Shed dormer cheek W", [(xa, yS, 0.0), (xa, yS, Hp), (xa, y_back, P)], (tx, 0, 0), WALL)
+        prism("Shed dormer cheek E", [(xb, yS, 0.0), (xb, yS, Hp), (xb, y_back, P)], (-tx, 0, 0), WALL)
+        # the flat roof itself (horizontal slab at the plate height)
+        prism("Shed dormer roof", [(xa, yS, P), (xb, yS, P), (xb, y_back, P), (xa, y_back, P)],
+              (0, 0, tz), ROOF, cls="IfcRoof")
+        # --- decorate the parapet: projecting coping cap, cornice band, dentils ---
+        box("Parapet coping", xa - 0.14, xb + 0.14, Hp - 0.06, Hp + 0.08, TRIM, cy=yS - 0.07, dy=ty + 0.28)
+        box("Parapet cornice", xa - 0.07, xb + 0.07, Hp - 0.26, Hp - 0.12, TRIM, cy=yS - 0.05, dy=ty + 0.16)
+        step = 0.20
+        n = max(1, int(round(W_s / step)))
+        for i in range(n):
+            dcx = xa + (i + 0.5) * W_s / n
+            box(f"Parapet dentil {i}", dcx - 0.05, dcx + 0.05, Hp - 0.42, Hp - 0.28,
+                TRIM, cy=yS - 0.04, dy=ty + 0.10)
+    else:
+        d_back = half - spec.get("ridgeMarginFt", 2.0) * FT
+        d_back = max(d_back, P / pitch + 0.5 * FT)
+        z_back = pitch * d_back
+        y_back = yS + d_back
+        whead = min(P - 0.4 * FT, wsill + wh)
+        wall_top = P
+        prism("Shed dormer cheek W", [(xa, yS, 0.0), (xa, yS, P), (xa, y_back, z_back)], (tx, 0, 0), WALL)
+        prism("Shed dormer cheek E", [(xb, yS, 0.0), (xb, yS, P), (xb, y_back, z_back)], (-tx, 0, 0), WALL)
+        prism("Shed dormer roof", [(xa, yS, P), (xb, yS, P), (xb, y_back, z_back), (xa, y_back, z_back)],
+              (0, 0, tz), ROOF, cls="IfcRoof")
+
     # front wall (faces south): full-width sill + head bands, a window ribbon between
     box("Shed dormer sill", xa, xb, 0.0, wsill, WALL)
-    box("Shed dormer head", xa, xb, whead, P, WALL)
+    box("Shed dormer head", xa, xb, whead, wall_top, WALL)
     edge = xa
     for i in range(nwin):
         c = xa + (i + 0.5) * W_s / nwin
@@ -542,12 +573,6 @@ def add_shed_dormer(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interio
             cls="IfcWindow", cy=yS - ty / 2, dy=0.05, tr=0.45)
         edge = wr
     box("Shed dormer jamb end", edge, xb, wsill, whead, WALL)
-    # cheek walls (triangles sitting on the south slope)
-    prism("Shed dormer cheek W", [(xa, yS, 0.0), (xa, yS, P), (xa, y_back, z_back)], (tx, 0, 0), WALL)
-    prism("Shed dormer cheek E", [(xb, yS, 0.0), (xb, yS, P), (xb, y_back, z_back)], (-tx, 0, 0), WALL)
-    # the single shed roof plane (dies into the main slope at y_back)
-    prism("Shed dormer roof", [(xa, yS, P), (xb, yS, P), (xb, y_back, z_back), (xa, y_back, z_back)],
-          (0, 0, tz), ROOF, cls="IfcRoof")
 
 
 def add_lot(ctx, lot, rooms):
