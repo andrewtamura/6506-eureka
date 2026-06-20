@@ -2,6 +2,25 @@
   "project": "Eureka Residence",
   "site": "Site",
   "building": "Eureka House",
+  "location": {
+    "city": "El Cerrito",
+    "county": "Contra Costa",
+    "state": "CA"
+  },
+  "zoning": {
+    "district": "RM5",
+    "baseDistrict": "RM (Multi-Family Residential)",
+    "code": "El Cerrito Municipal Code Title 19 (Zoning), §19.06.030 Development Standards",
+    "maxHeightFt": 35,
+    "daylightPlane": false,
+    "tallPortionSetbacks": "portions of building >25 ft tall require 10 ft side setback (and 20 ft rear when abutting an RS zone)",
+    "notes": [
+      "RM has NO daylight-plane requirement (unlike the RS districts); height is governed by the flat 35 ft cap.",
+      "Current 10:12 hip ridge is ~34.17 ft (structural apex) / ~34.8 ft (top of covering as modeled) above the z=0 datum, which sits at the base of the 2.5 ft crawlspace — under the 35 ft cap, but verify against ECMC §19.06.030 footnote (D) for the exact measurement method (ridge vs. roof midpoint, average vs. lowest grade).",
+      "If height is measured from average grade, regulated height is likely ~32 ft with comfortable margin.",
+      "Confirm whether parcel designation 'RM5' shares the base RM standards in the §19.06.030 table."
+    ]
+  },
   "units": "feet",
   "wallThickness": 0.4583,
   "wallHeight": 9.0,
