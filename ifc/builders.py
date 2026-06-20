@@ -1027,8 +1027,10 @@ def add_entry(ctx, px, pz, dw_ft, base):
     # pilasters, hung from a wall bracket up near the entablature. Lighting
     # fixtures are procedural three.js meshes (never IFC box/cyl proxies), so we
     # record placements to the furniture manifest and skip IFC geometry here.
-    lamp_off = pil_off + cap_w / 2 + 0.6     # clear the pilaster capitals (ft)
-    mount_z = base + (dh + 1.4) * FT          # bracket height, beside the entablature (m)
+    # centre each lantern in the gap between the pilaster capital (~2.7' out) and
+    # the flanking front window (~6.6' out): roughly midway, ~4.6' from the door.
+    lamp_off = 4.6                            # offset from the door centre (ft)
+    mount_z = base + (dh - 0.6) * FT          # bracket height (hung lower than the head)
     for s in (-1, 1):
         ctx.furniture.append({"type": "porch_pendant", "px": px + s * lamp_off,
                               "pz": pz, "y": round(mount_z, 4)})
