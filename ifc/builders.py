@@ -417,7 +417,12 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior"):
     WALL = (0.87, 0.86, 0.83)                       # painted dormer wall / cheeks
     ROOF = (0.30, 0.30, 0.33) if style == "exterior" else (0.93, 0.92, 0.90)
     GLASS = (0.42, 0.52, 0.60)                       # muted blue-grey glazing
-    yN = y2
+    # RECESS the dormer back from the wall plane: slide its face inboard by
+    # `recessFt` and lift its base up the slope by pitch*recess, so a band of main
+    # roof shows in front and the dormer reads as set into the roof (not the wall).
+    recess = spec.get("recessFt", 0.0) * FT
+    yN = y2 - recess
+    base_z = base_z + pitch * recess
     wd = spec.get("widthFt", 3.5) * FT
     ww = spec.get("window", {}).get("widthFt", 2.0) * FT
     wh = spec.get("window", {}).get("heightFt", 2.5) * FT
@@ -429,9 +434,13 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior"):
     # spread the rest evenly between them. Fall back to even bays + a shrunk plate
     # only if the footprint is too narrow even for that.
     plate = spec.get("plateFt", 6.0) * FT
+    spacing = spec.get("spacingFt", 0.0) * FT         # if set: fixed centre-to-centre, centred
     m_req = plate / pitch + 0.20 * FT                  # run from a side eave to the outer cheek
     c_w, c_e = x1 + m_req + wd / 2, x2 - m_req - wd / 2
-    if count == 1:
+    if spacing > 0:
+        ctr = (x1 + x2) / 2
+        bays = [ctr + (i - (count - 1) / 2.0) * spacing for i in range(count)]
+    elif count == 1:
         bays = [(x1 + x2) / 2]
     elif c_e > c_w:
         bays = [c_w + i * (c_e - c_w) / (count - 1) for i in range(count)]
@@ -499,7 +508,11 @@ def add_shed_dormer(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interio
     ROOF = (0.30, 0.30, 0.33) if style == "exterior" else (0.93, 0.92, 0.90)
     GLASS = (0.42, 0.52, 0.60)
     TRIM = (0.93, 0.92, 0.88)                          # white parapet trim
-    yS = y1                                            # south eave (min Y)
+    # RECESS back from the wall plane: face slides inboard by recessFt, base lifts
+    # pitch*recess up the slope, so main roof shows in front of the dormer.
+    recess = spec.get("recessFt", 0.0) * FT
+    yS = y1 + recess                                   # south eave (min Y), recessed in
+    base_z = base_z + pitch * recess
     half = min(x2 - x1, y2 - y1) / 2.0                 # ridge inset = half the short span
     ridge_len = (x2 - x1) - 2 * half                   # the simple (un-hipped) central run
     cx = (x1 + x2) / 2.0
@@ -549,6 +562,14 @@ def add_shed_dormer(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interio
             dcx = xa + (i + 0.5) * W_s / n
             box(f"Parapet dentil {i}", dcx - 0.05, dcx + 0.05, Hp - 0.42, Hp - 0.28,
                 TRIM, cy=yS - 0.04, dy=ty + 0.10)
+        # continue the coping + cornice along BOTH cheeks: a raking band from the
+        # front parapet (Hp) down to where the cheek meets the main slope (y_back, P)
+        # — so the trim wraps the sides and dies into the main roof pitch.
+        for sx, sgn in ((xa, -1.0), (xb, 1.0)):        # west cheek projects -x, east +x
+            prism("Parapet coping side", [(sx, yS, Hp + 0.07), (sx, y_back, P + 0.07),
+                  (sx, y_back, P - 0.07), (sx, yS, Hp - 0.07)], (0.22 * sgn, 0, 0), TRIM)
+            prism("Parapet cornice side", [(sx, yS, Hp - 0.12), (sx, y_back, P - 0.12),
+                  (sx, y_back, P - 0.22), (sx, yS, Hp - 0.22)], (0.13 * sgn, 0, 0), TRIM)
     else:
         d_back = half - spec.get("ridgeMarginFt", 2.0) * FT
         d_back = max(d_back, P / pitch + 0.5 * FT)
@@ -818,6 +839,12 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
             corn = make_box(ctx, "IfcBuildingElementProxy", f"Cornice - {key}",
                             w + 2 * cp, d + 2 * cp, ch, cx, cy, ez - ch, color=TRIM)
             run("spatial.assign_container", ctx.model, products=[corn], relating_structure=ctx.storey)
+            ewall = g.get("eaveWallFt", 0) * FT
+            if ewall > 0:                          # belt course at the raised-plate base (frieze springs above it)
+                bh, bp = 0.20, 0.08
+                belt = make_box(ctx, "IfcBuildingElementProxy", f"Belt course - {key}",
+                                w + 2 * bp, d + 2 * bp, bh, cx, cy, ez - ewall - bh / 2, color=TRIM)
+                run("spatial.assign_container", ctx.model, products=[belt], relating_structure=ctx.storey)
         else:
             # lean-to wing: sloped ceiling, so the shed roof sits directly on top
             mv, mf = _filled_block(*surf(0.0), crawl)
@@ -1563,6 +1590,16 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
         for w in specs:
             window(w["name"], w["orient"], w["fixed"], w["pos"], w["width"],
                    base + ctx.story + w["sill"] * FT, base + ctx.story + w["head"] * FT, trim="upper")
+        # frieze-band attic lights set into the raised plate, one over each upper —
+        # the smallest, shortest tier, so the graduated fenestration carries up the
+        # wall (ground -> second -> frieze) and fills the band under the cornice.
+        ewall_ft = prim.get("eaveWallFt", 0.0)
+        if ewall_ft >= 1.5:
+            band = base + 2 * ctx.story            # plate base = floor-2 top
+            fhead, fsill = ewall_ft - 0.7, ewall_ft - 0.7 - 1.5
+            for w in specs:
+                window(f"Frieze - {w['name']}", w["orient"], w["fixed"], w["pos"], 2.0,
+                       band + fsill * FT, band + fhead * FT, trim="upper", muntins=False)
         door = next((o for s in prim["rooms"] for o in rooms_cache[s].get("doors", [])
                      if "Front Door" in o.get("name", "")), None)
         if door:
