@@ -25,9 +25,9 @@
     "notes": [
       "RM has NO daylight-plane requirement (unlike the RS districts); height is governed by the flat 35 ft cap.",
       "Per §19.03.050, height is measured to the HIGHEST point of the roof from the ground directly below (lower of natural/finished grade) — no midpoint averaging, and the 2.5 ft crawlspace counts (it sits above grade=z=0).",
-      "DESIGN: raised plate (story-and-a-half). 4 ft attic perimeter wall above the 2nd-floor plate raises the eave to ~26.5 ft AG; roof reduced to 6.5:12 so the structural ridge is ~34.1 ft (top of covering ~34.7 ft) — under the 35 ft cap with ~3-4 in. margin on a flat lot.",
-      "Because the attic walls now exceed 25 ft, RM requires a 10 ft side setback (and 20 ft rear if abutting an RS zone) for those upper portions (ECMC §19.06.030 table). The ~100 ft lot vs 43 ft building easily covers the side setback; confirm the rear/RS-abutting case.",
-      "Raised plate yields ~1000 sf >=5 ft and ~675 sf >=7 ft of attic floor (vs 643/439 for the eave-at-floor 10:12 scheme).",
+      "DESIGN: raised plate (story-and-a-half). 2.5 ft attic perimeter wall above the 2nd-floor plate sets the eave at 25.0 ft AG (overhang fascia ~24.2 ft); roof 6.5:12 so the structural ridge is ~32.6 ft (top of covering ~33.2 ft) — under the 35 ft cap with ~1.8 ft to spare.",
+      "Eave wall held AT 25 ft (not over), so the building walls do not trigger RM's >25 ft side/rear setback step; the roof + dormers rise above 25 ft, so confirm how the city applies the >25 ft rule to roof vs wall portions (ECMC §19.06.030 table).",
+      "Raised plate yields ~744 sf >=5 ft and ~422 sf >=7 ft of attic floor (vs 643/439 for the eave-at-floor 10:12 scheme). The ridge now has ~1.8 ft of slack under the cap, so the pitch could be steepened (up to ~8:12) to recover floor while keeping the 25 ft eave.",
       "Remaining to confirm: roof-assembly thickness keeps the ridge <35 ft; any RM story/floor-area cap; parcel designation 'RM5' shares the base RM standards in the §19.06.030 table."
     ]
   },
@@ -81,7 +81,7 @@
           "storeys": 2,
           "type": "hip",
           "pitch": 0.5417,
-          "eaveWallFt": 4.0,
+          "eaveWallFt": 2.5,
           "overhangFt": 1.5,
           "dormers": {
             "side": "north",
