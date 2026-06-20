@@ -377,7 +377,12 @@ def add_attic(ctx, rooms, roof):
             run("spatial.assign_container", ctx.model, products=[kw], relating_structure=ctx.storey)
 
     if roof.get("dormers"):
-        add_dormers(ctx, x1, x2, y1, y2, pitch, roof["dormers"], base_z=eave, style="interior")
+        dspec = roof["dormers"]
+        bay_xs = None
+        if dspec.get("align") == "bays":
+            pos = aligned_front_bays(rooms, dspec.get("count", 3))
+            bay_xs = [ctx.X(px) for px in pos] if pos else None
+        add_dormers(ctx, x1, x2, y1, y2, pitch, dspec, base_z=eave, style="interior", bay_xs=bay_xs)
     if roof.get("shedDormer"):
         add_shed_dormer(ctx, x1, x2, y1, y2, pitch, roof["shedDormer"], base_z=eave, style="interior")
 
@@ -397,7 +402,7 @@ def _prism(poly, vec):
     return verts, faces
 
 
-def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior"):
+def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior", bay_xs=None):
     """Gable dormers on the NORTH slope (north = +Y, the front), in a near-full-
     width `count`-bay rhythm spread across the facade (NOT stacked on the inner
     windows). Windows continue the graduated fenestration (the attic = smallest
@@ -437,7 +442,9 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior"):
     spacing = spec.get("spacingFt", 0.0) * FT         # if set: fixed centre-to-centre, centred
     m_req = plate / pitch + 0.20 * FT                  # run from a side eave to the outer cheek
     c_w, c_e = x1 + m_req + wd / 2, x2 - m_req - wd / 2
-    if spacing > 0:
+    if bay_xs:                                         # explicit centres (e.g. aligned to window bays)
+        bays = list(bay_xs)
+    elif spacing > 0:
         ctr = (x1 + x2) / 2
         bays = [ctr + (i - (count - 1) / 2.0) * spacing for i in range(count)]
     elif count == 1:
@@ -854,7 +861,12 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
         add_brep(ctx, f"Roof - {key}", rv, rf, ROOF, predefined=("HIP_ROOF" if t == "hip" else "SHED_ROOF"))
 
         if t == "hip" and g.get("dormers"):           # mirror the attic dormers onto the massing
-            add_dormers(ctx, x1, x2, y1, y2, pitch, g["dormers"], base_z=ez, style="exterior")
+            dspec = g["dormers"]
+            bay_xs = None
+            if dspec.get("align") == "bays":
+                pos = aligned_front_bays([rooms_cache[s] for s in g["rooms"]], dspec.get("count", 3))
+                bay_xs = [ctx.X(px) for px in pos] if pos else None
+            add_dormers(ctx, x1, x2, y1, y2, pitch, dspec, base_z=ez, style="exterior", bay_xs=bay_xs)
         if t == "hip" and g.get("shedDormer"):
             add_shed_dormer(ctx, x1, x2, y1, y2, pitch, g["shedDormer"], base_z=ez, style="exterior")
 
@@ -1354,6 +1366,20 @@ def second_floor_windows(rooms):
                           "pos": z1 + (i + 0.5) * (z2 - z1) / n,
                           "width": 2.5, "sill": 2.5, "head": 6.0})
     return front_z, specs
+
+
+def aligned_front_bays(rooms, count):
+    """`count` north-wall opening plan-x positions, centred within the front
+    bay rhythm — so the dormers line up over the (inner) window bays instead of
+    landing between them. e.g. 3 dormers over a 5-bay front -> the inner 3 bays."""
+    _, specs = second_floor_windows(rooms)
+    xs = sorted(s["pos"] for s in specs if s["orient"] == "H")
+    if not xs or count <= 0:
+        return None
+    if count >= len(xs):
+        return xs
+    start = (len(xs) - count) // 2
+    return xs[start:start + count]
 
 
 def add_shell_windows(ctx, rooms):
