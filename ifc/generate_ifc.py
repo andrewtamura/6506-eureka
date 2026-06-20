@@ -140,6 +140,7 @@ def build_level(cfg, rooms_cache, level):
         B.add_attic(ctx, rooms, {"type": g.get("type", "hip"),
                                  "pitch": g.get("pitch", 0.5),
                                  "kneeFt": level.get("kneeFt", 4.0),
+                                 "eaveWallFt": g.get("eaveWallFt", 0.0),
                                  "dormers": g.get("dormers"),
                                  "shedDormer": g.get("shedDormer")})
     elif kind == "exterior":

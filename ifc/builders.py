@@ -320,52 +320,66 @@ def add_shell(ctx, rooms):
 
 def add_attic(ctx, rooms, roof):
     """Attic level shaped to the ACTUAL roof rather than a full-height box: a
-    floor slab over the primary footprint, a sloped ceiling that follows the
-    SAME hip + pitch as the exterior roof (so the two stay in sync), and short
-    knee walls that fence off the unusable low triangles — i.e. the habitable
-    volume you'd actually convert. `roof` carries {type, pitch, kneeFt}.
+    floor slab over the primary footprint and a sloped ceiling that follows the
+    SAME hip + pitch as the exterior roof (so the two stay in sync). `roof` carries
+    {type, pitch, kneeFt, eaveWallFt, dormers, shedDormer}.
 
-    The roof springs straight off the attic floor (eave = floor here), so the
-    ceiling rises from z=0 at the perimeter to the ridge; a knee wall stands
-    where that ceiling first reaches `kneeFt` (plan inset = kneeFt / pitch)."""
+    With `eaveWallFt`=0 the roof springs straight off the attic floor and short
+    inset knee walls fence off the unusable low triangles. With `eaveWallFt`>0
+    (a raised plate / story-and-a-half) the roof springs from full-height
+    perimeter walls of that height — which become the knee walls — so the ceiling
+    is `eaveWallFt` at the walls and the usable floor reaches wall to wall."""
     CEIL = (0.93, 0.92, 0.90)   # drywall ceiling soffit
-    KNEE = (0.87, 0.86, 0.83)   # painted knee wall (matches the massing)
+    KNEE = (0.87, 0.86, 0.83)   # painted knee / perimeter wall (matches the massing)
     rects = [ifc_bounds(ctx, r["bounds"]) for r in rooms]
     x1, x2 = min(r[0] for r in rects), max(r[1] for r in rects)
     y1, y2 = min(r[2] for r in rects), max(r[3] for r in rects)
     pitch = roof.get("pitch", 0.5)
     knee = roof.get("kneeFt", 4.0) * FT
+    eave = roof.get("eaveWallFt", 0.0) * FT           # raised plate above the attic floor
+    t = ctx.T
 
     for r in rooms:                                   # floor over the whole footprint
         add_slab(ctx, r)
 
-    # sloped ceiling = the hip underside, springing from the floor (eave z=0).
+    # sloped ceiling = the hip underside, springing from the eave (z = eave).
     # _roof_slab gives it a real thickness so the soffit reads from below.
-    surf, slopes, eave_loop = _hip_surface(x1, x2, y1, y2, 0.0, pitch)
+    surf, slopes, eave_loop = _hip_surface(x1, x2, y1, y2, eave, pitch)
     cv, cf = _roof_slab(surf, slopes, eave_loop, 0.10)
-    # Translucent so the 3/4 exhibit view reads INTO the room (floor + knee walls
-    # show through) — i.e. you can see the habitable volume under the slope.
+    # Translucent so the 3/4 exhibit view reads INTO the room (floor + walls show
+    # through) — i.e. you can see the habitable volume under the slope.
     add_brep(ctx, "Attic ceiling", cv, cf, CEIL, ifc_class="IfcCovering",
              predefined="CEILING", transparency=0.55)
 
-    # knee walls: a rectangle inset from each eave by the run needed for the
-    # ceiling to reach `knee` height, so each wall top meets the slope.
-    dk = knee / pitch
-    kx1, kx2, ky1, ky2 = x1 + dk, x2 - dk, y1 + dk, y2 - dk
-    cx, cy, t = (kx1 + kx2) / 2, (ky1 + ky2) / 2, ctx.T
-    for nm, bx, by, xd, yd in [
-        ("Knee wall S", cx, ky1, abs(kx2 - kx1) + t, t),
-        ("Knee wall N", cx, ky2, abs(kx2 - kx1) + t, t),
-        ("Knee wall W", kx1, cy, t, abs(ky2 - ky1) + t),
-        ("Knee wall E", kx2, cy, t, abs(ky2 - ky1) + t),
-    ]:
-        kw = make_box(ctx, "IfcWall", nm, xd, yd, knee, bx, by, 0.0, color=KNEE)
-        run("spatial.assign_container", ctx.model, products=[kw], relating_structure=ctx.storey)
+    if eave > 0:
+        # raised plate: full-height perimeter walls (these ARE the knee walls)
+        cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+        for nm, bx, by, xd, yd in [
+            ("Plate wall S", cx, y1, abs(x2 - x1) + t, t),
+            ("Plate wall N", cx, y2, abs(x2 - x1) + t, t),
+            ("Plate wall W", x1, cy, t, abs(y2 - y1) + t),
+            ("Plate wall E", x2, cy, t, abs(y2 - y1) + t),
+        ]:
+            w = make_box(ctx, "IfcWall", nm, xd, yd, eave, bx, by, 0.0, color=KNEE)
+            run("spatial.assign_container", ctx.model, products=[w], relating_structure=ctx.storey)
+    else:
+        # inset knee walls where the bare hip ceiling first reaches `knee`
+        dk = knee / pitch
+        kx1, kx2, ky1, ky2 = x1 + dk, x2 - dk, y1 + dk, y2 - dk
+        cx, cy = (kx1 + kx2) / 2, (ky1 + ky2) / 2
+        for nm, bx, by, xd, yd in [
+            ("Knee wall S", cx, ky1, abs(kx2 - kx1) + t, t),
+            ("Knee wall N", cx, ky2, abs(kx2 - kx1) + t, t),
+            ("Knee wall W", kx1, cy, t, abs(ky2 - ky1) + t),
+            ("Knee wall E", kx2, cy, t, abs(ky2 - ky1) + t),
+        ]:
+            kw = make_box(ctx, "IfcWall", nm, xd, yd, knee, bx, by, 0.0, color=KNEE)
+            run("spatial.assign_container", ctx.model, products=[kw], relating_structure=ctx.storey)
 
     if roof.get("dormers"):
-        add_dormers(ctx, x1, x2, y1, y2, pitch, roof["dormers"], base_z=0.0, style="interior")
+        add_dormers(ctx, x1, x2, y1, y2, pitch, roof["dormers"], base_z=eave, style="interior")
     if roof.get("shedDormer"):
-        add_shed_dormer(ctx, x1, x2, y1, y2, pitch, roof["shedDormer"], base_z=0.0, style="interior")
+        add_shed_dormer(ctx, x1, x2, y1, y2, pitch, roof["shedDormer"], base_z=eave, style="interior")
 
 
 def _prism(poly, vec):
@@ -750,7 +764,7 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
     rt = (5.5 + 2.0) / 12 * FT                      # assembly depth: 2x6 rafters + >=2"
     for key, g in groups.items():
         x1, x2, y1, y2 = rects[key]
-        eave = g.get("storeys", 1) * ctx.story - g.get("trimFt", 0) * FT
+        eave = g.get("storeys", 1) * ctx.story - g.get("trimFt", 0) * FT + g.get("eaveWallFt", 0) * FT
         cx, cy, w, d = (x1 + x2) / 2, (y1 + y2) / 2, abs(x2 - x1), abs(y2 - y1)
         if crawl > 0:                              # foundation band, grade -> floor
             cb = make_box(ctx, "IfcSlab", f"Crawlspace - {key}", w, d, crawl, cx, cy, 0.0,
