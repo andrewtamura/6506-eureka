@@ -839,6 +839,12 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
             corn = make_box(ctx, "IfcBuildingElementProxy", f"Cornice - {key}",
                             w + 2 * cp, d + 2 * cp, ch, cx, cy, ez - ch, color=TRIM)
             run("spatial.assign_container", ctx.model, products=[corn], relating_structure=ctx.storey)
+            ewall = g.get("eaveWallFt", 0) * FT
+            if ewall > 0:                          # belt course at the raised-plate base (frieze springs above it)
+                bh, bp = 0.20, 0.08
+                belt = make_box(ctx, "IfcBuildingElementProxy", f"Belt course - {key}",
+                                w + 2 * bp, d + 2 * bp, bh, cx, cy, ez - ewall - bh / 2, color=TRIM)
+                run("spatial.assign_container", ctx.model, products=[belt], relating_structure=ctx.storey)
         else:
             # lean-to wing: sloped ceiling, so the shed roof sits directly on top
             mv, mf = _filled_block(*surf(0.0), crawl)
@@ -1584,6 +1590,16 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
         for w in specs:
             window(w["name"], w["orient"], w["fixed"], w["pos"], w["width"],
                    base + ctx.story + w["sill"] * FT, base + ctx.story + w["head"] * FT, trim="upper")
+        # frieze-band attic lights set into the raised plate, one over each upper —
+        # the smallest, shortest tier, so the graduated fenestration carries up the
+        # wall (ground -> second -> frieze) and fills the band under the cornice.
+        ewall_ft = prim.get("eaveWallFt", 0.0)
+        if ewall_ft >= 1.5:
+            band = base + 2 * ctx.story            # plate base = floor-2 top
+            fhead, fsill = ewall_ft - 0.7, ewall_ft - 0.7 - 1.5
+            for w in specs:
+                window(f"Frieze - {w['name']}", w["orient"], w["fixed"], w["pos"], 2.0,
+                       band + fsill * FT, band + fhead * FT, trim="upper", muntins=False)
         door = next((o for s in prim["rooms"] for o in rooms_cache[s].get("doors", [])
                      if "Front Door" in o.get("name", "")), None)
         if door:
