@@ -482,6 +482,7 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior", 
     eave up to `plate`; the gable roof rises to ridge zR and dies into the main
     slope at y_p (cheeks)/y_r (ridge)."""
     WALL = (0.87, 0.86, 0.83)                       # painted dormer wall / cheeks
+    TRIM = (0.93, 0.92, 0.88)                        # white trim (keystone)
     ROOF = (0.30, 0.30, 0.33) if style == "exterior" else (0.93, 0.92, 0.90)
     GLASS = (0.42, 0.52, 0.60)                       # muted blue-grey glazing
     # RECESS the dormer back from the wall plane: slide its face inboard by
@@ -570,6 +571,13 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior", 
                 ax1, az1, ay1 = arc[i + 1]
                 prism(f"{nm} barrel {i}", [(ax0, yF, az0), (ax1, yF, az1),
                       (ax1, ay1, az1), (ax0, ay0, az0)], (0, 0, tz), ROOF, cls="IfcRoof")
+            # keystone at the crown: a projecting wedge (wider at the top) straddling
+            # the arch crown, echoing the entry-door keystone
+            zc = plate + R
+            kb, kt = zc - 0.7 * FT, zc + 0.30 * FT
+            wb, wt = 0.28 * FT, 0.42 * FT
+            prism(f"{nm} keystone", [(cx - wb, yN, kb), (cx + wb, yN, kb),
+                  (cx + wt, yN, kt), (cx - wt, yN, kt)], (0, ty + 0.10, 0), TRIM)
         else:
             # gable: front triangle + two roof planes meeting at the dormer ridge
             prism(f"{nm} gable", [(xL, yN, plate), (xR, yN, plate), (cx, yN, zR)], (0, ty, 0), WALL)
@@ -655,6 +663,21 @@ def add_shed_dormer(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interio
         for sx in (xa, xb):
             prism("Pediment rake", [(sx, yS, plate + 0.06), (cx, yS, zR + 0.06),
                   (cx, yS, zR - 0.16), (sx, yS, plate - 0.16)], (0, -0.18, 0), TRIM)
+        # cornice returns: the eave cornice turns each bottom corner and runs a
+        # short way back along the cheek, then stops (classic pedimented gable)
+        ret = 0.9 * FT
+        for sx, sgn in ((xa, -1.0), (xb, 1.0)):
+            prism("Pediment cornice return", [(sx, yS, plate + 0.06), (sx, yS + ret, plate + 0.06),
+                  (sx, yS + ret, plate - 0.18), (sx, yS, plate - 0.18)], (0.30 * sgn, 0, 0), TRIM)
+        # acroterion at the apex: a small plinth carrying a pyramidal finial
+        box("Pediment acroterion plinth", cx - 0.16, cx + 0.16, zR + 0.04, zR + 0.40,
+            TRIM, cy=yS - 0.06, dy=ty + 0.20)
+        fz0, fyc, hx, hy = zR + 0.40 + base_z, yS - 0.06, 0.18, 0.16
+        av = [(cx - hx, fyc - hy, fz0), (cx + hx, fyc - hy, fz0), (cx + hx, fyc + hy, fz0),
+              (cx - hx, fyc + hy, fz0), (cx, fyc, fz0 + 0.34)]
+        add_brep(ctx, "Pediment acroterion", av,
+                 [[0, 1, 2, 3], [0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4]],
+                 TRIM, ifc_class="IfcBuildingElementProxy")
     elif rooftype == "flat":
         parapet = spec.get("parapetFt", 2.0) * FT
         Hp = P + parapet                               # parapet top
