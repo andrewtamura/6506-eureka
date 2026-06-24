@@ -342,6 +342,10 @@ async function main() {
     // its own full build. floorY=0 = this level's finish floor (slab top).
     if (lvl.id !== "exterior" && lvl.manifests?.furniture)
       await buildFurniture({ scene, parent: m.object, floorY: 0, baseUrl: BASE, manifestFile: lvl.manifests.furniture + VER });
+    // hardwood floor (instanced planks), same as the ground floor; floorY is this
+    // level's finish (the model sits with its slab top at object.position.y).
+    if (lvl.id !== "exterior" && lvl.manifests?.floors)
+      await buildWoodFloor({ scene, model: m, fragments, floorY: m.object.position.y, baseUrl: BASE, manifestFile: lvl.manifests.floors + VER });
     exhibitModels.push({ lvl, model: m });             // register as a walk target after the walker exists
     return buildingBox(m.object);
   };
