@@ -201,7 +201,7 @@ function stairLayout(p) {
   const W = p.w ?? 11.17, D = p.d ?? 11.59;
   const f2f = p.floorToFloor ?? 10, n1 = p.run1Steps ?? 6, n2 = p.run2Steps ?? 9;
   const riser = f2f / (n1 + n2);
-  const landD = p.landingDepth ?? 4, rw = p.runWidth ?? 4, m = p.margin ?? 0.6;
+  const landD = p.landingDepth ?? 4, rw1 = p.runWidth ?? 4, rw2 = p.run2Width ?? rw1, m = p.margin ?? 0.6;
   const railH = p.railHeight ?? 2.92;
   const eastFirst = (p.firstRunSide ?? "east") === "east";
   const hw = W / 2, hd = D / 2;
@@ -211,12 +211,12 @@ function stairLayout(p) {
   const tread = Math.min(p.treadDepth ?? 0.92, ((northEdge - landingN) / (n2 - 1)) * 0.99);
   const going1 = (n1 - 1) * tread, going2 = (n2 - 1) * tread;
   const footNO1 = landingN + going1, landingH = n1 * riser;
-  const run1Eo = eastFirst ? eastClear - rw / 2 : westClear + rw / 2;
-  const run2Eo = eastFirst ? westClear + rw / 2 : eastClear - rw / 2;
+  const run1Eo = eastFirst ? eastClear - rw1 / 2 : westClear + rw1 / 2;
+  const run2Eo = eastFirst ? westClear + rw2 / 2 : eastClear - rw2 / 2;
   return {
-    f2f, n1, n2, riser, landD, rw, railH, hw, eastClear, westClear, southClear,
+    f2f, n1, n2, riser, landD, rw1, rw2, railH, hw, hd, eastClear, westClear, southClear,
     landingN, tread, going1, going2, footNO1, landingH, run1Eo, run2Eo,
-    wEo1: run1Eo - Math.sign(run1Eo) * rw / 2, wEo2: run2Eo - Math.sign(run2Eo) * rw / 2,
+    wEo1: run1Eo - Math.sign(run1Eo) * rw1 / 2, wEo2: run2Eo - Math.sign(run2Eo) * rw2 / 2,
   };
 }
 
@@ -258,8 +258,8 @@ function stairKit(g, mats) {
     g.add(new THREE.Mesh(geo, mat));
   };
   // one flight: painted risers + wood tread caps + two skirt stringers
-  const flight = (L, eoC, footNO, dir, nR, baseH) => {
-    const { tread, riser, rw } = L, going = (nR - 1) * tread;
+  const flight = (L, eoC, footNO, dir, nR, baseH, rw) => {
+    const { tread, riser } = L, going = (nR - 1) * tread;
     for (let i = 1; i <= nR; i++) {
       const frontNO = footNO + dir * (i - 1) * tread;
       boxAt(eoC, frontNO + dir * 0.03, baseH + (i - 0.5) * riser, rw, riser, 0.06, mats.white);
@@ -305,19 +305,17 @@ function stairMats(p) {
   };
 }
 
-// Ground-floor switchback staircase: lower flight -> full-width landing -> upper
-// flight to the second floor, with handrails and the space under the upper run
-// boxed in drywall.
-function buildStaircase(p) {
-  const L = stairLayout(p), g = new THREE.Group(), mats = stairMats(p), K = stairKit(g, mats);
+// A complete switchback (lower flight -> full-width landing -> upper flight one
+// floor up), with handrails and the space under the upper run boxed in drywall.
+// Built from the bottom of the flight at local y=0.
+function addFullStair(K, L, mats) {
   const { landingN, southClear, eastClear, westClear, landD, landingH, f2f, footNO1,
-          n1, n2, going2, riser, railH, run1Eo, run2Eo, wEo1, wEo2, hw } = L;
-
+          n1, n2, going2, riser, railH, run1Eo, run2Eo, wEo1, wEo2, hw, rw1, rw2 } = L;
   const clearW = eastClear - westClear, landMidNO = (southClear + landingN) / 2;
   K.boxAt(0, landMidNO, landingH / 2, clearW, landingH, landD, mats.white);   // landing block
   K.boxAt(0, landMidNO, landingH - 0.06, clearW, 0.12, landD, mats.woodT);    // landing top
-  K.flight(L, run1Eo, footNO1, -1, n1, 0);
-  K.flight(L, run2Eo, landingN, +1, n2, landingH);
+  K.flight(L, run1Eo, footNO1, -1, n1, 0, rw1);
+  K.flight(L, run2Eo, landingN, +1, n2, landingH, rw2);
   K.bar(K.V(wEo1, footNO1, 0), K.V(wEo1, footNO1, riser + railH), 0.22, mats.woodR, false);
   K.bar(K.V(wEo1, landingN, 0), K.V(wEo1, landingN, landingH + railH), 0.22, mats.woodR, false);
   K.bar(K.V(wEo2, landingN, 0), K.V(wEo2, landingN, landingH + riser + railH), 0.22, mats.woodR, false);
@@ -325,42 +323,48 @@ function buildStaircase(p) {
   const r1 = K.rail(L, wEo1, footNO1, -1, n1, 0, n1 - 1);
   const r2 = K.rail(L, wEo2, landingN, +1, n2, landingH, n2 - 1);
   K.bar(r1.B, r2.A, 0.17, mats.woodR);                            // landing rail across the well
-
   const topNO = landingN + going2, wallEdge = Math.sign(run2Eo) * hw, t = 0.17;
   K.prismPanel([[wEo2, landingN, 0], [wEo2, topNO, 0], [wEo2, topNO, f2f], [wEo2, landingN, landingH]],
                [Math.sign(run2Eo) * t, 0, 0], mats.dry);          // well-side wall (sloped soffit)
   K.prismPanel([[wEo2, topNO, 0], [wallEdge, topNO, 0], [wallEdge, topNO, f2f], [wEo2, topNO, f2f]],
-               [0, -t, 0], mats.dry);                             // end wall (floor -> second floor)
+               [0, -t, 0], mats.dry);                             // end wall (floor -> next floor)
+}
+
+// Ground-floor switchback staircase up to the second floor.
+function buildStaircase(p) {
+  const L = stairLayout(p), g = new THREE.Group(), mats = stairMats(p), K = stairKit(g, mats);
+  addFullStair(K, L, mats);
   return g;
 }
 
-// Second-floor stairwell: the matching guardrail around the floor void plus the
-// upper run descending to the landing. Built in the level's local frame with
-// the second-floor finish at y=0 (the run + landing hang below it). Same layout
-// as the ground stair, so the void + stair stay synchronized.
+// Second-floor stair hall. Shows: (1) the matching switchback rising to the ATTIC
+// (identical to the foyer stair, stacked above), (2) the lower stair's upper run
+// descending through the floor void to its landing below, and (3) the enclosing
+// walls — the foyer's east + west walls extended up plus an end wall with a door
+// in front of the first run (the south side is the exterior wall). Same layout as
+// the ground stair, so everything stays synchronized.
 function buildStairwell2(p) {
   const L = stairLayout(p), g = new THREE.Group(), mats = stairMats(p), K = stairKit(g, mats);
   const { landingN, southClear, eastClear, westClear, landD, landingH, f2f,
-          n2, going2, riser, railH, run2Eo, wEo2 } = L;
-  const dy = -f2f;                                                // shift: upper-run top -> finish (0)
+          n2, going2, riser, railH, run1Eo, run2Eo, wEo2, hw, hd, rw2 } = L;
 
-  // landing surface (the descending run lands on it, ~6' below the second floor)
-  const clearW = eastClear - westClear, landMidNO = (southClear + landingN) / 2;
+  addFullStair(K, L, mats);                                       // (1) up to the attic
+
+  // (2) the lower stair's upper run, descending to its landing below the floor
+  const dy = -f2f, clearW = eastClear - westClear, landMidNO = (southClear + landingN) / 2;
   K.boxAt(0, landMidNO, landingH + dy - 0.06, clearW, 0.12, landD, mats.woodT);
-  K.flight(L, run2Eo, landingN, +1, n2, landingH + dy);           // upper run, descending
+  K.flight(L, run2Eo, landingN, +1, n2, landingH + dy, rw2);
   K.rail(L, wEo2, landingN, +1, n2, landingH + dy, n2 - 1);
-  K.bar(K.V(wEo2, landingN + going2, f2f + dy), K.V(wEo2, landingN + going2, f2f + dy + railH), 0.22, mats.woodR, false);
 
-  // guardrail around the floor void (at the finish), open where the run arrives
-  const op = p.opening;
-  if (op) {
-    const eA = Math.min(op.x1, op.x2) - p.px, eB = Math.max(op.x1, op.x2) - p.px;
-    const nA = Math.min(op.z1, op.z2) - p.pz, nB = Math.max(op.z1, op.z2) - p.pz;
-    K.guard(L, eA, nA, eB, nA);                                   // south edge
-    K.guard(L, eA, nA, eA, nB);                                   // edge over the lower flight
-    K.guard(L, eB, nA, eB, nB);                                   // wall-side edge
-    K.guard(L, eA, nB, wEo2, nB);                                 // north edge up to the run (gap = access)
-  }
+  // (3) enclose the hall with full-height walls (E + W foyer walls up to the attic
+  // floor, and an N wall split around a 3' door in front of the first run)
+  const wt = 0.46, dH = 7, dW = 3, dgE = run1Eo - dW / 2, dgW = run1Eo + dW / 2;
+  K.boxAt(-hw, 0, f2f / 2, wt, f2f, 2 * hd, mats.dry);            // east wall (x1)
+  K.boxAt(+hw, 0, f2f / 2, wt, f2f, 2 * hd, mats.dry);            // west wall (x2)
+  K.boxAt((dgW + hw) / 2, hd, f2f / 2, hw - dgW, f2f, wt, mats.dry);     // north wall, W of door
+  K.boxAt((-hw + dgE) / 2, hd, f2f / 2, dgE + hw, f2f, wt, mats.dry);    // north wall, E of door
+  K.boxAt(run1Eo, hd, (dH + f2f) / 2, dW, f2f - dH, wt, mats.dry);       // door header
+  K.boxAt(run1Eo, hd, dH / 2, dW - 0.2, dH, 0.15, mats.woodR);          // door leaf
   return g;
 }
 

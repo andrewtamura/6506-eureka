@@ -52,6 +52,7 @@
         "run2Steps": 9,
         "landingDepth": 4.0,
         "runWidth": 4.0,
+        "run2Width": 3.0,
         "margin": 0.6,
         "firstRunSide": "west",
         "material": "oak",
