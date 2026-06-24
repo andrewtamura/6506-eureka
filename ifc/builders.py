@@ -313,7 +313,7 @@ def add_shell(ctx, rooms):
     of their union (no interior partitions, spaces, doors, or windows)."""
     rects = [ifc_bounds(ctx, r["bounds"]) for r in rooms]
     for r in rooms:
-        add_slab(ctx, r)
+        add_slab(ctx, r, opening=r.get("floorOpening"))   # e.g. a stairwell void
     for orient, fixed, a, b in perimeter_segments(rects):
         add_wall(ctx, orient, fixed, a, b)
 
@@ -1857,13 +1857,32 @@ def add_kitchen_feature(ctx, rooms_cache, base):
         run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
 
-def add_slab(ctx, r):
+def add_slab(ctx, r, opening=None):
     x1, x2, y1, y2 = ifc_bounds(ctx, r["bounds"])
-    slab = make_box(ctx, "IfcSlab", f"Slab - {r['name']}",
-                    abs(x2 - x1), abs(y2 - y1), ctx.slab_t,
-                    (x1 + x2) / 2, (y1 + y2) / 2, -ctx.slab_t, predefined="FLOOR")
-    run("spatial.assign_container", ctx.model, products=[slab], relating_structure=ctx.storey)
-    return slab
+    if not opening:
+        slab = make_box(ctx, "IfcSlab", f"Slab - {r['name']}",
+                        abs(x2 - x1), abs(y2 - y1), ctx.slab_t,
+                        (x1 + x2) / 2, (y1 + y2) / 2, -ctx.slab_t, predefined="FLOOR")
+        run("spatial.assign_container", ctx.model, products=[slab], relating_structure=ctx.storey)
+        return slab
+    # cut a rectangular hole (a stairwell): tile the slab as a frame of bands
+    # around the opening. Inputs are PLAN feet; flip + sort into IFC metres.
+    X1, X2 = sorted((x1, x2)); Y1, Y2 = sorted((y1, y2))
+    ox1, ox2 = sorted((ctx.X(opening["x1"]), ctx.X(opening["x2"])))
+    oy1, oy2 = sorted((ctx.Y(opening["z1"]), ctx.Y(opening["z2"])))
+    ox1, ox2 = max(ox1, X1), min(ox2, X2)
+    oy1, oy2 = max(oy1, Y1), min(oy2, Y2)
+    bands = [(X1, X2, Y1, oy1), (X1, X2, oy2, Y2),       # south + north full-width bands
+             (X1, ox1, oy1, oy2), (ox2, X2, oy1, oy2)]    # west + east side bands
+    slabs = []
+    for a, b, c, d in bands:
+        if b - a < 1e-4 or d - c < 1e-4:
+            continue
+        s = make_box(ctx, "IfcSlab", f"Slab - {r['name']}", b - a, d - c, ctx.slab_t,
+                     (a + b) / 2, (c + d) / 2, -ctx.slab_t, predefined="FLOOR")
+        run("spatial.assign_container", ctx.model, products=[s], relating_structure=ctx.storey)
+        slabs.append(s)
+    return slabs
 
 
 def add_space(ctx, r):

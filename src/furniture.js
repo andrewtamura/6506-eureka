@@ -248,6 +248,20 @@ function buildStaircase(p) {
     me.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
     g.add(me); return me;
   };
+  // a thin closed prism: a simple polygon (list of [eo,no,y] feet) swept by the
+  // thickness vector `off` (feet). Used for the drywall enclosure panels.
+  const prismPanel = (pts, off, mat) => {
+    const A = pts.map(p => V(p[0], p[1], p[2]));
+    const B = pts.map(p => V(p[0] + off[0], p[1] + off[1], p[2] + off[2]));
+    const n = pts.length, pos = [];
+    const tri = (p, q, r) => pos.push(p.x, p.y, p.z, q.x, q.y, q.z, r.x, r.y, r.z);
+    for (let i = 0; i < n; i++) { const j = (i + 1) % n; tri(A[i], A[j], B[j]); tri(A[i], B[j], B[i]); }
+    for (let i = 1; i < n - 1; i++) { tri(A[0], A[i], A[i + 1]); tri(B[0], B[i + 1], B[i]); }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    geo.computeVertexNormals();
+    g.add(new THREE.Mesh(geo, mat));
+  };
 
   // landing: a solid full-width block at the back wall, with a wood top
   const clearW = eastClear - westClear, landMidNO = (southClear + landingN) / 2;
@@ -291,6 +305,16 @@ function buildStaircase(p) {
   const r1 = rail(wEo1, footNO1, -1, n1, 0, going1, n1 - 1);
   const r2 = rail(wEo2, landingN, +1, n2, landingH, going2, n2 - 1);
   bar(r1.B, r2.A, 0.17, woodR);                              // landing rail across the well
+
+  // enclose the space UNDER the upper flight in drywall so it can't be seen
+  // into: a well-side wall (sloped top, following the soffit) + an end wall
+  // closing the top, with the building wall + landing closing the other sides.
+  const dry = new THREE.MeshStandardMaterial({ color: 0xeae7e0, roughness: 0.95, side: THREE.DoubleSide });
+  const topNO = landingN + going2, wallEdge = Math.sign(run2Eo) * hw, t = 0.17;
+  prismPanel([[wEo2, landingN, 0], [wEo2, topNO, 0], [wEo2, topNO, f2f], [wEo2, landingN, landingH]],
+             [Math.sign(run2Eo) * t, 0, 0], dry);            // well-side wall (sloped soffit)
+  prismPanel([[wEo2, topNO, 0], [wallEdge, topNO, 0], [wallEdge, topNO, f2f], [wEo2, topNO, f2f]],
+             [0, -t, 0], dry);                               // end wall (floor -> second floor)
   return g;
 }
 
