@@ -373,25 +373,15 @@ function buildStairwell2(p) {
       K.prismPanel(pts, [wt, 0, 0], mats.dry);
     };
     wallNS(-hw); wallNS(+hw);
-    const nWall = (ea, eb) => {                                  // N wall segment: top follows roof along eo
-      const plz = p.pz + hd, pts = [[ea, hd, 0], [eb, hd, 0]];
-      for (let i = M; i >= 0; i--) { const eo = ea + (eb - ea) * i / M; pts.push([eo, hd, Math.max(0.3, rz(p.px + eo, plz))]); }
-      K.prismPanel(pts, [0, wt, 0], mats.dry);
-    };
-    const gap = 1.6;                                             // leave the arrival (top of Leg 4) open
-    nWall(-hw, run2Eo - gap); nWall(run2Eo + gap, +hw);
+    // north side stays OPEN: Leg 4 tops out here and spills onto the open attic.
     return g;
   }
-  // Second-floor hall: full-height walls (E + W foyer walls up to the attic floor)
-  // and an N wall split around a 3' door in front of the first run.
-  const wallTop = p.wallTop ?? f2f, dW = 3, dH = Math.min(7, wallTop - 0.5);
-  const doorEo = run1Eo, dgE = doorEo - dW / 2, dgW = doorEo + dW / 2;
+  // Second-floor hall: the foyer's E + W walls extend up. The north side stays
+  // OPEN — Leg 2 tops out there and connects to the open second floor (so the
+  // flight that reaches a floor is never walled off); the south is the exterior wall.
+  const wallTop = p.wallTop ?? f2f;
   K.boxAt(-hw, 0, wallTop / 2, wt, wallTop, 2 * hd, mats.dry);    // east wall (x1)
   K.boxAt(+hw, 0, wallTop / 2, wt, wallTop, 2 * hd, mats.dry);    // west wall (x2)
-  K.boxAt((dgW + hw) / 2, hd, wallTop / 2, hw - dgW, wallTop, wt, mats.dry);   // N wall, W of door
-  K.boxAt((-hw + dgE) / 2, hd, wallTop / 2, dgE + hw, wallTop, wt, mats.dry);  // N wall, E of door
-  K.boxAt(doorEo, hd, (dH + wallTop) / 2, dW, wallTop - dH, wt, mats.dry);     // door header
-  K.boxAt(doorEo, hd, dH / 2, dW - 0.2, dH, 0.15, mats.woodR);                // door leaf
   return g;
 }
 
