@@ -297,6 +297,7 @@ async function main() {
   const GAP = 9;                                        // spacing between views (m)
   let westX = modelBox.min.x, eastX = modelBox.max.x;   // -X / +X frontiers
   let exteriorModel = null;                             // captured for the walk-the-lot POV
+  const exhibitModels = [];                             // {lvl, model} for each placed exhibit (walk targets)
   const modelViews = [{ id: groundLevel.id, label: groundLevel.label || groundLevel.storey, box: buildingBox(model.object) }];
   const labelViews = [{ label: groundLevel.label || groundLevel.storey, box: modelBox }];
   const placeExhibit = async (lvl, toEast) => {
@@ -341,6 +342,7 @@ async function main() {
     // its own full build. floorY=0 = this level's finish floor (slab top).
     if (lvl.id !== "exterior" && lvl.manifests?.furniture)
       await buildFurniture({ scene, parent: m.object, floorY: 0, baseUrl: BASE, manifestFile: lvl.manifests.furniture + VER });
+    exhibitModels.push({ lvl, model: m });             // register as a walk target after the walker exists
     return buildingBox(m.object);
   };
   // Exterior first, at the East end → frame it immediately (the landing view).
@@ -716,6 +718,16 @@ async function main() {
     (hit) => { const { x, z } = clampToRoom(hit.point.x, hit.point.z); return { x, y: FLOOR + EYE, z }; });
   if (exteriorModel) walker.register(exteriorModel, (id) => extFloorIds.has(id),
     (hit) => ({ x: hit.point.x, y: hit.point.y + EYE, z: hit.point.z }));
+  // Upper levels (Second Floor, Attic): double-tap their floor to stand there in
+  // POV. Only the floor slabs are walkable, so the raycast steps past the roof /
+  // ceiling / window glass ("blue boxes") — those stay in place but never block
+  // the teleport. Stand exactly where tapped (the slab's own world height).
+  for (const { lvl, model: em } of exhibitModels) {
+    if (lvl.id === "exterior") continue;               // already registered above
+    const fids = new Set(Object.values(await em.getItemsOfCategories([/IFCSLAB/])).flat());
+    walker.register(em, (id) => fids.has(id),
+      (hit) => ({ x: hit.point.x, y: hit.point.y + EYE, z: hit.point.z }));
+  }
 
   // --- interactive doors (double-tap a door to swing it open/closed) ------
   const doorMeshes = []; // door panel meshes (for raycasting)
