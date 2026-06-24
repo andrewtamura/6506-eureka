@@ -336,6 +336,11 @@ async function main() {
     modelViews.push({ id: lvl.id, label: lvl.label || lvl.storey, box: buildingBox(m.object) });
     labelViews.push({ label: lvl.label || lvl.storey, box: new THREE.Box3().setFromObject(m.object) });
     viewBox.expandByObject(m.object);
+    // Procedural furniture for this exhibit level (parented so it inherits the
+    // grid/west offset). The exterior is handled separately below; ground has
+    // its own full build. floorY=0 = this level's finish floor (slab top).
+    if (lvl.id !== "exterior" && lvl.manifests?.furniture)
+      await buildFurniture({ scene, parent: m.object, floorY: 0, baseUrl: BASE, manifestFile: lvl.manifests.furniture + VER });
     return buildingBox(m.object);
   };
   // Exterior first, at the East end → frame it immediately (the landing view).

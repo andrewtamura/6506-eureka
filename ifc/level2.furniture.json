@@ -2,5 +2,28 @@
   "ft": 0.3048,
   "xs": -1,
   "zs": 1,
-  "items": []
+  "items": [
+    {
+      "type": "stairwell2",
+      "w": 11.1666,
+      "d": 11.5867,
+      "floorToFloor": 10.0,
+      "run1Steps": 6,
+      "run2Steps": 9,
+      "landingDepth": 4.0,
+      "runWidth": 4.0,
+      "margin": 0.6,
+      "firstRunSide": "west",
+      "material": "oak",
+      "railMaterial": "walnut",
+      "px": 9.5,
+      "pz": -6.1233,
+      "opening": {
+        "x1": 8.5167,
+        "x2": 15.0833,
+        "z1": -7.317,
+        "z2": -0.33
+      }
+    }
+  ]
 }

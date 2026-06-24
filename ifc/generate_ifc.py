@@ -131,6 +131,19 @@ def build_level(cfg, rooms_cache, level):
         B.add_shell(ctx, rooms)
         if level.get("upperWindows"):     # second-floor windows, synced to the exterior
             B.add_shell_windows(ctx, rooms)
+        # re-emit any room staircase as a "stairwell2" so the viewer can draw the
+        # guardrail around the floor void + the upper run descending to the
+        # landing, in sync with the ground-floor stair below.
+        for r in rooms:
+            for it in (r.get("interior") or {}).get("furniture", []):
+                if it.get("type") != "staircase":
+                    continue
+                rec = {k: v for k, v in it.items() if k != "at"}
+                rec["type"] = "stairwell2"
+                rec["px"], rec["pz"] = it["at"][0], it["at"][1]
+                if r.get("floorOpening"):
+                    rec["opening"] = r["floorOpening"]
+                ctx.furniture.append(rec)
     elif kind == "attic":
         # Habitable attic: shaped to the exterior roof (single source of truth
         # for type + pitch) rather than drawn as a full-height storey.
