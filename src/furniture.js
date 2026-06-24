@@ -193,7 +193,108 @@ function buildPorchPendant(p) {
   return g;
 }
 
-const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant };
+// A switchback (half-turn) staircase filling the south half of the foyer: a
+// lower flight against one side rises to a full-width landing at the back wall,
+// then an upper flight on the opposite side rises to the second floor. Open
+// treads (wood) over painted risers + skirt stringers, with a continuous wood
+// handrail on the inner (well) side of each flight — newel posts + balusters.
+// Authored in plan FEET relative to the south-half centre; the world flip in
+// buildFurniture keeps it aligned with the BIM walls (so rot must stay 0).
+function buildStaircase(p) {
+  const ft = 0.3048;
+  const W = p.w ?? 11.17, D = p.d ?? 11.59;            // south-half footprint (plan feet)
+  const f2f = p.floorToFloor ?? 10, n1 = p.run1Steps ?? 6, n2 = p.run2Steps ?? 9;
+  const riser = f2f / (n1 + n2);                        // equal risers across both flights
+  const landD = p.landingDepth ?? 4, rw = p.runWidth ?? 4.5, m = p.margin ?? 0.6;
+  const railH = p.railHeight ?? 2.92;                   // handrail height above the nosings
+  const eastFirst = (p.firstRunSide ?? "east") === "east";
+
+  const hw = W / 2, hd = D / 2;
+  const eastClear = hw - m, westClear = -(hw - m);
+  const southClear = -hd + m, northEdge = hd;           // N edge = the soft divider (no wall)
+  const landingN = southClear + landD;                  // landing's north edge
+  let tread = Math.min(p.treadDepth ?? 0.92, ((northEdge - landingN) / (n2 - 1)) * 0.99);
+  const going1 = (n1 - 1) * tread, going2 = (n2 - 1) * tread;
+  const footNO1 = landingN + going1;                    // lower-flight foot (floor), N of landing
+  const landingH = n1 * riser;
+  const run1Eo = eastFirst ? eastClear - rw / 2 : westClear + rw / 2;
+  const run2Eo = eastFirst ? westClear + rw / 2 : eastClear - rw / 2;
+  const wEo1 = run1Eo - Math.sign(run1Eo) * rw / 2;     // inner (well) edge of each flight
+  const wEo2 = run2Eo - Math.sign(run2Eo) * rw / 2;
+
+  const g = new THREE.Group();
+  const woodT = woodMat(col(p.material || "oak", 0xa9824f));
+  const woodR = woodMat(col(p.railMaterial || "walnut", 0x6b4a2f));
+  const white = new THREE.MeshStandardMaterial({ color: col("cabinet", 0xeae7df), roughness: 0.6 });
+  // plan (eastOffset, northOffset, height) feet -> group-local metres (world flip)
+  const V = (eo, no, y) => new THREE.Vector3(-eo * ft, y * ft, -no * ft);
+  const boxAt = (eo, no, yc, wx, hy, dz, mat) => {
+    const me = new THREE.Mesh(new THREE.BoxGeometry(wx * ft, hy * ft, dz * ft), mat);
+    me.position.copy(V(eo, no, yc)); g.add(me); return me;
+  };
+  const bar = (a, b, t, mat, round = true) => {           // a member spanning a->b
+    const dir = new THREE.Vector3().subVectors(b, a), len = dir.length();
+    const geo = round ? new THREE.CylinderGeometry(t / 2 * ft, t / 2 * ft, len, 10)
+                      : new THREE.BoxGeometry(t * ft, len, t * ft);
+    const me = new THREE.Mesh(geo, mat);
+    me.position.copy(a).addScaledVector(dir, 0.5);
+    me.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+    g.add(me); return me;
+  };
+  const slab = (a, b, wN, th, mat) => {                  // a flat board along a->b (skirt)
+    const dir = new THREE.Vector3().subVectors(b, a), len = dir.length();
+    const me = new THREE.Mesh(new THREE.BoxGeometry(th * ft, len, wN * ft), mat);
+    me.position.copy(a).addScaledVector(dir, 0.5);
+    me.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize());
+    g.add(me); return me;
+  };
+
+  // landing: a solid full-width block at the back wall, with a wood top
+  const clearW = eastClear - westClear, landMidNO = (southClear + landingN) / 2;
+  boxAt(0, landMidNO, landingH / 2, clearW, landingH, landD, white);
+  boxAt(0, landMidNO, landingH - 0.06, clearW, 0.12, landD, woodT);
+
+  // one flight: painted risers + wood tread caps + two skirt stringers
+  function flight(eoC, footNO, dir, nR, baseH, going) {
+    for (let i = 1; i <= nR; i++) {
+      const frontNO = footNO + dir * (i - 1) * tread;        // riser face of step i
+      boxAt(eoC, frontNO + dir * 0.03, baseH + (i - 0.5) * riser, rw, riser, 0.06, white);
+      if (i < nR) {                                          // tread cap (last level is landing/floor)
+        const noC = footNO + dir * (i - 0.5) * tread;
+        boxAt(eoC, noC - dir * 0.04, baseH + i * riser - 0.06, rw, 0.12, tread + 0.08, woodT);
+      }
+    }
+    for (const s of [-1, 1]) {                               // skirt stringers, both sides
+      const sx = eoC + s * rw / 2;
+      slab(V(sx, footNO, baseH + 0.2), V(sx, footNO + dir * going, baseH + nR * riser + 0.2), 0.85, 0.1, white);
+    }
+  }
+  flight(run1Eo, footNO1, -1, n1, 0, going1);                // lower flight -> landing
+  flight(run2Eo, landingN, +1, n2, landingH, going2);        // upper flight -> second floor
+
+  // handrail on the inner (well) side of each flight: rail + newels + balusters
+  function rail(wEo, footNO, dir, nR, baseH, going, balK) {
+    const A = V(wEo, footNO, baseH + riser + railH);
+    const B = V(wEo, footNO + dir * going, baseH + nR * riser + railH);
+    bar(A, B, 0.17, woodR);                                  // sloped handrail
+    for (let k = 1; k <= balK; k++) {                        // balusters at each tread
+      const no = footNO + dir * (k - 0.5) * tread, y0 = baseH + k * riser;
+      bar(V(wEo, no, y0), V(wEo, no, y0 + railH), 0.05, white);
+    }
+    return { A, B };
+  }
+  // newel posts (square): foot of lower flight, both landing posts, top of upper flight
+  bar(V(wEo1, footNO1, 0), V(wEo1, footNO1, riser + railH), 0.22, woodR, false);
+  bar(V(wEo1, landingN, 0), V(wEo1, landingN, landingH + railH), 0.22, woodR, false);
+  bar(V(wEo2, landingN, 0), V(wEo2, landingN, landingH + riser + railH), 0.22, woodR, false);
+  bar(V(wEo2, landingN + going2, f2f), V(wEo2, landingN + going2, f2f + railH), 0.22, woodR, false);
+  const r1 = rail(wEo1, footNO1, -1, n1, 0, going1, n1 - 1);
+  const r2 = rail(wEo2, landingN, +1, n2, landingH, going2, n2 - 1);
+  bar(r1.B, r2.A, 0.17, woodR);                              // landing rail across the well
+  return g;
+}
+
+const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase };
 const CHAIRS = new Set(["upholstered_dining_chair", "highback_chair"]);
 const SEAT_FRONT = 0.225;   // chair seat front is +0.225 m toward the table from its centre
 const TUCK = 0.08;          // pushed-in: seat front this far under the table edge

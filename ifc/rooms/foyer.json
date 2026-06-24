@@ -39,6 +39,23 @@
   "interior": {
     "flooring": {
       "material": "hardwood"
-    }
+    },
+    "furniture": [
+      {
+        "type": "staircase",
+        "at": [9.5, -6.1233],
+        "w": 11.1666,
+        "d": 11.5867,
+        "floorToFloor": 10.0,
+        "run1Steps": 6,
+        "run2Steps": 9,
+        "landingDepth": 4.0,
+        "runWidth": 4.5,
+        "margin": 0.6,
+        "firstRunSide": "east",
+        "material": "oak",
+        "railMaterial": "walnut"
+      }
+    ]
   }
 }
