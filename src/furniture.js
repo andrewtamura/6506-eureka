@@ -359,19 +359,39 @@ function buildStairwell2(p) {
   // (3) enclose the hall: E + W foyer walls up, and an N wall split around a 3'
   // door in front of the first run. wallTop limits the height (lower in the attic,
   // where the door is dropped since there is no flight continuing up).
-  const wallTop = p.wallTop ?? f2f, wt = 0.46, dW = 3, dH = Math.min(7, wallTop - 0.5);
-  // door in front of the run you use here: the first run going up, or — at the top
-  // of the stair (no up flight) — the last run you arrive on.
-  const doorEo = p.up !== false ? run1Eo : run2Eo;
-  const dgE = doorEo - dW / 2, dgW = doorEo + dW / 2;
+  const wt = 0.46;
+  if (p.roof) {
+    // Attic top: enclose the shaft with walls that rise to the sloped ceiling.
+    // Roof underside height (ft) above the attic floor = eave + pitch * distance
+    // to the nearest footprint edge (the equal-pitch hip the ceiling is built on).
+    const F = p.roof.footprint, eaveFt = p.roof.eaveFt || 0, pit = p.roof.pitch ?? 0.5;
+    const rz = (plx, plz) => eaveFt + pit * Math.min(plx - F.x1, F.x2 - plx, plz - F.z1, F.z2 - plz);
+    const M = 14;
+    const wallNS = (eo) => {                                     // E/W wall: top follows roof along no
+      const plx = p.px + eo, pts = [[eo, -hd, 0], [eo, hd, 0]];
+      for (let i = M; i >= 0; i--) { const no = -hd + 2 * hd * i / M; pts.push([eo, no, Math.max(0.3, rz(plx, p.pz + no))]); }
+      K.prismPanel(pts, [wt, 0, 0], mats.dry);
+    };
+    wallNS(-hw); wallNS(+hw);
+    const nWall = (ea, eb) => {                                  // N wall segment: top follows roof along eo
+      const plz = p.pz + hd, pts = [[ea, hd, 0], [eb, hd, 0]];
+      for (let i = M; i >= 0; i--) { const eo = ea + (eb - ea) * i / M; pts.push([eo, hd, Math.max(0.3, rz(p.px + eo, plz))]); }
+      K.prismPanel(pts, [0, wt, 0], mats.dry);
+    };
+    const gap = 1.6;                                             // leave the arrival (top of Leg 4) open
+    nWall(-hw, run2Eo - gap); nWall(run2Eo + gap, +hw);
+    return g;
+  }
+  // Second-floor hall: full-height walls (E + W foyer walls up to the attic floor)
+  // and an N wall split around a 3' door in front of the first run.
+  const wallTop = p.wallTop ?? f2f, dW = 3, dH = Math.min(7, wallTop - 0.5);
+  const doorEo = run1Eo, dgE = doorEo - dW / 2, dgW = doorEo + dW / 2;
   K.boxAt(-hw, 0, wallTop / 2, wt, wallTop, 2 * hd, mats.dry);    // east wall (x1)
   K.boxAt(+hw, 0, wallTop / 2, wt, wallTop, 2 * hd, mats.dry);    // west wall (x2)
-  K.boxAt((dgW + hw) / 2, hd, wallTop / 2, hw - dgW, wallTop, wt, mats.dry);   // N wall, one side of the gap
-  K.boxAt((-hw + dgE) / 2, hd, wallTop / 2, dgE + hw, wallTop, wt, mats.dry);  // N wall, other side
-  if (wallTop >= 6) {                                            // full-height hall: a real door in the gap
-    K.boxAt(doorEo, hd, (dH + wallTop) / 2, dW, wallTop - dH, wt, mats.dry);   // door header
-    K.boxAt(doorEo, hd, dH / 2, dW - 0.2, dH, 0.15, mats.woodR);              // door leaf
-  }                                                              // low knee-wall guard: leave the gap open
+  K.boxAt((dgW + hw) / 2, hd, wallTop / 2, hw - dgW, wallTop, wt, mats.dry);   // N wall, W of door
+  K.boxAt((-hw + dgE) / 2, hd, wallTop / 2, dgE + hw, wallTop, wt, mats.dry);  // N wall, E of door
+  K.boxAt(doorEo, hd, (dH + wallTop) / 2, dW, wallTop - dH, wt, mats.dry);     // door header
+  K.boxAt(doorEo, hd, dH / 2, dW - 0.2, dH, 0.15, mats.woodR);                // door leaf
   return g;
 }
 
