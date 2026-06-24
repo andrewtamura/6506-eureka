@@ -348,23 +348,30 @@ function buildStairwell2(p) {
   const { landingN, southClear, eastClear, westClear, landD, landingH, f2f,
           n2, going2, riser, railH, run1Eo, run2Eo, wEo2, hw, hd, rw2 } = L;
 
-  addFullStair(K, L, mats);                                       // (1) up to the attic
+  if (p.up !== false) addFullStair(K, L, mats);                  // (1) up to the next level
 
-  // (2) the lower stair's upper run, descending to its landing below the floor
+  // (2) the lower run arriving at this level, descending to its landing below
   const dy = -f2f, clearW = eastClear - westClear, landMidNO = (southClear + landingN) / 2;
   K.boxAt(0, landMidNO, landingH + dy - 0.06, clearW, 0.12, landD, mats.woodT);
   K.flight(L, run2Eo, landingN, +1, n2, landingH + dy, rw2);
   K.rail(L, wEo2, landingN, +1, n2, landingH + dy, n2 - 1);
 
-  // (3) enclose the hall with full-height walls (E + W foyer walls up to the attic
-  // floor, and an N wall split around a 3' door in front of the first run)
-  const wt = 0.46, dH = 7, dW = 3, dgE = run1Eo - dW / 2, dgW = run1Eo + dW / 2;
-  K.boxAt(-hw, 0, f2f / 2, wt, f2f, 2 * hd, mats.dry);            // east wall (x1)
-  K.boxAt(+hw, 0, f2f / 2, wt, f2f, 2 * hd, mats.dry);            // west wall (x2)
-  K.boxAt((dgW + hw) / 2, hd, f2f / 2, hw - dgW, f2f, wt, mats.dry);     // north wall, W of door
-  K.boxAt((-hw + dgE) / 2, hd, f2f / 2, dgE + hw, f2f, wt, mats.dry);    // north wall, E of door
-  K.boxAt(run1Eo, hd, (dH + f2f) / 2, dW, f2f - dH, wt, mats.dry);       // door header
-  K.boxAt(run1Eo, hd, dH / 2, dW - 0.2, dH, 0.15, mats.woodR);          // door leaf
+  // (3) enclose the hall: E + W foyer walls up, and an N wall split around a 3'
+  // door in front of the first run. wallTop limits the height (lower in the attic,
+  // where the door is dropped since there is no flight continuing up).
+  const wallTop = p.wallTop ?? f2f, wt = 0.46, dW = 3, dH = Math.min(7, wallTop - 0.5);
+  // door in front of the run you use here: the first run going up, or — at the top
+  // of the stair (no up flight) — the last run you arrive on.
+  const doorEo = p.up !== false ? run1Eo : run2Eo;
+  const dgE = doorEo - dW / 2, dgW = doorEo + dW / 2;
+  K.boxAt(-hw, 0, wallTop / 2, wt, wallTop, 2 * hd, mats.dry);    // east wall (x1)
+  K.boxAt(+hw, 0, wallTop / 2, wt, wallTop, 2 * hd, mats.dry);    // west wall (x2)
+  K.boxAt((dgW + hw) / 2, hd, wallTop / 2, hw - dgW, wallTop, wt, mats.dry);   // N wall, one side of the gap
+  K.boxAt((-hw + dgE) / 2, hd, wallTop / 2, dgE + hw, wallTop, wt, mats.dry);  // N wall, other side
+  if (wallTop >= 6) {                                            // full-height hall: a real door in the gap
+    K.boxAt(doorEo, hd, (dH + wallTop) / 2, dW, wallTop - dH, wt, mats.dry);   // door header
+    K.boxAt(doorEo, hd, dH / 2, dW - 0.2, dH, 0.15, mats.woodR);              // door leaf
+  }                                                              // low knee-wall guard: leave the gap open
   return g;
 }
 

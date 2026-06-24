@@ -76,6 +76,24 @@ def compute_paneling(ctx, rooms):
             })
 
 
+def emit_stairwells(ctx, rooms, up=True, wall_top=None):
+    """Re-emit each room's staircase as a viewer "stairwell2" item so an upper
+    level can draw the run arriving + its enclosure, in sync with the stair below.
+    `up`=False omits the flight continuing to the next level (top of the run);
+    `wall_top` overrides the enclosing-wall height (e.g. lower in the attic)."""
+    for r in rooms:
+        for it in (r.get("interior") or {}).get("furniture", []):
+            if it.get("type") != "staircase":
+                continue
+            rec = {k: v for k, v in it.items() if k != "at"}
+            rec.update(type="stairwell2", px=it["at"][0], pz=it["at"][1], up=up)
+            if wall_top is not None:
+                rec["wallTop"] = wall_top
+            if r.get("floorOpening"):
+                rec["opening"] = r["floorOpening"]
+            ctx.furniture.append(rec)
+
+
 def run_hook(ctx, room):
     """If rooms/<stem>.py exists with build(ctx, room), run it for bespoke geometry."""
     hook = os.path.join(ROOMS_DIR, room["_stem"] + ".py")
@@ -131,19 +149,7 @@ def build_level(cfg, rooms_cache, level):
         B.add_shell(ctx, rooms)
         if level.get("upperWindows"):     # second-floor windows, synced to the exterior
             B.add_shell_windows(ctx, rooms)
-        # re-emit any room staircase as a "stairwell2" so the viewer can draw the
-        # guardrail around the floor void + the upper run descending to the
-        # landing, in sync with the ground-floor stair below.
-        for r in rooms:
-            for it in (r.get("interior") or {}).get("furniture", []):
-                if it.get("type") != "staircase":
-                    continue
-                rec = {k: v for k, v in it.items() if k != "at"}
-                rec["type"] = "stairwell2"
-                rec["px"], rec["pz"] = it["at"][0], it["at"][1]
-                if r.get("floorOpening"):
-                    rec["opening"] = r["floorOpening"]
-                ctx.furniture.append(rec)
+        emit_stairwells(ctx, rooms, up=True)              # 2nd-floor hall: run up to the attic
     elif kind == "attic":
         # Habitable attic: shaped to the exterior roof (single source of truth
         # for type + pitch) rather than drawn as a full-height storey.
@@ -156,6 +162,7 @@ def build_level(cfg, rooms_cache, level):
                                  "eaveWallFt": g.get("eaveWallFt", 0.0),
                                  "dormers": g.get("dormers"),
                                  "shedDormer": g.get("shedDormer")})
+        emit_stairwells(ctx, rooms, up=False, wall_top=3.5)   # top of the stair: knee-wall guard under the slope
     elif kind == "exterior":
         B.add_lot(ctx, cfg["lot"], rooms)
         # Solid massing blocks (per building part, at their storey heights) +

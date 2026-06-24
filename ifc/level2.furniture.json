@@ -19,6 +19,7 @@
       "railMaterial": "walnut",
       "px": 9.5,
       "pz": -6.1233,
+      "up": true,
       "opening": {
         "x1": 8.5167,
         "x2": 15.0833,

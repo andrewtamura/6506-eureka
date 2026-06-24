@@ -340,7 +340,7 @@ def add_attic(ctx, rooms, roof):
     t = ctx.T
 
     for r in rooms:                                   # floor over the whole footprint
-        add_slab(ctx, r)
+        add_slab(ctx, r, opening=r.get("floorOpening"))   # e.g. the stairwell void
 
     # sloped ceiling = the hip underside, springing from the eave (z = eave).
     # _roof_slab gives it a real thickness so the soffit reads from below.
