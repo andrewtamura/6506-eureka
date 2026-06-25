@@ -44,7 +44,7 @@ DEFAULT_FLOOR = MATERIALS["hardwood"]
 
 # Furniture types rendered as smooth meshes in the viewer (see src/furniture.js),
 # recorded to furniture.json rather than built as IFC box/cylinder proxies.
-VIEWER_TYPES = {"round_pedestal_table", "upholstered_dining_chair", "highback_chair", "rug", "builtin_hutch"}
+VIEWER_TYPES = {"round_pedestal_table", "upholstered_dining_chair", "highback_chair", "rug", "builtin_hutch", "staircase"}
 
 
 def material_color(name, fallback):
@@ -173,12 +173,15 @@ def _box_item(ctx, r, ifc_class, name, item, default_h, predefined=None, default
     # (curved geometry the IFC box/cyl primitives can't do): record them to the
     # furniture manifest instead of building blocky IFC proxies.
     if item.get("type") in VIEWER_TYPES:
-        ctx.furniture.append({k: v for k, v in {
-            "type": item["type"], "px": at[0], "pz": at[1], "rot": float(item.get("rot", 0)),
-            "material": item.get("material"), "legMaterial": item.get("legMaterial"),
-            "diameter": item.get("diameter"), "h": item.get("h"),
-            "w": item.get("w"), "d": item.get("d"),
-        }.items() if v is not None})
+        # record to the viewer manifest; pass through every spec key (so complex
+        # pieces like the staircase can carry their own parameters) except the
+        # plan point (-> px/pz) and rot, which are normalised here.
+        rec = {"type": item["type"], "px": at[0], "pz": at[1], "rot": float(item.get("rot", 0))}
+        for k, v in item.items():
+            if k in ("type", "at", "rot") or v is None:
+                continue
+            rec[k] = v
+        ctx.furniture.append(rec)
         return
     # plan rotation -> IFC rotation (the cardinal flip reverses the turn sense)
     rot = math.radians(float(item.get("rot", 0))) * (ctx.xs * ctx.zs)
