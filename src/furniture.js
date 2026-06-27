@@ -326,7 +326,7 @@ function stairMats(p) {
 // A complete switchback (lower flight -> full-width landing -> upper flight one
 // floor up), with handrails and the space under the upper run boxed in drywall.
 // Built from the bottom of the flight at local y=0.
-function addFullStair(K, L, mats, endWall = true) {
+function addFullStair(K, L, mats, endWall = true, wellWall = true) {
   const { landingN, southClear, eastClear, westClear, landD, landingH, f2f, footNO1,
           n1, n2, going2, riser, railH, run1Eo, run2Eo, wEo1, wEo2, hw, rw1, rw2 } = L;
   const clearW = eastClear - westClear, landMidNO = (southClear + landingN) / 2;
@@ -342,12 +342,14 @@ function addFullStair(K, L, mats, endWall = true) {
   const r2 = K.rail(L, wEo2, landingN, +1, n2, landingH, n2 - 1);
   K.bar(r1.B, r2.A, 0.19, mats.woodR);                           // landing rail across the well
   // drywall under the upper run: a well-side wall (sloped soffit) + an end wall
-  // closing the north face, so the under-stair is fully boxed in. The end wall is
-  // dropped (endWall=false) where the flight must stay open at the top — e.g. the
-  // descending run arriving on the floor above.
+  // closing the north face, so the under-stair is fully boxed in (the ground-floor
+  // under-stair closet). Both are dropped where the stairwell interior must stay
+  // open: wellWall=false leaves no interior wall under the run, endWall=false keeps
+  // the top open where the flight reaches the floor above.
   const topNO = landingN + going2, t = 0.17, wallEdge = Math.sign(run2Eo) * hw;
-  K.prismPanel([[wEo2, landingN, 0], [wEo2, topNO, 0], [wEo2, topNO, f2f], [wEo2, landingN, landingH]],
-               [Math.sign(run2Eo) * t, 0, 0], mats.dry);          // well-side wall (sloped soffit)
+  if (wellWall)
+    K.prismPanel([[wEo2, landingN, 0], [wEo2, topNO, 0], [wEo2, topNO, f2f], [wEo2, landingN, landingH]],
+                 [Math.sign(run2Eo) * t, 0, 0], mats.dry);        // well-side wall (sloped soffit)
   if (endWall)
     K.prismPanel([[wEo2, topNO, 0], [wallEdge, topNO, 0], [wallEdge, topNO, f2f], [wEo2, topNO, f2f]],
                  [0, -t, 0], mats.dry);                           // end wall (encloses the under-stair)
@@ -371,7 +373,7 @@ function buildStairwell2(p) {
   const { landingN, southClear, eastClear, westClear, landD, landingH, f2f,
           n2, going2, riser, railH, run1Eo, run2Eo, wEo2, hw, hd, rw2 } = L;
 
-  if (p.up !== false) addFullStair(K, L, mats, false);           // (1) up to the next level (top stays open)
+  if (p.up !== false) addFullStair(K, L, mats, false, false);    // (1) up to the next level — stairwell interior left open (no under-stair walls)
 
   // (2) the lower run arriving at this level, descending to its landing below
   const dy = -f2f, clearW = eastClear - westClear, landMidNO = (southClear + landingN) / 2;
