@@ -181,6 +181,8 @@ def _box_item(ctx, r, ifc_class, name, item, default_h, predefined=None, default
             if k in ("type", "at", "rot") or v is None:
                 continue
             rec[k] = v
+        if item.get("type") == "staircase" and r.get("floorOpening"):
+            rec["opening"] = r["floorOpening"]   # so the viewer can open the ceiling above the stairwell
         ctx.furniture.append(rec)
         return
     # plan rotation -> IFC rotation (the cardinal flip reverses the turn sense)

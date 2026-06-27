@@ -272,28 +272,46 @@ function stairKit(g, mats) {
       slab(V(eoC + s * rw / 2, footNO, baseH + 0.2),
            V(eoC + s * rw / 2, footNO + dir * going, baseH + nR * riser + 0.2), 0.85, 0.1, mats.white);
   };
-  // a flight's well-side handrail (sloped rail + balusters at each tread)
+  // a traditional turned baluster (LatheGeometry silhouette) of height h (ft),
+  // standing at (eo,no) on base y0. Thicker + shaped (vase/urn), not a stick.
+  const BAL = [[0.58, 0], [0.58, 0.05], [0.30, 0.10], [0.50, 0.17], [0.95, 0.30],
+               [0.55, 0.40], [0.26, 0.49], [0.26, 0.60], [0.42, 0.67], [0.30, 0.75],
+               [0.52, 0.87], [0.42, 0.95], [0.58, 1.0]];
+  const baluster = (eo, no, y0, h, mat) => {
+    const r = 0.085 * ft, H = h * ft;
+    const pts = BAL.map(([rr, hh]) => new THREE.Vector2(Math.max(0.002, rr * r), hh * H));
+    const me = new THREE.Mesh(new THREE.LatheGeometry(pts, 14), mat);
+    me.position.copy(V(eo, no, y0)); g.add(me); return me;
+  };
+  // a turned newel: square shaft (baseY -> topY) + a moulded cap + a ball finial.
+  const newel = (eo, no, topY, mat, baseY = 0) => {
+    const w = 0.3;
+    boxAt(eo, no, (baseY + topY) / 2, w, topY - baseY, w, mat);          // shaft
+    boxAt(eo, no, topY + 0.05, w + 0.14, 0.10, w + 0.14, mat);           // overhanging cap
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.13 * ft, 14, 12), mat);
+    ball.position.copy(V(eo, no, topY + 0.20)); g.add(ball);             // ball finial
+  };
+  // a flight's well-side handrail (sloped rail + turned balusters)
   const rail = (L, wEo, footNO, dir, nR, baseH, balK) => {
     const { tread, riser, railH } = L, going = (nR - 1) * tread;
     const A = V(wEo, footNO, baseH + riser + railH);
     const B = V(wEo, footNO + dir * going, baseH + nR * riser + railH);
-    bar(A, B, 0.17, mats.woodR);
+    bar(A, B, 0.19, mats.woodR);
     for (let k = 1; k <= balK; k++) {
       const no = footNO + dir * (k - 0.5) * tread, y0 = baseH + k * riser;
-      bar(V(wEo, no, y0), V(wEo, no, y0 + railH), 0.05, mats.white);
+      baluster(wEo, no, y0, railH, mats.white);
     }
     return { A, B };
   };
-  // a level guardrail run (top rail + posts + balusters) at height [0, railH]
+  // a level guardrail run (top rail + newel posts + turned balusters)
   const guard = (L, ea, na, eb, nb) => {
     const len = Math.hypot(eb - ea, nb - na);
-    bar(V(ea, na, L.railH), V(eb, nb, L.railH), 0.14, mats.woodR);
-    const np = Math.max(1, Math.round(len / 2.5));
-    for (let i = 0; i <= np; i++) { const f = i / np; bar(V(ea + (eb - ea) * f, na + (nb - na) * f, 0), V(ea + (eb - ea) * f, na + (nb - na) * f, L.railH), 0.16, mats.woodR, false); }
-    const nb2 = Math.max(2, Math.round(len / 0.4));
-    for (let i = 1; i < nb2; i++) { const f = i / nb2; bar(V(ea + (eb - ea) * f, na + (nb - na) * f, 0.1), V(ea + (eb - ea) * f, na + (nb - na) * f, L.railH), 0.05, mats.white); }
+    bar(V(ea, na, L.railH), V(eb, nb, L.railH), 0.19, mats.woodR);
+    newel(ea, na, L.railH, mats.woodR); newel(eb, nb, L.railH, mats.woodR);
+    const nb2 = Math.max(2, Math.round(len / 0.45));
+    for (let i = 1; i < nb2; i++) { const f = i / nb2; baluster(ea + (eb - ea) * f, na + (nb - na) * f, 0, L.railH, mats.white); }
   };
-  return { V, boxAt, bar, slab, prismPanel, flight, rail, guard };
+  return { V, boxAt, bar, slab, prismPanel, flight, rail, guard, newel, baluster };
 }
 
 function stairMats(p) {
@@ -308,7 +326,7 @@ function stairMats(p) {
 // A complete switchback (lower flight -> full-width landing -> upper flight one
 // floor up), with handrails and the space under the upper run boxed in drywall.
 // Built from the bottom of the flight at local y=0.
-function addFullStair(K, L, mats) {
+function addFullStair(K, L, mats, endWall = true) {
   const { landingN, southClear, eastClear, westClear, landD, landingH, f2f, footNO1,
           n1, n2, going2, riser, railH, run1Eo, run2Eo, wEo1, wEo2, hw, rw1, rw2 } = L;
   const clearW = eastClear - westClear, landMidNO = (southClear + landingN) / 2;
@@ -316,18 +334,23 @@ function addFullStair(K, L, mats) {
   K.boxAt(0, landMidNO, landingH - 0.06, clearW, 0.12, landD, mats.woodT);    // landing top
   K.flight(L, run1Eo, footNO1, -1, n1, 0, rw1);
   K.flight(L, run2Eo, landingN, +1, n2, landingH, rw2);
-  K.bar(K.V(wEo1, footNO1, 0), K.V(wEo1, footNO1, riser + railH), 0.22, mats.woodR, false);
-  K.bar(K.V(wEo1, landingN, 0), K.V(wEo1, landingN, landingH + railH), 0.22, mats.woodR, false);
-  K.bar(K.V(wEo2, landingN, 0), K.V(wEo2, landingN, landingH + riser + railH), 0.22, mats.woodR, false);
-  K.bar(K.V(wEo2, landingN + going2, f2f), K.V(wEo2, landingN + going2, f2f + railH), 0.22, mats.woodR, false);
+  K.newel(wEo1, footNO1, riser + railH, mats.woodR);             // foot of lower flight
+  K.newel(wEo1, landingN, landingH + railH, mats.woodR);         // landing (lower)
+  K.newel(wEo2, landingN, landingH + riser + railH, mats.woodR); // landing (upper)
+  K.newel(wEo2, landingN + going2, f2f + railH, mats.woodR, f2f); // top of upper flight
   const r1 = K.rail(L, wEo1, footNO1, -1, n1, 0, n1 - 1);
   const r2 = K.rail(L, wEo2, landingN, +1, n2, landingH, n2 - 1);
-  K.bar(r1.B, r2.A, 0.17, mats.woodR);                            // landing rail across the well
-  const topNO = landingN + going2, wallEdge = Math.sign(run2Eo) * hw, t = 0.17;
+  K.bar(r1.B, r2.A, 0.19, mats.woodR);                           // landing rail across the well
+  // drywall under the upper run: a well-side wall (sloped soffit) + an end wall
+  // closing the north face, so the under-stair is fully boxed in. The end wall is
+  // dropped (endWall=false) where the flight must stay open at the top — e.g. the
+  // descending run arriving on the floor above.
+  const topNO = landingN + going2, t = 0.17, wallEdge = Math.sign(run2Eo) * hw;
   K.prismPanel([[wEo2, landingN, 0], [wEo2, topNO, 0], [wEo2, topNO, f2f], [wEo2, landingN, landingH]],
                [Math.sign(run2Eo) * t, 0, 0], mats.dry);          // well-side wall (sloped soffit)
-  K.prismPanel([[wEo2, topNO, 0], [wallEdge, topNO, 0], [wallEdge, topNO, f2f], [wEo2, topNO, f2f]],
-               [0, -t, 0], mats.dry);                             // end wall (floor -> next floor)
+  if (endWall)
+    K.prismPanel([[wEo2, topNO, 0], [wallEdge, topNO, 0], [wallEdge, topNO, f2f], [wEo2, topNO, f2f]],
+                 [0, -t, 0], mats.dry);                           // end wall (encloses the under-stair)
 }
 
 // Ground-floor switchback staircase up to the second floor.
@@ -348,13 +371,14 @@ function buildStairwell2(p) {
   const { landingN, southClear, eastClear, westClear, landD, landingH, f2f,
           n2, going2, riser, railH, run1Eo, run2Eo, wEo2, hw, hd, rw2 } = L;
 
-  if (p.up !== false) addFullStair(K, L, mats);                  // (1) up to the next level
+  if (p.up !== false) addFullStair(K, L, mats, false);           // (1) up to the next level (top stays open)
 
   // (2) the lower run arriving at this level, descending to its landing below
   const dy = -f2f, clearW = eastClear - westClear, landMidNO = (southClear + landingN) / 2;
   K.boxAt(0, landMidNO, landingH + dy - 0.06, clearW, 0.12, landD, mats.woodT);
   K.flight(L, run2Eo, landingN, +1, n2, landingH + dy, rw2);
   K.rail(L, wEo2, landingN, +1, n2, landingH + dy, n2 - 1);
+  K.newel(wEo2, landingN + going2, railH, mats.woodR);           // newel where the run reaches this floor (y=0)
 
   // (3) enclose the hall: E + W foyer walls up, and an N wall split around a 3'
   // door in front of the first run. wallTop limits the height (lower in the attic,
@@ -458,5 +482,13 @@ export async function buildFurniture({ scene, parent = scene, floorY, baseUrl, m
     requestAnimationFrame(animate);
   })();
 
-  return { chairMeshes };
+  // the stairwell floor void (world rect), so the ground floor can open its
+  // ceiling over it (look up through the stair into the storey above).
+  let stairwellOpening = null;
+  const st = items.find((it) => it.type === "staircase" && it.opening);
+  if (st) {
+    const o = st.opening, [ax, az] = world(o.x1, o.z1), [bx, bz] = world(o.x2, o.z2);
+    stairwellOpening = { minX: Math.min(ax, bx), maxX: Math.max(ax, bx), minZ: Math.min(az, bz), maxZ: Math.max(az, bz) };
+  }
+  return { chairMeshes, stairwellOpening };
 }

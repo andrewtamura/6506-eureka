@@ -89,7 +89,13 @@
       "margin": 0.6,
       "firstRunSide": "west",
       "material": "oak",
-      "railMaterial": "walnut"
+      "railMaterial": "walnut",
+      "opening": {
+        "x1": 8.5167,
+        "x2": 15.0833,
+        "z1": -7.317,
+        "z2": -0.33
+      }
     }
   ]
 }
