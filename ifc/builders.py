@@ -392,7 +392,9 @@ def add_attic(ctx, rooms, roof):
         # ...plus INSET KNEE WALLS at `knee` height, where the slope reaches that
         # height (inset = (knee-eave)/pitch). They wall off the low <knee storage
         # triangles; the strip between plate and knee wall is behind-knee storage.
-        # Openings are left where the dormers are so their alcoves open to the room.
+        # The dormers are sized so their glass plane sits directly ON TOP of this
+        # knee wall (recess = the same inset), so the knee wall runs SOLID across —
+        # the dormer rises from its top rather than opening down to the floor.
         dm = (knee - eave) / pitch
         kx1, kx2, ky1, ky2 = x1 + dm, x2 - dm, y1 + dm, y2 - dm
         # Knee walls with a top CUT TO THE ROOF SLOPE so they seat tight against
@@ -412,10 +414,8 @@ def add_attic(ctx, rooms, roof):
                 vec = (0.0, b - a + t, 0.0)
             v, f = _prism(poly, vec)
             add_brep(ctx, nm, v, f, KNEE, ifc_class="IfcWall")
-        for j, (a, b) in enumerate(subtract_intervals(kx1, kx2, n_holes, margin=0.0)):
-            kneewall(f"Knee wall N{j}", "H", ky2, a, b, -1)
-        for j, (a, b) in enumerate(subtract_intervals(kx1, kx2, s_holes, margin=0.0)):
-            kneewall(f"Knee wall S{j}", "H", ky1, a, b, +1)
+        kneewall("Knee wall N", "H", ky2, kx1, kx2, -1)
+        kneewall("Knee wall S", "H", ky1, kx1, kx2, +1)
         kneewall("Knee wall W", "V", kx1, ky1, ky2, +1)
         kneewall("Knee wall E", "V", kx2, ky1, ky2, -1)
     else:
