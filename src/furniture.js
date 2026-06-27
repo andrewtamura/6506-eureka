@@ -492,25 +492,27 @@ function buildBathroom(p) {
     g.add(leaf);
   }
 
-  // Narrow bath at the far west: vanity + toilet line the NORTH knee wall (the wet
-  // wall); the walk-in shower sits under a SKYLIGHT cut into the west-hip slope (its
-  // own light + headroom, since the north dormers now belong to the main room).
-  const nWall = p.roof.footprint.z2 - 3.75;   // north knee-wall line
+  // WEST wall is the WET WALL: fixtures line the west knee wall (facing east) —
+  // walk-in shower in the north corner (under a west-hip SKYLIGHT), double vanity
+  // in the middle, toilet in the south corner.
+  const wWall = p.roof.footprint.x2 - 3.75;   // west knee-wall line
+  const nNk = p.roof.footprint.z2 - 3.75;     // north knee line
+  const sNk = p.roof.footprint.z1 + 3.75;     // south knee line
 
-  // --- walk-in shower under the WEST-HIP SKYLIGHT -----------------------------
-  const sx0 = 23.0, sx1 = 26.8, sz0 = -0.6, sz1 = 3.4;  // plan footprint (centred on the ridge)
-  const scx = (sx0 + sx1) / 2, scz = (sz0 + sz1) / 2, sw = sx1 - sx0, sd = sz1 - sz0;
+  // --- walk-in shower in the NORTH corner of the west wall (under the skylight) -
+  const sx0 = 23.75, sz0 = 6.6;                         // open (room-facing) edges
+  const scx = (sx0 + wWall) / 2, scz = (sz0 + nNk) / 2, sw = wWall - sx0, sd = nNk - sz0;
   box(scx, scz, 0.12, sw, 0.24, sd, tile);                                   // pan/curb
-  prismPanel([[sx1, sz0, 0], [sx1, sz1, 0], [sx1, sz1, rz(sx1, sz1)], [sx1, sz0, rz(sx1, sz0)]], [0.1, 0, 0], tile); // west tiled wall (low, under slope)
-  prismPanel([[sx0, sz1, 0], [sx1, sz1, 0], [sx1, sz1, rz(sx1, sz1)], [sx0, sz1, rz(sx0, sz1)]], [0, 0.1, 0], tile); // north tiled wall
+  prismPanel([[wWall, sz0, 0], [wWall, nNk, 0], [wWall, nNk, rz(wWall, nNk)], [wWall, sz0, rz(wWall, sz0)]], [-0.1, 0, 0], tile); // west tiled wall
+  prismPanel([[sx0, nNk, 0], [wWall, nNk, 0], [wWall, nNk, rz(wWall, nNk)], [sx0, nNk, rz(sx0, nNk)]], [0, -0.1, 0], tile);      // north tiled wall
   box(scx, sz0, 3.2, sw, 6.4, 0.08, glass);                                  // glass front (south)
   box(sx0, scz, 3.2, 0.08, 6.4, sd, glass);                                  // glass side (east)
-  cyl(scx, sz1 - 0.4, 6.0, 0.06, 0.5, chrome);                               // shower-head arm
-  box(scx, sz1 - 0.4, 6.3, 0.7, 0.12, 0.12, chrome);                         // shower head
+  cyl(wWall - 0.4, scz, 5.5, 0.06, 0.5, chrome);                             // shower-head arm (on the wet wall)
+  box(wWall - 0.4, scz, 5.8, 0.12, 0.12, 0.7, chrome);                       // shower head
 
-  // skylight glazing set into the west-hip slope, just above the shower
+  // skylight glazing set into the west-hip slope, over the shower
   {
-    const kx0 = 22.8, kx1 = 27.2, kz0 = -1.0, kz1 = 4.0;  // skylight opening (plan)
+    const kx0 = 22.8, kx1 = 27.2, kz0 = 6.0, kz1 = nNk + 0.4;  // skylight opening (plan)
     const skyMat = new THREE.MeshStandardMaterial({ color: 0xdceff8, roughness: 0.04, transparent: true, opacity: 0.72, emissive: 0xbfe0f0, emissiveIntensity: 0.85, side: THREE.DoubleSide });
     skyMat.depthWrite = false;
     const frameMat = new THREE.MeshStandardMaterial({ color: 0x9a9a9e, roughness: 0.6, side: THREE.DoubleSide });
@@ -526,22 +528,22 @@ function buildBathroom(p) {
     quad([[kx0 + 0.18, kz0 + 0.18], [kx1 - 0.18, kz0 + 0.18], [kx1 - 0.18, kz1 - 0.18], [kx0 + 0.18, kz1 - 0.18]], skyMat, 0.07); // bright glazing
   }
 
-  // --- double vanity along the north wet wall, with a mirror ------------------
-  const vx0 = 21.0, vx1 = 25.4, vw = vx1 - vx0, vcx = (vx0 + vx1) / 2, vcz = nWall - 0.95;
-  box(vcx, vcz, 1.45, vw, 2.9, 1.9, woodv);                                  // vanity cabinet
-  box(vcx, vcz, 2.95, vw + 0.2, 0.18, 2.1, porc);                            // stone countertop
-  for (const bx of [vcx - 1.05, vcx + 1.05]) {                                // two basins + faucets
-    cyl(bx, vcz, 3.0, 0.5, 0.18, porc, 24);
-    cyl(bx, vcz + 0.55, 3.15, 0.05, 0.6, chrome);
+  // --- double vanity in the MIDDLE of the west wall, facing east, with a mirror -
+  const vcx = wWall - 0.95, vz0 = -0.5, vz1 = 4.5, vd = vz1 - vz0, vcz = (vz0 + vz1) / 2;
+  box(vcx, vcz, 1.45, 1.9, 2.9, vd, woodv);                                  // vanity cabinet
+  box(vcx, vcz, 2.95, 2.1, 0.18, vd + 0.2, porc);                            // stone countertop
+  for (const bz of [vcz - 1.3, vcz + 1.3]) {                                  // two basins + faucets
+    cyl(vcx, bz, 3.0, 0.5, 0.18, porc, 24);
+    cyl(vcx + 0.6, bz, 3.15, 0.05, 0.6, chrome);
   }
-  box(vcx, nWall - 0.06, 4.6, vw - 0.4, 2.4, 0.08, glass);                    // mirror on the wet wall
+  box(wWall - 0.06, vcz, 4.0, 0.08, 2.0, vd - 0.4, glass);                    // mirror on the wet wall
 
-  // --- toilet along the north wet wall, west of the vanity, facing south ------
-  const tx = 26.6, tzc = nWall - 0.95;
-  box(tx, nWall - 0.35, 1.6, 1.5, 1.7, 0.7, porc);                           // tank against the wet wall
-  cyl(tx, tzc, 0.6, 0.72, 1.2, porc, 24);                                    // bowl pedestal
+  // --- toilet in the SOUTH corner of the west wall, facing east --------------
+  const txc = wWall - 0.95, tzc = sNk + 1.6;
+  box(wWall - 0.35, tzc, 1.6, 0.7, 1.7, 1.5, porc);                          // tank against the wet wall
+  cyl(txc, tzc, 0.6, 0.72, 1.2, porc, 24);                                   // bowl pedestal
   const seat = new THREE.Mesh(new THREE.TorusGeometry(0.34 * ft, 0.07 * ft, 10, 24), porc);
-  seat.position.copy(V(tx - px, tzc - pz, 1.25)); seat.rotation.x = Math.PI / 2; g.add(seat);
+  seat.position.copy(V(txc - px, tzc - pz, 1.25)); seat.rotation.x = Math.PI / 2; g.add(seat);
 
   return g;
 }

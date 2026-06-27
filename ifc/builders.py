@@ -415,16 +415,9 @@ def add_attic(ctx, rooms, roof):
                 vec = (0.0, b - a + t, 0.0)
             v, f = _prism(poly, vec)
             add_brep(ctx, nm, v, f, KNEE, ifc_class="IfcWall")
-        # The bathroom claims the whole west end. Its NORTH knee wall is kept as the
-        # "wet wall" (vanity/shower/toilet back against it, dormer window above), but
-        # the WEST and SOUTH sides open to the roof slope, so drop the west knee wall
-        # and trim the south knee wall back to the bath's partition line (`bathCutFt`).
-        bcut = ctx.X(roof["bathCutFt"]) if roof.get("bathCutFt") is not None else None
-        sstart = bcut if (bcut is not None and kx1 < bcut < kx2) else kx1
-        kneewall("Knee wall N", "H", ky2, kx1, kx2, -1)   # full: the bathroom's north wet wall
-        kneewall("Knee wall S", "H", ky1, sstart, kx2, +1)
-        if not (bcut is not None and kx1 < bcut):     # west knee wall not swallowed by the bath
-            kneewall("Knee wall W", "V", kx1, ky1, ky2, +1)
+        kneewall("Knee wall N", "H", ky2, kx1, kx2, -1)
+        kneewall("Knee wall S", "H", ky1, kx1, kx2, +1)
+        kneewall("Knee wall W", "V", kx1, ky1, ky2, +1)   # the bathroom's WEST wet wall
         kneewall("Knee wall E", "V", kx2, ky1, ky2, -1)
     else:
         # inset knee walls where the bare hip ceiling first reaches `knee`
