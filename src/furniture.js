@@ -482,13 +482,13 @@ function buildBathroom(p) {
   zWall(x1, z1, dz0); zWall(x1, dz1, z2);
   prismPanel([[x1, dz0, 7.0], [x1, dz1, 7.0], [x1, dz1, rz(x1, dz1)], [x1, dz0, rz(x1, dz0)]], [t, 0, 0], wall); // head over the door
   {
-    const dw = (dz1 - dz0) - 0.3, lh = 6.7, ang = -1.25; // leaf width/height(ft), swing angle
+    const dw = (dz1 - dz0) - 0.3, lh = 6.7, ang = 1.25;  // leaf width/height(ft), swing angle
     const leaf = new THREE.Group();
     const panel = new THREE.Mesh(new RoundedBoxGeometry(0.06, lh * ft, dw * ft, 2, 0.02), woodMat(0x8a6a45));
     panel.position.set(0, (lh / 2) * ft, -(dw / 2) * ft);  // hinge at the near jamb (z=dz0)
     leaf.add(panel);
     leaf.position.copy(V(x1 - px, dz0 - pz, 0));           // pivot at the east plane, near jamb
-    leaf.rotation.y = ang;                                  // swing into the room
+    leaf.rotation.y = ang;                                  // swing INTO the bathroom
     g.add(leaf);
   }
 
@@ -533,17 +533,17 @@ function buildBathroom(p) {
   cyl(txc, tzc, 0.6, 0.72, 1.2, porc, 24);              // bowl pedestal
   const seat = new THREE.Mesh(new THREE.TorusGeometry(0.34 * ft, 0.07 * ft, 10, 24), porc);
   seat.position.copy(V(txc - px, tzc - pz, 1.25)); seat.rotation.x = Math.PI / 2; g.add(seat);
-  const gx1 = x1 + 2.5;                                  // door opening = x[x1, gx1] near the east wall
+  const gx1 = x1 + 2.5;                                  // 30" door opening = x[x1, gx1] at the east end
   xWall(wcN, gx1, wWall);                                // north partition, solid west of the door
   prismPanel([[x1, wcN, 6.9], [gx1, wcN, 6.9], [gx1, wcN, rz(gx1, wcN)], [x1, wcN, rz(x1, wcN)]], [0, t, 0], wall); // head over the WC door
   {
-    const dw = (gx1 - x1) - 0.25, lh = 6.5, ang = -1.2;  // leaf, hinged at the west jamb (gx1)
+    const dw = gx1 - x1, lh = 6.5, ang = 1.2;            // 30" leaf, hinged at the EAST jamb (x1)
     const leaf = new THREE.Group();
     const panel = new THREE.Mesh(new RoundedBoxGeometry(dw * ft, lh * ft, 0.06, 2, 0.02), woodMat(0x8a6a45));
-    panel.position.set(-(dw / 2) * ft, (lh / 2) * ft, 0);
+    panel.position.set(-(dw / 2) * ft, (lh / 2) * ft, 0);  // extends west toward gx1
     leaf.add(panel);
-    leaf.position.copy(V(gx1 - px, wcN - pz, 0));
-    leaf.rotation.y = ang;
+    leaf.position.copy(V(x1 - px, wcN - pz, 0));           // pivot at the east jamb
+    leaf.rotation.y = ang;                                  // swing INWARD (into the WC)
     g.add(leaf);
   }
 
