@@ -336,7 +336,10 @@ async function main() {
         // The attic's translucent ceiling soffit (light + transparent) — collect it
         // so it can go OPAQUE in the first-person POV (you look up and see the
         // sloped ceiling) while staying see-through in the dollhouse overview.
-        if (lvl.id === "attic" && mat.transparent && mat.opacity < 0.95 && mat.color && mat.color.r > 0.85) {
+        // (color.r > 0.7 picks the light drywall ceiling — authored sRGB ~0.93,
+        // which lands at ~0.85 in linear space — while excluding the bluish window
+        // glass (~0.43) and the dark roof underside (~0.15) which stay see-through.)
+        if (lvl.id === "attic" && mat.transparent && mat.opacity < 0.95 && mat.color && mat.color.r > 0.7) {
           mat.userData._planOpacity = mat.opacity;
           povCeilingMats.push(mat);
         }
