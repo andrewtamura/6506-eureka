@@ -533,16 +533,20 @@ function buildBathroom(p) {
   cyl(txc, tzc, 0.6, 0.72, 1.2, porc, 24);              // bowl pedestal
   const seat = new THREE.Mesh(new THREE.TorusGeometry(0.34 * ft, 0.07 * ft, 10, 24), porc);
   seat.position.copy(V(txc - px, tzc - pz, 1.25)); seat.rotation.x = Math.PI / 2; g.add(seat);
-  const gx1 = x1 + 2.5;                                  // 30" door opening = x[x1, gx1] at the east end
-  xWall(wcN, gx1, wWall);                                // north partition, solid west of the door
-  prismPanel([[x1, wcN, 6.9], [gx1, wcN, 6.9], [gx1, wcN, rz(gx1, wcN)], [x1, wcN, rz(x1, wcN)]], [0, t, 0], wall); // head over the WC door
+  // 30" door opening pulled off the east wall, kept where the sloping ceiling still
+  // clears the inward swing (the leaf is sized under the ceiling at the opening).
+  const gx0 = x1 + 1.5, gx1 = gx0 + 2.5;                 // opening x[gx0, gx1], 1.5 ft off the east wall
+  const doorTop = 6.5;                                    // leaf/head height (< ceiling at the opening)
+  xWall(wcN, x1, gx0);                                    // north partition, east of the door
+  xWall(wcN, gx1, wWall);                                 // north partition, west of the door
+  prismPanel([[gx0, wcN, doorTop], [gx1, wcN, doorTop], [gx1, wcN, rz(gx1, wcN)], [gx0, wcN, rz(gx0, wcN)]], [0, t, 0], wall); // head
   {
-    const dw = gx1 - x1, lh = 6.5, ang = 1.2;            // 30" leaf, hinged at the EAST jamb (x1)
+    const dw = gx1 - gx0, lh = doorTop, ang = 1.2;        // 30" leaf, hinged at the EAST jamb (gx0)
     const leaf = new THREE.Group();
     const panel = new THREE.Mesh(new RoundedBoxGeometry(dw * ft, lh * ft, 0.06, 2, 0.02), woodMat(0x8a6a45));
     panel.position.set(-(dw / 2) * ft, (lh / 2) * ft, 0);  // extends west toward gx1
     leaf.add(panel);
-    leaf.position.copy(V(x1 - px, wcN - pz, 0));           // pivot at the east jamb
+    leaf.position.copy(V(gx0 - px, wcN - pz, 0));           // pivot at the east jamb
     leaf.rotation.y = ang;                                  // swing INWARD (into the WC)
     g.add(leaf);
   }

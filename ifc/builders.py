@@ -573,7 +573,12 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior", 
         # dormer pocket — they must NOT drop below the slope into the attic space.
         prism(f"{nm} cheek W", [(xL, yN, 0.0), (xL, yN, plate), (xL, y_p, plate)], (tx, 0, 0), WALL)
         prism(f"{nm} cheek E", [(xR, yN, 0.0), (xR, yN, plate), (xR, y_p, plate)], (-tx, 0, 0), WALL)
-        if barrel:
+        if style == "interior":
+            # inside the attic the dormer pocket has a FLAT ceiling at the plate
+            # line; the barrel/gable roof is an exterior-only feature.
+            prism(f"{nm} ceiling", [(xL, yN, plate), (xR, yN, plate), (xR, y_p, plate), (xL, y_p, plate)],
+                  (0, 0, tz), ROOF, cls="IfcCovering")
+        elif barrel:
             # half-round BARREL: an arched front tympanum + a curved vault roof
             # springing from the cheek tops (plate) and dying into the main slope
             # (the crown reaches furthest back).
@@ -676,33 +681,39 @@ def add_shed_dormer(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interio
         # dormer pocket — they must NOT drop below the slope into the attic space.
         prism("Shed dormer cheek W", [(xa, yS, 0.0), (xa, yS, plate), (xa, y_p, plate)], (tx, 0, 0), WALL)
         prism("Shed dormer cheek E", [(xb, yS, 0.0), (xb, yS, plate), (xb, y_p, plate)], (-tx, 0, 0), WALL)
-        # gable roof: two planes meeting at the ridge, dying into the main slope
-        prism("Shed dormer roof W", [(xa, yS, plate), (cx, yS, zR), (cx, y_r, zR), (xa, y_p, plate)],
-              (0, 0, tz), ROOF, cls="IfcRoof")
-        prism("Shed dormer roof E", [(xb, yS, plate), (cx, yS, zR), (cx, y_r, zR), (xb, y_p, plate)],
-              (0, 0, tz), ROOF, cls="IfcRoof")
-        # pediment face (tympanum) + classical cornices: a horizontal cornice over
-        # the windows and a raking cornice up each slope, framing the triangle.
-        prism("Pediment tympanum", [(xa, yS, plate), (xb, yS, plate), (cx, yS, zR)], (0, ty, 0), WALL)
-        box("Pediment cornice", xa - 0.2, xb + 0.2, plate - 0.18, plate + 0.06, TRIM, cy=yS - 0.09, dy=ty + 0.34)
-        for sx in (xa, xb):
-            prism("Pediment rake", [(sx, yS, plate + 0.06), (cx, yS, zR + 0.06),
-                  (cx, yS, zR - 0.16), (sx, yS, plate - 0.16)], (0, -0.18, 0), TRIM)
-        # cornice returns: the eave cornice turns each bottom corner and runs a
-        # short way back along the cheek, then stops (classic pedimented gable)
-        ret = 0.9 * FT
-        for sx, sgn in ((xa, -1.0), (xb, 1.0)):
-            prism("Pediment cornice return", [(sx, yS, plate + 0.06), (sx, yS + ret, plate + 0.06),
-                  (sx, yS + ret, plate - 0.18), (sx, yS, plate - 0.18)], (0.30 * sgn, 0, 0), TRIM)
-        # acroterion at the apex: a small plinth carrying a pyramidal finial
-        box("Pediment acroterion plinth", cx - 0.16, cx + 0.16, zR + 0.04, zR + 0.40,
-            TRIM, cy=yS - 0.06, dy=ty + 0.20)
-        fz0, fyc, hx, hy = zR + 0.40 + base_z, yS - 0.06, 0.18, 0.16
-        av = [(cx - hx, fyc - hy, fz0), (cx + hx, fyc - hy, fz0), (cx + hx, fyc + hy, fz0),
-              (cx - hx, fyc + hy, fz0), (cx, fyc, fz0 + 0.34)]
-        add_brep(ctx, "Pediment acroterion", av,
-                 [[0, 1, 2, 3], [0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4]],
-                 TRIM, ifc_class="IfcBuildingElementProxy")
+        if style == "interior":
+            # inside the attic the dormer pocket has a FLAT ceiling at the springline;
+            # the pediment + gable roof are exterior-only features.
+            prism("Shed dormer ceiling", [(xa, yS, plate), (xb, yS, plate), (xb, y_p, plate), (xa, y_p, plate)],
+                  (0, 0, tz), ROOF, cls="IfcCovering")
+        else:
+            # gable roof: two planes meeting at the ridge, dying into the main slope
+            prism("Shed dormer roof W", [(xa, yS, plate), (cx, yS, zR), (cx, y_r, zR), (xa, y_p, plate)],
+                  (0, 0, tz), ROOF, cls="IfcRoof")
+            prism("Shed dormer roof E", [(xb, yS, plate), (cx, yS, zR), (cx, y_r, zR), (xb, y_p, plate)],
+                  (0, 0, tz), ROOF, cls="IfcRoof")
+            # pediment face (tympanum) + classical cornices: a horizontal cornice over
+            # the windows and a raking cornice up each slope, framing the triangle.
+            prism("Pediment tympanum", [(xa, yS, plate), (xb, yS, plate), (cx, yS, zR)], (0, ty, 0), WALL)
+            box("Pediment cornice", xa - 0.2, xb + 0.2, plate - 0.18, plate + 0.06, TRIM, cy=yS - 0.09, dy=ty + 0.34)
+            for sx in (xa, xb):
+                prism("Pediment rake", [(sx, yS, plate + 0.06), (cx, yS, zR + 0.06),
+                      (cx, yS, zR - 0.16), (sx, yS, plate - 0.16)], (0, -0.18, 0), TRIM)
+            # cornice returns: the eave cornice turns each bottom corner and runs a
+            # short way back along the cheek, then stops (classic pedimented gable)
+            ret = 0.9 * FT
+            for sx, sgn in ((xa, -1.0), (xb, 1.0)):
+                prism("Pediment cornice return", [(sx, yS, plate + 0.06), (sx, yS + ret, plate + 0.06),
+                      (sx, yS + ret, plate - 0.18), (sx, yS, plate - 0.18)], (0.30 * sgn, 0, 0), TRIM)
+            # acroterion at the apex: a small plinth carrying a pyramidal finial
+            box("Pediment acroterion plinth", cx - 0.16, cx + 0.16, zR + 0.04, zR + 0.40,
+                TRIM, cy=yS - 0.06, dy=ty + 0.20)
+            fz0, fyc, hx, hy = zR + 0.40 + base_z, yS - 0.06, 0.18, 0.16
+            av = [(cx - hx, fyc - hy, fz0), (cx + hx, fyc - hy, fz0), (cx + hx, fyc + hy, fz0),
+                  (cx - hx, fyc + hy, fz0), (cx, fyc, fz0 + 0.34)]
+            add_brep(ctx, "Pediment acroterion", av,
+                     [[0, 1, 2, 3], [0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4]],
+                     TRIM, ifc_class="IfcBuildingElementProxy")
     elif rooftype == "flat":
         parapet = spec.get("parapetFt", 2.0) * FT
         Hp = P + parapet                               # parapet top
@@ -821,7 +832,12 @@ def add_hip_dormer(ctx, x1, x2, y1, y2, pitch, spec, side="east", base_z=0.0, st
     # cheek walls: triangles whose lower edge rides the hip slope (above it only)
     prism(f"{nm} cheek S", [(xE, yL, 0.0), (xE, yL, plate), (x_p, yL, plate)], (0, tx, 0), WALL)
     prism(f"{nm} cheek N", [(xE, yR, 0.0), (xE, yR, plate), (x_p, yR, plate)], (0, -tx, 0), WALL)
-    if barrel:
+    if style == "interior":
+        # inside the attic the dormer pocket has a FLAT ceiling at the plate line;
+        # the barrel/gable roof is an exterior-only feature.
+        prism(f"{nm} ceiling", [(xE, yL, plate), (xE, yR, plate), (x_p, yR, plate), (x_p, yL, plate)],
+              (0, 0, tz), ROOF, cls="IfcCovering")
+    elif barrel:
         # half-round BARREL vault (same as the north dormers): arched tympanum +
         # curved vault springing from the cheek tops, dying into the main slope.
         R, N = wd / 2, 14
