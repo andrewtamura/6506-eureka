@@ -621,7 +621,7 @@ async function main() {
   await buildWallFinish({ scene, floorY: FLOOR, ceilingY: modelBox.max.y, baseUrl: BASE, manifestFile: groundManifests.paneling + VER });
 
   // --- ceilings (block the sun; opaque in POV, transparent in plan) -------
-  setPlanView = buildCeilings({ scene, rooms: roomBoxes, ceilingY: modelBox.max.y }).setPlanView;
+  setPlanView = buildCeilings({ scene, rooms: roomBoxes, ceilingY: modelBox.max.y, opening: furniture?.stairwellOpening }).setPlanView;
   // Opaque blockers (ceiling, walls, floor, furniture) cast shadow so the sun
   // can't pass through them; transparent glass does NOT cast, so windows let
   // daylight into the interior. (Run before toggling the ceiling transparent so

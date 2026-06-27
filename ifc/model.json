@@ -89,7 +89,7 @@
             "roof": "barrel",
             "widthFt": 3.5,
             "plateFt": 4.0,
-            "recessFt": 1.5,
+            "recessFt": 3.75,
             "align": "bays",
             "window": { "widthFt": 2.0, "heightFt": 2.5 }
           },
@@ -99,7 +99,8 @@
             "plateFt": 5.0,
             "pedimentPitch": 0.33,
             "marginFt": 0.5,
-            "recessFt": 1.5,
+            "spanFt": 11.1666,
+            "recessFt": 3.75,
             "window": { "count": 3, "widthFt": 3.5, "heightFt": 3.8, "sillFt": 0.7 }
           }
         },
