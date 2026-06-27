@@ -376,54 +376,35 @@ def add_attic(ctx, rooms, roof):
         ss = roof.get("shedDormer") or {}
         s_holes = []
         if ss:
-            half = min(x2 - x1, y2 - y1) / 2.0
-            sW = max(2.0 * FT, (x2 - x1) - 2 * half - 2 * ss.get("marginFt", 0.5) * FT)
+            if ss.get("spanFt"):                              # align the dormer to the stairwell walls
+                sW = ss["spanFt"] * FT
+            else:
+                half = min(x2 - x1, y2 - y1) / 2.0
+                sW = max(2.0 * FT, (x2 - x1) - 2 * half - 2 * ss.get("marginFt", 0.5) * FT)
             s_holes = [(cx - sW / 2, cx + sW / 2)]
-        for j, (a, b) in enumerate(subtract_intervals(kx1, kx2, n_holes, margin=0.2)):
-            w = make_box(ctx, "IfcWall", f"Knee wall N{j}", b - a + t, t, knee, (a + b) / 2, ky2, 0.0, color=KNEE)
-            run("spatial.assign_container", ctx.model, products=[w], relating_structure=ctx.storey)
-        for j, (a, b) in enumerate(subtract_intervals(kx1, kx2, s_holes, margin=0.2)):
-            w = make_box(ctx, "IfcWall", f"Knee wall S{j}", b - a + t, t, knee, (a + b) / 2, ky1, 0.0, color=KNEE)
-            run("spatial.assign_container", ctx.model, products=[w], relating_structure=ctx.storey)
-        for nm, bx in (("Knee wall W", kx1), ("Knee wall E", kx2)):
-            w = make_box(ctx, "IfcWall", nm, t, abs(ky2 - ky1) + t, knee, bx, (ky1 + ky2) / 2, 0.0, color=KNEE)
-            run("spatial.assign_container", ctx.model, products=[w], relating_structure=ctx.storey)
-        # colored highlight of the usable floor: the knee-walled core room + the
-        # dormer alcoves that reach out past the knee wall to each dormer face.
-        USE = (0.27, 0.74, 0.55)
+        # Knee walls with a top CUT TO THE ROOF SLOPE so they seat tight against
+        # the sloped ceiling (a flat top only touches along its centreline and
+        # gaps on the room side). `inner` points toward the room: the top rises
+        # pitch*t/2 toward the room and drops the same toward the eave.
+        d = pitch * t / 2
 
-        def floorbox(nm, xa, xb, ya, yb):
-            if abs(xb - xa) < 1e-3 or abs(yb - ya) < 1e-3:
-                return
-            p = make_box(ctx, "IfcBuildingElementProxy", nm, abs(xb - xa), abs(yb - ya), 0.05,
-                         (xa + xb) / 2, (ya + yb) / 2, 0.05, color=USE, transparency=0.45)
-            run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
-        floorbox("Usable floor area", kx1, kx2, ky1, ky2)
-        nrec = ds.get("recessFt", 0) * FT
-        for a, b in n_holes:
-            floorbox("Usable alcove N", max(a, kx1), min(b, kx2), ky2, y2 - nrec)
-        srec = ss.get("recessFt", 0) * FT
-        for a, b in s_holes:
-            floorbox("Usable alcove S", max(a, kx1), min(b, kx2), y1 + srec, ky1)
-        # separate, taller volume marking the FULL-HEIGHT (>=8 ft clear) space:
-        # inset to where the slope reaches 8 ft, drawn as a 3D box floor->8 ft.
-        FULL = (0.36, 0.55, 0.92)
-        H8 = 8.0 * FT
-        dm8 = (H8 - eave) / pitch
-        hx1, hx2, hy1, hy2 = x1 + dm8, x2 - dm8, y1 + dm8, y2 - dm8
-
-        def volbox(nm, xa, xb, ya, yb):
-            if abs(xb - xa) < 1e-3 or abs(yb - ya) < 1e-3:
-                return
-            p = make_box(ctx, "IfcBuildingElementProxy", nm, abs(xb - xa), abs(yb - ya), H8 - 0.12,
-                         (xa + xb) / 2, (ya + yb) / 2, 0.12, color=FULL, transparency=0.55)
-            run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
-        volbox("Full-height area", hx1, hx2, hy1, hy2)
-        # Only the south flat dormer clears 8 ft in its pocket (8.5 ft); the north
-        # barrels peak ~9.25 ft at the crown but ~7.5 ft at the cheeks, so they do
-        # not add a full 8 ft finger.
-        for a, b in s_holes:
-            volbox("Full-height finger S", max(a, kx1), min(b, kx2), y1 + srec, hy1)
+        def kneewall(nm, orient, line, a, b, inner):
+            if orient == "H":     # runs along x at y=line
+                poly = [(a - t / 2, line + inner * t / 2, 0.0), (a - t / 2, line - inner * t / 2, 0.0),
+                        (a - t / 2, line - inner * t / 2, knee - d), (a - t / 2, line + inner * t / 2, knee + d)]
+                vec = (b - a + t, 0.0, 0.0)
+            else:                 # runs along y at x=line
+                poly = [(line + inner * t / 2, a - t / 2, 0.0), (line - inner * t / 2, a - t / 2, 0.0),
+                        (line - inner * t / 2, a - t / 2, knee - d), (line + inner * t / 2, a - t / 2, knee + d)]
+                vec = (0.0, b - a + t, 0.0)
+            v, f = _prism(poly, vec)
+            add_brep(ctx, nm, v, f, KNEE, ifc_class="IfcWall")
+        for j, (a, b) in enumerate(subtract_intervals(kx1, kx2, n_holes, margin=0.0)):
+            kneewall(f"Knee wall N{j}", "H", ky2, a, b, -1)
+        for j, (a, b) in enumerate(subtract_intervals(kx1, kx2, s_holes, margin=0.0)):
+            kneewall(f"Knee wall S{j}", "H", ky1, a, b, +1)
+        kneewall("Knee wall W", "V", kx1, ky1, ky2, +1)
+        kneewall("Knee wall E", "V", kx2, ky1, ky2, -1)
     else:
         # inset knee walls where the bare hip ceiling first reaches `knee`
         dk = knee / pitch
@@ -615,7 +596,9 @@ def add_shed_dormer(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interio
     ridge_len = (x2 - x1) - 2 * half                   # the simple (un-hipped) central run
     cx = (x1 + x2) / 2.0
     margin = spec.get("marginFt", 0.5) * FT
-    W_s = max(2.0 * FT, ridge_len - 2 * margin)
+    # spanFt aligns the dormer to a specific width (e.g. the stairwell walls below);
+    # otherwise it fills the central ridge run less a margin each end.
+    W_s = spec["spanFt"] * FT if spec.get("spanFt") else max(2.0 * FT, ridge_len - 2 * margin)
     xa, xb = cx - W_s / 2, cx + W_s / 2
     rooftype = spec.get("roof", "shed")
     P = spec.get("plateFt", 7.0) * FT                  # front-wall / flat-roof / cornice height (rel. eave)
