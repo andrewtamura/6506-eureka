@@ -380,24 +380,31 @@ function buildStairwell2(p) {
   K.rail(L, wEo2, landingN, +1, n2, landingH + dy, n2 - 1);
   K.newel(wEo2, landingN + going2, railH, mats.woodR);           // newel where the run reaches this floor (y=0)
 
+  // (2b) GUARD RAIL around the whole floor opening so you can't step off the edge
+  // into the void — a level run on each side at floor level. The north edge is left
+  // OPEN over the descending run's top width so you can still walk onto the stairs.
+  if (p.opening) {
+    const o = p.opening;
+    const eW = o.x1 - p.px, eE = o.x2 - p.px;   // opening edges in local east-offset
+    const nS = o.z1 - p.pz, nN = o.z2 - p.pz;   // ...and north-offset
+    const gLo = Math.min(run2Eo - rw2 / 2, run2Eo + rw2 / 2);   // stair-access gap = run width
+    const gHi = Math.max(run2Eo - rw2 / 2, run2Eo + rw2 / 2);
+    K.guard(L, eW, nS, eE, nS);                 // south edge (full)
+    K.guard(L, eW, nS, eW, nN);                 // west edge (full)
+    K.guard(L, eE, nS, eE, nN);                 // east edge (full)
+    K.guard(L, eW, nN, gLo, nN);                // north edge, west of the stair access
+    K.guard(L, gHi, nN, eE, nN);                // north edge, east of the stair access
+  }
+
   // (3) enclose the hall: E + W foyer walls up, and an N wall split around a 3'
   // door in front of the first run. wallTop limits the height (lower in the attic,
   // where the door is dropped since there is no flight continuing up).
   const wt = 0.46;
   if (p.roof) {
-    // Attic top: enclose the shaft with walls that rise to the sloped ceiling.
-    // Roof underside height (ft) above the attic floor = eave + pitch * distance
-    // to the nearest footprint edge (the equal-pitch hip the ceiling is built on).
-    const F = p.roof.footprint, eaveFt = p.roof.eaveFt || 0, pit = p.roof.pitch ?? 0.5;
-    const rz = (plx, plz) => eaveFt + pit * Math.min(plx - F.x1, F.x2 - plx, plz - F.z1, F.z2 - plz);
-    const M = 14;
-    const wallNS = (eo) => {                                     // E/W wall: top follows roof along no
-      const plx = p.px + eo, pts = [[eo, -hd, 0], [eo, hd, 0]];
-      for (let i = M; i >= 0; i--) { const no = -hd + 2 * hd * i / M; pts.push([eo, no, Math.max(0.3, rz(plx, p.pz + no))]); }
-      K.prismPanel(pts, [wt, 0, 0], mats.dry);
-    };
-    wallNS(-hw); wallNS(+hw);
-    // north side stays OPEN: Leg 4 tops out here and spills onto the open attic.
+    // Attic top: the stair hall stays OPEN — the E/W flanking walls are dropped so
+    // the south dormer and stairwell read into the open attic room (the perimeter
+    // knee wall + sloped ceiling enclose overhead; the floor opening is guarded
+    // by the perimeter rail above). Leg 4 tops out here and spills onto the attic.
     return g;
   }
   // Second-floor hall: the foyer's E + W walls extend up. The north side stays
