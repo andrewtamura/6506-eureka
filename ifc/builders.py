@@ -342,10 +342,38 @@ def add_attic(ctx, rooms, roof):
     for r in rooms:                                   # floor over the whole footprint
         add_slab(ctx, r, opening=r.get("floorOpening"))   # e.g. the stairwell void
 
-    # sloped ceiling = the hip underside, springing from the eave (z = eave).
-    # _roof_slab gives it a real thickness so the soffit reads from below.
-    surf, slopes, eave_loop = _hip_surface(x1, x2, y1, y2, eave, pitch)
-    cv, cf = _roof_slab(surf, slopes, eave_loop, 0.10)
+    cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
+
+    # --- dormer wells: the x-ranges (and the y-band on each slope) where the
+    # dormers cut THROUGH the sloped ceiling, so each dormer opens into the attic
+    # room (rather than being capped off by a flat soffit above the alcove).
+    ds = roof.get("dormers") or {}
+    nbays = [ctx.X(px) for px in (aligned_front_bays(rooms, ds.get("count", 3)) or [])] \
+        if ds.get("align") == "bays" else []
+    nwd = ds.get("widthFt", 3.5) * FT
+    n_holes = [(b - nwd / 2, b + nwd / 2) for b in nbays]
+    # N dormers recess back from the eave (y2); the well spans the recessed face
+    # (ny1) back to where the cheeks die into the slope (ny0).
+    n_plate = ds.get("plateFt", 4.0) * FT
+    ny1 = y2 - ds.get("recessFt", 0.0) * FT           # recessed dormer face
+    ny0 = ny1 - n_plate / pitch                        # cheeks die into the slope
+    ss = roof.get("shedDormer") or {}
+    s_holes = []
+    s_plate = ss.get("plateFt", 5.0) * FT
+    sy0 = y1 + ss.get("recessFt", 0.0) * FT           # recessed (south) dormer face
+    sy1 = sy0 + s_plate / pitch                         # cheeks die into the slope
+    if ss:
+        if ss.get("spanFt"):                          # align the dormer to the stairwell walls
+            sW = ss["spanFt"] * FT
+        else:
+            shalf = min(x2 - x1, y2 - y1) / 2.0
+            sW = max(2.0 * FT, (x2 - x1) - 2 * shalf - 2 * ss.get("marginFt", 0.5) * FT)
+        s_holes = [(cx - sW / 2, cx + sW / 2)]
+
+    # sloped ceiling = the hip underside, springing from the eave (z = eave), with
+    # the dormer wells cut OPEN so each dormer reads up into the attic room.
+    cv, cf = _hip_ceiling_with_wells(x1, x2, y1, y2, eave, pitch,
+                                     n_holes, ny0, ny1, s_holes, sy0, sy1)
     # Translucent so the 3/4 exhibit view reads INTO the room (floor + walls show
     # through) — i.e. you can see the habitable volume under the slope.
     add_brep(ctx, "Attic ceiling", cv, cf, CEIL, ifc_class="IfcCovering",
@@ -353,7 +381,6 @@ def add_attic(ctx, rooms, roof):
 
     if eave > 0:
         # raised plate: full-height perimeter (exterior) walls at the eave...
-        cx, cy = (x1 + x2) / 2, (y1 + y2) / 2
         for nm, bx, by, xd, yd in [
             ("Plate wall S", cx, y1, abs(x2 - x1) + t, t),
             ("Plate wall N", cx, y2, abs(x2 - x1) + t, t),
@@ -368,20 +395,6 @@ def add_attic(ctx, rooms, roof):
         # Openings are left where the dormers are so their alcoves open to the room.
         dm = (knee - eave) / pitch
         kx1, kx2, ky1, ky2 = x1 + dm, x2 - dm, y1 + dm, y2 - dm
-        ds = roof.get("dormers") or {}
-        nbays = [ctx.X(px) for px in (aligned_front_bays(rooms, ds.get("count", 3)) or [])] \
-            if ds.get("align") == "bays" else []
-        nwd = ds.get("widthFt", 3.5) * FT
-        n_holes = [(b - nwd / 2, b + nwd / 2) for b in nbays]
-        ss = roof.get("shedDormer") or {}
-        s_holes = []
-        if ss:
-            if ss.get("spanFt"):                              # align the dormer to the stairwell walls
-                sW = ss["spanFt"] * FT
-            else:
-                half = min(x2 - x1, y2 - y1) / 2.0
-                sW = max(2.0 * FT, (x2 - x1) - 2 * half - 2 * ss.get("marginFt", 0.5) * FT)
-            s_holes = [(cx - sW / 2, cx + sW / 2)]
         # Knee walls with a top CUT TO THE ROOF SLOPE so they seat tight against
         # the sloped ceiling (a flat top only touches along its centreline and
         # gaps on the room side). `inner` points toward the room: the top rises
@@ -530,7 +543,9 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior", 
         # glazing, set just proud of the wall face (north = +Y)
         box(f"{nm} window", xWL, xWR, wsill, whead, GLASS,
             cls="IfcWindow", cy=yN + ty / 2, dy=0.05, tr=0.45)
-        # cheek walls (vertical, sitting on the main slope)
+        # cheek (side) walls: triangles whose lower edge rides the main roof slope,
+        # so they sit ON the sloped ceiling (above the roof line only) and frame the
+        # dormer pocket — they must NOT drop below the slope into the attic space.
         prism(f"{nm} cheek W", [(xL, yN, 0.0), (xL, yN, plate), (xL, y_p, plate)], (tx, 0, 0), WALL)
         prism(f"{nm} cheek E", [(xR, yN, 0.0), (xR, yN, plate), (xR, y_p, plate)], (-tx, 0, 0), WALL)
         if barrel:
@@ -631,7 +646,9 @@ def add_shed_dormer(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interio
         y_r = yS + zR / pitch                            # ridge dies into main slope
         whead = min(plate - 0.3 * FT, wsill + wh)
         wall_top = plate
-        # cheeks (vertical to the springline, sitting on the main slope)
+        # cheeks (side walls): triangles whose lower edge rides the main roof slope,
+        # so they sit ON the sloped ceiling (above the roof line only) and frame the
+        # dormer pocket — they must NOT drop below the slope into the attic space.
         prism("Shed dormer cheek W", [(xa, yS, 0.0), (xa, yS, plate), (xa, y_p, plate)], (tx, 0, 0), WALL)
         prism("Shed dormer cheek E", [(xb, yS, 0.0), (xb, yS, plate), (xb, y_p, plate)], (-tx, 0, 0), WALL)
         # gable roof: two planes meeting at the ridge, dying into the main slope
@@ -704,13 +721,22 @@ def add_shed_dormer(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interio
         prism("Shed dormer roof", [(xa, yS, P), (xb, yS, P), (xb, y_back, z_back), (xa, y_back, z_back)],
               (0, 0, tz), ROOF, cls="IfcRoof")
 
-    # front wall (faces south): full-width sill + head bands, a window ribbon between
+    # front wall (faces south): full-width sill + head bands, a window ribbon
+    # between. Distribute the windows across the (possibly widened) span with EVEN
+    # jambs/mullions so they always fit the dormer — its span may have been
+    # stretched to align with the stairwell walls below. Cap the glass at the spec
+    # width and let any surplus widen the jambs evenly (rather than leaving the
+    # fixed-width windows nearly touching).
+    mull = win.get("mullionFt", 0.5) * FT              # minimum jamb around/between windows
+    fit = (W_s - (nwin + 1) * mull) / nwin             # widest glass that fits with that jamb
+    ww = max(0.8 * FT, min(ww, fit))
+    gap = (W_s - nwin * ww) / (nwin + 1)               # equal jamb, left over
     box("Shed dormer sill", xa, xb, 0.0, wsill, WALL)
     box("Shed dormer head", xa, xb, whead, wall_top, WALL)
     edge = xa
     for i in range(nwin):
-        c = xa + (i + 0.5) * W_s / nwin
-        wl, wr = c - ww / 2, c + ww / 2
+        wl = xa + gap + i * (ww + gap)
+        wr = wl + ww
         box(f"Shed dormer jamb {i}", edge, wl, wsill, whead, WALL)
         box(f"Shed dormer window {i + 1}", wl, wr, wsill, whead, GLASS,
             cls="IfcWindow", cy=yS - ty / 2, dy=0.05, tr=0.45)
@@ -835,6 +861,51 @@ def _hip_surface(x1, x2, y1, y2, eave, pitch, oh=0.0):
                 (xc, y1 + half, hr), (xc, y2 - half, hr)]
         slopes = [[0, 1, 4], [2, 3, 5], [1, 2, 5, 4], [3, 0, 4, 5]]
     return surf, slopes, [0, 1, 2, 3]
+
+
+def _hip_ceiling_with_wells(x1, x2, y1, y2, eave, pitch, n_wells, ny0, ny1, s_wells, sy0, sy1):
+    """Hip-roof soffit (w>=d) decomposed into panels with rectangular dormer-well
+    HOLES cut into the N slope (x-ranges `n_wells` over y in [ny0,ny1]) and the S
+    slope (`s_wells` over [sy0,sy1]). Returns (verts, faces) for a one-sided
+    (DoubleSide) surface, so the attic room reads up into each dormer."""
+    yc = (y1 + y2) / 2.0
+    half = (y2 - y1) / 2.0
+    verts, faces = [], []
+
+    def panel(corners, zf):
+        idx = []
+        for (px, py) in corners:
+            verts.append((px, py, zf(px, py))); idx.append(len(verts) - 1)
+        faces.append(idx)
+
+    zN = lambda x, y: eave + pitch * (y2 - y)
+    zS = lambda x, y: eave + pitch * (y - y1)
+    zE = lambda x, y: eave + pitch * (x2 - x)
+    zW = lambda x, y: eave + pitch * (x - x1)
+    panel([(x2, y1), (x2, y2), (x2 - half, yc)], zE)        # E hip end
+    panel([(x1, y2), (x1, y1), (x1 + half, yc)], zW)        # W hip end
+
+    def long_slope(zf, xLf, xRf, y_eave, wells, w0, w1):
+        wf, wn = (w0, w1) if abs(w0 - yc) < abs(w1 - yc) else (w1, w0)   # wf nearer ridge
+        panel([(xLf(yc), yc), (xRf(yc), yc), (xRf(wf), wf), (xLf(wf), wf)], zf)   # ridge -> wells
+        sw = sorted(wells)
+        panel([(xLf(wf), wf), (sw[0][0], wf), (sw[0][0], wn), (xLf(wn), wn)], zf)   # left of wells
+        for k in range(len(sw) - 1):                                                # between wells
+            panel([(sw[k][1], wf), (sw[k + 1][0], wf), (sw[k + 1][0], wn), (sw[k][1], wn)], zf)
+        panel([(sw[-1][1], wf), (xRf(wf), wf), (xRf(wn), wn), (sw[-1][1], wn)], zf)  # right of wells
+        panel([(xLf(wn), wn), (xRf(wn), wn), (xRf(y_eave), y_eave), (xLf(y_eave), y_eave)], zf)  # wells -> eave
+
+    xLn, xRn = (lambda y: x1 + (y2 - y)), (lambda y: x2 - (y2 - y))
+    xLs, xRs = (lambda y: x1 + (y - y1)), (lambda y: x2 - (y - y1))
+    if n_wells:
+        long_slope(zN, xLn, xRn, y2, n_wells, ny0, ny1)
+    else:
+        panel([(x1, y2), (x2, y2), (x2 - half, yc), (x1 + half, yc)], zN)
+    if s_wells:
+        long_slope(zS, xLs, xRs, y1, s_wells, sy0, sy1)
+    else:
+        panel([(x2, y1), (x1, y1), (x1 + half, yc), (x2 - half, yc)], zS)
+    return verts, faces
 
 
 def _shed_surface(x1, x2, y1, y2, eave, pitch, high, oh=0.0):
