@@ -173,6 +173,7 @@
       "kind": "attic",
       "kneeFt": 5.0,
       "usableHeadroomFt": 7.0,
+      "bathroom": { "cutFt": 20.5, "x1": 20.5, "x2": 31, "z1": -11.9167, "z2": 16.0833 },
       "roofRef": { "from": "exterior", "group": "primary" },
       "rooms": [
         "family",

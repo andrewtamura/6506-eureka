@@ -166,17 +166,27 @@ def build_level(cfg, rooms_cache, level):
                                  "kneeFt": level.get("kneeFt", 4.0),
                                  "usableHeadroomFt": level.get("usableHeadroomFt", 7.0),
                                  "eaveWallFt": g.get("eaveWallFt", 0.0),
+                                 # the bathroom claims the whole west end (to the eaves), so
+                                 # drop the knee walls west of its partition line.
+                                 "bathCutFt": (level.get("bathroom") or {}).get("cutFt"),
                                  "dormers": g.get("dormers"),
                                  "shedDormer": g.get("shedDormer")})
         # top of the stair: enclose Leg 4 with walls that rise to the hip-roof
         # underside (same footprint + pitch the attic ceiling is built from).
         fpx = [v for r in rooms for v in (r["bounds"]["x1"], r["bounds"]["x2"])]
         fpz = [v for r in rooms for v in (r["bounds"]["z1"], r["bounds"]["z2"])]
-        emit_stairwells(ctx, rooms, up=False, roof={
-            "footprint": {"x1": min(fpx), "x2": max(fpx), "z1": min(fpz), "z2": max(fpz)},
-            "eaveFt": g.get("eaveWallFt", 0.0), "pitch": g.get("pitch", 0.5)})
+        roof_fp = {"footprint": {"x1": min(fpx), "x2": max(fpx), "z1": min(fpz), "z2": max(fpz)},
+                   "eaveFt": g.get("eaveWallFt", 0.0), "pitch": g.get("pitch", 0.5)}
+        emit_stairwells(ctx, rooms, up=False, roof=roof_fp)
         for r in rooms:
             B.add_attic_floor_finish(ctx, r)              # hardwood inside the knee walls, subfloor beyond
+        # a full bathroom partitioned off the NW corner (viewer-rendered: partition
+        # walls + door + fixtures); the rest of the attic stays open.
+        bath = level.get("bathroom")
+        if bath:
+            ctx.furniture.append({"type": "bathroom", "px": (bath["x1"] + bath["x2"]) / 2,
+                                  "pz": (bath["z1"] + bath["z2"]) / 2, "roof": roof_fp,
+                                  "x1": bath["x1"], "x2": bath["x2"], "z1": bath["z1"], "z2": bath["z2"]})
     elif kind == "exterior":
         B.add_lot(ctx, cfg["lot"], rooms)
         # Solid massing blocks (per building part, at their storey heights) +
