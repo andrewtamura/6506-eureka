@@ -523,26 +523,26 @@ function buildBathroom(p) {
   }
   box(wWall - 0.06, vcz, 4.0, 0.08, 2.0, vd - 0.4, glass);                    // mirror on the wet wall
 
-  // --- WC: the toilet in its own small compartment in the SW corner, moved a bit
-  // closer to the vanity so the WC has clear floor. West + south are the knee walls;
-  // a new east + north partition (the latter with a door) enclose it.
-  const wcE = 23.0, wcN = -2.5;                          // east + north partition lines
-  const txc = wWall - 0.95, tzc = -5.0;                  // toilet, moved north toward the vanity
+  // --- WC: a full-width compartment across the SOUTH end of the bathroom. The
+  // east partition, west + south knee walls bound it; a new north partition spans
+  // the FULL bath width with a door. The toilet sits against the wet wall, moved
+  // north toward the vanity so the WC has clear floor.
+  const wcN = -2.5;                                      // north partition line
+  const txc = wWall - 0.95, tzc = -5.0;                  // toilet against the wet wall
   box(wWall - 0.35, tzc, 1.6, 0.7, 1.7, 1.5, porc);     // tank against the wet wall
   cyl(txc, tzc, 0.6, 0.72, 1.2, porc, 24);              // bowl pedestal
   const seat = new THREE.Mesh(new THREE.TorusGeometry(0.34 * ft, 0.07 * ft, 10, 24), porc);
   seat.position.copy(V(txc - px, tzc - pz, 1.25)); seat.rotation.x = Math.PI / 2; g.add(seat);
-  zWall(wcE, sNk, wcN);                                  // WC east partition (solid)
-  const gx0 = wcE, gx1 = wcE + 2.5;                      // door opening in the north partition
-  xWall(wcN, gx1, wWall);                                // WC north partition, solid west of the door
-  prismPanel([[gx0, wcN, 6.9], [gx1, wcN, 6.9], [gx1, wcN, rz(gx1, wcN)], [gx0, wcN, rz(gx0, wcN)]], [0, t, 0], wall); // head over the WC door
+  const gx1 = x1 + 2.5;                                  // door opening = x[x1, gx1] near the east wall
+  xWall(wcN, gx1, wWall);                                // north partition, solid west of the door
+  prismPanel([[x1, wcN, 6.9], [gx1, wcN, 6.9], [gx1, wcN, rz(gx1, wcN)], [x1, wcN, rz(x1, wcN)]], [0, t, 0], wall); // head over the WC door
   {
-    const dw = (gx1 - gx0) - 0.25, lh = 6.5, ang = -1.2; // leaf, hinged at the east jamb
+    const dw = (gx1 - x1) - 0.25, lh = 6.5, ang = -1.2;  // leaf, hinged at the west jamb (gx1)
     const leaf = new THREE.Group();
     const panel = new THREE.Mesh(new RoundedBoxGeometry(dw * ft, lh * ft, 0.06, 2, 0.02), woodMat(0x8a6a45));
-    panel.position.set((dw / 2) * ft, (lh / 2) * ft, 0);
+    panel.position.set(-(dw / 2) * ft, (lh / 2) * ft, 0);
     leaf.add(panel);
-    leaf.position.copy(V(gx0 - px, wcN - pz, 0));
+    leaf.position.copy(V(gx1 - px, wcN - pz, 0));
     leaf.rotation.y = ang;
     g.add(leaf);
   }
