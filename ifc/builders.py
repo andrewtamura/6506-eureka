@@ -432,6 +432,10 @@ def add_attic(ctx, rooms, roof):
             kw = make_box(ctx, "IfcWall", nm, xd, yd, knee, bx, by, 0.0, color=KNEE)
             run("spatial.assign_container", ctx.model, products=[kw], relating_structure=ctx.storey)
 
+    # remember the knee-wall rectangle (IFC metres) so the floor finish can put
+    # finished hardwood ONLY inside it and subfloor in the low zone beyond it.
+    ctx.attic_knee = (kx1, kx2, ky1, ky2)
+
     if roof.get("dormers"):
         dspec = roof["dormers"]
         bay_xs = None
@@ -1963,6 +1967,71 @@ def add_hardwood_finish(ctx, r):
                        (a + b) / 2, (c + d) / 2, 0.0, predefined="FLOORING", color=rgb)
         run("spatial.assign_container", ctx.model, products=[cov], relating_structure=ctx.storey)
         ctx.plank_floors.append({"name": name, "rgb": [round(c2, 4) for c2 in rgb]})
+
+
+def _rect_minus(a, b, c, d, hole):
+    """Rectangle [a,b]x[c,d] minus an axis-aligned `hole` (x1,x2,y1,y2, same metres),
+    returned as a list of non-overlapping sub-rectangles (a frame of bands around the
+    hole). No `hole` / no overlap -> the rectangle unchanged."""
+    if not hole:
+        return [(a, b, c, d)]
+    hx1, hx2 = sorted((hole[0], hole[1])); hy1, hy2 = sorted((hole[2], hole[3]))
+    ix1, ix2 = max(a, hx1), min(b, hx2); iy1, iy2 = max(c, hy1), min(d, hy2)
+    if ix1 >= ix2 or iy1 >= iy2:
+        return [(a, b, c, d)]
+    out = []
+    if iy1 > c: out.append((a, b, c, iy1))          # south band
+    if d > iy2: out.append((a, b, iy2, d))          # north band
+    if ix1 > a: out.append((a, ix1, iy1, iy2))      # west band
+    if b > ix2: out.append((ix2, b, iy1, iy2))      # east band
+    return out
+
+
+def _floor_cover(ctx, basename, a, b, c, d, rgb, hole, plank):
+    """Tile rect [a,b]x[c,d] (IFC metres) as IfcCovering FLOORING (minus `hole`).
+    When `plank`, record each piece to plank_floors so the viewer re-renders it as
+    instanced hardwood planks; otherwise it stays a flat covering (e.g. subfloor)."""
+    for i, (aa, bb, cc, dd) in enumerate(_rect_minus(a, b, c, d, hole)):
+        if bb - aa < 1e-4 or dd - cc < 1e-4:
+            continue
+        name = f"{basename} {i}"
+        cov = make_box(ctx, "IfcCovering", name, bb - aa, dd - cc, 0.05 * FT,
+                       (aa + bb) / 2, (cc + dd) / 2, 0.0, predefined="FLOORING", color=rgb)
+        run("spatial.assign_container", ctx.model, products=[cov], relating_structure=ctx.storey)
+        if plank:
+            ctx.plank_floors.append({"name": name, "rgb": [round(c2, 4) for c2 in rgb]})
+
+
+def add_attic_floor_finish(ctx, r):
+    """Attic floor finish: finished hardwood ONLY inside the knee-wall rectangle
+    (`ctx.attic_knee`), and flat plywood SUBFLOOR in the low storage zone beyond the
+    knee walls. Both tile around any floorOpening (the stairwell void)."""
+    HARD = (0.55, 0.36, 0.18)               # finished oak (re-rendered as planks)
+    SUB = (0.74, 0.64, 0.46)                # plywood subfloor (flat, not planked)
+    x1, x2, y1, y2 = ifc_bounds(ctx, r["bounds"])
+    X1, X2 = sorted((x1, x2)); Y1, Y2 = sorted((y1, y2))
+    knee = getattr(ctx, "attic_knee", None)
+    if not knee:
+        add_hardwood_finish(ctx, r); return     # no knee rect -> full hardwood
+    KX1, KX2 = sorted((knee[0], knee[1])); KY1, KY2 = sorted((knee[2], knee[3]))
+    hx1, hx2 = max(KX1, X1), min(KX2, X2)        # knee rect clipped to this room
+    hy1, hy2 = max(KY1, Y1), min(KY2, Y2)
+    hole = None
+    opening = r.get("floorOpening")
+    if opening:
+        ox1, ox2 = sorted((ctx.X(opening["x1"]), ctx.X(opening["x2"])))
+        oy1, oy2 = sorted((ctx.Y(opening["z1"]), ctx.Y(opening["z2"])))
+        hole = (ox1, ox2, oy1, oy2)
+    if hx2 <= hx1 or hy2 <= hy1:                  # room entirely beyond the knee rect
+        _floor_cover(ctx, f"{r['name']} - Subfloor", X1, X2, Y1, Y2, SUB, hole, False)
+        return
+    _floor_cover(ctx, f"{r['name']} - Hardwood Flooring", hx1, hx2, hy1, hy2, HARD, hole, True)
+    for j, band in enumerate([(X1, X2, Y1, hy1), (X1, X2, hy2, Y2),
+                              (X1, hx1, hy1, hy2), (hx2, X2, hy1, hy2)]):
+        a, b, c, d = band
+        if b - a < 1e-4 or d - c < 1e-4:
+            continue
+        _floor_cover(ctx, f"{r['name']} - Subfloor {j}", a, b, c, d, SUB, hole, False)
 
 
 def add_space(ctx, r):

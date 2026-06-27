@@ -175,7 +175,7 @@ def build_level(cfg, rooms_cache, level):
             "footprint": {"x1": min(fpx), "x2": max(fpx), "z1": min(fpz), "z2": max(fpz)},
             "eaveFt": g.get("eaveWallFt", 0.0), "pitch": g.get("pitch", 0.5)})
         for r in rooms:
-            B.add_hardwood_finish(ctx, r)                 # hardwood floor, same as the ground floor
+            B.add_attic_floor_finish(ctx, r)              # hardwood inside the knee walls, subfloor beyond
     elif kind == "exterior":
         B.add_lot(ctx, cfg["lot"], rooms)
         # Solid massing blocks (per building part, at their storey heights) +
