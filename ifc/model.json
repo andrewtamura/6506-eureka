@@ -104,7 +104,7 @@
             "window": { "count": 3, "widthFt": 3.5, "heightFt": 3.8, "sillFt": 0.7 }
           },
           "hipDormers": {
-            "roof": "gable",
+            "roof": "barrel",
             "widthFt": 3.5,
             "plateFt": 4.0,
             "recessFt": 3.75,

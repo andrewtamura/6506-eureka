@@ -778,6 +778,8 @@ def add_hip_dormer(ctx, x1, x2, y1, y2, pitch, spec, side="east", base_z=0.0, st
     WALL = (0.87, 0.86, 0.83)
     ROOF = (0.30, 0.30, 0.33) if style == "exterior" else (0.93, 0.92, 0.90)
     GLASS = (0.42, 0.52, 0.60)
+    TRIM = (0.93, 0.92, 0.88)                           # white trim (keystone)
+    barrel = spec.get("roof") == "barrel"
     recess = spec.get("recessFt", 2.5) * FT
     east = side == "east"
     xE = (x2 - recess) if east else (x1 + recess)      # recessed front-wall line (IFC x)
@@ -819,10 +821,34 @@ def add_hip_dormer(ctx, x1, x2, y1, y2, pitch, spec, side="east", base_z=0.0, st
     # cheek walls: triangles whose lower edge rides the hip slope (above it only)
     prism(f"{nm} cheek S", [(xE, yL, 0.0), (xE, yL, plate), (x_p, yL, plate)], (0, tx, 0), WALL)
     prism(f"{nm} cheek N", [(xE, yR, 0.0), (xE, yR, plate), (x_p, yR, plate)], (0, -tx, 0), WALL)
-    # gable end + two roof planes meeting at the dormer ridge
-    prism(f"{nm} gable", [(xE, yL, plate), (xE, yR, plate), (xE, cy, zR)], (out * ty, 0, 0), WALL)
-    prism(f"{nm} roof S", [(xE, yL, plate), (xE, cy, zR), (x_r, cy, zR), (x_p, yL, plate)], (0, 0, tz), ROOF, cls="IfcRoof")
-    prism(f"{nm} roof N", [(xE, yR, plate), (xE, cy, zR), (x_r, cy, zR), (x_p, yR, plate)], (0, 0, tz), ROOF, cls="IfcRoof")
+    if barrel:
+        # half-round BARREL vault (same as the north dormers): arched tympanum +
+        # curved vault springing from the cheek tops, dying into the main slope.
+        R, N = wd / 2, 14
+        xF = xE + out * 0.75 * FT                       # eave: barrel overhangs the glass face
+        arc = []
+        for i in range(N + 1):
+            th = math.pi * i / N
+            ay = cy - R * math.cos(th)
+            az = plate + R * math.sin(th)
+            ax = xE + sgn * az / pitch                  # where that height dies into the slope
+            arc.append((ay, az, ax))
+        prism(f"{nm} tympanum", [(xE, ay, az) for ay, az, ax in arc], (out * ty, 0, 0), WALL)
+        for i in range(N):
+            ay0, az0, ax0 = arc[i]
+            ay1, az1, ax1 = arc[i + 1]
+            prism(f"{nm} barrel {i}", [(xF, ay0, az0), (xF, ay1, az1),
+                  (ax1, ay1, az1), (ax0, ay0, az0)], (0, 0, tz), ROOF, cls="IfcRoof")
+        zc = plate + R
+        kb, kt = zc - 0.7 * FT, zc + 0.30 * FT
+        wb, wt = 0.28 * FT, 0.42 * FT
+        prism(f"{nm} keystone", [(xE, cy - wb, kb), (xE, cy + wb, kb),
+              (xE, cy + wt, kt), (xE, cy - wt, kt)], (out * (ty + 0.10), 0, 0), TRIM)
+    else:
+        # gable end + two roof planes meeting at the dormer ridge
+        prism(f"{nm} gable", [(xE, yL, plate), (xE, yR, plate), (xE, cy, zR)], (out * ty, 0, 0), WALL)
+        prism(f"{nm} roof S", [(xE, yL, plate), (xE, cy, zR), (x_r, cy, zR), (x_p, yL, plate)], (0, 0, tz), ROOF, cls="IfcRoof")
+        prism(f"{nm} roof N", [(xE, yR, plate), (xE, cy, zR), (x_r, cy, zR), (x_p, yR, plate)], (0, 0, tz), ROOF, cls="IfcRoof")
     # return the ceiling-well rectangle (x-range toward the apex, y-range = dormer width)
     return (min(xE, x_p), max(xE, x_p), yL, yR)
 
