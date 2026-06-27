@@ -102,6 +102,13 @@
             "spanFt": 11.1666,
             "recessFt": 3.75,
             "window": { "count": 3, "widthFt": 3.5, "heightFt": 3.8, "sillFt": 0.7 }
+          },
+          "hipDormers": {
+            "roof": "barrel",
+            "widthFt": 3.5,
+            "plateFt": 4.0,
+            "recessFt": 3.75,
+            "window": { "widthFt": 2.0, "heightFt": 2.5 }
           }
         },
         "extension": {
@@ -172,6 +179,8 @@
       "label": "Attic",
       "kind": "attic",
       "kneeFt": 5.0,
+      "usableHeadroomFt": 7.0,
+      "bathroom": { "cutFt": 20.5, "x1": 20.5, "x2": 31, "z1": -11.9167, "z2": 16.0833 },
       "roofRef": { "from": "exterior", "group": "primary" },
       "rooms": [
         "family",

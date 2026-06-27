@@ -418,7 +418,143 @@ function buildStairwell2(p) {
   return g;
 }
 
-const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2 };
+// A full attic bathroom tucked in the NW corner. The west + north sides are the
+// existing knee walls + roof slope (the building envelope), so only the EAST and
+// SOUTH partitions (facing the open attic) are built here — floor to the sloped
+// ceiling, with a door for privacy. A walk-in shower sits under the low west
+// slope; the toilet + vanity stand in the full-headroom zone. All plan feet.
+function buildBathroom(p) {
+  const ft = FT, g = new THREE.Group();
+  const x1 = p.x1, x2 = p.x2, z1 = p.z1, z2 = p.z2;   // footprint (plan): x2=west, x1=east; z2=north, z1=south
+  const px = (x1 + x2) / 2, pz = (z1 + z2) / 2;        // group origin (placed at world(px,pz))
+  const V = (eo, no, y) => new THREE.Vector3(-eo * ft, y * ft, -no * ft);
+  const F = p.roof.footprint, eaveFt = p.roof.eaveFt || 0, pit = p.roof.pitch ?? 0.5;
+  const rz = (plx, plz) => Math.max(0.4, eaveFt + pit * Math.min(plx - F.x1, F.x2 - plx, plz - F.z1, F.z2 - plz));
+  const wall = new THREE.MeshStandardMaterial({ color: 0xece9e1, roughness: 0.95, side: THREE.DoubleSide });
+  const tile = new THREE.MeshStandardMaterial({ color: 0xd7dadc, roughness: 0.4 });
+  const porc = new THREE.MeshStandardMaterial({ color: 0xf7f7f4, roughness: 0.25 }); // porcelain
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.25, metalness: 0.8 });
+  const woodv = woodMat(col(p.vanity || "walnut", 0x6b4a2f));
+  const glass = new THREE.MeshStandardMaterial({ color: 0xafc4cc, roughness: 0.05, transparent: true, opacity: 0.28 });
+  glass.depthWrite = false;
+  const t = 0.42;                                       // partition thickness (ft)
+
+  // box centred at ABSOLUTE plan (plx,plz), height-centre yc; sizes ex(E-W) x hy(height) x nz(N-S) ft
+  const box = (plx, plz, yc, ex, hy, nz, mat) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(ex * ft, hy * ft, nz * ft), mat);
+    m.position.copy(V(plx - px, plz - pz, yc)); g.add(m); return m;
+  };
+  const cyl = (plx, plz, yc, r, h, mat, seg = 20) => {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r * ft, r * ft, h * ft, seg), mat);
+    m.position.copy(V(plx - px, plz - pz, yc)); g.add(m); return m;
+  };
+  // thin closed prism through plan-coord points (wall panels with a sloped top)
+  const prismPanel = (pts, off, mat) => {
+    const A = pts.map(([x, z, y]) => V(x - px, z - pz, y));
+    const B = pts.map(([x, z, y]) => V(x - px + off[0], z - pz + off[1], y + off[2]));
+    const n = pts.length, pos = [];
+    const tri = (a, b, c) => pos.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+    for (let i = 0; i < n; i++) { const j = (i + 1) % n; tri(A[i], A[j], B[j]); tri(A[i], B[j], B[i]); }
+    for (let i = 1; i < n - 1; i++) { tri(A[0], A[i], A[i + 1]); tri(B[0], B[i + 1], B[i]); }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
+    geo.computeVertexNormals();
+    const me = new THREE.Mesh(geo, mat); me.castShadow = true; g.add(me);
+  };
+  const M = 12;
+  // a wall along plan z at x=fx, from za to zb, floor -> sloped ceiling
+  const zWall = (fx, za, zb) => {
+    const pts = [[fx, za, 0], [fx, zb, 0]];
+    for (let i = 0; i <= M; i++) { const z = zb + (za - zb) * i / M; pts.push([fx, z, rz(fx, z)]); }
+    prismPanel(pts, [t, 0, 0], wall);
+  };
+  // a wall along plan x at z=fz, from xa to xb, floor -> sloped ceiling
+  const xWall = (fz, xa, xb) => {
+    const pts = [[xa, fz, 0], [xb, fz, 0]];
+    for (let i = 0; i <= M; i++) { const x = xb + (xa - xb) * i / M; pts.push([x, fz, rz(x, fz)]); }
+    prismPanel(pts, [0, t, 0], wall);
+  };
+
+  // --- single EAST partition (x1) the full depth, with a door near the ridge ---
+  // (the W / N / S sides open to the roof slope — the knee walls there are dropped,
+  // so the bathroom uses the entire west end, both sloped sides included).
+  const dz0 = pz - 1.5, dz1 = pz + 1.5;                 // 3 ft door, centred where the ceiling is high
+  zWall(x1, z1, dz0); zWall(x1, dz1, z2);
+  prismPanel([[x1, dz0, 7.0], [x1, dz1, 7.0], [x1, dz1, rz(x1, dz1)], [x1, dz0, rz(x1, dz0)]], [t, 0, 0], wall); // head over the door
+  {
+    const dw = (dz1 - dz0) - 0.3, lh = 6.7, ang = 1.25;  // leaf width/height(ft), swing angle
+    const leaf = new THREE.Group();
+    const panel = new THREE.Mesh(new RoundedBoxGeometry(0.06, lh * ft, dw * ft, 2, 0.02), woodMat(0x8a6a45));
+    panel.position.set(0, (lh / 2) * ft, -(dw / 2) * ft);  // hinge at the near jamb (z=dz0)
+    leaf.add(panel);
+    leaf.position.copy(V(x1 - px, dz0 - pz, 0));           // pivot at the east plane, near jamb
+    leaf.rotation.y = ang;                                  // swing INTO the bathroom
+    g.add(leaf);
+  }
+
+  // WEST wall is the WET WALL: fixtures line the west knee wall (facing east) —
+  // walk-in shower in the north corner (under a west-hip SKYLIGHT), double vanity
+  // in the middle, toilet in the south corner.
+  const wWall = p.roof.footprint.x2 - 3.75;   // west knee-wall line
+  const nNk = p.roof.footprint.z2 - 3.75;     // north knee line
+  const sNk = p.roof.footprint.z1 + 3.75;     // south knee line
+
+  // --- walk-in shower in the NORTH corner of the west wall (under the skylight) -
+  const sx0 = 23.75, sz0 = 6.6;                         // open (room-facing) edges
+  const scx = (sx0 + wWall) / 2, scz = (sz0 + nNk) / 2, sw = wWall - sx0, sd = nNk - sz0;
+  box(scx, scz, 0.12, sw, 0.24, sd, tile);                                   // pan/curb
+  prismPanel([[wWall, sz0, 0], [wWall, nNk, 0], [wWall, nNk, rz(wWall, nNk)], [wWall, sz0, rz(wWall, sz0)]], [-0.1, 0, 0], tile); // west tiled wall
+  prismPanel([[sx0, nNk, 0], [wWall, nNk, 0], [wWall, nNk, rz(wWall, nNk)], [sx0, nNk, rz(sx0, nNk)]], [0, -0.1, 0], tile);      // north tiled wall
+  box(scx, sz0, 3.2, sw, 6.4, 0.08, glass);                                  // glass front (south)
+  box(sx0, scz, 3.2, 0.08, 6.4, sd, glass);                                  // glass side (east)
+  cyl(wWall - 0.4, scz, 5.5, 0.06, 0.5, chrome);                             // shower-head arm (on the wet wall)
+  box(wWall - 0.4, scz, 5.8, 0.12, 0.12, 0.7, chrome);                       // shower head
+
+  // (the bath's daylight now comes from the WEST HIP DORMER above the wet wall —
+  // a real dormer window built in the IFC, replacing the flush skylight.)
+
+  // --- double vanity in the MIDDLE of the west wall, facing east, with a mirror -
+  const vcx = wWall - 0.95, vz0 = -0.5, vz1 = 4.5, vd = vz1 - vz0, vcz = (vz0 + vz1) / 2;
+  box(vcx, vcz, 1.45, 1.9, 2.9, vd, woodv);                                  // vanity cabinet
+  box(vcx, vcz, 2.95, 2.1, 0.18, vd + 0.2, porc);                            // stone countertop
+  for (const bz of [vcz - 1.3, vcz + 1.3]) {                                  // two basins + faucets
+    cyl(vcx, bz, 3.0, 0.5, 0.18, porc, 24);
+    cyl(vcx + 0.6, bz, 3.15, 0.05, 0.6, chrome);
+  }
+  box(wWall - 0.06, vcz, 4.0, 0.08, 2.0, vd - 0.4, glass);                    // mirror on the wet wall
+
+  // --- WC: a full-width compartment across the SOUTH end of the bathroom. The
+  // east partition, west + south knee walls bound it; a new north partition spans
+  // the FULL bath width with a door. The toilet sits against the wet wall, moved
+  // north toward the vanity so the WC has clear floor.
+  const wcN = -2.5;                                      // north partition line
+  const txc = wWall - 0.95, tzc = -5.0;                  // toilet against the wet wall
+  box(wWall - 0.35, tzc, 1.6, 0.7, 1.7, 1.5, porc);     // tank against the wet wall
+  cyl(txc, tzc, 0.6, 0.72, 1.2, porc, 24);              // bowl pedestal
+  const seat = new THREE.Mesh(new THREE.TorusGeometry(0.34 * ft, 0.07 * ft, 10, 24), porc);
+  seat.position.copy(V(txc - px, tzc - pz, 1.25)); seat.rotation.x = Math.PI / 2; g.add(seat);
+  // 30" door opening pulled off the east wall, kept where the sloping ceiling still
+  // clears the inward swing (the leaf is sized under the ceiling at the opening).
+  const gx0 = x1 + 1.5, gx1 = gx0 + 2.5;                 // opening x[gx0, gx1], 1.5 ft off the east wall
+  const doorTop = 6.5;                                    // leaf/head height (< ceiling at the opening)
+  xWall(wcN, x1, gx0);                                    // north partition, east of the door
+  xWall(wcN, gx1, wWall);                                 // north partition, west of the door
+  prismPanel([[gx0, wcN, doorTop], [gx1, wcN, doorTop], [gx1, wcN, rz(gx1, wcN)], [gx0, wcN, rz(gx0, wcN)]], [0, t, 0], wall); // head
+  {
+    const dw = gx1 - gx0, lh = doorTop, ang = 1.2;        // 30" leaf, hinged at the EAST jamb (gx0)
+    const leaf = new THREE.Group();
+    const panel = new THREE.Mesh(new RoundedBoxGeometry(dw * ft, lh * ft, 0.06, 2, 0.02), woodMat(0x8a6a45));
+    panel.position.set(-(dw / 2) * ft, (lh / 2) * ft, 0);  // extends west toward gx1
+    leaf.add(panel);
+    leaf.position.copy(V(gx0 - px, wcN - pz, 0));           // pivot at the east jamb
+    leaf.rotation.y = ang;                                  // swing INWARD (into the WC)
+    g.add(leaf);
+  }
+
+  return g;
+}
+
+const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom };
 const CHAIRS = new Set(["upholstered_dining_chair", "highback_chair"]);
 const SEAT_FRONT = 0.225;   // chair seat front is +0.225 m toward the table from its centre
 const TUCK = 0.08;          // pushed-in: seat front this far under the table edge

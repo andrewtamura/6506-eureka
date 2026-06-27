@@ -1,6 +1,6 @@
 [
   {
-    "name": "Family Room - Hardwood Flooring",
+    "name": "Family Room - Hardwood Flooring 0",
     "rgb": [
       0.55,
       0.36,
@@ -8,7 +8,7 @@
     ]
   },
   {
-    "name": "Kitchen - Hardwood Flooring",
+    "name": "Kitchen - Hardwood Flooring 0",
     "rgb": [
       0.55,
       0.36,
@@ -16,7 +16,7 @@
     ]
   },
   {
-    "name": "Sitting Room - Hardwood Flooring",
+    "name": "Sitting Room - Hardwood Flooring 0",
     "rgb": [
       0.55,
       0.36,
@@ -24,7 +24,7 @@
     ]
   },
   {
-    "name": "Dining Room - Hardwood Flooring",
+    "name": "Dining Room - Hardwood Flooring 0",
     "rgb": [
       0.55,
       0.36,
@@ -41,22 +41,6 @@
   },
   {
     "name": "Foyer - Hardwood Flooring 1",
-    "rgb": [
-      0.55,
-      0.36,
-      0.18
-    ]
-  },
-  {
-    "name": "Foyer - Hardwood Flooring 3",
-    "rgb": [
-      0.55,
-      0.36,
-      0.18
-    ]
-  },
-  {
-    "name": "Vestibule - Hardwood Flooring",
     "rgb": [
       0.55,
       0.36,
