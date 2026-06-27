@@ -9,6 +9,7 @@
       "manifests": {
         "doors": "exterior.doors.json",
         "floors": "exterior.floors.json",
+        "subfloor": "exterior.subfloor.json",
         "tiles": "exterior.tiles.json",
         "furniture": "exterior.furniture.json",
         "paneling": "exterior.paneling.json"
@@ -23,6 +24,7 @@
       "manifests": {
         "doors": "ground.doors.json",
         "floors": "ground.floors.json",
+        "subfloor": "ground.subfloor.json",
         "tiles": "ground.tiles.json",
         "furniture": "ground.furniture.json",
         "paneling": "ground.paneling.json"
@@ -37,6 +39,7 @@
       "manifests": {
         "doors": "level2.doors.json",
         "floors": "level2.floors.json",
+        "subfloor": "level2.subfloor.json",
         "tiles": "level2.tiles.json",
         "furniture": "level2.furniture.json",
         "paneling": "level2.paneling.json"
@@ -51,6 +54,7 @@
       "manifests": {
         "doors": "attic.doors.json",
         "floors": "attic.floors.json",
+        "subfloor": "attic.subfloor.json",
         "tiles": "attic.tiles.json",
         "furniture": "attic.furniture.json",
         "paneling": "attic.paneling.json"

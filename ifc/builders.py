@@ -79,6 +79,7 @@ class Ctx:
         self.walls = []                              # [{wall, orient, fixed, a, b}]
         self.door_meta = []                          # [{name, hingeMax, swingSign}] for the viewer
         self.plank_floors = []                       # [{name, rgb}] plank floors the viewer re-renders
+        self.subfloors = []                           # [{name, rgb}] plywood-sheet subfloors the viewer re-renders
         self.tile_floors = []                         # [{name, pattern}] tiled floors the viewer re-renders
         self.furniture = []                          # [{type, px, pz, rot, ...}] viewer-rendered furniture
         self.paneling = []                           # [{along, at, normal, base, field}] wall finishes
@@ -435,6 +436,12 @@ def add_attic(ctx, rooms, roof):
     # remember the knee-wall rectangle (IFC metres) so the floor finish can put
     # finished hardwood ONLY inside it and subfloor in the low zone beyond it.
     ctx.attic_knee = (kx1, kx2, ky1, ky2)
+    # ...and the USABLE rectangle: the floor finish boundary is pulled in to where
+    # the sloped ceiling reaches a standing-headroom height (so the finished floor
+    # marks the genuinely usable area; the low-headroom band by the knee wall is
+    # subfloor). inset = (headroom - eave) / pitch from each footprint edge.
+    du = max(0.0, (roof.get("usableHeadroomFt", 7.0) * FT - eave) / pitch)
+    ctx.attic_usable = (x1 + du, x2 - du, y1 + du, y2 - du)
 
     if roof.get("dormers"):
         dspec = roof["dormers"]
@@ -1987,10 +1994,11 @@ def _rect_minus(a, b, c, d, hole):
     return out
 
 
-def _floor_cover(ctx, basename, a, b, c, d, rgb, hole, plank):
+def _floor_cover(ctx, basename, a, b, c, d, rgb, hole, kind):
     """Tile rect [a,b]x[c,d] (IFC metres) as IfcCovering FLOORING (minus `hole`).
-    When `plank`, record each piece to plank_floors so the viewer re-renders it as
-    instanced hardwood planks; otherwise it stays a flat covering (e.g. subfloor)."""
+    `kind` routes the viewer re-render: "plank" -> instanced hardwood planks,
+    "sheet" -> 4x8 plywood subfloor sheets, None -> left as a flat IFC covering."""
+    sink = {"plank": ctx.plank_floors, "sheet": ctx.subfloors}.get(kind)
     for i, (aa, bb, cc, dd) in enumerate(_rect_minus(a, b, c, d, hole)):
         if bb - aa < 1e-4 or dd - cc < 1e-4:
             continue
@@ -1998,40 +2006,42 @@ def _floor_cover(ctx, basename, a, b, c, d, rgb, hole, plank):
         cov = make_box(ctx, "IfcCovering", name, bb - aa, dd - cc, 0.05 * FT,
                        (aa + bb) / 2, (cc + dd) / 2, 0.0, predefined="FLOORING", color=rgb)
         run("spatial.assign_container", ctx.model, products=[cov], relating_structure=ctx.storey)
-        if plank:
-            ctx.plank_floors.append({"name": name, "rgb": [round(c2, 4) for c2 in rgb]})
+        if sink is not None:
+            sink.append({"name": name, "rgb": [round(c2, 4) for c2 in rgb]})
 
 
 def add_attic_floor_finish(ctx, r):
-    """Attic floor finish: finished hardwood ONLY inside the knee-wall rectangle
-    (`ctx.attic_knee`), and flat plywood SUBFLOOR in the low storage zone beyond the
-    knee walls. Both tile around any floorOpening (the stairwell void)."""
+    """Attic floor finish: finished hardwood ONLY inside the USABLE rectangle
+    (`ctx.attic_usable` — where the sloped ceiling clears standing headroom), and
+    4x8 plywood SUBFLOOR everywhere beyond it (the low-headroom band by the knee
+    walls + the storage triangles). They meet exactly at the usable-headroom line.
+    Both tile around any floorOpening (the stairwell void)."""
     HARD = (0.55, 0.36, 0.18)               # finished oak (re-rendered as planks)
-    SUB = (0.74, 0.64, 0.46)                # plywood subfloor (flat, not planked)
+    SUB = (0.74, 0.64, 0.46)                # plywood subfloor (re-rendered as 4x8 sheets)
     x1, x2, y1, y2 = ifc_bounds(ctx, r["bounds"])
     X1, X2 = sorted((x1, x2)); Y1, Y2 = sorted((y1, y2))
-    knee = getattr(ctx, "attic_knee", None)
-    if not knee:
-        add_hardwood_finish(ctx, r); return     # no knee rect -> full hardwood
-    KX1, KX2 = sorted((knee[0], knee[1])); KY1, KY2 = sorted((knee[2], knee[3]))
-    hx1, hx2 = max(KX1, X1), min(KX2, X2)        # knee rect clipped to this room
-    hy1, hy2 = max(KY1, Y1), min(KY2, Y2)
+    usable = getattr(ctx, "attic_usable", None)
+    if not usable:
+        add_hardwood_finish(ctx, r); return     # no usable rect -> full hardwood
+    UX1, UX2 = sorted((usable[0], usable[1])); UY1, UY2 = sorted((usable[2], usable[3]))
+    hx1, hx2 = max(UX1, X1), min(UX2, X2)        # usable rect clipped to this room
+    hy1, hy2 = max(UY1, Y1), min(UY2, Y2)
     hole = None
     opening = r.get("floorOpening")
     if opening:
         ox1, ox2 = sorted((ctx.X(opening["x1"]), ctx.X(opening["x2"])))
         oy1, oy2 = sorted((ctx.Y(opening["z1"]), ctx.Y(opening["z2"])))
         hole = (ox1, ox2, oy1, oy2)
-    if hx2 <= hx1 or hy2 <= hy1:                  # room entirely beyond the knee rect
-        _floor_cover(ctx, f"{r['name']} - Subfloor", X1, X2, Y1, Y2, SUB, hole, False)
+    if hx2 <= hx1 or hy2 <= hy1:                  # room entirely beyond the usable rect
+        _floor_cover(ctx, f"{r['name']} - Subfloor", X1, X2, Y1, Y2, SUB, hole, "sheet")
         return
-    _floor_cover(ctx, f"{r['name']} - Hardwood Flooring", hx1, hx2, hy1, hy2, HARD, hole, True)
+    _floor_cover(ctx, f"{r['name']} - Hardwood Flooring", hx1, hx2, hy1, hy2, HARD, hole, "plank")
     for j, band in enumerate([(X1, X2, Y1, hy1), (X1, X2, hy2, Y2),
                               (X1, hx1, hy1, hy2), (hx2, X2, hy1, hy2)]):
         a, b, c, d = band
         if b - a < 1e-4 or d - c < 1e-4:
             continue
-        _floor_cover(ctx, f"{r['name']} - Subfloor {j}", a, b, c, d, SUB, hole, False)
+        _floor_cover(ctx, f"{r['name']} - Subfloor {j}", a, b, c, d, SUB, hole, "sheet")
 
 
 def add_space(ctx, r):

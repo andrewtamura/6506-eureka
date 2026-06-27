@@ -164,6 +164,7 @@ def build_level(cfg, rooms_cache, level):
         B.add_attic(ctx, rooms, {"type": g.get("type", "hip"),
                                  "pitch": g.get("pitch", 0.5),
                                  "kneeFt": level.get("kneeFt", 4.0),
+                                 "usableHeadroomFt": level.get("usableHeadroomFt", 7.0),
                                  "eaveWallFt": g.get("eaveWallFt", 0.0),
                                  "dormers": g.get("dormers"),
                                  "shedDormer": g.get("shedDormer")})
@@ -190,10 +191,11 @@ def build_level(cfg, rooms_cache, level):
 
     ifc_name = f"{lid}.ifc"
     m.write(os.path.join(HERE, ifc_name))
-    names = {k: f"{lid}.{k}.json" for k in ("doors", "floors", "tiles", "furniture", "paneling")}
+    names = {k: f"{lid}.{k}.json" for k in ("doors", "floors", "subfloor", "tiles", "furniture", "paneling")}
     dump = lambda k, data: json.dump(data, open(os.path.join(HERE, names[k]), "w"), indent=2)
     dump("doors", ctx.door_meta)
     dump("floors", ctx.plank_floors)
+    dump("subfloor", ctx.subfloors)
     dump("tiles", ctx.tile_floors)
     dump("furniture", {"ft": B.FT, "xs": ctx.xs, "zs": ctx.zs, "items": ctx.furniture})
     dump("paneling", {"ft": B.FT, "xs": ctx.xs, "zs": ctx.zs, "baseboardFt": 10 / 12,

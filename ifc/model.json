@@ -172,6 +172,7 @@
       "label": "Attic",
       "kind": "attic",
       "kneeFt": 5.0,
+      "usableHeadroomFt": 7.0,
       "roofRef": { "from": "exterior", "group": "primary" },
       "rooms": [
         "family",

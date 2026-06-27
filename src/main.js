@@ -10,6 +10,7 @@ import * as FRAGS from "@thatopen/fragments";
 import { setupLighting } from "./lighting.js";
 import { setupCompass } from "./compass.js";
 import { buildWoodFloor } from "./wood-floor.js";
+import { buildSubfloor } from "./subfloor.js";
 import { buildTileFloor } from "./tile-floor.js";
 import { buildFurniture } from "./furniture.js";
 import { buildWallFinish } from "./wall-finish.js";
@@ -298,6 +299,7 @@ async function main() {
   let westX = modelBox.min.x, eastX = modelBox.max.x;   // -X / +X frontiers
   let exteriorModel = null;                             // captured for the walk-the-lot POV
   const exhibitModels = [];                             // {lvl, model} for each placed exhibit (walk targets)
+  const povCeilingMats = [];                            // attic ceiling materials: opaque in POV, translucent in overview
   const modelViews = [{ id: groundLevel.id, label: groundLevel.label || groundLevel.storey, box: buildingBox(model.object) }];
   const labelViews = [{ label: groundLevel.label || groundLevel.storey, box: modelBox }];
   const placeExhibit = async (lvl, toEast) => {
@@ -331,6 +333,13 @@ async function main() {
         // Same transparent-glass fix as the ground model: drop depthWrite so a
         // translucent surface (exterior glass, the attic's slope) reads through.
         if (mat.transparent && mat.opacity < 1) mat.depthWrite = false;
+        // The attic's translucent ceiling soffit (light + transparent) — collect it
+        // so it can go OPAQUE in the first-person POV (you look up and see the
+        // sloped ceiling) while staying see-through in the dollhouse overview.
+        if (lvl.id === "attic" && mat.transparent && mat.opacity < 0.95 && mat.color && mat.color.r > 0.85) {
+          mat.userData._planOpacity = mat.opacity;
+          povCeilingMats.push(mat);
+        }
         mat.needsUpdate = true;
       }
     });
@@ -346,6 +355,10 @@ async function main() {
     // level's finish (the model sits with its slab top at object.position.y).
     if (lvl.id !== "exterior" && lvl.manifests?.floors)
       await buildWoodFloor({ scene, model: m, fragments, floorY: m.object.position.y, baseUrl: BASE, manifestFile: lvl.manifests.floors + VER });
+    // plywood subfloor (4x8 sheets) — the attic's low-headroom zone beyond the
+    // finished floor; empty manifest (other levels) is a no-op.
+    if (lvl.id !== "exterior" && lvl.manifests?.subfloor)
+      await buildSubfloor({ scene, model: m, fragments, floorY: m.object.position.y, baseUrl: BASE, manifestFile: lvl.manifests.subfloor + VER });
     exhibitModels.push({ lvl, model: m });             // register as a walk target after the walker exists
     return buildingBox(m.object);
   };
@@ -621,7 +634,19 @@ async function main() {
   await buildWallFinish({ scene, floorY: FLOOR, ceilingY: modelBox.max.y, baseUrl: BASE, manifestFile: groundManifests.paneling + VER });
 
   // --- ceilings (block the sun; opaque in POV, transparent in plan) -------
-  setPlanView = buildCeilings({ scene, rooms: roomBoxes, ceilingY: modelBox.max.y, opening: furniture?.stairwellOpening }).setPlanView;
+  const baseSetPlanView = buildCeilings({ scene, rooms: roomBoxes, ceilingY: modelBox.max.y, opening: furniture?.stairwellOpening }).setPlanView;
+  // Also toggle the attic's sloped ceiling: opaque overhead in the first-person
+  // POV (so you can see it), translucent in the dollhouse overview (so you can
+  // see into the attic from outside/above).
+  setPlanView = (plan) => {
+    baseSetPlanView(plan);
+    for (const mat of povCeilingMats) {
+      mat.transparent = plan;
+      mat.opacity = plan ? (mat.userData._planOpacity ?? 0.45) : 1.0;
+      mat.depthWrite = !plan;
+      mat.needsUpdate = true;
+    }
+  };
   // Opaque blockers (ceiling, walls, floor, furniture) cast shadow so the sun
   // can't pass through them; transparent glass does NOT cast, so windows let
   // daylight into the interior. (Run before toggling the ceiling transparent so
