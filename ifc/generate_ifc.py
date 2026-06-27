@@ -170,7 +170,8 @@ def build_level(cfg, rooms_cache, level):
                                  # drop the knee walls west of its partition line.
                                  "bathCutFt": (level.get("bathroom") or {}).get("cutFt"),
                                  "dormers": g.get("dormers"),
-                                 "shedDormer": g.get("shedDormer")})
+                                 "shedDormer": g.get("shedDormer"),
+                                 "hipDormers": g.get("hipDormers")})
         # top of the stair: enclose Leg 4 with walls that rise to the hip-roof
         # underside (same footprint + pitch the attic ceiling is built from).
         fpx = [v for r in rooms for v in (r["bounds"]["x1"], r["bounds"]["x2"])]

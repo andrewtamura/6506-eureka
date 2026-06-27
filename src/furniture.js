@@ -510,23 +510,8 @@ function buildBathroom(p) {
   cyl(wWall - 0.4, scz, 5.5, 0.06, 0.5, chrome);                             // shower-head arm (on the wet wall)
   box(wWall - 0.4, scz, 5.8, 0.12, 0.12, 0.7, chrome);                       // shower head
 
-  // skylight glazing set into the west-hip slope, over the shower
-  {
-    const kx0 = 22.8, kx1 = 27.2, kz0 = 6.0, kz1 = nNk + 0.4;  // skylight opening (plan)
-    const skyMat = new THREE.MeshStandardMaterial({ color: 0xdceff8, roughness: 0.04, transparent: true, opacity: 0.72, emissive: 0xbfe0f0, emissiveIntensity: 0.85, side: THREE.DoubleSide });
-    skyMat.depthWrite = false;
-    const frameMat = new THREE.MeshStandardMaterial({ color: 0x9a9a9e, roughness: 0.6, side: THREE.DoubleSide });
-    const quad = (pts, mat, drop) => {
-      const C = pts.map(([x, z]) => V(x - px, z - pz, rz(x, z) - drop));
-      const pos = []; const tri = (a, b, c) => pos.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
-      tri(C[0], C[1], C[2]); tri(C[0], C[2], C[3]);
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.computeVertexNormals();
-      g.add(new THREE.Mesh(geo, mat));
-    };
-    quad([[kx0, kz0], [kx1, kz0], [kx1, kz1], [kx0, kz1]], frameMat, 0.085);     // thin light frame
-    quad([[kx0 + 0.18, kz0 + 0.18], [kx1 - 0.18, kz0 + 0.18], [kx1 - 0.18, kz1 - 0.18], [kx0 + 0.18, kz1 - 0.18]], skyMat, 0.07); // bright glazing
-  }
+  // (the bath's daylight now comes from the WEST HIP DORMER above the wet wall —
+  // a real dormer window built in the IFC, replacing the flush skylight.)
 
   // --- double vanity in the MIDDLE of the west wall, facing east, with a mirror -
   const vcx = wWall - 0.95, vz0 = -0.5, vz1 = 4.5, vd = vz1 - vz0, vcz = (vz0 + vz1) / 2;
