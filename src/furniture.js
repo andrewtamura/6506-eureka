@@ -476,24 +476,45 @@ function buildBathroom(p) {
     prismPanel(pts, [0, t, 0], wall);
   };
 
+  // A complete door = jamb walls flanking the opening + a head panel + a hinged
+  // slab that fills the opening (double-tap toggles). `axis` is the wall's run:
+  // "z" (wall along plan z at x=line) or "x" (wall along plan x at z=line). The
+  // opening is [oa, ob]; the wall fills [wa, wb] around it. `hinge` is "a" (at oa)
+  // or "b" (at ob); `swing` is the open angle. The head is capped just under the
+  // sloped ceiling at the opening so it never pokes through, and the leaf is sized
+  // off the opening + head — so opening and slab always stay consistent.
+  const DOOR_TH = 0.06, LEAF_CLEAR = 0.02, HEAD_REVEAL = 0.02;  // hairline reveals so a closed door reads flush
+  const framedDoor = ({ axis, line, oa, ob, wa, wb, head = 6.85, hinge = "a", swing = 1.2, open = true, leafMat }) => {
+    const ceil = axis === "z" ? Math.min(rz(line, oa), rz(line, ob)) : Math.min(rz(oa, line), rz(ob, line));
+    const hd = Math.min(head, ceil - 0.1);                       // head stays under the ceiling
+    const lw = (ob - oa) - LEAF_CLEAR, lh = hd - HEAD_REVEAL;    // leaf fills the opening, sits under the head
+    const hx = hinge === "a" ? oa : ob, sgn = hinge === "a" ? -1 : 1;
+    const leaf = new THREE.Group();
+    if (axis === "z") {
+      zWall(line, wa, oa); zWall(line, ob, wb);
+      prismPanel([[line, oa, hd], [line, ob, hd], [line, ob, rz(line, ob)], [line, oa, rz(line, oa)]], [t, 0, 0], wall);
+      const panel = new THREE.Mesh(new RoundedBoxGeometry(DOOR_TH, lh * ft, lw * ft, 2, 0.02), leafMat || woodMat(0x8a6a45));
+      panel.position.set(0, (lh / 2) * ft, sgn * (lw / 2) * ft);
+      leaf.add(panel); leaf.position.copy(V(line - px, hx - pz, 0));
+    } else {
+      xWall(line, wa, oa); xWall(line, ob, wb);
+      prismPanel([[oa, line, hd], [ob, line, hd], [ob, line, rz(ob, line)], [oa, line, rz(oa, line)]], [0, t, 0], wall);
+      const panel = new THREE.Mesh(new RoundedBoxGeometry(lw * ft, lh * ft, DOOR_TH, 2, 0.02), leafMat || woodMat(0x8a6a45));
+      panel.position.set(sgn * (lw / 2) * ft, (lh / 2) * ft, 0);
+      leaf.add(panel); leaf.position.copy(V(hx - px, line - pz, 0));
+    }
+    leaf.rotation.y = open ? swing : 0;
+    g.add(leaf);
+    const door = { pivot: leaf, openAngle: swing, current: open ? swing : 0, open };
+    leaf.children[0].userData.fdoor = door; doors.push(door);
+    return door;
+  };
+
   // --- single EAST partition (x1) the full depth, with a door near the ridge ---
   // (the W / N / S sides open to the roof slope — the knee walls there are dropped,
   // so the bathroom uses the entire west end, both sloped sides included).
   const dz0 = pz - 1.5, dz1 = pz + 1.5;                 // 3 ft door, centred where the ceiling is high
-  zWall(x1, z1, dz0); zWall(x1, dz1, z2);
-  prismPanel([[x1, dz0, 7.0], [x1, dz1, 7.0], [x1, dz1, rz(x1, dz1)], [x1, dz0, rz(x1, dz0)]], [t, 0, 0], wall); // head over the door
-  {
-    const dw = (dz1 - dz0) - 0.1, lh = 6.7, ang = 1.25;  // leaf fills the opening (small clearance)
-    const leaf = new THREE.Group();
-    const panel = new THREE.Mesh(new RoundedBoxGeometry(0.06, lh * ft, dw * ft, 2, 0.02), woodMat(0x8a6a45));
-    panel.position.set(0, (lh / 2) * ft, -(dw / 2) * ft);  // hinge at the near jamb (z=dz0)
-    leaf.add(panel);
-    leaf.position.copy(V(x1 - px, dz0 - pz, 0));           // pivot at the east plane, near jamb
-    leaf.rotation.y = ang;                                  // start open; swings INTO the bathroom
-    g.add(leaf);
-    const door = { pivot: leaf, openAngle: ang, current: ang, open: true }; // double-tap toggles
-    panel.userData.fdoor = door; doors.push(door);
-  }
+  framedDoor({ axis: "z", line: x1, oa: dz0, ob: dz1, wa: z1, wb: z2, swing: 1.25 });
 
   // The bathroom's perimeter walls, pushed all the way OUT to the attic's 3 ft
   // knee line (the bath uses the entire west end, to the eaves). These are 3 ft
@@ -559,25 +580,10 @@ function buildBathroom(p) {
   cyl(txc, tzc, 0.6, 0.72, 1.2, porc, 24);              // bowl pedestal
   const seat = new THREE.Mesh(new THREE.TorusGeometry(0.34 * ft, 0.07 * ft, 10, 24), porc);
   seat.position.copy(V(txc - px, tzc - pz, 1.25)); seat.rotation.x = Math.PI / 2; g.add(seat);
-  // 30" door opening pulled off the east wall, kept where the sloping ceiling still
-  // clears the inward swing (the leaf is sized under the ceiling at the opening).
-  const gx0 = x1 + 1.5, gx1 = gx0 + 2.5;                 // opening x[gx0, gx1], 1.5 ft off the east wall
-  const doorTop = 6.5;                                    // leaf/head height (< ceiling at the opening)
-  xWall(wcN, x1, gx0);                                    // north partition, east of the door
-  xWall(wcN, gx1, wWall);                                 // north partition, west of the door
-  prismPanel([[gx0, wcN, doorTop], [gx1, wcN, doorTop], [gx1, wcN, rz(gx1, wcN)], [gx0, wcN, rz(gx0, wcN)]], [0, t, 0], wall); // head
-  {
-    const dw = gx1 - gx0, lh = doorTop, ang = 1.2;        // 30" leaf, hinged at the EAST jamb (gx0)
-    const leaf = new THREE.Group();
-    const panel = new THREE.Mesh(new RoundedBoxGeometry(dw * ft, lh * ft, 0.06, 2, 0.02), woodMat(0x8a6a45));
-    panel.position.set(-(dw / 2) * ft, (lh / 2) * ft, 0);  // extends west toward gx1
-    leaf.add(panel);
-    leaf.position.copy(V(gx0 - px, wcN - pz, 0));           // pivot at the east jamb
-    leaf.rotation.y = ang;                                  // start open; swings INWARD (into the WC)
-    g.add(leaf);
-    const door = { pivot: leaf, openAngle: ang, current: ang, open: true }; // double-tap toggles
-    panel.userData.fdoor = door; doors.push(door);
-  }
+  // 30" door in the north partition, pulled 1.5 ft off the east wall, hinged at
+  // the east jamb and swinging into the WC.
+  const gx0 = x1 + 1.5, gx1 = gx0 + 2.5;                 // opening x[gx0, gx1]
+  framedDoor({ axis: "x", line: wcN, oa: gx0, ob: gx1, wa: x1, wb: wWall, swing: 1.2 });
 
   g.userData.doors = doors;
   return g;
