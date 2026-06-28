@@ -505,6 +505,15 @@ def add_attic(ctx, rooms, roof):
                 run("spatial.assign_container", ctx.model, products=[hb], relating_structure=ctx.storey)
         for h0, h1 in eh:
             cheek("Alcove cheek E", "x", h0, efa, e_well[1], -1, e_ceil); cheek("Alcove cheek E", "x", h1, efa, e_well[1], +1, e_ceil)
+        # the WEST hip dormer sits over the bathroom (which owns the west end with
+        # its own walls), so it gets no 7 ft room wall — but it still needs the same
+        # flat drywall cheeks as every other dormer, else the pocket is open to
+        # daylight on both sides of the window. Run them the full well depth (front
+        # knee line -> where the pocket dies into the slope), floor to flat ceiling.
+        if w_well:
+            w_ceil = eave + pitch * hd.get("recessFt", 0.0) * FT + hd.get("plateFt", 4.0) * FT
+            cheek("Alcove cheek W", "x", w_well[2], w_well[0], w_well[1], -1, w_ceil)
+            cheek("Alcove cheek W", "x", w_well[3], w_well[0], w_well[1], +1, w_ceil)
     else:
         # inset knee walls where the bare hip ceiling first reaches `knee`
         dk = knee / pitch
