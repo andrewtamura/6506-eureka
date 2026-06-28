@@ -338,6 +338,8 @@ def add_attic(ctx, rooms, roof):
     pitch = roof.get("pitch", 0.5)
     knee = roof.get("kneeFt", 4.0) * FT
     eave = roof.get("eaveWallFt", 0.0) * FT           # raised plate above the attic floor
+    rh = roof.get("usableHeadroomFt", 7.0) * FT       # 7 ft room-wall / usable-headroom height
+    du0 = max(0.0, (rh - eave) / pitch)               # inset where the slope reaches the room height
     t = ctx.T
 
     for r in rooms:                                   # floor over the whole footprint
@@ -384,8 +386,9 @@ def add_attic(ctx, rooms, roof):
 
     # sloped ceiling = the hip underside, springing from the eave (z = eave), with
     # the dormer wells cut OPEN so each dormer reads up into the attic room.
+    sy1c = min(sy1, y1 + du0)                          # cap the deep shed well at the 7 ft wall (keep the room vault intact)
     cv, cf = _hip_ceiling_with_wells(x1, x2, y1, y2, eave, pitch,
-                                     n_holes, ny0, ny1, s_holes, sy0, sy1, e_well, w_well)
+                                     n_holes, ny0, ny1, s_holes, sy0, sy1c, e_well, w_well)
     # Translucent so the 3/4 exhibit view reads INTO the room (floor + walls show
     # through) — i.e. you can see the habitable volume under the slope.
     add_brep(ctx, "Attic ceiling", cv, cf, CEIL, ifc_class="IfcCovering",
@@ -435,8 +438,7 @@ def add_attic(ctx, rooms, roof):
         # the room height), with an open ALCOVE at each dormer so the window seats
         # stay accessible. The low triangles (knee walls + dormers + seats) sit
         # behind them. The bathroom owns the west end, so only N / S / E get walls.
-        rh = roof.get("usableHeadroomFt", 7.0) * FT
-        ru = (rh - eave) / pitch
+        ru = du0                                          # usable inset (computed up top)
         rx2, ry1r, ry2r = x2 - ru, y1 + ru, y2 - ru
         bx = ctx.X(roof["bathCutFt"]) if roof.get("bathCutFt") else (x1 + ru)
         # openings exactly frame each dormer, so the alcove cheek walls land on the
@@ -493,8 +495,14 @@ def add_attic(ctx, rooms, roof):
         e_ceil = (eave + pitch * hd.get("recessFt", 0.0) * FT + hd.get("plateFt", 4.0) * FT) if hd else 0.0
         for h0, h1 in nh:
             cheek("Alcove cheek N", "z", h0, nfa, ny1, -1, n_ceil); cheek("Alcove cheek N", "z", h1, nfa, ny1, +1, n_ceil)
-        for h0, h1 in sh:   # the deep shed well runs past the 7 ft wall, so the cheeks reach its far edge (sy1)
-            cheek("Alcove cheek S", "z", h0, sy1, sy0, -1, s_ceil); cheek("Alcove cheek S", "z", h1, sy1, sy0, +1, s_ceil)
+        for h0, h1 in sh:
+            cheek("Alcove cheek S", "z", h0, sfa, sy0, -1, s_ceil); cheek("Alcove cheek S", "z", h1, sfa, sy0, +1, s_ceil)
+            # the shed alcove ceiling (s_ceil) is above the 7 ft wall, and its well is
+            # capped there, so close the well's north face with a header above the opening.
+            if s_ceil > rh + 0.02:
+                hb = make_box(ctx, "IfcWall", "Shed alcove header", h1 - h0, t, s_ceil - rh,
+                              (h0 + h1) / 2, ry1r, rh, color=KNEE)
+                run("spatial.assign_container", ctx.model, products=[hb], relating_structure=ctx.storey)
         for h0, h1 in eh:
             cheek("Alcove cheek E", "x", h0, efa, e_well[1], -1, e_ceil); cheek("Alcove cheek E", "x", h1, efa, e_well[1], +1, e_ceil)
     else:
