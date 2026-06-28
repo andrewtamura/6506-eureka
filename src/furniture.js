@@ -604,6 +604,13 @@ function buildBathroom(p) {
   };
   makeToilet(xW7, -2.8);
 
+  // --- WC: enclose the toilet in a compartment in the SW corner. The W + S sides
+  // are the 7 ft room walls; add a full-height E partition and a N partition with a
+  // door (double-tap to open/close).
+  const wcE = 19.5, wcN = -0.8;                          // east + north partition lines
+  zWall(wcE, zS7, wcN);                                  // east partition (floor -> ceiling)
+  framedDoor({ axis: "x", line: wcN, oa: 21.0, ob: 23.5, wa: wcE, wb: xW7, hinge: "a", swing: 1.1 });
+
   g.userData.doors = doors;
   return g;
 }
