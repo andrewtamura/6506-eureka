@@ -439,10 +439,10 @@ def add_attic(ctx, rooms, roof):
         ru = (rh - eave) / pitch
         rx2, ry1r, ry2r = x2 - ru, y1 + ru, y2 - ru
         bx = ctx.X(roof["bathCutFt"]) if roof.get("bathCutFt") else (x1 + ru)
-        om = 0.3 * FT                                     # widen each opening a touch for a comfy alcove
-        nh = [(h0 - om, h1 + om) for h0, h1 in n_holes]
-        sh = [(h0 - om, h1 + om) for h0, h1 in s_holes]
-        eh = [(e_well[2] - om, e_well[3] + om)] if e_well else []
+        # openings exactly frame each dormer, so the alcove cheek walls land on the
+        # SAME edges as the dormer's own cheeks (no offset gap between them).
+        nh, sh = list(n_holes), list(s_holes)
+        eh = [(e_well[2], e_well[3])] if e_well else []
 
         def roomwall(nm, orient, line, a, b, inner, holes):
             segs, cur = [], a
@@ -472,24 +472,32 @@ def add_attic(ctx, rooms, roof):
         def slope_h(px, pz):
             return eave + pitch * min(px - x1, x2 - px, pz - y1, y2 - pz)
 
-        def cheek(nm, axis, fixed, a, b):
+        # `sgn` extrudes the wall AWAY from the alcove (so it never eats the opening
+        # and its alcove face lands exactly on the dormer edge); `a` is the 7 ft
+        # wall's ROOM FACE so the cheek overlaps it (no sliver gap at that corner).
+        eps = 0.06 * FT                                   # overlap the opening edge so faces never coincide (no z-fight seam)
+
+        def cheek(nm, axis, fixed, a, b, sgn):
             N = 8
+            base = (fixed - t) if sgn < 0 else (fixed - eps)
+            length = t + eps
             if axis == "z":                               # wall runs along z at x=fixed
-                pts = [(fixed - t / 2, a, 0.0), (fixed - t / 2, b, 0.0)]
-                pts += [(fixed - t / 2, b + (a - b) * i / N, slope_h(fixed, b + (a - b) * i / N)) for i in range(N + 1)]
-                vec = (t, 0.0, 0.0)
+                pts = [(base, a, 0.0), (base, b, 0.0)]
+                pts += [(base, b + (a - b) * i / N, slope_h(fixed, b + (a - b) * i / N)) for i in range(N + 1)]
+                vec = (length, 0.0, 0.0)
             else:                                         # wall runs along x at z=fixed
-                pts = [(a, fixed - t / 2, 0.0), (b, fixed - t / 2, 0.0)]
-                pts += [(b + (a - b) * i / N, fixed - t / 2, slope_h(b + (a - b) * i / N, fixed)) for i in range(N + 1)]
-                vec = (0.0, t, 0.0)
+                pts = [(a, base, 0.0), (b, base, 0.0)]
+                pts += [(b + (a - b) * i / N, base, slope_h(b + (a - b) * i / N, fixed)) for i in range(N + 1)]
+                vec = (0.0, length, 0.0)
             v, f = _prism(pts, vec)
             add_brep(ctx, nm, v, f, KNEE, ifc_class="IfcWall")
+        nfa, sfa, efa = ry2r - t / 2, ry1r + t / 2, rx2 - t / 2   # 7 ft-wall room faces
         for h0, h1 in nh:
-            cheek("Alcove cheek N", "z", h0, ry2r, ny1); cheek("Alcove cheek N", "z", h1, ry2r, ny1)
+            cheek("Alcove cheek N", "z", h0, nfa, ny1, -1); cheek("Alcove cheek N", "z", h1, nfa, ny1, +1)
         for h0, h1 in sh:
-            cheek("Alcove cheek S", "z", h0, ry1r, sy0); cheek("Alcove cheek S", "z", h1, ry1r, sy0)
+            cheek("Alcove cheek S", "z", h0, sfa, sy0, -1); cheek("Alcove cheek S", "z", h1, sfa, sy0, +1)
         for h0, h1 in eh:
-            cheek("Alcove cheek E", "x", h0, rx2, e_well[1]); cheek("Alcove cheek E", "x", h1, rx2, e_well[1])
+            cheek("Alcove cheek E", "x", h0, efa, e_well[1], -1); cheek("Alcove cheek E", "x", h1, efa, e_well[1], +1)
     else:
         # inset knee walls where the bare hip ceiling first reaches `knee`
         dk = knee / pitch
