@@ -527,30 +527,32 @@ function buildBathroom(p) {
   const xW7 = F.x2 - du;                          // west 7 ft wall (full standing headroom east of it)
   const zN7 = F.z2 - du, zS7 = F.z1 + du;         // north / south 7 ft walls
 
-  // --- shower in the SW corner of the 7 ft room (full standing headroom), backed
-  // against the two 7 ft walls (tiled) with a glass enclosure on the open E + N
-  // sides and a hinged glass DOOR on the north.
-  const shW = xW7, shE = xW7 - 4.0;                    // 4 ft E-W, west side on the 7 ft wall
-  const shS = zS7, shN = zS7 + 3.5;                    // 3.5 ft N-S, south side on the 7 ft wall
-  const shcz = (shS + shN) / 2, shw = shW - shE, shd = shN - shS;
-  box((shE + shW) / 2, shcz, 0.12, shw, 0.24, shd, tile);                    // pan/curb
+  // --- shower running the FULL east-west width along the south wall, full standing
+  // headroom. Tiled on the W + S + E sides (E = the entry partition); the open N
+  // side is glass: a hinged DOOR at the east end (by the entry) + a fixed panel.
+  const shW = xW7, shE = x1;                           // FULL width, E-W
+  const shS = zS7, shN = zS7 + 3.5;                    // 3.5 ft deep, S side on the 7 ft wall
+  const shcz = (shS + shN) / 2, shd = shN - shS;
+  box((shE + shW) / 2, shcz, 0.12, shW - shE, 0.24, shd, tile);              // pan/curb
   prismPanel([[shW, shS, 0], [shW, shN, 0], [shW, shN, rz(shW, shN)], [shW, shS, rz(shW, shS)]], [-0.1, 0, 0], tile); // west tiled wall
+  prismPanel([[shE, shN, 0], [shE, shS, 0], [shE, shS, rz(shE, shS)], [shE, shN, rz(shE, shN)]], [0.1, 0, 0], tile);  // east tiled wall (entry partition)
   prismPanel([[shE, shS, 0], [shW, shS, 0], [shW, shS, rz(shW, shS)], [shE, shS, rz(shE, shS)]], [0, -0.1, 0], tile); // south tiled wall
-  cyl(shW - 0.4, shS + 0.4, 5.5, 0.06, 0.5, chrome);                         // shower-head arm (off the S wall)
+  cyl(shW - 0.4, shS + 0.4, 5.5, 0.06, 0.5, chrome);                         // shower-head arm (off the S wall, W end)
   box(shW - 0.4, shS + 0.4, 5.8, 0.5, 0.12, 0.12, chrome);                   // shower head
-  {                                                    // fixed glass panel on the open EAST side
-    const pane = new THREE.Mesh(new THREE.BoxGeometry(0.04 * ft, 6.6 * ft, shd * ft), glass);
-    pane.position.copy(V(shE - px, shcz - pz, 3.3)); g.add(pane);
+  const sdoorW = 3.2, sdx1 = shE + sdoorW;                                   // glass DOOR at the east end
+  {                                                    // fixed glass panel over the rest of the N side
+    const pane = new THREE.Mesh(new THREE.BoxGeometry((shW - sdx1) * ft, 6.6 * ft, 0.04 * ft), glass);
+    pane.position.copy(V(((sdx1 + shW) / 2) - px, shN - pz, 3.3)); g.add(pane);
   }
-  {                                                    // hinged glass DOOR on the north side
-    const dwd = shw - 0.2, dh = 6.6, ang = 1.0;
+  {                                                    // hinged glass DOOR (double-tap), hinge at the east jamb
+    const dwd = sdoorW - 0.1, dh = 6.6, ang = 1.0;
     const leaf = new THREE.Group();
     const pane = new THREE.Mesh(new THREE.BoxGeometry(dwd * ft, dh * ft, 0.04 * ft), glass);
     const stile = new THREE.Mesh(new THREE.BoxGeometry(0.06 * ft, dh * ft, 0.1 * ft), chrome);
     pane.position.set(-(dwd / 2) * ft, (dh / 2) * ft, 0);
     stile.position.set(-(dwd - 0.08) * ft, (dh / 2) * ft, 0);
     leaf.add(pane); leaf.add(stile);
-    leaf.position.copy(V(shE - px, shN - pz, 0));        // hinge at the east jamb of the north wall
+    leaf.position.copy(V(shE - px, shN - pz, 0));        // hinge at the east jamb of the north (glass) side
     g.add(leaf);
     const door = { pivot: leaf, openAngle: ang, current: 0, open: false };
     pane.userData.fdoor = door; doors.push(door);
@@ -572,7 +574,8 @@ function buildBathroom(p) {
   // tank with lid + flush button. The tank backs the wall; the bowl faces the room.
   const bowlInt = new THREE.MeshStandardMaterial({ color: 0xcdd2d2, roughness: 0.2, side: THREE.DoubleSide });
   const oval = (rx, ry, cxs = 0) => { const s = new THREE.Shape(); s.absellipse(cxs * ft, 0, rx * ft, ry * ft, 0, Math.PI * 2); return s; };
-  const makeToilet = (backX, cz) => {
+  // (plx,plz) = bowl-centre plan position; rotY rotates the local +X = front about Y.
+  const makeToilet = (plx, plz, rotY = 0) => {
     const grp = new THREE.Group();
     // bowl + pedestal: revolved profile (radius, height in ft), elongated front-back
     const prof = [[0.00, 0.00], [0.46, 0.00], [0.44, 0.10], [0.30, 0.42], [0.34, 0.74],
@@ -599,17 +602,19 @@ function buildBathroom(p) {
     tlid.position.set(-0.85 * ft, 2.7 * ft, 0); grp.add(tlid);
     const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.09 * ft, 0.09 * ft, 0.05 * ft, 16), chrome);
     btn.position.set(-0.85 * ft, 2.77 * ft, 0); grp.add(btn);
-    grp.position.copy(V((backX - 1.2) - px, cz - pz, 0));   // origin ~1.2 ft east of the wall
+    grp.rotation.y = rotY;
+    grp.position.copy(V(plx - px, plz - pz, 0));
     g.add(grp);
   };
-  makeToilet(xW7, 7.0);
+  // toilet backs the NORTH wall (tank near zN7), facing south toward the WC door.
+  makeToilet(22.0, zN7 - 1.2, -Math.PI / 2);
 
   // --- WC: enclose the toilet in a compartment in the NW corner. The W + N sides
   // are the 7 ft room walls; add a full-height E partition and a S partition with a
   // door (double-tap to open/close). The E partition clears the 3rd north dormer.
   const wcE = 19.7, wcS = 4.83;                          // east + south partition lines
   zWall(wcE, wcS, zN7);                                  // east partition (floor -> ceiling)
-  framedDoor({ axis: "x", line: wcS, oa: 21.0, ob: 23.5, wa: wcE, wb: xW7, hinge: "a", swing: 1.1 });
+  framedDoor({ axis: "x", line: wcS, oa: 21.0, ob: 23.5, wa: wcE, wb: xW7, hinge: "b", swing: 1.1 });
 
   g.userData.doors = doors;
   return g;
