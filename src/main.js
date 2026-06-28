@@ -404,8 +404,9 @@ async function main() {
     // a grid of sample semi-flush fixtures. Ceiling toggles opaque (POV) /
     // translucent (overview), like the others.
     if (lvl.id === "level2") {
+      const WALL = 0.4583 * 0.3048;                      // land the ceiling on the perimeter wall centerline
       const bb = new THREE.Box3().setFromObject(m.object);
-      const x0 = bb.min.x, x1 = bb.max.x, z0 = bb.min.z, z1 = bb.max.z;
+      const x0 = bb.min.x + WALL / 2, x1 = bb.max.x - WALL / 2, z0 = bb.min.z + WALL / 2, z1 = bb.max.z - WALL / 2;
       const cy = m.object.position.y + ceilHt;
       const slab = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, 0.06, z1 - z0), newCeilMat());
       slab.position.set((x0 + x1) / 2, cy - 0.03, (z0 + z1) / 2);
