@@ -30,8 +30,15 @@ export function setupLighting(scene) {
   // hour, so a frozen shadow stays correct and doesn't flicker while panning.
   sun.shadow.autoUpdate = false;
   sun.shadow.needsUpdate = true;
+  // Sky fill is for the OUTDOORS only: the exterior massing is lit by the dome of
+  // sky, but interiors should not be (a flat hemisphere paints every interior wall
+  // the same tone). Put the hemisphere on layer 2 and tag only the exterior model
+  // with that layer (see main.js); interiors then get just the sun (through windows),
+  // the interior fixtures, and a faint floor light below so corners aren't pure black.
   const sky = new THREE.HemisphereLight(0xbfdcff, 0x9a8a7a, 0.8);
-  scene.add(sun, sun.target, sky);
+  sky.layers.set(2);
+  const fill = new THREE.AmbientLight(0xaab6c6, 0.12);   // minimal interior black-floor (no GI to bounce light)
+  scene.add(sun, sun.target, sky, fill);
 
   const focus = new THREE.Vector3();   // sun + shadow frustum aim point
   let dist = 40, hour = 14;
@@ -56,9 +63,13 @@ export function setupLighting(scene) {
     sun.intensity = clamp(Math.max(altSin, 0) * 3.4, 0, 3.4) + 0.05;
     sun.color.copy(mix(0xfff1da, 0xff7a30, warm));       // neutral high, warm low
 
-    sky.intensity = lerp(0.42, 1.0, day);   // keep a twilight/night ambient floor so rooms stay readable
+    // Exterior sky fill (full strength — outdoor faces should read in shade too).
+    sky.intensity = lerp(0.45, 1.0, day);
     sky.color.copy(mix(0x33425e, 0xbfdcff, day));
     sky.groundColor.copy(mix(0x121723, 0x9a8a7a, day));
+    // Faint interior floor: low enough that fixtures + window light carry the look.
+    fill.intensity = lerp(0.05, 0.14, day);
+    fill.color.copy(mix(0x2a3340, 0xaab6c6, day));
 
     scene.background = altSin <= 0
       ? mix(0x0b1020, 0xf0c39a, clamp(altSin * 9 + 1, 0, 1))  // night -> dawn/dusk glow at the horizon

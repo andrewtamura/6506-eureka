@@ -30,6 +30,32 @@ const propsTitle = document.getElementById("props-title");
 const PROPS_HINT = '<div class="muted">Tap an element — a wall, the floor, a window — to see what it is.</div>';
 const setStatus = (t) => { statusEl.textContent = t; statusEl.style.display = t ? "block" : "none"; };
 
+// Hung pendant fixtures for the attic, parented to the attic model (local plan
+// coords: x->-x, z->-z, y up; floor at local y=0). Each is a glowing shade on a
+// cord up to the sloped ceiling, with a point light that grazes the ceiling from
+// below (revealing its form) and lights the room. No shadows (kept cheap).
+function addAtticLights(parent) {
+  const FT = 0.3048, eave = 2.5, pit = 0.6667;
+  const F = { x1: -12, x2: 31, z1: -11.9167, z2: 16.0833 };      // attic footprint (plan ft)
+  const ceilH = (px, pz) => eave + pit * Math.min(px - F.x1, F.x2 - px, pz - F.z1, F.z2 - pz);
+  const cordMat = new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 0.7 });
+  const shadeMat = new THREE.MeshStandardMaterial({ color: 0xfff6e6, emissive: 0xffe7b8, emissiveIntensity: 1.3, roughness: 0.45 });
+  const mk = (px, pz, intensity, hangFt = 6.8) => {
+    const h = ceilH(px, pz), hang = Math.min(hangFt, h - 0.8), cordLen = h - hang;
+    const g = new THREE.Group();
+    g.position.set(-px * FT, hang * FT, -pz * FT);
+    const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, cordLen * FT, 6), cordMat);
+    cord.position.y = (cordLen * FT) / 2 + 0.07; g.add(cord);
+    const shade = new THREE.Mesh(new THREE.SphereGeometry(0.085, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.62), shadeMat);
+    shade.rotation.x = Math.PI; g.add(shade);                    // dome opening downward
+    const light = new THREE.PointLight(0xfff0db, intensity, 0, 2);
+    light.position.y = -0.05; g.add(light);
+    parent.add(g);
+  };
+  mk(-1, 2.08, 3.6); mk(5, 2.08, 3.6); mk(11, 2.08, 3.6);       // main room, along the ridge
+  mk(18, 1.0, 2.6); mk(22, 6.8, 1.6);                           // bathroom: central + WC
+}
+
 async function main() {
   const container = document.getElementById("viewer");
 
@@ -325,6 +351,9 @@ async function main() {
     m.object.traverse((o) => {
       if (!o.isMesh) return;
       o.frustumCulled = false; o.castShadow = true; o.receiveShadow = true;
+      // The exterior massing is outdoors -> let it receive the sky hemisphere
+      // (layer 2). Interiors stay on layer 0 (sun + fixtures + faint floor only).
+      if (lvl.id === "exterior") o.layers.enable(2);
       for (const mat of (Array.isArray(o.material) ? o.material : [o.material])) {
         if (!mat) continue;
         // Render both faces so downward-facing surfaces (the roof soffit / eave
@@ -365,6 +394,10 @@ async function main() {
     // finished floor; empty manifest (other levels) is a no-op.
     if (lvl.id !== "exterior" && lvl.manifests?.subfloor)
       await buildSubfloor({ scene, model: m, fragments, floorY: m.object.position.y, baseUrl: BASE, manifestFile: lvl.manifests.subfloor + VER });
+    // Interior light fixtures (the attic's only artificial light): hung pendants
+    // that throw light onto the ceiling so its slopes/dormer pockets read, and
+    // down into the room. With the ambient cut low, these + the windows do the work.
+    if (lvl.id === "attic") addAtticLights(m.object);
     exhibitModels.push({ lvl, model: m });             // register as a walk target after the walker exists
     return buildingBox(m.object);
   };
