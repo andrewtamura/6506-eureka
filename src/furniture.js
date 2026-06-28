@@ -495,13 +495,14 @@ function buildBathroom(p) {
     panel.userData.fdoor = door; doors.push(door);
   }
 
-  // The bathroom's OWN interior walls, inset from the attic's 3 ft knee wall to
-  // where the sloped ceiling clears ~5 ft, so the fixtures mount to real walls
-  // (the low strip between these and the knee wall is behind-wall storage).
-  const wWall = p.roof.footprint.x2 - 3.75;   // west (wet) wall line
-  const nNk = p.roof.footprint.z2 - 3.75;     // north wall line
-  const sNk = p.roof.footprint.z1 + 3.75;     // south wall line
-  zWall(wWall, sNk, nNk);                       // west wet wall (vanity / mirror / toilet)
+  // The bathroom's perimeter walls, pushed all the way OUT to the attic's 3 ft
+  // knee line (the bath uses the entire west end, to the eaves). These are 3 ft
+  // knee walls (their tops follow the slope); fixtures mount to them.
+  const kneeInset = p.kneeFt != null ? Math.max(0, (p.kneeFt - eaveFt) / pit) : 3.75;
+  const wWall = p.roof.footprint.x2 - kneeInset;   // west (wet) wall = 3 ft knee line
+  const nNk = p.roof.footprint.z2 - kneeInset;     // north wall
+  const sNk = p.roof.footprint.z1 + kneeInset;     // south wall
+  zWall(wWall, sNk, nNk);                       // west wet wall (vanity under the W dormer / toilet)
   xWall(nNk, x1, wWall);                        // north wall
   xWall(sNk, x1, wWall);                        // south wall
 
@@ -537,13 +538,16 @@ function buildBathroom(p) {
   // (the bath's daylight comes from the WEST HIP DORMER above the wet wall —
   // a real dormer window built in the IFC.)
 
-  // --- single vanity in the MIDDLE of the west wall, facing east, with a mirror -
+  // --- single vanity centred on the west wall, UNDER the west hip dormer (which
+  // brings daylight in place of a mirror); the mirror moves to a tall interior wall.
   const vcx = wWall - 0.95, vz0 = 0.5, vz1 = 3.5, vd = vz1 - vz0, vcz = (vz0 + vz1) / 2;
   box(vcx, vcz, 1.45, 1.9, 2.9, vd, woodv);                                  // vanity cabinet
   box(vcx, vcz, 2.95, 2.1, 0.18, vd + 0.2, porc);                            // stone countertop
   cyl(vcx, vcz, 3.0, 0.5, 0.18, porc, 24);                                   // single basin
   cyl(vcx + 0.6, vcz, 3.15, 0.05, 0.6, chrome);                              // faucet
-  box(wWall - 0.06, vcz, 4.0, 0.08, 2.0, vd - 0.4, glass);                    // mirror on the wet wall
+  // full-length mirror on the EAST partition (a full-height interior wall), in the
+  // open stretch south of the door.
+  box(x1 + 0.06, -0.6, 4.0, 0.08, 2.2, 2.0, glass);
 
   // --- WC: a full-width compartment across the SOUTH end of the bathroom. The
   // east partition, west + south knee walls bound it; a north partition spans the
