@@ -326,6 +326,7 @@ async function main() {
   let exteriorModel = null;                             // captured for the walk-the-lot POV
   const exhibitModels = [];                             // {lvl, model} for each placed exhibit (walk targets)
   const povCeilingMats = [];                            // attic ceiling materials: opaque in POV, translucent in overview
+  const exhibitCeilingMats = [];                        // second-floor flat ceilings: same opaque-POV / translucent-overview toggle
   const furnitureDoorMeshes = [];                       // procedural door leaves (e.g. attic bathroom): double-tap to toggle
   const modelViews = [{ id: groundLevel.id, label: groundLevel.label || groundLevel.storey, box: buildingBox(model.object) }];
   const labelViews = [{ label: groundLevel.label || groundLevel.storey, box: modelBox }];
@@ -398,6 +399,21 @@ async function main() {
     // that throw light onto the ceiling so its slopes/dormer pockets read, and
     // down into the room. With the ambient cut low, these + the windows do the work.
     if (lvl.id === "attic") addAtticLights(m.object);
+    // Second floor is a shell with no IfcSpaces -> give it flat ceilings + a
+    // semi-flush fixture per room, reusing the ground floor's room layout shifted
+    // to this exhibit's offset. Ceilings toggle opaque (POV) / translucent (overview).
+    if (lvl.id === "level2") {
+      const dx = m.object.position.x - groundPos.x, dz = m.object.position.z - groundPos.z;
+      const cy = m.object.position.y + ceilHt;
+      for (const c of roomCenters) {
+        const sx = c.sx + 1.3, sz = c.sz + 1.3;
+        if (sx < 0.3 || sz < 0.3) continue;
+        const slab = new THREE.Mesh(new THREE.BoxGeometry(sx, 0.06, sz), newCeilMat());
+        slab.position.set(c.x + dx, cy - 0.03, c.z + dz); slab.castShadow = true; slab.receiveShadow = true;
+        scene.add(slab); exhibitCeilingMats.push(slab.material);
+        semiFlush(c.x + dx, cy - 0.04, c.z + dz, 3.0);
+      }
+    }
     exhibitModels.push({ lvl, model: m });             // register as a walk target after the walker exists
     return buildingBox(m.object);
   };
@@ -680,13 +696,36 @@ async function main() {
   // see into the attic from outside/above).
   setPlanView = (plan) => {
     baseSetPlanView(plan);
-    for (const mat of povCeilingMats) {
+    for (const mat of [...povCeilingMats, ...exhibitCeilingMats]) {
       mat.transparent = plan;
       mat.opacity = plan ? (mat.userData._planOpacity ?? 0.45) : 1.0;
       mat.depthWrite = !plan;
       mat.needsUpdate = true;
     }
   };
+  window.__eureka.setPlanView = setPlanView;   // debug handle (headless render harness)
+
+  // --- interior light fixtures: a semi-flush ceiling fixture (canopy + short stem
+  // + glowing shade) with a downlight in EACH room, for sample lighting. The attic
+  // has its own pendants; the ground floor is lit here and the second floor when
+  // its exhibit streams in (it has no IfcSpaces, so it reuses the ground layout).
+  const ceilHt = modelBox.max.y - FLOOR;               // floor-to-ceiling height
+  const groundPos = model.object.position;
+  const fxMetal = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.5, metalness: 0.6 });
+  const fxShade = new THREE.MeshStandardMaterial({ color: 0xfff6e6, emissive: 0xffe7b8, emissiveIntensity: 1.2, roughness: 0.45 });
+  const newCeilMat = () => new THREE.MeshStandardMaterial({ color: 0xf2efe9, roughness: 0.95, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide });
+  const semiFlush = (x, ceilY, z, intensity) => {
+    const g = new THREE.Group(); g.position.set(x, ceilY, z);
+    const canopy = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.04, 16), fxMetal); canopy.position.y = -0.02; g.add(canopy);
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.1, 8), fxMetal); stem.position.y = -0.09; g.add(stem);
+    const shade = new THREE.Mesh(new THREE.SphereGeometry(0.12, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), fxShade); shade.rotation.x = Math.PI; shade.position.y = -0.17; g.add(shade);
+    const light = new THREE.PointLight(0xfff0db, intensity, 0, 2); light.position.y = -0.27; g.add(light);
+    scene.add(g);
+  };
+  const roomCenters = roomBoxes.map((r) => ({ x: (r.box.min.x + r.box.max.x) / 2, z: (r.box.min.z + r.box.max.z) / 2,
+                                              sx: r.box.max.x - r.box.min.x, sz: r.box.max.z - r.box.min.z }));
+  for (const c of roomCenters) semiFlush(c.x, modelBox.max.y - 0.04, c.z, 3.0);   // ground floor: one per room
+
   // Opaque blockers (ceiling, walls, floor, furniture) cast shadow so the sun
   // can't pass through them; transparent glass does NOT cast, so windows let
   // daylight into the interior. (Run before toggling the ceiling transparent so

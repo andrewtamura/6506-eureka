@@ -38,7 +38,7 @@ export function buildCeilings({ scene, rooms, ceilingY, opening }) {
   const setPlanView = (p) => {
     if (p === plan) return; plan = p;
     mat.transparent = p;
-    mat.opacity = p ? 0.0 : 1.0;
+    mat.opacity = p ? 0.45 : 1.0;   // semi-transparent in the overview (see down into rooms, like the attic)
     mat.depthWrite = !p;
     mat.needsUpdate = true;
   };
