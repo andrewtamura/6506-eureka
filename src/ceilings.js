@@ -21,11 +21,11 @@ export function buildCeilings({ scene, rooms, ceilingY, opening }) {
     const b = r.box;
     const sx = b.max.x - b.min.x, sz = b.max.z - b.min.z;
     if (sx < 0.2 || sz < 0.2) continue;
-    // oversize generously so adjacent room ceilings overlap across walls and
-    // door thresholds (no sky leak overhead, no sun through the gaps)
-    if (!holds(b)) { slab((b.min.x + b.max.x) / 2, (b.min.z + b.max.z) / 2, sx + 1.3, sz + 1.3); continue; }
+    // oversize by ~one wall thickness so adjacent room ceilings just meet/overlap
+    // across the walls (no sky leak overhead) without ballooning past the room.
+    if (!holds(b)) { slab((b.min.x + b.max.x) / 2, (b.min.z + b.max.z) / 2, sx + 0.3, sz + 0.3); continue; }
     // frame the ceiling around the stairwell opening (4 bands) — hole stays clear
-    const X1 = b.min.x - 0.65, X2 = b.max.x + 0.65, Z1 = b.min.z - 0.65, Z2 = b.max.z + 0.65;
+    const X1 = b.min.x - 0.15, X2 = b.max.x + 0.15, Z1 = b.min.z - 0.15, Z2 = b.max.z + 0.15;
     const oX1 = opening.minX, oX2 = opening.maxX, oZ1 = opening.minZ, oZ2 = opening.maxZ;
     slab((X1 + X2) / 2, (Z1 + oZ1) / 2, X2 - X1, oZ1 - Z1);   // south band
     slab((X1 + X2) / 2, (oZ2 + Z2) / 2, X2 - X1, Z2 - oZ2);   // north band

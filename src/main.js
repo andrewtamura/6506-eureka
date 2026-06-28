@@ -399,20 +399,21 @@ async function main() {
     // that throw light onto the ceiling so its slopes/dormer pockets read, and
     // down into the room. With the ambient cut low, these + the windows do the work.
     if (lvl.id === "attic") addAtticLights(m.object);
-    // Second floor is a shell with no IfcSpaces -> give it flat ceilings + a
-    // semi-flush fixture per room, reusing the ground floor's room layout shifted
-    // to this exhibit's offset. Ceilings toggle opaque (POV) / translucent (overview).
+    // Second floor is an open shell with no rooms yet -> give it ONE flat ceiling
+    // over its whole footprint (independent of the ground floor's room layout), plus
+    // a grid of sample semi-flush fixtures. Ceiling toggles opaque (POV) /
+    // translucent (overview), like the others.
     if (lvl.id === "level2") {
-      const dx = m.object.position.x - groundPos.x, dz = m.object.position.z - groundPos.z;
+      const bb = new THREE.Box3().setFromObject(m.object);
+      const x0 = bb.min.x, x1 = bb.max.x, z0 = bb.min.z, z1 = bb.max.z;
       const cy = m.object.position.y + ceilHt;
-      for (const c of roomCenters) {
-        const sx = c.sx + 1.3, sz = c.sz + 1.3;
-        if (sx < 0.3 || sz < 0.3) continue;
-        const slab = new THREE.Mesh(new THREE.BoxGeometry(sx, 0.06, sz), newCeilMat());
-        slab.position.set(c.x + dx, cy - 0.03, c.z + dz); slab.castShadow = true; slab.receiveShadow = true;
-        scene.add(slab); exhibitCeilingMats.push(slab.material);
-        semiFlush(c.x + dx, cy - 0.04, c.z + dz, 3.0);
-      }
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, 0.06, z1 - z0), newCeilMat());
+      slab.position.set((x0 + x1) / 2, cy - 0.03, (z0 + z1) / 2);
+      slab.castShadow = true; slab.receiveShadow = true;
+      scene.add(slab); exhibitCeilingMats.push(slab.material);
+      const nx = 3, nz = 2;                                 // sample fixture grid
+      for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++)
+        semiFlush(x0 + (x1 - x0) * (i + 0.5) / nx, cy - 0.04, z0 + (z1 - z0) * (j + 0.5) / nz, 3.0);
     }
     exhibitModels.push({ lvl, model: m });             // register as a walk target after the walker exists
     return buildingBox(m.object);
