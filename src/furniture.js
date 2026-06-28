@@ -513,8 +513,8 @@ function buildBathroom(p) {
   // --- single EAST partition (x1) the full depth, with a door near the ridge ---
   // (the W / N / S sides open to the roof slope — the knee walls there are dropped,
   // so the bathroom uses the entire west end, both sloped sides included).
-  const dz0 = pz + 1.4, dz1 = pz + 4.4;                 // 3 ft door, shifted ~3 ft north along the partition
-  framedDoor({ axis: "z", line: x1, oa: dz0, ob: dz1, wa: z1, wb: z2, hinge: "b", swing: 1.25 });
+  const dz0 = pz + 3.5, dz1 = pz + 6.5;                 // 3 ft door, near the N end of the partition
+  framedDoor({ axis: "z", line: x1, oa: dz0, ob: dz1, wa: z1, wb: z2, hinge: "b", swing: -1.25 });  // hinge N jamb, swings IN
 
   // The bathroom's perimeter walls (3 ft knee walls + the 7 ft room walls with
   // open dormer alcoves) are built in the IFC now — add_attic rings the WHOLE
