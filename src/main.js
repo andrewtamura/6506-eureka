@@ -300,6 +300,7 @@ async function main() {
   let exteriorModel = null;                             // captured for the walk-the-lot POV
   const exhibitModels = [];                             // {lvl, model} for each placed exhibit (walk targets)
   const povCeilingMats = [];                            // attic ceiling materials: opaque in POV, translucent in overview
+  const furnitureDoorMeshes = [];                       // procedural door leaves (e.g. attic bathroom): double-tap to toggle
   const modelViews = [{ id: groundLevel.id, label: groundLevel.label || groundLevel.storey, box: buildingBox(model.object) }];
   const labelViews = [{ label: groundLevel.label || groundLevel.storey, box: modelBox }];
   const placeExhibit = async (lvl, toEast) => {
@@ -352,8 +353,10 @@ async function main() {
     // Procedural furniture for this exhibit level (parented so it inherits the
     // grid/west offset). The exterior is handled separately below; ground has
     // its own full build. floorY=0 = this level's finish floor (slab top).
-    if (lvl.id !== "exterior" && lvl.manifests?.furniture)
-      await buildFurniture({ scene, parent: m.object, floorY: 0, baseUrl: BASE, manifestFile: lvl.manifests.furniture + VER });
+    if (lvl.id !== "exterior" && lvl.manifests?.furniture) {
+      const ef = await buildFurniture({ scene, parent: m.object, floorY: 0, baseUrl: BASE, manifestFile: lvl.manifests.furniture + VER });
+      if (ef?.doorMeshes) furnitureDoorMeshes.push(...ef.doorMeshes);
+    }
     // hardwood floor (instanced planks), same as the ground floor; floorY is this
     // level's finish (the model sits with its slab top at object.position.y).
     if (lvl.id !== "exterior" && lvl.manifests?.floors)
@@ -628,6 +631,7 @@ async function main() {
 
   // --- soft furniture as procedural meshes (see furniture.js) -------------
   const furniture = await buildFurniture({ scene, floorY: FLOOR + 0.02, baseUrl: BASE, manifestFile: groundManifests.furniture + VER });
+  if (furniture?.doorMeshes) furnitureDoorMeshes.push(...furniture.doorMeshes);
   // Exterior fixtures (entry pendant lanterns) parent to the exterior model so
   // they inherit its offset; heights come per-item from the manifest.
   if (exteriorModel && exteriorLvl)
@@ -772,6 +776,14 @@ async function main() {
     const hits = doorRaycaster.intersectObjects(doorMeshes, false);
     return hits.length ? hits[0].object.userData.door : null;
   }
+  // Pick a procedural (furniture) door leaf — e.g. the attic bathroom doors.
+  function pickFurnitureDoor(lx, ly) {
+    if (!furnitureDoorMeshes.length) return null;
+    _ndc.set((lx / dom.clientWidth) * 2 - 1, -(ly / dom.clientHeight) * 2 + 1);
+    doorRaycaster.setFromCamera(_ndc, world.camera.three);
+    const hits = doorRaycaster.intersectObjects(furnitureDoorMeshes, false);
+    return hits.length ? hits[0].object.userData.fdoor : null;
+  }
   // Pick an actionable chair (double-tap slides it in/out of the table).
   function pickChair(lx, ly) {
     const meshes = furniture?.chairMeshes;
@@ -808,6 +820,8 @@ async function main() {
       lastTap = 0;
       const door = pickDoor(lx, ly);
       if (door) { toggleDoor(door); return; }
+      const fdoor = pickFurnitureDoor(lx, ly);
+      if (fdoor) { fdoor.open = !fdoor.open; return; }
       const chair = pickChair(lx, ly);
       if (chair) { chair.toggle(); return; }
       await walker.teleport(lx, ly, pointer, dom);
