@@ -539,8 +539,15 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior", 
         bays = [x1 + (i + 0.5) * span / count for i in range(count)]
         cap = min(min(cx - wd / 2 - x1, x2 - (cx + wd / 2)) for cx in bays) * pitch
         plate = min(plate, cap - 0.20 * FT)
-    whead = plate - 0.40 * FT                          # leave a band under the gable
-    wsill = max(0.8 * FT, whead - wh)
+    # window sill: explicit `sillFt` (above the dormer base — base sits on the knee
+    # wall, so sillFt=0 puts the sill at the knee-wall top) or auto under the gable.
+    sill_spec = spec.get("window", {}).get("sillFt")
+    if sill_spec is not None:
+        wsill = max(0.0, sill_spec * FT)
+        whead = min(plate - 0.40 * FT, wsill + wh)
+    else:
+        whead = plate - 0.40 * FT                      # leave a band under the gable
+        wsill = max(0.8 * FT, whead - wh)
 
     def prism(name, poly, vec, color, cls="IfcWall", tr=0.0):
         v, f = _prism([(p[0], p[1], p[2] + base_z) for p in poly], vec)

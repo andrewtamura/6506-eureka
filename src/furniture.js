@@ -495,17 +495,20 @@ function buildBathroom(p) {
     panel.userData.fdoor = door; doors.push(door);
   }
 
-  // Knee-wall lines (the hip roof springs from here). The WEST wall is the low hip
-  // (~5 ft of headroom) so wet fixtures that need standing room sit on the taller
-  // EAST side near the ridge; the vanity (used leaning) stays on the west wall.
-  const wWall = p.roof.footprint.x2 - 3.75;   // west knee-wall line
-  const nNk = p.roof.footprint.z2 - 3.75;     // north knee line
-  const sNk = p.roof.footprint.z1 + 3.75;     // south knee line
+  // The bathroom's OWN interior walls, inset from the attic's 3 ft knee wall to
+  // where the sloped ceiling clears ~5 ft, so the fixtures mount to real walls
+  // (the low strip between these and the knee wall is behind-wall storage).
+  const wWall = p.roof.footprint.x2 - 3.75;   // west (wet) wall line
+  const nNk = p.roof.footprint.z2 - 3.75;     // north wall line
+  const sNk = p.roof.footprint.z1 + 3.75;     // south wall line
+  zWall(wWall, sNk, nNk);                       // west wet wall (vanity / mirror / toilet)
+  xWall(nNk, x1, wWall);                        // north wall
+  xWall(sNk, x1, wWall);                        // south wall
 
   // --- shower ALCOVE in the tall zone NORTH of the door (the hip ceiling here is
   // ~6.8-9 ft). It runs LONGWISE east-west (back against the east partition) with
   // the SHORT dimension north-south, tiled on three sides + a GLASS DOOR on the
-  // south wall. A drywall wall fills from the west end to the knee wall (below).
+  // south wall.
   const shE = x1, shW = x1 + 4.0;                       // long axis E-W (4 ft), back (east) -> west end
   const shS = 4.5, shN = 7.5;                           // short axis N-S (3 ft), north of the door
   const shcx = (shE + shW) / 2, shcz = (shS + shN) / 2, shw = shW - shE, shd = shN - shS;
@@ -531,10 +534,6 @@ function buildBathroom(p) {
     const door = { pivot: leaf, openAngle: ang, current: 0, open: false };
     pane.userData.fdoor = door; doors.push(door);
   }
-  // drywall wall blocking the awkward low space between the shower's west end and
-  // the west knee wall (north of the vanity) — makes the room a clean rectangle.
-  xWall(shS, shW, wWall);
-
   // (the bath's daylight comes from the WEST HIP DORMER above the wet wall —
   // a real dormer window built in the IFC.)
 
@@ -580,7 +579,28 @@ function buildBathroom(p) {
   return g;
 }
 
-const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom };
+// A cute window-seat bench: a wood base + seat board, a seat cushion and a back
+// bolster against the knee wall. The group origin sits at the knee-wall line
+// (placed there by the manifest) and the bench extends south into the room.
+function buildWindowBench(p) {
+  const ft = FT, g = new THREE.Group();
+  const w = (p.widthFt || 3.5) - 0.3;        // a touch narrower than the dormer
+  const d = 1.5;                             // seat depth
+  const sh = 1.5;                            // seat height (~18")
+  const woodm = woodMat(col(p.wood || "walnut", 0x8a6a45));
+  const cmat = new THREE.MeshStandardMaterial({ color: col(p.cushion || "linen", 0xd8dcd2), roughness: 0.95 });
+  const base = new THREE.Mesh(new RoundedBoxGeometry(w * ft, (sh - 0.2) * ft, (d - 0.12) * ft, 2, 0.03), woodm);
+  base.position.set(0, (sh - 0.2) / 2 * ft, (d / 2) * ft); g.add(base);          // base/apron
+  const seat = new THREE.Mesh(new RoundedBoxGeometry((w + 0.12) * ft, 0.16 * ft, (d + 0.06) * ft, 2, 0.04), woodm);
+  seat.position.set(0, (sh - 0.08) * ft, (d / 2) * ft); g.add(seat);             // seat board
+  const cush = new THREE.Mesh(new RoundedBoxGeometry((w - 0.06) * ft, 0.18 * ft, (d - 0.18) * ft, 4, 0.09), cmat);
+  cush.position.set(0, (sh + 0.06) * ft, (d / 2 + 0.02) * ft); g.add(cush);      // seat cushion
+  const bol = new THREE.Mesh(new RoundedBoxGeometry((w - 0.06) * ft, 0.55 * ft, 0.4 * ft, 4, 0.14), cmat);
+  bol.position.set(0, (sh + 0.34) * ft, 0.24 * ft); g.add(bol);                  // back bolster at the wall
+  return g;
+}
+
+const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench };
 const CHAIRS = new Set(["upholstered_dining_chair", "highback_chair"]);
 const SEAT_FRONT = 0.225;   // chair seat front is +0.225 m toward the table from its centre
 const TUCK = 0.08;          // pushed-in: seat front this far under the table edge
