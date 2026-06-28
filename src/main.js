@@ -30,6 +30,32 @@ const propsTitle = document.getElementById("props-title");
 const PROPS_HINT = '<div class="muted">Tap an element — a wall, the floor, a window — to see what it is.</div>';
 const setStatus = (t) => { statusEl.textContent = t; statusEl.style.display = t ? "block" : "none"; };
 
+// Hung pendant fixtures for the attic, parented to the attic model (local plan
+// coords: x->-x, z->-z, y up; floor at local y=0). Each is a glowing shade on a
+// cord up to the sloped ceiling, with a point light that grazes the ceiling from
+// below (revealing its form) and lights the room. No shadows (kept cheap).
+function addAtticLights(parent) {
+  const FT = 0.3048, eave = 2.5, pit = 0.6667;
+  const F = { x1: -12, x2: 31, z1: -11.9167, z2: 16.0833 };      // attic footprint (plan ft)
+  const ceilH = (px, pz) => eave + pit * Math.min(px - F.x1, F.x2 - px, pz - F.z1, F.z2 - pz);
+  const cordMat = new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 0.7 });
+  const shadeMat = new THREE.MeshStandardMaterial({ color: 0xfff6e6, emissive: 0xffe7b8, emissiveIntensity: 1.3, roughness: 0.45 });
+  const mk = (px, pz, intensity, hangFt = 6.8) => {
+    const h = ceilH(px, pz), hang = Math.min(hangFt, h - 0.8), cordLen = h - hang;
+    const g = new THREE.Group();
+    g.position.set(-px * FT, hang * FT, -pz * FT);
+    const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, cordLen * FT, 6), cordMat);
+    cord.position.y = (cordLen * FT) / 2 + 0.07; g.add(cord);
+    const shade = new THREE.Mesh(new THREE.SphereGeometry(0.085, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.62), shadeMat);
+    shade.rotation.x = Math.PI; g.add(shade);                    // dome opening downward
+    const light = new THREE.PointLight(0xfff0db, intensity, 0, 2);
+    light.position.y = -0.05; g.add(light);
+    parent.add(g);
+  };
+  mk(-1, 2.08, 3.6); mk(5, 2.08, 3.6); mk(11, 2.08, 3.6);       // main room, along the ridge
+  mk(18, 1.0, 2.6); mk(22, 6.8, 1.6);                           // bathroom: central + WC
+}
+
 async function main() {
   const container = document.getElementById("viewer");
 
@@ -300,6 +326,7 @@ async function main() {
   let exteriorModel = null;                             // captured for the walk-the-lot POV
   const exhibitModels = [];                             // {lvl, model} for each placed exhibit (walk targets)
   const povCeilingMats = [];                            // attic ceiling materials: opaque in POV, translucent in overview
+  const exhibitCeilingMats = [];                        // second-floor flat ceilings: same opaque-POV / translucent-overview toggle
   const furnitureDoorMeshes = [];                       // procedural door leaves (e.g. attic bathroom): double-tap to toggle
   const modelViews = [{ id: groundLevel.id, label: groundLevel.label || groundLevel.storey, box: buildingBox(model.object) }];
   const labelViews = [{ label: groundLevel.label || groundLevel.storey, box: modelBox }];
@@ -325,6 +352,9 @@ async function main() {
     m.object.traverse((o) => {
       if (!o.isMesh) return;
       o.frustumCulled = false; o.castShadow = true; o.receiveShadow = true;
+      // The exterior massing is outdoors -> let it receive the sky hemisphere
+      // (layer 2). Interiors stay on layer 0 (sun + fixtures + faint floor only).
+      if (lvl.id === "exterior") o.layers.enable(2);
       for (const mat of (Array.isArray(o.material) ? o.material : [o.material])) {
         if (!mat) continue;
         // Render both faces so downward-facing surfaces (the roof soffit / eave
@@ -365,6 +395,27 @@ async function main() {
     // finished floor; empty manifest (other levels) is a no-op.
     if (lvl.id !== "exterior" && lvl.manifests?.subfloor)
       await buildSubfloor({ scene, model: m, fragments, floorY: m.object.position.y, baseUrl: BASE, manifestFile: lvl.manifests.subfloor + VER });
+    // Interior light fixtures (the attic's only artificial light): hung pendants
+    // that throw light onto the ceiling so its slopes/dormer pockets read, and
+    // down into the room. With the ambient cut low, these + the windows do the work.
+    if (lvl.id === "attic") addAtticLights(m.object);
+    // Second floor is an open shell with no rooms yet -> give it ONE flat ceiling
+    // over its whole footprint (independent of the ground floor's room layout), plus
+    // a grid of sample semi-flush fixtures. Ceiling toggles opaque (POV) /
+    // translucent (overview), like the others.
+    if (lvl.id === "level2") {
+      const WALL = 0.4583 * 0.3048;                      // land the ceiling on the perimeter wall centerline
+      const bb = new THREE.Box3().setFromObject(m.object);
+      const x0 = bb.min.x + WALL / 2, x1 = bb.max.x - WALL / 2, z0 = bb.min.z + WALL / 2, z1 = bb.max.z - WALL / 2;
+      const cy = m.object.position.y + ceilHt;
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, 0.06, z1 - z0), newCeilMat());
+      slab.position.set((x0 + x1) / 2, cy - 0.03, (z0 + z1) / 2);
+      slab.castShadow = true; slab.receiveShadow = true;
+      scene.add(slab); exhibitCeilingMats.push(slab.material);
+      const nx = 3, nz = 2;                                 // sample fixture grid
+      for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++)
+        semiFlush(x0 + (x1 - x0) * (i + 0.5) / nx, cy - 0.04, z0 + (z1 - z0) * (j + 0.5) / nz, 3.0);
+    }
     exhibitModels.push({ lvl, model: m });             // register as a walk target after the walker exists
     return buildingBox(m.object);
   };
@@ -647,13 +698,36 @@ async function main() {
   // see into the attic from outside/above).
   setPlanView = (plan) => {
     baseSetPlanView(plan);
-    for (const mat of povCeilingMats) {
+    for (const mat of [...povCeilingMats, ...exhibitCeilingMats]) {
       mat.transparent = plan;
       mat.opacity = plan ? (mat.userData._planOpacity ?? 0.45) : 1.0;
       mat.depthWrite = !plan;
       mat.needsUpdate = true;
     }
   };
+  window.__eureka.setPlanView = setPlanView;   // debug handle (headless render harness)
+
+  // --- interior light fixtures: a semi-flush ceiling fixture (canopy + short stem
+  // + glowing shade) with a downlight in EACH room, for sample lighting. The attic
+  // has its own pendants; the ground floor is lit here and the second floor when
+  // its exhibit streams in (it has no IfcSpaces, so it reuses the ground layout).
+  const ceilHt = modelBox.max.y - FLOOR;               // floor-to-ceiling height
+  const groundPos = model.object.position;
+  const fxMetal = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.5, metalness: 0.6 });
+  const fxShade = new THREE.MeshStandardMaterial({ color: 0xfff6e6, emissive: 0xffe7b8, emissiveIntensity: 1.2, roughness: 0.45 });
+  const newCeilMat = () => new THREE.MeshStandardMaterial({ color: 0xf2efe9, roughness: 0.95, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide });
+  const semiFlush = (x, ceilY, z, intensity) => {
+    const g = new THREE.Group(); g.position.set(x, ceilY, z);
+    const canopy = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.04, 16), fxMetal); canopy.position.y = -0.02; g.add(canopy);
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.1, 8), fxMetal); stem.position.y = -0.09; g.add(stem);
+    const shade = new THREE.Mesh(new THREE.SphereGeometry(0.12, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), fxShade); shade.rotation.x = Math.PI; shade.position.y = -0.17; g.add(shade);
+    const light = new THREE.PointLight(0xfff0db, intensity, 0, 2); light.position.y = -0.27; g.add(light);
+    scene.add(g);
+  };
+  const roomCenters = roomBoxes.map((r) => ({ x: (r.box.min.x + r.box.max.x) / 2, z: (r.box.min.z + r.box.max.z) / 2,
+                                              sx: r.box.max.x - r.box.min.x, sz: r.box.max.z - r.box.min.z }));
+  for (const c of roomCenters) semiFlush(c.x, modelBox.max.y - 0.04, c.z, 3.0);   // ground floor: one per room
+
   // Opaque blockers (ceiling, walls, floor, furniture) cast shadow so the sun
   // can't pass through them; transparent glass does NOT cast, so windows let
   // daylight into the interior. (Run before toggling the ceiling transparent so

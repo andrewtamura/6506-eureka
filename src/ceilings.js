@@ -5,6 +5,10 @@
 import * as THREE from "three";
 
 export function buildCeilings({ scene, rooms, ceilingY, opening }) {
+  // Each IfcSpace box is inset half a wall thickness from the wall centerlines, so
+  // growing it by exactly one wall thickness lands the ceiling edge on the wall
+  // CENTERLINE (halfway through the wall) — abutting the neighbour, not overlapping.
+  const WALL = 0.4583 * 0.3048;                          // wall thickness (m), per model.json
   const mat = new THREE.MeshStandardMaterial({ color: 0xf2efe9, roughness: 0.95 });
   const slab = (cx, cz, sx, sz) => {
     if (sx < 0.05 || sz < 0.05) return;
@@ -21,11 +25,11 @@ export function buildCeilings({ scene, rooms, ceilingY, opening }) {
     const b = r.box;
     const sx = b.max.x - b.min.x, sz = b.max.z - b.min.z;
     if (sx < 0.2 || sz < 0.2) continue;
-    // oversize generously so adjacent room ceilings overlap across walls and
-    // door thresholds (no sky leak overhead, no sun through the gaps)
-    if (!holds(b)) { slab((b.min.x + b.max.x) / 2, (b.min.z + b.max.z) / 2, sx + 1.3, sz + 1.3); continue; }
+    // grow by one wall thickness so the edge lands on the wall centerline (abuts
+    // the neighbouring room's ceiling at the same line — no overlap, no balloon).
+    if (!holds(b)) { slab((b.min.x + b.max.x) / 2, (b.min.z + b.max.z) / 2, sx + WALL, sz + WALL); continue; }
     // frame the ceiling around the stairwell opening (4 bands) — hole stays clear
-    const X1 = b.min.x - 0.65, X2 = b.max.x + 0.65, Z1 = b.min.z - 0.65, Z2 = b.max.z + 0.65;
+    const X1 = b.min.x - WALL / 2, X2 = b.max.x + WALL / 2, Z1 = b.min.z - WALL / 2, Z2 = b.max.z + WALL / 2;
     const oX1 = opening.minX, oX2 = opening.maxX, oZ1 = opening.minZ, oZ2 = opening.maxZ;
     slab((X1 + X2) / 2, (Z1 + oZ1) / 2, X2 - X1, oZ1 - Z1);   // south band
     slab((X1 + X2) / 2, (oZ2 + Z2) / 2, X2 - X1, Z2 - oZ2);   // north band
@@ -38,7 +42,7 @@ export function buildCeilings({ scene, rooms, ceilingY, opening }) {
   const setPlanView = (p) => {
     if (p === plan) return; plan = p;
     mat.transparent = p;
-    mat.opacity = p ? 0.0 : 1.0;
+    mat.opacity = p ? 0.45 : 1.0;   // semi-transparent in the overview (see down into rooms, like the attic)
     mat.depthWrite = !p;
     mat.needsUpdate = true;
   };
