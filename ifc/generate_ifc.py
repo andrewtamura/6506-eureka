@@ -188,6 +188,7 @@ def build_level(cfg, rooms_cache, level):
             ctx.furniture.append({"type": "bathroom", "px": (bath["x1"] + bath["x2"]) / 2,
                                   "pz": (bath["z1"] + bath["z2"]) / 2, "roof": roof_fp,
                                   "kneeFt": level.get("kneeFt", 4.0),
+                                  "usableFt": level.get("usableHeadroomFt", 7.0),
                                   "x1": bath["x1"], "x2": bath["x2"], "z1": bath["z1"], "z2": bath["z2"]})
         # cute window-seat benches under each north dormer, against the 3 ft knee wall
         dm_spec = g.get("dormers")
