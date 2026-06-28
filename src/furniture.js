@@ -502,20 +502,38 @@ function buildBathroom(p) {
   const nNk = p.roof.footprint.z2 - 3.75;     // north knee line
   const sNk = p.roof.footprint.z1 + 3.75;     // south knee line
 
-  // --- walk-in shower in the tall zone NORTH of the door (the hip ceiling here is
+  // --- shower ALCOVE in the tall zone NORTH of the door (the hip ceiling here is
   // ~6.8-9 ft). It runs LONGWISE east-west (back against the east partition) with
-  // the SHORT dimension north-south; the low west hip is avoided.
+  // the SHORT dimension north-south, tiled on three sides + a GLASS DOOR on the
+  // south wall. A drywall wall fills from the west end to the knee wall (below).
   const shE = x1, shW = x1 + 4.0;                       // long axis E-W (4 ft), back (east) -> west end
   const shS = 4.5, shN = 7.5;                           // short axis N-S (3 ft), north of the door
   const shcx = (shE + shW) / 2, shcz = (shS + shN) / 2, shw = shW - shE, shd = shN - shS;
   box(shcx, shcz, 0.12, shw, 0.24, shd, tile);                               // pan/curb
-  prismPanel([[shE, shS, 0], [shE, shN, 0], [shE, shN, rz(shE, shN)], [shE, shS, rz(shE, shS)]], [0.1, 0, 0], tile); // east tiled wall (on the partition)
+  prismPanel([[shE, shS, 0], [shE, shN, 0], [shE, shN, rz(shE, shN)], [shE, shS, rz(shE, shS)]], [0.1, 0, 0], tile); // east tiled wall (head)
   prismPanel([[shE, shN, 0], [shW, shN, 0], [shW, shN, rz(shW, shN)], [shE, shN, rz(shE, shN)]], [0, -0.1, 0], tile); // north tiled wall
-  box(shW, shcz, 3.2, 0.08, 6.4, shd, glass);                                // west splash panel (fixed; the head sprays onto it)
-  const retW = 1.0;                                                          // short south return at the west corner
-  box(shW - retW / 2, shS, 3.2, retW, 6.4, 0.08, glass);                     // -> leaves a ~2.5 ft walk-in OPENING on the south
+  prismPanel([[shW, shS, 0], [shW, shN, 0], [shW, shN, rz(shW, shN)], [shW, shS, rz(shW, shS)]], [-0.1, 0, 0], tile); // west tiled wall
   cyl(shE + 0.4, shcz, 5.5, 0.06, 0.5, chrome);                              // shower-head arm (on the east wall)
   box(shE + 0.4, shcz, 5.8, 0.12, 0.12, 0.7, chrome);                        // shower head
+  // glass shower DOOR on the south wall, hinged at the east jamb, swings out into
+  // the room (double-tap toggles).
+  {
+    const dh = 6.6, dwd = shw - 0.2, ang = 1.0;          // door height / leaf width / swing
+    const leaf = new THREE.Group();
+    const pane = new THREE.Mesh(new THREE.BoxGeometry(dwd * ft, dh * ft, 0.04 * ft), glass);
+    const stile = new THREE.Mesh(new THREE.BoxGeometry(0.06 * ft, dh * ft, 0.1 * ft), chrome); // handle stile
+    pane.position.set(-(dwd / 2) * ft, (dh / 2) * ft, 0);
+    stile.position.set(-(dwd - 0.08) * ft, (dh / 2) * ft, 0);
+    leaf.add(pane); leaf.add(stile);
+    leaf.position.copy(V(shE - px, shS - pz, 0));         // hinge at the east jamb of the south wall
+    leaf.rotation.y = 0;                                   // start closed (in the south plane)
+    g.add(leaf);
+    const door = { pivot: leaf, openAngle: ang, current: 0, open: false };
+    pane.userData.fdoor = door; doors.push(door);
+  }
+  // drywall wall blocking the awkward low space between the shower's west end and
+  // the west knee wall (north of the vanity) — makes the room a clean rectangle.
+  xWall(shS, shW, wWall);
 
   // (the bath's daylight comes from the WEST HIP DORMER above the wet wall —
   // a real dormer window built in the IFC.)
@@ -530,12 +548,11 @@ function buildBathroom(p) {
 
   // --- WC: a full-width compartment across the SOUTH end of the bathroom. The
   // east partition, west + south knee walls bound it; a north partition spans the
-  // FULL bath width with a door. The toilet sits against the EAST partition (tank
-  // to the wall, facing west) — the tall side of the hip — so there is standing
-  // headroom over and in front of it (the west wet wall was too low to stand).
+  // FULL bath width with a door. The tank sits toward the west knee wall but is
+  // pulled 1 ft east off it so there is standing headroom in front of the bowl.
   const wcN = -2.5;                                      // north partition line
-  const txc = x1 + 0.95, tzc = -4.6;                     // toilet against the east partition, in the tall zone
-  box(x1 + 0.35, tzc, 1.6, 0.7, 1.7, 1.5, porc);        // tank against the east partition
+  const txc = wWall - 0.95 - 1.0, tzc = -5.0;           // tank toward the west knee wall, pulled 1 ft east
+  box(wWall - 0.35 - 1.0, tzc, 1.6, 0.7, 1.7, 1.5, porc); // tank toward the west knee wall
   cyl(txc, tzc, 0.6, 0.72, 1.2, porc, 24);              // bowl pedestal
   const seat = new THREE.Mesh(new THREE.TorusGeometry(0.34 * ft, 0.07 * ft, 10, 24), porc);
   seat.position.copy(V(txc - px, tzc - pz, 1.25)); seat.rotation.x = Math.PI / 2; g.add(seat);
