@@ -95,13 +95,12 @@
           },
           "shedDormer": {
             "side": "south",
-            "roof": "pediment",
-            "plateFt": 4.0,
-            "pedimentPitch": 0.33,
+            "roof": "pyramid",
+            "plateFt": 6.0,
             "marginFt": 0.5,
             "spanFt": 11.1666,
             "recessFt": 0.75,
-            "window": { "count": 3, "widthFt": 3.5, "heightFt": 3.8, "sillFt": 0.7 }
+            "window": { "count": 3, "widthFt": 3.5, "heightFt": 4.8, "sillFt": 0.7 }
           },
           "hipDormers": {
             "roof": "barrel",

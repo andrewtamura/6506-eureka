@@ -493,8 +493,8 @@ def add_attic(ctx, rooms, roof):
         e_ceil = (eave + pitch * hd.get("recessFt", 0.0) * FT + hd.get("plateFt", 4.0) * FT) if hd else 0.0
         for h0, h1 in nh:
             cheek("Alcove cheek N", "z", h0, nfa, ny1, -1, n_ceil); cheek("Alcove cheek N", "z", h1, nfa, ny1, +1, n_ceil)
-        for h0, h1 in sh:
-            cheek("Alcove cheek S", "z", h0, sfa, sy0, -1, s_ceil); cheek("Alcove cheek S", "z", h1, sfa, sy0, +1, s_ceil)
+        for h0, h1 in sh:   # the deep shed well runs past the 7 ft wall, so the cheeks reach its far edge (sy1)
+            cheek("Alcove cheek S", "z", h0, sy1, sy0, -1, s_ceil); cheek("Alcove cheek S", "z", h1, sy1, sy0, +1, s_ceil)
         for h0, h1 in eh:
             cheek("Alcove cheek E", "x", h0, efa, e_well[1], -1, e_ceil); cheek("Alcove cheek E", "x", h1, efa, e_well[1], +1, e_ceil)
     else:
@@ -790,6 +790,28 @@ def add_shed_dormer(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interio
             add_brep(ctx, "Pediment acroterion", av,
                      [[0, 1, 2, 3], [0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4]],
                      TRIM, ifc_class="IfcBuildingElementProxy")
+    elif rooftype == "pyramid":
+        # square HIPPED cap: four slopes rising from the plate to a single apex
+        # (a pavilion roof). Interior gets a flat ceiling at the plate, like the
+        # pediment; the pyramid itself is an exterior-only feature.
+        plate = P
+        y_p = yS + plate / pitch                         # cheek / back die into the main slope
+        whead = min(plate - 0.3 * FT, wsill + wh)
+        wall_top = plate
+        if style != "interior":
+            prism("Shed dormer cheek W", [(xa, yS, 0.0), (xa, yS, plate), (xa, y_p, plate)], (tx, 0, 0), WALL)
+            prism("Shed dormer cheek E", [(xb, yS, 0.0), (xb, yS, plate), (xb, y_p, plate)], (-tx, 0, 0), WALL)
+        if style == "interior":
+            prism("Shed dormer ceiling", [(xa, yS, plate), (xb, yS, plate), (xb, y_p, plate), (xa, y_p, plate)],
+                  (0, 0, tz), ROOF, cls="IfcCovering")
+        else:
+            ph = (y_p - yS) / 2 * pitch                  # apex rise (front/back slopes at the main pitch)
+            ax, ay, az = cx, (yS + y_p) / 2, plate + ph
+            for nm, p0, p1 in (("Pyramid roof S", (xa, yS, plate), (xb, yS, plate)),
+                               ("Pyramid roof N", (xb, y_p, plate), (xa, y_p, plate)),
+                               ("Pyramid roof W", (xa, y_p, plate), (xa, yS, plate)),
+                               ("Pyramid roof E", (xb, yS, plate), (xb, y_p, plate))):
+                prism(nm, [p0, p1, (ax, ay, az)], (0, 0, tz), ROOF, cls="IfcRoof")
     elif rooftype == "flat":
         parapet = spec.get("parapetFt", 2.0) * FT
         Hp = P + parapet                               # parapet top
