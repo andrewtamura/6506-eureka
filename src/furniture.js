@@ -483,7 +483,7 @@ function buildBathroom(p) {
   zWall(x1, z1, dz0); zWall(x1, dz1, z2);
   prismPanel([[x1, dz0, 7.0], [x1, dz1, 7.0], [x1, dz1, rz(x1, dz1)], [x1, dz0, rz(x1, dz0)]], [t, 0, 0], wall); // head over the door
   {
-    const dw = (dz1 - dz0) - 0.3, lh = 6.7, ang = 1.25;  // leaf width/height(ft), swing angle
+    const dw = (dz1 - dz0) - 0.1, lh = 6.7, ang = 1.25;  // leaf fills the opening (small clearance)
     const leaf = new THREE.Group();
     const panel = new THREE.Mesh(new RoundedBoxGeometry(0.06, lh * ft, dw * ft, 2, 0.02), woodMat(0x8a6a45));
     panel.position.set(0, (lh / 2) * ft, -(dw / 2) * ft);  // hinge at the near jamb (z=dz0)
