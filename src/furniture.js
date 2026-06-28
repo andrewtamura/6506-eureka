@@ -437,7 +437,7 @@ function buildBathroom(p) {
   const woodv = woodMat(col(p.vanity || "walnut", 0x6b4a2f));
   const glass = new THREE.MeshStandardMaterial({ color: 0xafc4cc, roughness: 0.05, transparent: true, opacity: 0.28 });
   glass.depthWrite = false;
-  const t = 0.42;                                       // partition thickness (ft)
+  const t = 0.54;                                       // 2x6 wall: 5.5" stud + 1/2" drywall each side ≈ 6.5"
   const doors = [];                                     // hinged leaves: double-tap to open/close
 
   // box centred at ABSOLUTE plan (plx,plz), height-centre yc; sizes ex(E-W) x hy(height) x nz(N-S) ft
@@ -531,7 +531,7 @@ function buildBathroom(p) {
   // ~6.8-9 ft). It runs LONGWISE east-west (back against the east partition) with
   // the SHORT dimension north-south, tiled on three sides + a GLASS DOOR on the
   // south wall.
-  const shE = x1, shW = x1 + 4.0;                       // long axis E-W (4 ft), back (east) -> west end
+  const shE = x1 + t, shW = x1 + t + 4.0;              // back tile on the INTERIOR face of the partition (not through it)
   const shS = 4.5, shN = 7.5;                           // short axis N-S (3 ft), north of the door
   const shcx = (shE + shW) / 2, shcz = (shS + shN) / 2, shw = shW - shE, shd = shN - shS;
   box(shcx, shcz, 0.12, shw, 0.24, shd, tile);                               // pan/curb
