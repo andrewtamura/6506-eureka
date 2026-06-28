@@ -566,28 +566,41 @@ function buildBathroom(p) {
   // full-length mirror on the EAST partition, in the open stretch south of the door.
   box(x1 + 0.06, -0.6, 4.0, 0.08, 2.2, 2.0, glass);
 
-  // --- realistic toilet against the W 7 ft wall, south of the vanity alcove, inside
-  // the standing-headroom zone: skirted base + recessed bowl + elongated seat +
-  // tank/lid/flush. The tank backs the wall; the bowl faces east into the room.
-  const bowlInt = new THREE.MeshStandardMaterial({ color: 0xcdd2d2, roughness: 0.2 });
+  // --- realistic toilet against the W 7 ft wall, south of the vanity alcove. Built
+  // in a LOCAL frame (+X = front / east, Y = up, Z = width) then placed: a revolved
+  // china bowl on a flared pedestal foot, an elongated oval seat + raised lid, and a
+  // tank with lid + flush button. The tank backs the wall; the bowl faces the room.
+  const bowlInt = new THREE.MeshStandardMaterial({ color: 0xcdd2d2, roughness: 0.2, side: THREE.DoubleSide });
+  const oval = (rx, ry, cxs = 0) => { const s = new THREE.Shape(); s.absellipse(cxs * ft, 0, rx * ft, ry * ft, 0, Math.PI * 2); return s; };
   const makeToilet = (backX, cz) => {
-    const len = 2.3, tankD = 0.55;
-    const tcx = backX - 0.1 - tankD / 2;                 // tank just off the wall
-    const bcx = tcx - tankD / 2 - len / 2 + 0.2;         // base/bowl centre, east of the tank
-    const fx = bcx - 0.2;                                // bowl/seat shifted toward the (east) front
-    const base = new THREE.Mesh(new RoundedBoxGeometry(len * ft, 1.15 * ft, 1.25 * ft, 4, 0.09), porc);
-    base.position.copy(V(bcx - px, cz - pz, 0.575)); g.add(base);            // skirted base
-    const well = new THREE.Mesh(new THREE.CylinderGeometry(0.33 * ft, 0.27 * ft, 0.5 * ft, 24), bowlInt);
-    well.scale.x = 1.3; well.position.copy(V(fx - px, cz - pz, 0.9)); g.add(well); // recessed bowl
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.4 * ft, 0.07 * ft, 14, 30), porc);
-    ring.rotation.x = Math.PI / 2; ring.scale.x = 1.35;
-    ring.position.copy(V(fx - px, cz - pz, 1.18)); g.add(ring);              // elongated seat
-    const tank = new THREE.Mesh(new RoundedBoxGeometry(tankD * ft, 1.25 * ft, 1.45 * ft, 3, 0.05), porc);
-    tank.position.copy(V(tcx - px, cz - pz, 1.78)); g.add(tank);
-    const tlid = new THREE.Mesh(new RoundedBoxGeometry((tankD + 0.1) * ft, 0.1 * ft, 1.55 * ft, 3, 0.04), porc);
-    tlid.position.copy(V(tcx - px, cz - pz, 2.45)); g.add(tlid);
+    const grp = new THREE.Group();
+    // bowl + pedestal: revolved profile (radius, height in ft), elongated front-back
+    const prof = [[0.00, 0.00], [0.46, 0.00], [0.44, 0.10], [0.30, 0.42], [0.34, 0.74],
+                  [0.50, 1.05], [0.56, 1.25], [0.56, 1.34], [0.40, 1.35], [0.35, 1.20],
+                  [0.31, 1.02], [0.18, 0.92], [0.00, 0.90]].map(([r, y]) => new THREE.Vector2(r * ft, y * ft));
+    const bowl = new THREE.Mesh(new THREE.LatheGeometry(prof, 44), porc);
+    bowl.scale.x = 1.4; bowl.material = porc; bowl.material.side = THREE.DoubleSide;
+    grp.add(bowl);
+    const water = new THREE.Mesh(new THREE.CircleGeometry(0.26 * ft, 24), bowlInt);
+    water.rotation.x = -Math.PI / 2; water.scale.x = 1.4; water.position.set(0.02 * ft, 1.0 * ft, 0); grp.add(water);
+    // elongated oval seat ring on the rim
+    const seatSh = oval(0.62, 0.46, 0.05); seatSh.holes.push((() => { const h = new THREE.Path(); h.absellipse(0.09 * ft, 0, 0.34 * ft, 0.3 * ft, 0, Math.PI * 2); return h; })());
+    const seat = new THREE.Mesh(new THREE.ExtrudeGeometry(seatSh, { depth: 0.06 * ft, bevelEnabled: false }), porc);
+    seat.rotation.x = -Math.PI / 2; seat.position.y = 1.38 * ft; grp.add(seat);
+    // raised oval lid, hinged at the back, leaning toward the tank
+    const lid = new THREE.Mesh(new THREE.ExtrudeGeometry(oval(0.62, 0.46, 0), { depth: 0.05 * ft, bevelEnabled: false }), porc);
+    lid.rotation.x = -Math.PI / 2;
+    const lidPivot = new THREE.Group(); lidPivot.position.set(-0.5 * ft, 1.42 * ft, 0);
+    lid.position.set(0.6 * ft, 0, 0); lidPivot.add(lid); lidPivot.rotation.z = -1.5; grp.add(lidPivot);
+    // tank + lid + flush button (at the back)
+    const tank = new THREE.Mesh(new RoundedBoxGeometry(0.5 * ft, 1.4 * ft, 1.5 * ft, 4, 0.06), porc);
+    tank.position.set(-0.85 * ft, 1.95 * ft, 0); grp.add(tank);
+    const tlid = new THREE.Mesh(new RoundedBoxGeometry(0.6 * ft, 0.1 * ft, 1.6 * ft, 3, 0.04), porc);
+    tlid.position.set(-0.85 * ft, 2.7 * ft, 0); grp.add(tlid);
     const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.09 * ft, 0.09 * ft, 0.05 * ft, 16), chrome);
-    btn.position.copy(V(tcx - px, cz - pz, 2.53)); g.add(btn);
+    btn.position.set(-0.85 * ft, 2.77 * ft, 0); grp.add(btn);
+    grp.position.copy(V((backX - 1.2) - px, cz - pz, 0));   // origin ~1.2 ft east of the wall
+    g.add(grp);
   };
   makeToilet(xW7, -2.8);
 
