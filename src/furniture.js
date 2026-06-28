@@ -502,17 +502,18 @@ function buildBathroom(p) {
   const nNk = p.roof.footprint.z2 - 3.75;     // north knee line
   const sNk = p.roof.footprint.z1 + 3.75;     // south knee line
 
-  // --- walk-in shower along the EAST wall (against the partition), NORTH of the
-  // door, where the hip ceiling is tall enough (~7 ft) for standing headroom —
-  // the west hip was too low for a shower.
-  const shE = x1, shW = x1 + 3.5;                       // back (east, partition) -> glass (west)
-  const shS = 4.2, shN = 8.7;                           // south (glass) -> north (tiled)
+  // --- walk-in shower in the tall zone NORTH of the door (the hip ceiling here is
+  // ~6.8-9 ft). It runs LONGWISE east-west (back against the east partition) with
+  // the SHORT dimension north-south; the low west hip is avoided.
+  const shE = x1, shW = x1 + 4.0;                       // long axis E-W (4 ft), back (east) -> west end
+  const shS = 4.5, shN = 7.5;                           // short axis N-S (3 ft), north of the door
   const shcx = (shE + shW) / 2, shcz = (shS + shN) / 2, shw = shW - shE, shd = shN - shS;
   box(shcx, shcz, 0.12, shw, 0.24, shd, tile);                               // pan/curb
   prismPanel([[shE, shS, 0], [shE, shN, 0], [shE, shN, rz(shE, shN)], [shE, shS, rz(shE, shS)]], [0.1, 0, 0], tile); // east tiled wall (on the partition)
   prismPanel([[shE, shN, 0], [shW, shN, 0], [shW, shN, rz(shW, shN)], [shE, shN, rz(shE, shN)]], [0, -0.1, 0], tile); // north tiled wall
-  box(shcx, shS, 3.2, shw, 6.4, 0.08, glass);                                // glass front (south)
-  box(shW, shcz, 3.2, 0.08, 6.4, shd, glass);                                // glass side (west)
+  box(shW, shcz, 3.2, 0.08, 6.4, shd, glass);                                // west splash panel (fixed; the head sprays onto it)
+  const retW = 1.0;                                                          // short south return at the west corner
+  box(shW - retW / 2, shS, 3.2, retW, 6.4, 0.08, glass);                     // -> leaves a ~2.5 ft walk-in OPENING on the south
   cyl(shE + 0.4, shcz, 5.5, 0.06, 0.5, chrome);                              // shower-head arm (on the east wall)
   box(shE + 0.4, shcz, 5.8, 0.12, 0.12, 0.7, chrome);                        // shower head
 
