@@ -51,10 +51,29 @@
         "eaveFt": 2.5,
         "pitch": 0.6667
       },
+      "kneeFt": 3.0,
       "x1": 20.5,
       "x2": 31,
       "z1": -11.9167,
       "z2": 16.0833
+    },
+    {
+      "type": "window_bench",
+      "px": 1.125,
+      "pz": 15.333,
+      "widthFt": 3.5
+    },
+    {
+      "type": "window_bench",
+      "px": 9.5,
+      "pz": 15.333,
+      "widthFt": 3.5
+    },
+    {
+      "type": "window_bench",
+      "px": 17.875,
+      "pz": 15.333,
+      "widthFt": 3.5
     }
   ]
 }

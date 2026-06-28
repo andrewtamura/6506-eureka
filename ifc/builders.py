@@ -338,6 +338,8 @@ def add_attic(ctx, rooms, roof):
     pitch = roof.get("pitch", 0.5)
     knee = roof.get("kneeFt", 4.0) * FT
     eave = roof.get("eaveWallFt", 0.0) * FT           # raised plate above the attic floor
+    rh = roof.get("usableHeadroomFt", 7.0) * FT       # 7 ft room-wall / usable-headroom height
+    du0 = max(0.0, (rh - eave) / pitch)               # inset where the slope reaches the room height
     t = ctx.T
 
     for r in rooms:                                   # floor over the whole footprint
@@ -384,8 +386,9 @@ def add_attic(ctx, rooms, roof):
 
     # sloped ceiling = the hip underside, springing from the eave (z = eave), with
     # the dormer wells cut OPEN so each dormer reads up into the attic room.
+    sy1c = min(sy1, y1 + du0)                          # cap the deep shed well at the 7 ft wall (keep the room vault intact)
     cv, cf = _hip_ceiling_with_wells(x1, x2, y1, y2, eave, pitch,
-                                     n_holes, ny0, ny1, s_holes, sy0, sy1, e_well, w_well)
+                                     n_holes, ny0, ny1, s_holes, sy0, sy1c, e_well, w_well)
     # Translucent so the 3/4 exhibit view reads INTO the room (floor + walls show
     # through) — i.e. you can see the habitable volume under the slope.
     add_brep(ctx, "Attic ceiling", cv, cf, CEIL, ifc_class="IfcCovering",
@@ -430,6 +433,78 @@ def add_attic(ctx, rooms, roof):
         kneewall("Knee wall S", "H", ky1, kx1, kx2, +1)
         kneewall("Knee wall W", "V", kx1, ky1, ky2, +1)   # the bathroom's WEST wet wall
         kneewall("Knee wall E", "V", kx2, ky1, ky2, -1)
+
+        # 7 ft ROOM WALLS at the usable-headroom line (where the slope first reaches
+        # the room height), with an open ALCOVE at each dormer so the window seats
+        # stay accessible. The low triangles (knee walls + dormers + seats) sit
+        # behind them. The bathroom owns the west end, so only N / S / E get walls.
+        ru = du0                                          # usable inset (computed up top)
+        rx2, ry1r, ry2r = x2 - ru, y1 + ru, y2 - ru
+        bx = ctx.X(roof["bathCutFt"]) if roof.get("bathCutFt") else (x1 + ru)
+        # openings exactly frame each dormer, so the alcove cheek walls land on the
+        # SAME edges as the dormer's own cheeks (no offset gap between them).
+        nh, sh = list(n_holes), list(s_holes)
+        eh = [(e_well[2], e_well[3])] if e_well else []
+
+        def roomwall(nm, orient, line, a, b, inner, holes):
+            segs, cur = [], a
+            for h0, h1 in sorted(holes):
+                if h0 - cur > 0.05 * FT:
+                    segs.append((cur, h0))
+                cur = max(cur, h1)
+            if b - cur > 0.05 * FT:
+                segs.append((cur, b))
+            for s0, s1 in segs:
+                if orient == "H":
+                    poly = [(s0, line + inner * t / 2, 0.0), (s0, line - inner * t / 2, 0.0),
+                            (s0, line - inner * t / 2, rh - d), (s0, line + inner * t / 2, rh + d)]
+                    vec = (s1 - s0, 0.0, 0.0)
+                else:
+                    poly = [(line + inner * t / 2, s0, 0.0), (line - inner * t / 2, s0, 0.0),
+                            (line - inner * t / 2, s0, rh - d), (line + inner * t / 2, s0, rh + d)]
+                    vec = (0.0, s1 - s0, 0.0)
+                v, f = _prism(poly, vec)
+                add_brep(ctx, nm, v, f, KNEE, ifc_class="IfcWall")
+        roomwall("Room wall N", "H", ry2r, bx, rx2, -1, nh)
+        roomwall("Room wall S", "H", ry1r, bx, rx2, +1, sh)
+        roomwall("Room wall E", "V", rx2, ry1r, ry2r, -1, eh)
+
+        # ALCOVE CHEEK WALLS: one smooth drywall wall per side — VERTICAL, floor to
+        # the dormer's flat ceiling (no sloped top), so the inside of the alcove is
+        # entirely flat with no diagonal joint. The interior dormer cheeks are
+        # dropped (the dormer builders skip them for style="interior"); these stand
+        # directly under the dormer, in their place.
+        # `sgn` extrudes the wall away from the opening, `a` is the 7 ft wall's room
+        # face, and `eps` overlaps the opening edge so no faces coincide (no seam).
+        eps = 0.06 * FT
+
+        def cheek(nm, axis, fixed, a, b, sgn, top):
+            base = (fixed - t) if sgn < 0 else (fixed - eps)
+            length = t + eps
+            if axis == "z":                               # wall runs along z at x=fixed
+                pts = [(base, a, 0.0), (base, b, 0.0), (base, b, top), (base, a, top)]
+                vec = (length, 0.0, 0.0)
+            else:                                         # wall runs along x at z=fixed
+                pts = [(a, base, 0.0), (b, base, 0.0), (b, base, top), (a, base, top)]
+                vec = (0.0, length, 0.0)
+            v, f = _prism(pts, vec)
+            add_brep(ctx, nm, v, f, KNEE, ifc_class="IfcWall")
+        nfa, sfa, efa = ry2r - t / 2, ry1r + t / 2, rx2 - t / 2   # 7 ft-wall room faces
+        n_ceil = eave + pitch * ds.get("recessFt", 0.0) * FT + n_plate          # dormer flat-ceiling heights
+        s_ceil = eave + pitch * ss.get("recessFt", 0.0) * FT + s_plate
+        e_ceil = (eave + pitch * hd.get("recessFt", 0.0) * FT + hd.get("plateFt", 4.0) * FT) if hd else 0.0
+        for h0, h1 in nh:
+            cheek("Alcove cheek N", "z", h0, nfa, ny1, -1, n_ceil); cheek("Alcove cheek N", "z", h1, nfa, ny1, +1, n_ceil)
+        for h0, h1 in sh:
+            cheek("Alcove cheek S", "z", h0, sfa, sy0, -1, s_ceil); cheek("Alcove cheek S", "z", h1, sfa, sy0, +1, s_ceil)
+            # the shed alcove ceiling (s_ceil) is above the 7 ft wall, and its well is
+            # capped there, so close the well's north face with a header above the opening.
+            if s_ceil > rh + 0.02:
+                hb = make_box(ctx, "IfcWall", "Shed alcove header", h1 - h0, t, s_ceil - rh,
+                              (h0 + h1) / 2, ry1r, rh, color=KNEE)
+                run("spatial.assign_container", ctx.model, products=[hb], relating_structure=ctx.storey)
+        for h0, h1 in eh:
+            cheek("Alcove cheek E", "x", h0, efa, e_well[1], -1, e_ceil); cheek("Alcove cheek E", "x", h1, efa, e_well[1], +1, e_ceil)
     else:
         # inset knee walls where the bare hip ceiling first reaches `knee`
         dk = knee / pitch
@@ -539,8 +614,15 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior", 
         bays = [x1 + (i + 0.5) * span / count for i in range(count)]
         cap = min(min(cx - wd / 2 - x1, x2 - (cx + wd / 2)) for cx in bays) * pitch
         plate = min(plate, cap - 0.20 * FT)
-    whead = plate - 0.40 * FT                          # leave a band under the gable
-    wsill = max(0.8 * FT, whead - wh)
+    # window sill: explicit `sillFt` (above the dormer base — base sits on the knee
+    # wall, so sillFt=0 puts the sill at the knee-wall top) or auto under the gable.
+    sill_spec = spec.get("window", {}).get("sillFt")
+    if sill_spec is not None:
+        wsill = max(0.0, sill_spec * FT)
+        whead = min(plate - 0.40 * FT, wsill + wh)
+    else:
+        whead = plate - 0.40 * FT                      # leave a band under the gable
+        wsill = max(0.8 * FT, whead - wh)
 
     def prism(name, poly, vec, color, cls="IfcWall", tr=0.0):
         v, f = _prism([(p[0], p[1], p[2] + base_z) for p in poly], vec)
@@ -568,11 +650,12 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior", 
         # glazing, set just proud of the wall face (north = +Y)
         box(f"{nm} window", xWL, xWR, wsill, whead, GLASS,
             cls="IfcWindow", cy=yN + ty / 2, dy=0.05, tr=0.45)
-        # cheek (side) walls: triangles whose lower edge rides the main roof slope,
-        # so they sit ON the sloped ceiling (above the roof line only) and frame the
-        # dormer pocket — they must NOT drop below the slope into the attic space.
-        prism(f"{nm} cheek W", [(xL, yN, 0.0), (xL, yN, plate), (xL, y_p, plate)], (tx, 0, 0), WALL)
-        prism(f"{nm} cheek E", [(xR, yN, 0.0), (xR, yN, plate), (xR, y_p, plate)], (-tx, 0, 0), WALL)
+        # cheek (side) walls: triangles whose lower edge rides the main roof slope.
+        # EXTERIOR only — inside the attic the alcove's flat drywall cheeks (built in
+        # add_attic) form the smooth pocket sides instead, so there's no diagonal joint.
+        if style != "interior":
+            prism(f"{nm} cheek W", [(xL, yN, 0.0), (xL, yN, plate), (xL, y_p, plate)], (tx, 0, 0), WALL)
+            prism(f"{nm} cheek E", [(xR, yN, 0.0), (xR, yN, plate), (xR, y_p, plate)], (-tx, 0, 0), WALL)
         if style == "interior":
             # inside the attic the dormer pocket has a FLAT ceiling at the plate
             # line; the barrel/gable roof is an exterior-only feature.
@@ -679,8 +762,9 @@ def add_shed_dormer(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interio
         # cheeks (side walls): triangles whose lower edge rides the main roof slope,
         # so they sit ON the sloped ceiling (above the roof line only) and frame the
         # dormer pocket — they must NOT drop below the slope into the attic space.
-        prism("Shed dormer cheek W", [(xa, yS, 0.0), (xa, yS, plate), (xa, y_p, plate)], (tx, 0, 0), WALL)
-        prism("Shed dormer cheek E", [(xb, yS, 0.0), (xb, yS, plate), (xb, y_p, plate)], (-tx, 0, 0), WALL)
+        if style != "interior":   # exterior only; the alcove's flat drywall cheeks form the interior sides
+            prism("Shed dormer cheek W", [(xa, yS, 0.0), (xa, yS, plate), (xa, y_p, plate)], (tx, 0, 0), WALL)
+            prism("Shed dormer cheek E", [(xb, yS, 0.0), (xb, yS, plate), (xb, y_p, plate)], (-tx, 0, 0), WALL)
         if style == "interior":
             # inside the attic the dormer pocket has a FLAT ceiling at the springline;
             # the pediment + gable roof are exterior-only features.
@@ -714,6 +798,28 @@ def add_shed_dormer(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interio
             add_brep(ctx, "Pediment acroterion", av,
                      [[0, 1, 2, 3], [0, 1, 4], [1, 2, 4], [2, 3, 4], [3, 0, 4]],
                      TRIM, ifc_class="IfcBuildingElementProxy")
+    elif rooftype == "pyramid":
+        # square HIPPED cap: four slopes rising from the plate to a single apex
+        # (a pavilion roof). Interior gets a flat ceiling at the plate, like the
+        # pediment; the pyramid itself is an exterior-only feature.
+        plate = P
+        y_p = yS + plate / pitch                         # cheek / back die into the main slope
+        whead = min(plate - 0.3 * FT, wsill + wh)
+        wall_top = plate
+        if style != "interior":
+            prism("Shed dormer cheek W", [(xa, yS, 0.0), (xa, yS, plate), (xa, y_p, plate)], (tx, 0, 0), WALL)
+            prism("Shed dormer cheek E", [(xb, yS, 0.0), (xb, yS, plate), (xb, y_p, plate)], (-tx, 0, 0), WALL)
+        if style == "interior":
+            prism("Shed dormer ceiling", [(xa, yS, plate), (xb, yS, plate), (xb, y_p, plate), (xa, y_p, plate)],
+                  (0, 0, tz), ROOF, cls="IfcCovering")
+        else:
+            ph = (y_p - yS) / 2 * pitch                  # apex rise (front/back slopes at the main pitch)
+            ax, ay, az = cx, (yS + y_p) / 2, plate + ph
+            for nm, p0, p1 in (("Pyramid roof S", (xa, yS, plate), (xb, yS, plate)),
+                               ("Pyramid roof N", (xb, y_p, plate), (xa, y_p, plate)),
+                               ("Pyramid roof W", (xa, y_p, plate), (xa, yS, plate)),
+                               ("Pyramid roof E", (xb, yS, plate), (xb, y_p, plate))):
+                prism(nm, [p0, p1, (ax, ay, az)], (0, 0, tz), ROOF, cls="IfcRoof")
     elif rooftype == "flat":
         parapet = spec.get("parapetFt", 2.0) * FT
         Hp = P + parapet                               # parapet top
@@ -829,9 +935,11 @@ def add_hip_dormer(ctx, x1, x2, y1, y2, pitch, spec, side="east", base_z=0.0, st
     box(f"{nm} sill", yWL, yWR, 0.0, wsill, WALL)
     box(f"{nm} head", yWL, yWR, whead, plate, WALL)
     box(f"{nm} window", yWL, yWR, wsill, whead, GLASS, cls="IfcWindow", cxf=xE + out * ty / 2, dx=0.05, tr=0.45)
-    # cheek walls: triangles whose lower edge rides the hip slope (above it only)
-    prism(f"{nm} cheek S", [(xE, yL, 0.0), (xE, yL, plate), (x_p, yL, plate)], (0, tx, 0), WALL)
-    prism(f"{nm} cheek N", [(xE, yR, 0.0), (xE, yR, plate), (x_p, yR, plate)], (0, -tx, 0), WALL)
+    # cheek walls riding the hip slope — EXTERIOR only; inside, the alcove's flat
+    # drywall cheeks (add_attic) form the smooth pocket sides (no diagonal joint).
+    if style != "interior":
+        prism(f"{nm} cheek S", [(xE, yL, 0.0), (xE, yL, plate), (x_p, yL, plate)], (0, tx, 0), WALL)
+        prism(f"{nm} cheek N", [(xE, yR, 0.0), (xE, yR, plate), (x_p, yR, plate)], (0, -tx, 0), WALL)
     if style == "interior":
         # inside the attic the dormer pocket has a FLAT ceiling at the plate line;
         # the barrel/gable roof is an exterior-only feature.

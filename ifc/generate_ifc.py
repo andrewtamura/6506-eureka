@@ -187,7 +187,19 @@ def build_level(cfg, rooms_cache, level):
         if bath:
             ctx.furniture.append({"type": "bathroom", "px": (bath["x1"] + bath["x2"]) / 2,
                                   "pz": (bath["z1"] + bath["z2"]) / 2, "roof": roof_fp,
+                                  "kneeFt": level.get("kneeFt", 4.0),
                                   "x1": bath["x1"], "x2": bath["x2"], "z1": bath["z1"], "z2": bath["z2"]})
+        # cute window-seat benches under each north dormer, against the 3 ft knee wall
+        dm_spec = g.get("dormers")
+        if dm_spec:
+            bays = B.aligned_front_bays(rooms, dm_spec.get("count", 3))
+            if bays:
+                z2 = roof_fp["footprint"]["z2"]
+                kinset = (level.get("kneeFt", 4.0) - g.get("eaveWallFt", 0.0)) / g.get("pitch", 0.5)
+                knee_z = round(z2 - kinset, 3)
+                for cx in bays:
+                    ctx.furniture.append({"type": "window_bench", "px": round(cx, 3), "pz": knee_z,
+                                          "widthFt": dm_spec.get("widthFt", 3.5)})
     elif kind == "exterior":
         B.add_lot(ctx, cfg["lot"], rooms)
         # Solid massing blocks (per building part, at their storey heights) +
