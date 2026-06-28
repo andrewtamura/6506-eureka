@@ -430,6 +430,39 @@ def add_attic(ctx, rooms, roof):
         kneewall("Knee wall S", "H", ky1, kx1, kx2, +1)
         kneewall("Knee wall W", "V", kx1, ky1, ky2, +1)   # the bathroom's WEST wet wall
         kneewall("Knee wall E", "V", kx2, ky1, ky2, -1)
+
+        # 7 ft ROOM WALLS at the usable-headroom line (where the slope first reaches
+        # the room height), with an open ALCOVE at each dormer so the window seats
+        # stay accessible. The low triangles (knee walls + dormers + seats) sit
+        # behind them. The bathroom owns the west end, so only N / S / E get walls.
+        rh = roof.get("usableHeadroomFt", 7.0) * FT
+        ru = (rh - eave) / pitch
+        rx2, ry1r, ry2r = x2 - ru, y1 + ru, y2 - ru
+        bx = ctx.X(roof["bathCutFt"]) if roof.get("bathCutFt") else (x1 + ru)
+        om = 0.3 * FT                                     # widen each opening a touch for a comfy alcove
+
+        def roomwall(nm, orient, line, a, b, inner, holes):
+            segs, cur = [], a
+            for h0, h1 in sorted((min(p) - om, max(p) + om) for p in holes):
+                if h0 - cur > 0.05 * FT:
+                    segs.append((cur, h0))
+                cur = max(cur, h1)
+            if b - cur > 0.05 * FT:
+                segs.append((cur, b))
+            for s0, s1 in segs:
+                if orient == "H":
+                    poly = [(s0, line + inner * t / 2, 0.0), (s0, line - inner * t / 2, 0.0),
+                            (s0, line - inner * t / 2, rh - d), (s0, line + inner * t / 2, rh + d)]
+                    vec = (s1 - s0, 0.0, 0.0)
+                else:
+                    poly = [(line + inner * t / 2, s0, 0.0), (line - inner * t / 2, s0, 0.0),
+                            (line - inner * t / 2, s0, rh - d), (line + inner * t / 2, s0, rh + d)]
+                    vec = (0.0, s1 - s0, 0.0)
+                v, f = _prism(poly, vec)
+                add_brep(ctx, nm, v, f, KNEE, ifc_class="IfcWall")
+        roomwall("Room wall N", "H", ry2r, bx, rx2, -1, n_holes)
+        roomwall("Room wall S", "H", ry1r, bx, rx2, +1, s_holes)
+        roomwall("Room wall E", "V", rx2, ry1r, ry2r, -1, [(e_well[2], e_well[3])] if e_well else [])
     else:
         # inset knee walls where the bare hip ceiling first reaches `knee`
         dk = knee / pitch
