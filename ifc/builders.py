@@ -437,14 +437,16 @@ def add_attic(ctx, rooms, roof):
         # 7 ft ROOM WALLS at the usable-headroom line (where the slope first reaches
         # the room height), with an open ALCOVE at each dormer so the window seats
         # stay accessible. The low triangles (knee walls + dormers + seats) sit
-        # behind them. The bathroom owns the west end, so only N / S / E get walls.
+        # behind them. The ring closes around the WHOLE usable rectangle (N/S/E/W);
+        # the bathroom partition (viewer-rendered) divides it into bath + main room,
+        # so both ends get the same 7 ft treatment.
         ru = du0                                          # usable inset (computed up top)
-        rx2, ry1r, ry2r = x2 - ru, y1 + ru, y2 - ru
-        bx = ctx.X(roof["bathCutFt"]) if roof.get("bathCutFt") else (x1 + ru)
+        rx1, rx2, ry1r, ry2r = x1 + ru, x2 - ru, y1 + ru, y2 - ru
         # openings exactly frame each dormer, so the alcove cheek walls land on the
         # SAME edges as the dormer's own cheeks (no offset gap between them).
         nh, sh = list(n_holes), list(s_holes)
         eh = [(e_well[2], e_well[3])] if e_well else []
+        wh = [(w_well[2], w_well[3])] if w_well else []
 
         def roomwall(nm, orient, line, a, b, inner, holes):
             segs, cur = [], a
@@ -465,9 +467,10 @@ def add_attic(ctx, rooms, roof):
                     vec = (0.0, s1 - s0, 0.0)
                 v, f = _prism(poly, vec)
                 add_brep(ctx, nm, v, f, KNEE, ifc_class="IfcWall")
-        roomwall("Room wall N", "H", ry2r, bx, rx2, -1, nh)
-        roomwall("Room wall S", "H", ry1r, bx, rx2, +1, sh)
+        roomwall("Room wall N", "H", ry2r, rx1, rx2, -1, nh)
+        roomwall("Room wall S", "H", ry1r, rx1, rx2, +1, sh)
         roomwall("Room wall E", "V", rx2, ry1r, ry2r, -1, eh)
+        roomwall("Room wall W", "V", rx1, ry1r, ry2r, +1, wh)
 
         # ALCOVE CHEEK WALLS: one smooth drywall wall per side — VERTICAL, floor to
         # the dormer's flat ceiling (no sloped top), so the inside of the alcove is
@@ -489,7 +492,7 @@ def add_attic(ctx, rooms, roof):
                 vec = (0.0, length, 0.0)
             v, f = _prism(pts, vec)
             add_brep(ctx, nm, v, f, KNEE, ifc_class="IfcWall")
-        nfa, sfa, efa = ry2r - t / 2, ry1r + t / 2, rx2 - t / 2   # 7 ft-wall room faces
+        nfa, sfa, efa, wfa = ry2r - t / 2, ry1r + t / 2, rx2 - t / 2, rx1 + t / 2   # 7 ft-wall room faces
         n_ceil = eave + pitch * ds.get("recessFt", 0.0) * FT + n_plate          # dormer flat-ceiling heights
         s_ceil = eave + pitch * ss.get("recessFt", 0.0) * FT + s_plate
         e_ceil = (eave + pitch * hd.get("recessFt", 0.0) * FT + hd.get("plateFt", 4.0) * FT) if hd else 0.0
@@ -505,6 +508,13 @@ def add_attic(ctx, rooms, roof):
                 run("spatial.assign_container", ctx.model, products=[hb], relating_structure=ctx.storey)
         for h0, h1 in eh:
             cheek("Alcove cheek E", "x", h0, efa, e_well[1], -1, e_ceil); cheek("Alcove cheek E", "x", h1, efa, e_well[1], +1, e_ceil)
+        # the WEST hip dormer (over the bathroom) gets the same flat drywall cheeks,
+        # anchored at its 7 ft wall face and running out to the dormer front so the
+        # pocket sides are smooth (no daylight gap beside the window).
+        if w_well:
+            w_ceil = eave + pitch * hd.get("recessFt", 0.0) * FT + hd.get("plateFt", 4.0) * FT
+            cheek("Alcove cheek W", "x", w_well[2], w_well[0], wfa, -1, w_ceil)
+            cheek("Alcove cheek W", "x", w_well[3], w_well[0], wfa, +1, w_ceil)
     else:
         # inset knee walls where the bare hip ceiling first reaches `knee`
         dk = knee / pitch
