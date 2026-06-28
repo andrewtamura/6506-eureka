@@ -537,25 +537,17 @@ function buildBathroom(p) {
   prismPanel([[shW, shS, 0], [shW, shN, 0], [shW, shN, rz(shW, shN)], [shW, shS, rz(shW, shS)]], [-0.1, 0, 0], tile); // west tiled wall
   prismPanel([[shE, shN, 0], [shE, shS, 0], [shE, shS, rz(shE, shS)], [shE, shN, rz(shE, shN)]], [0.1, 0, 0], tile);  // east tiled wall (entry partition)
   prismPanel([[shE, shS, 0], [shW, shS, 0], [shW, shS, rz(shW, shS)], [shE, shS, rz(shE, shS)]], [0, -0.1, 0], tile); // south tiled wall
-  cyl(shW - 0.4, shS + 0.4, 5.5, 0.06, 0.5, chrome);                         // shower-head arm (off the S wall, W end)
-  box(shW - 0.4, shS + 0.4, 5.8, 0.5, 0.12, 0.12, chrome);                   // shower head
-  const sdoorW = 3.2, sdx1 = shE + sdoorW;                                   // glass DOOR at the east end
-  {                                                    // fixed glass panel over the rest of the N side
-    const pane = new THREE.Mesh(new THREE.BoxGeometry((shW - sdx1) * ft, 6.6 * ft, 0.04 * ft), glass);
-    pane.position.copy(V(((sdx1 + shW) / 2) - px, shN - pz, 3.3)); g.add(pane);
-  }
-  {                                                    // hinged glass DOOR (double-tap), hinge at the east jamb
-    const dwd = sdoorW - 0.1, dh = 6.6, ang = 1.0;
-    const leaf = new THREE.Group();
-    const pane = new THREE.Mesh(new THREE.BoxGeometry(dwd * ft, dh * ft, 0.04 * ft), glass);
-    const stile = new THREE.Mesh(new THREE.BoxGeometry(0.06 * ft, dh * ft, 0.1 * ft), chrome);
-    pane.position.set(-(dwd / 2) * ft, (dh / 2) * ft, 0);
-    stile.position.set(-(dwd - 0.08) * ft, (dh / 2) * ft, 0);
-    leaf.add(pane); leaf.add(stile);
-    leaf.position.copy(V(shE - px, shN - pz, 0));        // hinge at the east jamb of the north (glass) side
-    g.add(leaf);
-    const door = { pivot: leaf, openAngle: ang, current: 0, open: false };
-    pane.userData.fdoor = door; doors.push(door);
+  cyl(shE + 0.8, shS + 0.4, 5.5, 0.06, 0.5, chrome);                         // shower-head arm (off the S wall, E end)
+  box(shE + 0.8, shS + 0.4, 5.8, 0.5, 0.12, 0.12, chrome);                   // shower head
+  // OPEN walk-in at the WEST end (no door) + a fixed glass screen over the east of
+  // the N side. (The old glass door sat behind the bathroom door at the east; this
+  // clears it and leaves a doorless opening.)
+  const shOpen = 3.0, shScreenW = (shW - shOpen) - shE;                      // walk-in opening (west) + screen (east)
+  {
+    const pane = new THREE.Mesh(new THREE.BoxGeometry(shScreenW * ft, 6.6 * ft, 0.04 * ft), glass);
+    pane.position.copy(V(((shE + (shW - shOpen)) / 2) - px, shN - pz, 3.3)); g.add(pane);
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.08 * ft, 6.6 * ft, 0.08 * ft), chrome);  // jamb post at the opening edge
+    post.position.copy(V((shW - shOpen) - px, shN - pz, 3.3)); g.add(post);
   }
 
   // --- single vanity in the W hip-dormer alcove, UNDER the window (daylight in
@@ -568,51 +560,47 @@ function buildBathroom(p) {
   // full-length mirror on the EAST partition, in the open stretch south of the door.
   box(x1 + 0.06, -0.6, 4.0, 0.08, 2.2, 2.0, glass);
 
-  // --- realistic toilet against the W 7 ft wall, south of the vanity alcove. Built
-  // in a LOCAL frame (+X = front / east, Y = up, Z = width) then placed: a revolved
-  // china bowl on a flared pedestal foot, an elongated oval seat + raised lid, and a
-  // tank with lid + flush button. The tank backs the wall; the bowl faces the room.
+  // --- WALL-MOUNTED (wall-hung) toilet: a floating china bowl cantilevered off the
+  // wall (no floor pedestal), an elongated seat, and a flush actuator plate on the
+  // wall (cistern concealed in-wall). Built in a LOCAL frame (+X = front, -X = wall
+  // side) then placed/rotated. Wall-hung = clear floor under it -> more door swing.
   const bowlInt = new THREE.MeshStandardMaterial({ color: 0xcdd2d2, roughness: 0.2, side: THREE.DoubleSide });
+  const plateM = new THREE.MeshStandardMaterial({ color: 0xedeef0, roughness: 0.4 });
   const oval = (rx, ry, cxs = 0) => { const s = new THREE.Shape(); s.absellipse(cxs * ft, 0, rx * ft, ry * ft, 0, Math.PI * 2); return s; };
   // (plx,plz) = bowl-centre plan position; rotY rotates the local +X = front about Y.
   const makeToilet = (plx, plz, rotY = 0) => {
     const grp = new THREE.Group();
-    // bowl + pedestal: revolved profile (radius, height in ft), elongated front-back
-    const prof = [[0.00, 0.00], [0.46, 0.00], [0.44, 0.10], [0.30, 0.42], [0.34, 0.74],
-                  [0.50, 1.05], [0.56, 1.25], [0.56, 1.34], [0.40, 1.35], [0.35, 1.20],
-                  [0.31, 1.02], [0.18, 0.92], [0.00, 0.90]].map(([r, y]) => new THREE.Vector2(r * ft, y * ft));
+    // floating bowl: revolved UPPER-bowl profile only (no pedestal to the floor)
+    const prof = [[0.00, 0.86], [0.30, 0.88], [0.45, 1.00], [0.54, 1.20], [0.57, 1.40],
+                  [0.57, 1.48], [0.40, 1.49], [0.34, 1.34], [0.30, 1.15], [0.16, 1.05],
+                  [0.00, 1.03]].map(([r, y]) => new THREE.Vector2(r * ft, y * ft));
     const bowl = new THREE.Mesh(new THREE.LatheGeometry(prof, 44), porc);
-    bowl.scale.x = 1.4; bowl.material = porc; bowl.material.side = THREE.DoubleSide;
+    bowl.scale.x = 1.5; bowl.material.side = THREE.DoubleSide;
+    bowl.position.set(0.35 * ft, 0, 0);                  // shift forward so the back tucks to the wall
     grp.add(bowl);
     const water = new THREE.Mesh(new THREE.CircleGeometry(0.26 * ft, 24), bowlInt);
-    water.rotation.x = -Math.PI / 2; water.scale.x = 1.4; water.position.set(0.02 * ft, 1.0 * ft, 0); grp.add(water);
-    // elongated oval seat ring on the rim
+    water.rotation.x = -Math.PI / 2; water.scale.x = 1.5; water.position.set(0.37 * ft, 1.12 * ft, 0); grp.add(water);
+    // elongated oval seat
     const seatSh = oval(0.62, 0.46, 0.05); seatSh.holes.push((() => { const h = new THREE.Path(); h.absellipse(0.09 * ft, 0, 0.34 * ft, 0.3 * ft, 0, Math.PI * 2); return h; })());
     const seat = new THREE.Mesh(new THREE.ExtrudeGeometry(seatSh, { depth: 0.06 * ft, bevelEnabled: false }), porc);
-    seat.rotation.x = -Math.PI / 2; seat.position.y = 1.38 * ft; grp.add(seat);
-    // raised oval lid, hinged at the back, leaning toward the tank
-    const lid = new THREE.Mesh(new THREE.ExtrudeGeometry(oval(0.62, 0.46, 0), { depth: 0.05 * ft, bevelEnabled: false }), porc);
-    lid.rotation.x = -Math.PI / 2;
-    const lidPivot = new THREE.Group(); lidPivot.position.set(-0.5 * ft, 1.42 * ft, 0);
-    lid.position.set(0.6 * ft, 0, 0); lidPivot.add(lid); lidPivot.rotation.z = -1.5; grp.add(lidPivot);
-    // tank + lid + flush button (at the back)
-    const tank = new THREE.Mesh(new RoundedBoxGeometry(0.5 * ft, 1.4 * ft, 1.5 * ft, 4, 0.06), porc);
-    tank.position.set(-0.85 * ft, 1.95 * ft, 0); grp.add(tank);
-    const tlid = new THREE.Mesh(new RoundedBoxGeometry(0.6 * ft, 0.1 * ft, 1.6 * ft, 3, 0.04), porc);
-    tlid.position.set(-0.85 * ft, 2.7 * ft, 0); grp.add(tlid);
-    const btn = new THREE.Mesh(new THREE.CylinderGeometry(0.09 * ft, 0.09 * ft, 0.05 * ft, 16), chrome);
-    btn.position.set(-0.85 * ft, 2.77 * ft, 0); grp.add(btn);
+    seat.rotation.x = -Math.PI / 2; seat.position.set(0.35 * ft, 1.5 * ft, 0); grp.add(seat);
+    // flush actuator plate on the wall, above the bowl
+    const plate = new THREE.Mesh(new RoundedBoxGeometry(0.05 * ft, 1.0 * ft, 0.7 * ft, 3, 0.03), plateM);
+    plate.position.set(-0.62 * ft, 3.1 * ft, 0); grp.add(plate);
+    const btn = new THREE.Mesh(new THREE.BoxGeometry(0.03 * ft, 0.34 * ft, 0.4 * ft), chrome);
+    btn.position.set(-0.585 * ft, 3.25 * ft, 0); grp.add(btn);
     grp.rotation.y = rotY;
     grp.position.copy(V(plx - px, plz - pz, 0));
     g.add(grp);
   };
-  // toilet backs the NORTH wall (tank near zN7), facing south toward the WC door.
-  makeToilet(22.0, zN7 - 1.2, -Math.PI / 2);
+  // wall-hung on the NORTH wall, facing south toward the WC door.
+  makeToilet(22.0, zN7 - 0.85, -Math.PI / 2);
 
   // --- WC: enclose the toilet in a compartment in the NW corner. The W + N sides
   // are the 7 ft room walls; add a full-height E partition and a S partition with a
-  // door (double-tap to open/close). The E partition clears the 3rd north dormer.
-  const wcE = 19.7, wcS = 4.83;                          // east + south partition lines
+  // door. The S wall is pushed south to the W hip-dormer's N cheek line, deepening
+  // the WC so the inswing door clears the (wall-hung) toilet.
+  const wcE = 19.7, wcS = (F.z1 + F.z2) / 2 + 1.75;     // S partition = W hip-dormer N cheek (hipW 3.5/2)
   zWall(wcE, wcS, zN7);                                  // east partition (floor -> ceiling)
   framedDoor({ axis: "x", line: wcS, oa: 21.0, ob: 23.5, wa: wcE, wb: xW7, hinge: "b", swing: 1.1 });
 
