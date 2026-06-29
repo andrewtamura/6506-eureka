@@ -86,7 +86,7 @@
           "dormers": {
             "side": "north",
             "count": 3,
-            "roof": "barrel",
+            "roof": "gable",
             "widthFt": 3.5,
             "plateFt": 3.0,
             "recessFt": 0.75,

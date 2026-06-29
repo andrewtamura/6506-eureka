@@ -469,11 +469,11 @@ def add_attic(ctx, rooms, roof):
             v, f = _prism(pts, vec)
             add_brep(ctx, nm, v, f, KNEE, ifc_class="IfcWall")
         nfa, sfa, efa, wfa = ry2r - t / 2, ry1r + t / 2, rx2 - t / 2, rx1 + t / 2   # 7 ft-wall room faces
-        n_ceil = eave + pitch * ds.get("recessFt", 0.0) * FT + n_plate          # dormer flat-ceiling heights
         s_ceil = eave + pitch * ss.get("recessFt", 0.0) * FT + s_plate
         e_ceil = (eave + pitch * hd.get("recessFt", 0.0) * FT + hd.get("plateFt", 4.0) * FT) if hd else 0.0
-        for h0, h1 in nh:
-            cheek("Alcove cheek N", "z", h0, nfa, ny1, -1, n_ceil); cheek("Alcove cheek N", "z", h1, nfa, ny1, +1, n_ceil)
+        # (No alcove cheeks for the N dormers — each gable dormer builds its own two
+        # cheek walls + gable roof in add_dormers; the S shed + E/W hips still use the
+        # flat alcove cheeks below.)
         for h0, h1 in sh:
             cheek("Alcove cheek S", "z", h0, sfa, sy0, -1, s_ceil); cheek("Alcove cheek S", "z", h1, sfa, sy0, +1, s_ceil)
             # the shed alcove ceiling (s_ceil) is above the 7 ft wall, and its well is
@@ -633,21 +633,15 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior", 
         # glazing, set just proud of the wall face (north = +Y)
         box(f"{nm} window", xWL, xWR, wsill, whead, GLASS,
             cls="IfcWindow", cy=yN + ty / 2, dy=0.05, tr=0.45)
-        # cheek (side) walls: triangles whose lower edge rides the main roof slope.
-        # EXTERIOR only — inside the attic the alcove's flat drywall cheeks (built in
-        # add_attic) form the smooth pocket sides instead, so there's no diagonal joint.
-        if style != "interior":
-            prism(f"{nm} cheek W", [(xL, yN, 0.0), (xL, yN, plate), (xL, y_p, plate)], (tx, 0, 0), WALL)
-            prism(f"{nm} cheek E", [(xR, yN, 0.0), (xR, yN, plate), (xR, y_p, plate)], (-tx, 0, 0), WALL)
-        if style == "interior":
-            # inside the attic the dormer pocket has a FLAT ceiling at the plate
-            # line; the barrel/gable roof is an exterior-only feature.
-            prism(f"{nm} ceiling", [(xL, yN, plate), (xR, yN, plate), (xR, y_p, plate), (xL, y_p, plate)],
-                  (0, 0, tz), ROOF, cls="IfcCovering")
-        elif barrel:
-            # half-round BARREL: an arched front tympanum + a curved vault roof
-            # springing from the cheek tops (plate) and dying into the main slope
-            # (the crown reaches furthest back).
+        # CHEEK (side) walls — triangles whose lower edge rides the main roof slope.
+        # Built for BOTH styles now: the dormer internalizes its OWN complete framing
+        # (two cheek walls + the window wall + the gable roof), rather than relying on
+        # a separate flat alcove. The attic-side cheeks in add_attic are dropped.
+        prism(f"{nm} cheek W", [(xL, yN, 0.0), (xL, yN, plate), (xL, y_p, plate)], (tx, 0, 0), WALL)
+        prism(f"{nm} cheek E", [(xR, yN, 0.0), (xR, yN, plate), (xR, y_p, plate)], (-tx, 0, 0), WALL)
+        if barrel and style != "interior":
+            # half-round BARREL (exterior only): an arched front tympanum + a curved
+            # vault roof springing from the cheek tops (plate) and dying into the slope.
             R, N = wd / 2, 14
             yF = yN + 0.75 * FT                         # eave: barrel overhangs the glass face by >=6"
             arc = []
@@ -663,20 +657,30 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior", 
                 ax1, az1, ay1 = arc[i + 1]
                 prism(f"{nm} barrel {i}", [(ax0, yF, az0), (ax1, yF, az1),
                       (ax1, ay1, az1), (ax0, ay0, az0)], (0, 0, tz), ROOF, cls="IfcRoof")
-            # keystone at the crown: a projecting wedge (wider at the top) straddling
-            # the arch crown, echoing the entry-door keystone
             zc = plate + R
             kb, kt = zc - 0.7 * FT, zc + 0.30 * FT
             wb, wt = 0.28 * FT, 0.42 * FT
             prism(f"{nm} keystone", [(cx - wb, yN, kb), (cx + wb, yN, kb),
                   (cx + wt, yN, kt), (cx - wt, yN, kt)], (0, ty + 0.10, 0), TRIM)
         else:
-            # gable: front triangle + two roof planes meeting at the dormer ridge
+            # GABLE roof: a front gable triangle (above the window head) + two pitched
+            # roof planes meeting at the dormer ridge.
             prism(f"{nm} gable", [(xL, yN, plate), (xR, yN, plate), (cx, yN, zR)], (0, ty, 0), WALL)
-            prism(f"{nm} roof W", [(xL, yN, plate), (cx, yN, zR), (cx, y_r, zR), (xL, y_p, plate)],
-                  (0, 0, tz), ROOF, cls="IfcRoof")
-            prism(f"{nm} roof E", [(xR, yN, plate), (cx, yN, zR), (cx, y_r, zR), (xR, y_p, plate)],
-                  (0, 0, tz), ROOF, cls="IfcRoof")
+            if style == "interior":
+                # internalized: the ridge + planes run back only to the ceiling well's
+                # back line (y_p) and are closed by a BACK GABLE, so the dormer is a
+                # fully framed, self-contained pocket that seats into the well.
+                prism(f"{nm} roof W", [(xL, yN, plate), (cx, yN, zR), (cx, y_p, zR), (xL, y_p, plate)],
+                      (0, 0, tz), ROOF, cls="IfcRoof")
+                prism(f"{nm} roof E", [(xR, yN, plate), (cx, yN, zR), (cx, y_p, zR), (xR, y_p, plate)],
+                      (0, 0, tz), ROOF, cls="IfcRoof")
+                prism(f"{nm} back gable", [(xL, y_p, plate), (xR, y_p, plate), (cx, y_p, zR)], (0, -ty, 0), WALL)
+            else:
+                # exterior: the planes die into the main slope along the valleys (y_p / y_r).
+                prism(f"{nm} roof W", [(xL, yN, plate), (cx, yN, zR), (cx, y_r, zR), (xL, y_p, plate)],
+                      (0, 0, tz), ROOF, cls="IfcRoof")
+                prism(f"{nm} roof E", [(xR, yN, plate), (cx, yN, zR), (cx, y_r, zR), (xR, y_p, plate)],
+                      (0, 0, tz), ROOF, cls="IfcRoof")
 
 
 def add_shed_dormer(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior"):
