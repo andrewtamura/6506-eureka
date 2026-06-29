@@ -625,20 +625,26 @@ def add_dormers(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interior", 
         y_p = yN - plate / pitch                      # cheek eaves die into main slope
         y_r = yN - zR / pitch                         # dormer ridge dies into main slope
         nm = f"Dormer {k}"
-        # front gable wall: a frame around the opening, then the gable triangle
-        box(f"{nm} jamb W", xL, xWL, 0.0, plate, WALL)
-        box(f"{nm} jamb E", xWR, xR, 0.0, plate, WALL)
-        box(f"{nm} sill", xWL, xWR, 0.0, wsill, WALL)
+        # The dormer internalizes its OWN complete framing. INTERIOR walls run all the
+        # way down to the attic FLOOR (z0); EXTERIOR walls start at the dormer base on
+        # the roof (z0=0, i.e. base_z). z0 is local (the prism/box add base_z back).
+        z0 = -base_z if style == "interior" else 0.0
+        # front WINDOW WALL: jambs + an apron below the sill + a head, framing the glass.
+        box(f"{nm} jamb W", xL, xWL, z0, plate, WALL)
+        box(f"{nm} jamb E", xWR, xR, z0, plate, WALL)
+        box(f"{nm} sill", xWL, xWR, z0, wsill, WALL)
         box(f"{nm} head", xWL, xWR, whead, plate, WALL)
         # glazing, set just proud of the wall face (north = +Y)
         box(f"{nm} window", xWL, xWR, wsill, whead, GLASS,
             cls="IfcWindow", cy=yN + ty / 2, dy=0.05, tr=0.45)
-        # CHEEK (side) walls — triangles whose lower edge rides the main roof slope.
-        # Built for BOTH styles now: the dormer internalizes its OWN complete framing
-        # (two cheek walls + the window wall + the gable roof), rather than relying on
-        # a separate flat alcove. The attic-side cheeks in add_attic are dropped.
-        prism(f"{nm} cheek W", [(xL, yN, 0.0), (xL, yN, plate), (xL, y_p, plate)], (tx, 0, 0), WALL)
-        prism(f"{nm} cheek E", [(xR, yN, 0.0), (xR, yN, plate), (xR, y_p, plate)], (-tx, 0, 0), WALL)
+        # CHEEK (side) walls. Interior: a FULL side wall floor->plate (so the dormer is
+        # a completely enclosed pocket). Exterior: just the triangle above the roof slope.
+        if style == "interior":
+            prism(f"{nm} cheek W", [(xL, yN, z0), (xL, y_p, z0), (xL, y_p, plate), (xL, yN, plate)], (tx, 0, 0), WALL)
+            prism(f"{nm} cheek E", [(xR, yN, z0), (xR, y_p, z0), (xR, y_p, plate), (xR, yN, plate)], (-tx, 0, 0), WALL)
+        else:
+            prism(f"{nm} cheek W", [(xL, yN, 0.0), (xL, yN, plate), (xL, y_p, plate)], (tx, 0, 0), WALL)
+            prism(f"{nm} cheek E", [(xR, yN, 0.0), (xR, yN, plate), (xR, y_p, plate)], (-tx, 0, 0), WALL)
         if barrel and style != "interior":
             # half-round BARREL (exterior only): an arched front tympanum + a curved
             # vault roof springing from the cheek tops (plate) and dying into the slope.
