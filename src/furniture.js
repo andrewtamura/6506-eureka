@@ -530,14 +530,14 @@ function buildBathroom(p) {
   // opposite corner = (staircase W cheek = x1, WC-door wall = wcS). EAST wall (x1)
   // carries the entrance (N of the shower); NORTH wall (wcS) = a solid bathroom/attic
   // partition E of the WC, plus the WC's south wall + door.
-  framedDoor({ axis: "z", line: x1, oa: 0.0, ob: 3.0, wa: zS7, wb: wcS, hinge: "a", swing: 1.2 });   // entrance
+  framedDoor({ axis: "z", line: x1, oa: wcS - 2.667, ob: wcS, wa: zS7, wb: wcS, hinge: "b", swing: -1.2 });   // entrance: hinged at the NE corner, opens INTO the bathroom (2'8")
   xWall(wcS, x1, wcEast);                          // bathroom/attic partition, E of the WC
 
   // WC rectangle (NW corner): WEST wall = xW7 (IFC; toilet hangs there), NORTH = zN7
   // (IFC), EAST = wcEast (new), SOUTH = wcS with the WC door. Its W + N edges sit under
   // the roof slopes, so the WC ceiling dips toward the eaves there.
   zWall(wcEast, wcS, zN7);                          // WC east partition
-  framedDoor({ axis: "x", line: wcS, oa: wcEast + 0.9, ob: wcEast + 2.9, wa: wcEast, wb: xW7, hinge: "a", swing: -1.1 });  // WC door, swings IN (north)
+  framedDoor({ axis: "x", line: wcS, oa: wcEast + 0.9, ob: wcEast + 3.4, wa: wcEast, wb: xW7, hinge: "a", swing: -1.1 });  // WC door (2'6"), swings IN (north)
 
   // --- shower running the FULL east-west width along the south wall, full standing
   // headroom. Tiled on the W + S + E sides (E = the entry partition); the open N
