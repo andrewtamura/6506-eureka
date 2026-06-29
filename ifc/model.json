@@ -86,12 +86,12 @@
           "dormers": {
             "side": "north",
             "count": 3,
-            "roof": "barrel",
+            "roof": "gable",
             "widthFt": 3.5,
-            "plateFt": 4.0,
+            "plateFt": 3.0,
             "recessFt": 0.75,
             "align": "bays",
-            "window": { "widthFt": 2.0, "heightFt": 3.0, "sillFt": 0 }
+            "window": { "widthFt": 2.0, "heightFt": 1.8, "sillFt": 0.7 }
           },
           "shedDormer": {
             "side": "south",
@@ -103,11 +103,11 @@
             "window": { "count": 3, "widthFt": 3.5, "heightFt": 3.8, "sillFt": 0.7 }
           },
           "hipDormers": {
-            "roof": "barrel",
+            "roof": "gable",
             "widthFt": 3.5,
-            "plateFt": 4.0,
+            "plateFt": 3.0,
             "recessFt": 0.75,
-            "window": { "widthFt": 2.0, "heightFt": 2.5 }
+            "window": { "widthFt": 2.0, "heightFt": 1.8, "sillFt": 0.7 }
           }
         },
         "extension": {
@@ -178,7 +178,8 @@
       "label": "Attic",
       "kind": "attic",
       "kneeFt": 3.0,
-      "usableHeadroomFt": 7.0,
+      "usableHeadroomFt": 6.0,
+      "flatCeilFt": 8.5,
       "bathroom": { "cutFt": 15.1, "x1": 15.1, "x2": 31, "z1": -11.9167, "z2": 16.0833 },
       "roofRef": { "from": "exterior", "group": "primary" },
       "rooms": [

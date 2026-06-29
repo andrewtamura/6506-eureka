@@ -52,7 +52,8 @@
         "pitch": 0.6667
       },
       "kneeFt": 3.0,
-      "usableFt": 7.0,
+      "usableFt": 6.0,
+      "flatCeilFt": 8.5,
       "x1": 15.1,
       "x2": 31,
       "z1": -11.9167,
