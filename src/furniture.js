@@ -529,11 +529,11 @@ function buildBathroom(p) {
   // BATHROOM rectangle (shower + vanity): SW corner = where the two 7 ft walls meet;
   // opposite corner = (staircase W cheek = x1, WC-door wall = wcS). The EAST wall (x1)
   // is solid (the vanity + mirror + shower tile back onto it); the ENTRANCE is on the
-  // NORTH wall (wcS) hinged at the NE corner (x1) and swings INTO the bathroom, folding
-  // back toward the east wall into the clear nook N of the vanity; the rest of the
-  // north wall (W of the entrance, up to the WC) is the bathroom/attic partition.
+  // NORTH wall (wcS): the entrance sits just off the NE corner (a short wall pier
+  // between the corner and the opening), hinged on the corner-side (east) jamb and
+  // swinging INTO the bathroom; short wall piers flank it on both sides up to the WC.
   zWall(x1, zS7, wcS);                             // EAST wall (solid)
-  framedDoor({ axis: "x", line: wcS, oa: x1, ob: x1 + 2.667, wa: x1, wb: wcEast, hinge: "a", swing: 1.5 });  // entrance: hinged at the NE corner, opens INTO the bathroom, folding back against the east wall (2'8")
+  framedDoor({ axis: "x", line: wcS, oa: x1 + 0.9, ob: x1 + 3.567, wa: x1, wb: wcEast, hinge: "a", swing: 1.2 });  // entrance: off the corner, hinged on the corner-side jamb, opens INTO the bathroom (2'8")
 
   // WC rectangle (NW corner): WEST wall = xW7 (IFC; toilet hangs there), NORTH = zN7
   // (IFC), EAST = wcEast (new), SOUTH = wcS with the WC door. Its W + N edges sit under
