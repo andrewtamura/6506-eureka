@@ -514,11 +514,18 @@ function buildBathroom(p) {
     return door;
   };
 
-  // --- single EAST partition (x1) the full depth, with a door near the ridge ---
-  // (the W / N / S sides open to the roof slope — the knee walls there are dropped,
-  // so the bathroom uses the entire west end, both sloped sides included).
-  const dz0 = pz + 3.5, dz1 = pz + 6.5;                 // 3 ft door, near the N end of the partition
-  framedDoor({ axis: "z", line: x1, oa: dz0, ob: dz1, wa: z1, wb: z2, hinge: "b", swing: -1.25 });  // hinge N jamb, swings IN
+  // --- IRREGULAR bathroom shape: the bathroom is the south band of the west end
+  // PLUS the WC bumping north; the NE corner (the last north dormer's alcove) is
+  // carved OUT and left to the open attic. So the EAST wall (x1) runs only along the
+  // south band (NOT the full depth); the WC's door wall (z = wcS, E-W) extends EAST
+  // to meet it, and that extension carries the new bathroom entrance — roughly in
+  // line with the last of the three north dormers (plan x ~ 17.875).
+  // WC east wall sits on the line where the flat 8.5 ft ceiling meets the W slope
+  // (so the WC tucks under the slope); = F.x2 - (flatCeil - eave)/pitch.
+  const duFlat = Math.max(0, ((p.flatCeilFt || 8.5) - eaveFt) / pit);
+  const wcE = F.x2 - duFlat, wcS = pz + 1.75;           // WC east wall / WC-door wall (E-W) line
+  zWall(x1, z1, wcS);                                   // EAST wall — south band only
+  framedDoor({ axis: "x", line: wcS, oa: 16.375, ob: 19.375, wa: x1, wb: wcE, hinge: "b", swing: -1.1 });  // entrance, swings IN
 
   // The bathroom's perimeter walls (3 ft knee walls + the 7 ft room walls with
   // open dormer alcoves) are built in the IFC now — add_attic rings the WHOLE
@@ -597,16 +604,15 @@ function buildBathroom(p) {
     grp.position.copy(V(plx - px, plz - pz, 0));
     g.add(grp);
   };
-  // wall-hung on the NORTH wall, facing south toward the WC door.
-  makeToilet(22.0, zN7 - 0.85, -Math.PI / 2);
+  // wall-hung on the WEST wall (under the low slope), facing east into the WC.
+  makeToilet(xW7 - 0.85, (wcS + zN7) / 2, Math.PI);
 
-  // --- WC: enclose the toilet in a compartment in the NW corner. The W + N sides
-  // are the 7 ft room walls; add a full-height E partition and a S partition with a
-  // door. The S wall is pushed south to the W hip-dormer's N cheek line, deepening
-  // the WC so the inswing door clears the (wall-hung) toilet.
-  const wcE = 19.7, wcS = (F.z1 + F.z2) / 2 + 1.75;     // S partition = W hip-dormer N cheek (hipW 3.5/2)
-  zWall(wcE, wcS, zN7);                                  // east partition (floor -> ceiling)
-  framedDoor({ axis: "x", line: wcS, oa: 21.0, ob: 23.5, wa: wcE, wb: xW7, hinge: "b", swing: 1.1 });
+  // --- WC: enclose the toilet in a compartment. The W + N sides are the 7 ft room
+  // walls; its E partition (x = wcE) now runs the FULL depth so it also walls the
+  // carved-out NE corner (the last dormer's alcove) off from the bathroom. The S
+  // wall (with the WC door) is coplanar with the entrance wall above.
+  zWall(wcE, wcS, z2);                                   // east partition, full depth (WC + notch divider)
+  framedDoor({ axis: "x", line: wcS, oa: wcE + 0.6, ob: xW7 - 0.65, wa: wcE, wb: xW7, hinge: "a", swing: 1.1 });
 
   g.userData.doors = doors;
   return g;
