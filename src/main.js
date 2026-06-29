@@ -30,30 +30,48 @@ const propsTitle = document.getElementById("props-title");
 const PROPS_HINT = '<div class="muted">Tap an element — a wall, the floor, a window — to see what it is.</div>';
 const setStatus = (t) => { statusEl.textContent = t; statusEl.style.display = t ? "block" : "none"; };
 
-// Hung pendant fixtures for the attic, parented to the attic model (local plan
-// coords: x->-x, z->-z, y up; floor at local y=0). Each is a glowing shade on a
-// cord up to the sloped ceiling, with a point light that grazes the ceiling from
-// below (revealing its form) and lights the room. No shadows (kept cheap).
-function addAtticLights(parent) {
-  const FT = 0.3048, eave = 2.5, pit = 0.6667;
+// Recessed LED downlights for the attic + bathroom: a flush trim ring with a
+// bright emissive lens set into the (flat 8.5 ft) ceiling, plus a downlight
+// below. Parented to the attic model (local plan coords: x->-x, z->-z, y up;
+// floor at local y=0). Also a wall-mounted vanity light over the bathroom mirror.
+function addAtticLighting(parent) {
+  const FT = 0.3048, eave = 2.5, pit = 0.6667, flatCeil = 8.5;
   const F = { x1: -12, x2: 31, z1: -11.9167, z2: 16.0833 };      // attic footprint (plan ft)
-  const ceilH = (px, pz) => eave + pit * Math.min(px - F.x1, F.x2 - px, pz - F.z1, F.z2 - pz);
-  const cordMat = new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 0.7 });
-  const shadeMat = new THREE.MeshStandardMaterial({ color: 0xfff6e6, emissive: 0xffe7b8, emissiveIntensity: 1.3, roughness: 0.45 });
-  const mk = (px, pz, intensity, hangFt = 6.8) => {
-    const h = ceilH(px, pz), hang = Math.min(hangFt, h - 0.8), cordLen = h - hang;
+  // ceiling height capped flat at 8.5 ft (sloping down only near the eaves)
+  const ceilH = (px, pz) => Math.min(flatCeil, eave + pit * Math.min(px - F.x1, F.x2 - px, pz - F.z1, F.z2 - pz));
+  const trimMat = new THREE.MeshStandardMaterial({ color: 0xe9e9e9, roughness: 0.5, metalness: 0.2 });
+  const lensMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff2d6, emissiveIntensity: 0.55, roughness: 0.3 });
+  // recessed can flush with the ceiling at plan (px,pz)
+  const can = (px, pz, intensity = 1.3) => {
+    const cy = ceilH(px, pz);
     const g = new THREE.Group();
-    g.position.set(-px * FT, hang * FT, -pz * FT);
-    const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, cordLen * FT, 6), cordMat);
-    cord.position.y = (cordLen * FT) / 2 + 0.07; g.add(cord);
-    const shade = new THREE.Mesh(new THREE.SphereGeometry(0.085, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.62), shadeMat);
-    shade.rotation.x = Math.PI; g.add(shade);                    // dome opening downward
-    const light = new THREE.PointLight(0xfff0db, intensity, 0, 2);
-    light.position.y = -0.05; g.add(light);
+    g.position.set(-px * FT, cy * FT, -pz * FT);
+    const trim = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.03, 20), trimMat);
+    trim.position.y = -0.015; g.add(trim);                       // ring flush at ceiling
+    const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.012, 20), lensMat);
+    lens.position.y = -0.03; g.add(lens);                        // glowing lens just below
+    const light = new THREE.PointLight(0xfff2d6, intensity, 0, 2);
+    light.position.y = -0.18; g.add(light);
     parent.add(g);
   };
-  mk(-1, 2.08, 3.6); mk(5, 2.08, 3.6); mk(11, 2.08, 3.6);       // main room, along the ridge
-  mk(18, 1.0, 2.6); mk(22, 6.8, 1.6);                           // bathroom: central + WC
+  // wall-mounted vanity bar on the east bathroom wall, above the mirror (faces W into the room)
+  const vanityBar = (px, pz, y, lenZ, intensity = 1.8) => {
+    const g = new THREE.Group();
+    g.position.set(-px * FT, y * FT, -pz * FT);
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.09, lenZ * FT), trimMat); g.add(bar);
+    const lens = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.06, (lenZ - 0.3) * FT), lensMat);
+    lens.position.x = 0.03; g.add(lens);                         // lens faces +localX (-x world = into room)
+    const light = new THREE.PointLight(0xfff2d6, intensity, 0, 2);
+    light.position.set(0.25, -0.1, 0); g.add(light);
+    parent.add(g);
+  };
+
+  // Main attic room: a row of recessed cans down the ridge
+  can(-3, 2.08); can(2, 2.08); can(7, 2.08); can(12, 2.08);
+  // Bathroom (main) + WC: recessed cans
+  can(18, 1.0, 1.2); can(22, 6.8, 0.8);
+  // Bathroom vanity light over the mirror (mirror is on the east wall x1=15.1 at z=-0.75)
+  vanityBar(15.5, -0.75, 6.0, 2.4, 0.9);
 }
 
 async function main() {
@@ -395,10 +413,9 @@ async function main() {
     // finished floor; empty manifest (other levels) is a no-op.
     if (lvl.id !== "exterior" && lvl.manifests?.subfloor)
       await buildSubfloor({ scene, model: m, fragments, floorY: m.object.position.y, baseUrl: BASE, manifestFile: lvl.manifests.subfloor + VER });
-    // Interior light fixtures (the attic's only artificial light): hung pendants
-    // that throw light onto the ceiling so its slopes/dormer pockets read, and
-    // down into the room. With the ambient cut low, these + the windows do the work.
-    if (lvl.id === "attic") addAtticLights(m.object);
+    // Attic interior lighting: recessed LED downlights (ridge + bath/WC) plus a
+    // vanity light over the bathroom mirror. Daylight (dormers) does the rest.
+    if (lvl.id === "attic") addAtticLighting(m.object);
     // Second floor is an open shell with no rooms yet -> give it ONE flat ceiling
     // over its whole footprint (independent of the ground floor's room layout), plus
     // a grid of sample semi-flush fixtures. Ceiling toggles opaque (POV) /
