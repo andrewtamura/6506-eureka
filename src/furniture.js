@@ -527,11 +527,12 @@ function buildBathroom(p) {
   const wcEast = (p.nDormerWestFt != null) ? p.nDormerWestFt : (xW7 - 6.1);  // WC east wall = N-dormer alcove W edge
 
   // BATHROOM rectangle (shower + vanity): SW corner = where the two 7 ft walls meet;
-  // opposite corner = (staircase W cheek = x1, WC-door wall = wcS). EAST wall (x1)
-  // carries the entrance (N of the shower); NORTH wall (wcS) = a solid bathroom/attic
-  // partition E of the WC, plus the WC's south wall + door.
-  framedDoor({ axis: "z", line: x1, oa: wcS - 2.667, ob: wcS, wa: zS7, wb: wcS, hinge: "b", swing: -1.2 });   // entrance: hinged at the NE corner, opens INTO the bathroom (2'8")
-  xWall(wcS, x1, wcEast);                          // bathroom/attic partition, E of the WC
+  // opposite corner = (staircase W cheek = x1, WC-door wall = wcS). The EAST wall (x1)
+  // is solid (the vanity + mirror + shower tile back onto it); the ENTRANCE is on the
+  // NORTH wall (wcS) at the NE corner, swinging into the bathroom; the rest of the
+  // north wall (E of the entrance, up to the WC) is the bathroom/attic partition.
+  zWall(x1, zS7, wcS);                             // EAST wall (solid)
+  framedDoor({ axis: "x", line: wcS, oa: x1, ob: x1 + 2.667, wa: x1, wb: wcEast, hinge: "a", swing: 1.2 });  // entrance: hinged at the NE corner, opens INTO the bathroom (2'8")
 
   // WC rectangle (NW corner): WEST wall = xW7 (IFC; toilet hangs there), NORTH = zN7
   // (IFC), EAST = wcEast (new), SOUTH = wcS with the WC door. Its W + N edges sit under
@@ -562,15 +563,16 @@ function buildBathroom(p) {
     post.position.copy(V((shW - shOpen) - px, shN - pz, 3.3)); g.add(post);
   }
 
-  // --- single vanity in the W hip-dormer alcove, UNDER the window (daylight in
-  // place of a mirror); the mirror moves to the east partition.
-  const vcx = wWall - 0.95, vz0 = 0.5, vz1 = 3.5, vd = vz1 - vz0, vcz = (vz0 + vz1) / 2;
-  box(vcx, vcz, 1.45, 1.9, 2.9, vd, woodv);                                  // vanity cabinet
+  // --- single vanity against the EAST wall (x1), backing onto it and facing west.
+  // Sits N of the shower and S of the entrance, fully under the flat 8.5 ft ceiling.
+  // Depth (E-W, 1.9 ft) projects west from x1; length (N-S, vd) runs along z.
+  const vcx = x1 + 0.95, vcz = -0.75, vd = 3.5;                              // cabinet centre (E of x1) / length N-S
+  box(vcx, vcz, 1.45, 1.9, 2.9, vd, woodv);                                  // vanity cabinet (1.9 deep E-W)
   box(vcx, vcz, 2.95, 2.1, 0.18, vd + 0.2, porc);                            // stone countertop
   cyl(vcx, vcz, 3.0, 0.5, 0.18, porc, 24);                                   // single basin
-  cyl(vcx + 0.6, vcz, 3.15, 0.05, 0.6, chrome);                              // faucet
-  // full-length mirror on the EAST partition, in the open stretch south of the door.
-  box(x1 + 0.06, -0.6, 4.0, 0.08, 2.2, 2.0, glass);
+  cyl(vcx - 0.6, vcz, 3.15, 0.05, 0.6, chrome);                              // faucet (back, near the east wall)
+  // mirror on the EAST wall, centred above the vanity
+  box(x1 + 0.06, vcz, 4.2, 0.08, 2.2, 2.5, glass);
 
   // --- WALL-MOUNTED (wall-hung) toilet: a floating china bowl cantilevered off the
   // wall (no floor pedestal), an elongated seat, and a flush actuator plate on the
