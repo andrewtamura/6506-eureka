@@ -404,35 +404,11 @@ def add_attic(ctx, rooms, roof):
         ]:
             w = make_box(ctx, "IfcWall", nm, xd, yd, eave, bx, by, 0.0, color=KNEE)
             run("spatial.assign_container", ctx.model, products=[w], relating_structure=ctx.storey)
-        # ...plus INSET KNEE WALLS at `knee` height, where the slope reaches that
-        # height (inset = (knee-eave)/pitch). They wall off the low <knee storage
-        # triangles; the strip between plate and knee wall is behind-knee storage.
-        # The dormers are sized so their glass plane sits directly ON TOP of this
-        # knee wall (recess = the same inset), so the knee wall runs SOLID across —
-        # the dormer rises from its top rather than opening down to the floor.
-        dm = (knee - eave) / pitch
-        kx1, kx2, ky1, ky2 = x1 + dm, x2 - dm, y1 + dm, y2 - dm
-        # Knee walls with a top CUT TO THE ROOF SLOPE so they seat tight against
-        # the sloped ceiling (a flat top only touches along its centreline and
-        # gaps on the room side). `inner` points toward the room: the top rises
-        # pitch*t/2 toward the room and drops the same toward the eave.
+        # (No 36" knee wall: the sloped ceiling runs down to the floor at the eaves,
+        # so the low <knee triangles read as open behind-the-knee space. The eave
+        # plate wall above + the roof still enclose them, so no daylight leaks in.)
+        # `d` (the half-thickness slope rise) is still used by the 7 ft room walls.
         d = pitch * t / 2
-
-        def kneewall(nm, orient, line, a, b, inner):
-            if orient == "H":     # runs along x at y=line
-                poly = [(a - t / 2, line + inner * t / 2, 0.0), (a - t / 2, line - inner * t / 2, 0.0),
-                        (a - t / 2, line - inner * t / 2, knee - d), (a - t / 2, line + inner * t / 2, knee + d)]
-                vec = (b - a + t, 0.0, 0.0)
-            else:                 # runs along y at x=line
-                poly = [(line + inner * t / 2, a - t / 2, 0.0), (line - inner * t / 2, a - t / 2, 0.0),
-                        (line - inner * t / 2, a - t / 2, knee - d), (line + inner * t / 2, a - t / 2, knee + d)]
-                vec = (0.0, b - a + t, 0.0)
-            v, f = _prism(poly, vec)
-            add_brep(ctx, nm, v, f, KNEE, ifc_class="IfcWall")
-        kneewall("Knee wall N", "H", ky2, kx1, kx2, -1)
-        kneewall("Knee wall S", "H", ky1, kx1, kx2, +1)
-        kneewall("Knee wall W", "V", kx1, ky1, ky2, +1)   # the bathroom's WEST wet wall
-        kneewall("Knee wall E", "V", kx2, ky1, ky2, -1)
 
         # 7 ft ROOM WALLS at the usable-headroom line (where the slope first reaches
         # the room height), with an open ALCOVE at each dormer so the window seats
@@ -529,10 +505,7 @@ def add_attic(ctx, rooms, roof):
             kw = make_box(ctx, "IfcWall", nm, xd, yd, knee, bx, by, 0.0, color=KNEE)
             run("spatial.assign_container", ctx.model, products=[kw], relating_structure=ctx.storey)
 
-    # remember the knee-wall rectangle (IFC metres) so the floor finish can put
-    # finished hardwood ONLY inside it and subfloor in the low zone beyond it.
-    ctx.attic_knee = (kx1, kx2, ky1, ky2)
-    # ...and the USABLE rectangle: the floor finish boundary is pulled in to where
+    # The USABLE rectangle: the floor finish boundary is pulled in to where
     # the sloped ceiling reaches a standing-headroom height (so the finished floor
     # marks the genuinely usable area; the low-headroom band by the knee wall is
     # subfloor). inset = (headroom - eave) / pitch from each footprint edge.
