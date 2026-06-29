@@ -514,22 +514,30 @@ function buildBathroom(p) {
     return door;
   };
 
-  // --- single EAST partition (x1) the full depth, with a door near the ridge ---
-  // (the W / N / S sides open to the roof slope — the knee walls there are dropped,
-  // so the bathroom uses the entire west end, both sloped sides included).
-  const dz0 = pz + 3.5, dz1 = pz + 6.5;                 // 3 ft door, near the N end of the partition
-  framedDoor({ axis: "z", line: x1, oa: dz0, ob: dz1, wa: z1, wb: z2, hinge: "b", swing: -1.25 });  // hinge N jamb, swings IN
-
-  // The bathroom's perimeter walls (3 ft knee walls + the 7 ft room walls with
-  // open dormer alcoves) are built in the IFC now — add_attic rings the WHOLE
-  // usable rectangle and the partition above divides it into bath + main room.
-  // Here we only place the fixtures, inside that 7 ft rectangle.
+  // --- TWO-RECTANGLE bathroom: a WC in the NW corner + the main bathroom (shower +
+  // vanity) to its south, each a clean rectangle. The perimeter 7 ft room walls are in
+  // the IFC; here we add the internal partitions + fixtures.
   const usableFt = p.usableFt != null ? p.usableFt : 7.0;
   const du = Math.max(0, (usableFt - eaveFt) / pit);
   const kneeInset = p.kneeFt != null ? Math.max(0, (p.kneeFt - eaveFt) / pit) : 3.75;
   const wWall = F.x2 - kneeInset;                 // 3 ft knee/wet wall (vanity + W dormer above)
-  const xW7 = F.x2 - du;                          // west 7 ft wall (full standing headroom east of it)
+  const xW7 = F.x2 - du;                          // west 7 ft wall
   const zN7 = F.z2 - du, zS7 = F.z1 + du;         // north / south 7 ft walls
+  const wcS = pz + 1.75;                          // WC south wall = W-dormer alcove N edge = bathroom N wall
+  const wcEast = (p.nDormerWestFt != null) ? p.nDormerWestFt : (xW7 - 6.1);  // WC east wall = N-dormer alcove W edge
+
+  // BATHROOM rectangle (shower + vanity): SW corner = where the two 7 ft walls meet;
+  // opposite corner = (staircase W cheek = x1, WC-door wall = wcS). EAST wall (x1)
+  // carries the entrance (N of the shower); NORTH wall (wcS) = a solid bathroom/attic
+  // partition E of the WC, plus the WC's south wall + door.
+  framedDoor({ axis: "z", line: x1, oa: wcS - 2.667, ob: wcS, wa: zS7, wb: wcS, hinge: "b", swing: -1.2 });   // entrance: hinged at the NE corner, opens INTO the bathroom (2'8")
+  xWall(wcS, x1, wcEast);                          // bathroom/attic partition, E of the WC
+
+  // WC rectangle (NW corner): WEST wall = xW7 (IFC; toilet hangs there), NORTH = zN7
+  // (IFC), EAST = wcEast (new), SOUTH = wcS with the WC door. Its W + N edges sit under
+  // the roof slopes, so the WC ceiling dips toward the eaves there.
+  zWall(wcEast, wcS, zN7);                          // WC east partition
+  framedDoor({ axis: "x", line: wcS, oa: wcEast + 0.9, ob: wcEast + 3.4, wa: wcEast, wb: xW7, hinge: "a", swing: -1.1 });  // WC door (2'6"), swings IN (north)
 
   // --- shower running the FULL east-west width along the south wall, full standing
   // headroom. Tiled on the W + S + E sides (E = the entry partition); the open N
@@ -597,16 +605,9 @@ function buildBathroom(p) {
     grp.position.copy(V(plx - px, plz - pz, 0));
     g.add(grp);
   };
-  // wall-hung on the NORTH wall, facing south toward the WC door.
-  makeToilet(22.0, zN7 - 0.85, -Math.PI / 2);
-
-  // --- WC: enclose the toilet in a compartment in the NW corner. The W + N sides
-  // are the 7 ft room walls; add a full-height E partition and a S partition with a
-  // door. The S wall is pushed south to the W hip-dormer's N cheek line, deepening
-  // the WC so the inswing door clears the (wall-hung) toilet.
-  const wcE = 19.7, wcS = (F.z1 + F.z2) / 2 + 1.75;     // S partition = W hip-dormer N cheek (hipW 3.5/2)
-  zWall(wcE, wcS, zN7);                                  // east partition (floor -> ceiling)
-  framedDoor({ axis: "x", line: wcS, oa: 21.0, ob: 23.5, wa: wcE, wb: xW7, hinge: "b", swing: 1.1 });
+  // wall-hung on the WEST wall (the far-west 7 ft wall xW7), facing EAST into the WC
+  // (rotY=0 -> back/plate on the west wall, bowl projects east into the room).
+  makeToilet(xW7 - 0.7, (wcS + zN7) / 2, 0);
 
   g.userData.doors = doors;
   return g;

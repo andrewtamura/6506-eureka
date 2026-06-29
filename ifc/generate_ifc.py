@@ -186,11 +186,16 @@ def build_level(cfg, rooms_cache, level):
         # walls + door + fixtures); the rest of the attic stays open.
         bath = level.get("bathroom")
         if bath:
+            _dm = g.get("dormers") or {}
+            _nbays = B.aligned_front_bays(rooms, _dm.get("count", 3)) or []
+            # westmost north-dormer alcove west edge (plan x): the WC's east wall lands here.
+            n_dormer_west = (max(_nbays) + _dm.get("widthFt", 3.5) / 2) if _nbays else None
             ctx.furniture.append({"type": "bathroom", "px": (bath["x1"] + bath["x2"]) / 2,
                                   "pz": (bath["z1"] + bath["z2"]) / 2, "roof": roof_fp,
                                   "kneeFt": level.get("kneeFt", 4.0),
                                   "usableFt": level.get("usableHeadroomFt", 7.0),
                                   "flatCeilFt": level.get("flatCeilFt"),
+                                  "nDormerWestFt": n_dormer_west,
                                   "x1": bath["x1"], "x2": bath["x2"], "z1": bath["z1"], "z2": bath["z2"]})
         # cute window-seat benches under each north dormer, against the 3 ft knee wall
         dm_spec = g.get("dormers")
