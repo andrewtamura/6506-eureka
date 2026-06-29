@@ -340,6 +340,7 @@ def add_attic(ctx, rooms, roof):
     eave = roof.get("eaveWallFt", 0.0) * FT           # raised plate above the attic floor
     rh = roof.get("usableHeadroomFt", 7.0) * FT       # 7 ft room-wall / usable-headroom height
     du0 = max(0.0, (rh - eave) / pitch)               # inset where the slope reaches the room height
+    flat_z = roof.get("flatCeilFt") * FT if roof.get("flatCeilFt") else None  # flat ceiling cap
     t = ctx.T
 
     for r in rooms:                                   # floor over the whole footprint
@@ -391,7 +392,7 @@ def add_attic(ctx, rooms, roof):
     # the dormer wells cut OPEN so each dormer reads up into the attic room.
     sy1c = min(sy1, y1 + du0)                          # cap the deep shed well at the 7 ft wall (keep the room vault intact)
     cv, cf = _hip_ceiling_with_wells(x1, x2, y1, y2, eave, pitch,
-                                     n_holes, ny0, ny1, s_holes, sy0, sy1c, e_well, w_well, n_apex)
+                                     n_holes, ny0, ny1, s_holes, sy0, sy1c, e_well, w_well, n_apex, flat_z)
     # Translucent so the 3/4 exhibit view reads INTO the room (floor + walls show
     # through) — i.e. you can see the habitable volume under the slope.
     add_brep(ctx, "Attic ceiling", cv, cf, CEIL, ifc_class="IfcCovering",
@@ -1086,7 +1087,7 @@ def _hip_surface(x1, x2, y1, y2, eave, pitch, oh=0.0):
 
 
 def _hip_ceiling_with_wells(x1, x2, y1, y2, eave, pitch, n_wells, ny0, ny1, s_wells, sy0, sy1,
-                            e_well=None, w_well=None, n_apex=None):
+                            e_well=None, w_well=None, n_apex=None, flat_z=None):
     """Hip-roof soffit (w>=d) decomposed into panels with rectangular dormer-well
     HOLES cut into the N slope (x-ranges `n_wells` over y in [ny0,ny1]), the S slope
     (`s_wells` over [sy0,sy1]) and, optionally, the E / W hip triangles (`e_well` /
@@ -1106,30 +1107,54 @@ def _hip_ceiling_with_wells(x1, x2, y1, y2, eave, pitch, n_wells, ny0, ny1, s_we
     zS = lambda x, y: eave + pitch * (y - y1)
     zE = lambda x, y: eave + pitch * (x2 - x)
     zW = lambda x, y: eave + pitch * (x - x1)
-    # E hip end (apex at x2-half), optionally with a dormer well x[a0,a1] y[bL,bR]
+    # FLAT-TOPPED hip: each slope rises only to where it reaches `flat_z`, then a
+    # horizontal panel caps the centre (an 8.5 ft flat ceiling with sloped sides).
+    # dH = plan run from each eave to the flat edge. The slope x/y functions already
+    # trace the hip diagonals, so the flat edges fall out by evaluating them at the
+    # flat boundary. With flat_z=None the slopes meet at the ridge (a full vault):
+    # yTn/yTs collapse to yc and the E/W ends to a point, recovering the old hip.
+    dH = (flat_z - eave) / pitch if flat_z is not None else 0.0
+    fx1, fx2, fy1, fy2 = x1 + dH, x2 - dH, y1 + dH, y2 - dH      # flat rect
+    yTn = fy2 if flat_z is not None else yc                       # N slope top edge (y)
+    yTs = fy1 if flat_z is not None else yc                       # S slope top edge (y)
+    xTe = fx2 if flat_z is not None else (x2 - half)              # E slope top edge (x)
+    xTw = fx1 if flat_z is not None else (x1 + half)              # W slope top edge (x)
+    if flat_z is not None:
+        panel([(fx1, fy1), (fx2, fy1), (fx2, fy2), (fx1, fy2)], lambda x, y: flat_z)
+    # E hip/slope end (top edge at x=xTe), optionally with a dormer well x[a0,a1] y[bL,bR]
     if e_well:
         a0, a1, bL, bR = e_well
         yLO, yUP = (lambda x: y1 + (x2 - x)), (lambda x: y2 - (x2 - x))
-        panel([(x2, y1), (x2, y2), (a1, yUP(a1)), (a1, yLO(a1))], zE)       # base band
-        panel([(x2 - half, yc), (a0, yUP(a0)), (a0, yLO(a0))], zE)         # apex tri
+        panel([(x2, y1), (x2, y2), (a1, yUP(a1)), (a1, yLO(a1))], zE)       # eave -> well outer
+        if flat_z is not None:
+            panel([(xTe, yLO(xTe)), (a0, yLO(a0)), (a0, yUP(a0)), (xTe, yUP(xTe))], zE)  # well inner -> flat edge
+        else:
+            panel([(xTe, yc), (a0, yUP(a0)), (a0, yLO(a0))], zE)            # apex tri
         panel([(a0, yLO(a0)), (a1, yLO(a1)), (a1, bL), (a0, bL)], zE)       # below the well
         panel([(a0, bR), (a1, bR), (a1, yUP(a1)), (a0, yUP(a0))], zE)       # above the well
+    elif flat_z is not None:
+        panel([(x2, y1), (x2, y2), (xTe, fy2), (xTe, fy1)], zE)
     else:
-        panel([(x2, y1), (x2, y2), (x2 - half, yc)], zE)
-    # W hip end (apex at x1+half)
+        panel([(x2, y1), (x2, y2), (xTe, yc)], zE)
+    # W hip/slope end (top edge at x=xTw)
     if w_well:
         a0, a1, bL, bR = w_well
         yLO, yUP = (lambda x: y1 + (x - x1)), (lambda x: y2 - (x - x1))
-        panel([(x1, y2), (x1, y1), (a0, yLO(a0)), (a0, yUP(a0))], zW)       # base band
-        panel([(x1 + half, yc), (a1, yLO(a1)), (a1, yUP(a1))], zW)         # apex tri
+        panel([(x1, y2), (x1, y1), (a0, yLO(a0)), (a0, yUP(a0))], zW)       # eave -> well outer
+        if flat_z is not None:
+            panel([(xTw, yUP(xTw)), (a1, yUP(a1)), (a1, yLO(a1)), (xTw, yLO(xTw))], zW)  # well inner -> flat edge
+        else:
+            panel([(xTw, yc), (a1, yLO(a1)), (a1, yUP(a1))], zW)            # apex tri
         panel([(a0, yLO(a0)), (a1, yLO(a1)), (a1, bL), (a0, bL)], zW)       # below the well
         panel([(a0, bR), (a1, bR), (a1, yUP(a1)), (a0, yUP(a0))], zW)       # above the well
+    elif flat_z is not None:
+        panel([(x1, y2), (x1, y1), (xTw, fy1), (xTw, fy2)], zW)
     else:
-        panel([(x1, y2), (x1, y1), (x1 + half, yc)], zW)
+        panel([(x1, y2), (x1, y1), (xTw, yc)], zW)
 
-    def long_slope(zf, xLf, xRf, y_eave, wells, w0, w1):
-        wf, wn = (w0, w1) if abs(w0 - yc) < abs(w1 - yc) else (w1, w0)   # wf nearer ridge
-        panel([(xLf(yc), yc), (xRf(yc), yc), (xRf(wf), wf), (xLf(wf), wf)], zf)   # ridge -> wells
+    def long_slope(zf, xLf, xRf, y_eave, y_top, wells, w0, w1):
+        wf, wn = (w0, w1) if abs(w0 - y_top) < abs(w1 - y_top) else (w1, w0)   # wf nearer top
+        panel([(xLf(y_top), y_top), (xRf(y_top), y_top), (xRf(wf), wf), (xLf(wf), wf)], zf)  # top -> wells
         sw = sorted(wells)
         panel([(xLf(wf), wf), (sw[0][0], wf), (sw[0][0], wn), (xLf(wn), wn)], zf)   # left of wells
         for k in range(len(sw) - 1):                                                # between wells
@@ -1137,17 +1162,17 @@ def _hip_ceiling_with_wells(x1, x2, y1, y2, eave, pitch, n_wells, ny0, ny1, s_we
         panel([(sw[-1][1], wf), (xRf(wf), wf), (xRf(wn), wn), (sw[-1][1], wn)], zf)  # right of wells
         panel([(xLf(wn), wn), (xRf(wn), wn), (xRf(y_eave), y_eave), (xLf(y_eave), y_eave)], zf)  # wells -> eave
 
-    def gable_slope(zf, xLf, xRf, y_eave, y_face, y_cheek, y_apex, wells):
+    def gable_slope(zf, xLf, xRf, y_eave, y_top, y_face, y_cheek, y_apex, wells):
         # N slope with GABLE (pentagon) holes: each dormer reads as a real gable that
-        # dies into the main roof along two valleys. Bands from ridge (yc) -> eave:
-        #   ridge band  yc..y_apex  full width (no holes)
+        # dies into the main roof along two valleys. Bands from the top edge -> eave:
+        #   top band    y_top..y_apex  full width (no holes)
         #   valley band y_apex..y_cheek  TRIANGULAR holes (full width [a,b] at y_cheek,
         #                                narrowing to the apex (cx, y_apex) — the valleys)
         #   front band  y_cheek..y_face  RECTANGULAR holes [a,b] (under the cheeks)
         #   eave band   y_face..y_eave  full width (no holes)
         sw = sorted(wells)
         cxs = [((a + b) / 2.0) for a, b in sw]
-        panel([(xLf(yc), yc), (xRf(yc), yc), (xRf(y_apex), y_apex), (xLf(y_apex), y_apex)], zf)
+        panel([(xLf(y_top), y_top), (xRf(y_top), y_top), (xRf(y_apex), y_apex), (xLf(y_apex), y_apex)], zf)
         # valley band: solid = trapezoid minus the converging triangles
         panel([(xLf(y_apex), y_apex), (xLf(y_cheek), y_cheek), (sw[0][0], y_cheek), (cxs[0], y_apex)], zf)
         for k in range(len(sw) - 1):
@@ -1164,15 +1189,15 @@ def _hip_ceiling_with_wells(x1, x2, y1, y2, eave, pitch, n_wells, ny0, ny1, s_we
     xLn, xRn = (lambda y: x1 + (y2 - y)), (lambda y: x2 - (y2 - y))
     xLs, xRs = (lambda y: x1 + (y - y1)), (lambda y: x2 - (y - y1))
     if n_wells and n_apex is not None:
-        gable_slope(zN, xLn, xRn, y2, ny1, ny0, n_apex, n_wells)
+        gable_slope(zN, xLn, xRn, y2, yTn, ny1, ny0, n_apex, n_wells)
     elif n_wells:
-        long_slope(zN, xLn, xRn, y2, n_wells, ny0, ny1)
+        long_slope(zN, xLn, xRn, y2, yTn, n_wells, ny0, ny1)
     else:
-        panel([(x1, y2), (x2, y2), (x2 - half, yc), (x1 + half, yc)], zN)
+        panel([(x1, y2), (x2, y2), (xRn(yTn), yTn), (xLn(yTn), yTn)], zN)
     if s_wells:
-        long_slope(zS, xLs, xRs, y1, s_wells, sy0, sy1)
+        long_slope(zS, xLs, xRs, y1, yTs, s_wells, sy0, sy1)
     else:
-        panel([(x2, y1), (x1, y1), (x1 + half, yc), (x2 - half, yc)], zS)
+        panel([(x2, y1), (x1, y1), (xLs(yTs), yTs), (xRs(yTs), yTs)], zS)
     return verts, faces
 
 

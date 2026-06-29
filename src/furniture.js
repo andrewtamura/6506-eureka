@@ -429,7 +429,11 @@ function buildBathroom(p) {
   const px = (x1 + x2) / 2, pz = (z1 + z2) / 2;        // group origin (placed at world(px,pz))
   const V = (eo, no, y) => new THREE.Vector3(-eo * ft, y * ft, -no * ft);
   const F = p.roof.footprint, eaveFt = p.roof.eaveFt || 0, pit = p.roof.pitch ?? 0.5;
-  const rz = (plx, plz) => Math.max(0.4, eaveFt + pit * Math.min(plx - F.x1, F.x2 - plx, plz - F.z1, F.z2 - plz));
+  // ceiling height: the hip slope from each eave, CAPPED flat at flatCeilFt (8.5 ft)
+  // so the bathroom reads as a real room with a flat ceiling and sloped sides.
+  const flatCeil = p.flatCeilFt || Infinity;
+  const rz = (plx, plz) => Math.min(flatCeil,
+    Math.max(0.4, eaveFt + pit * Math.min(plx - F.x1, F.x2 - plx, plz - F.z1, F.z2 - plz)));
   const wall = new THREE.MeshStandardMaterial({ color: 0xece9e1, roughness: 0.95, side: THREE.DoubleSide });
   const tile = new THREE.MeshStandardMaterial({ color: 0xd7dadc, roughness: 0.4 });
   const porc = new THREE.MeshStandardMaterial({ color: 0xf7f7f4, roughness: 0.25 }); // porcelain
