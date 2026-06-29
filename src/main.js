@@ -40,9 +40,9 @@ function addAtticLighting(parent) {
   // ceiling height capped flat at 8.5 ft (sloping down only near the eaves)
   const ceilH = (px, pz) => Math.min(flatCeil, eave + pit * Math.min(px - F.x1, F.x2 - px, pz - F.z1, F.z2 - pz));
   const trimMat = new THREE.MeshStandardMaterial({ color: 0xe9e9e9, roughness: 0.5, metalness: 0.2 });
-  const lensMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff2d6, emissiveIntensity: 1.5, roughness: 0.3 });
+  const lensMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff2d6, emissiveIntensity: 0.55, roughness: 0.3 });
   // recessed can flush with the ceiling at plan (px,pz)
-  const can = (px, pz, intensity = 3.0) => {
+  const can = (px, pz, intensity = 1.3) => {
     const cy = ceilH(px, pz);
     const g = new THREE.Group();
     g.position.set(-px * FT, cy * FT, -pz * FT);
@@ -69,9 +69,9 @@ function addAtticLighting(parent) {
   // Main attic room: a row of recessed cans down the ridge
   can(-3, 2.08); can(2, 2.08); can(7, 2.08); can(12, 2.08);
   // Bathroom (main) + WC: recessed cans
-  can(18, 1.0, 2.6); can(22, 6.8, 1.6);
+  can(18, 1.0, 1.2); can(22, 6.8, 0.8);
   // Bathroom vanity light over the mirror (mirror is on the east wall x1=15.1 at z=-0.75)
-  vanityBar(15.5, -0.75, 6.0, 2.4);
+  vanityBar(15.5, -0.75, 6.0, 2.4, 0.9);
 }
 
 async function main() {
