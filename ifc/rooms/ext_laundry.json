@@ -9,16 +9,7 @@
     "z2": -2.4583
   },
   "walls": true,
-  "doors": [
-    {
-      "name": "Laundry -> Bath",
-      "orient": "V",
-      "fixed": -17.4583,
-      "pos": -5.13,
-      "width": 2.67,
-      "opening": true
-    }
-  ],
+  "doors": [],
   "windows": [],
   "interior": {
     "flooring": {
