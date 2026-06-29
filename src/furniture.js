@@ -514,22 +514,19 @@ function buildBathroom(p) {
     return door;
   };
 
-  // --- IRREGULAR bathroom shape: the bathroom is the south band of the west end
-  // PLUS the WC bumping north; the NE corner (the last north dormer's alcove) is
-  // carved OUT and left to the open attic. So the EAST wall (x1) runs only along the
-  // south band (NOT the full depth); the WC's door wall (z = wcS, E-W) extends EAST
-  // to meet it, and that extension carries the new bathroom entrance — roughly in
-  // line with the last of the three north dormers (plan x ~ 17.875).
-  // Flat-ceiling lines: where the flat 8.5 ft ceiling meets the W and N slopes.
+  // --- IRREGULAR bathroom: the south/central part of the west end, with the ENTRANCE
+  // on the EAST wall (x1) and the WC tucked in the NW corner against the far-west 7 ft
+  // wall (xW7); the WC's west end sits under the W slope (a bit of sloped ceiling). The
+  // north dormer alcove is left to the open attic.
+  // zFlatN = where the flat 8.5 ft ceiling meets the N slope -> bathroom north wall.
   const duFlat = Math.max(0, ((p.flatCeilFt || 8.5) - eaveFt) / pit);
-  const xFlatW = F.x2 - duFlat;                  // flat / W-slope line  -> WC west wall
   const zFlatN = F.z2 - duFlat;                  // flat / N-slope line  -> bathroom north wall
-  const wcS = pz + 1.75, wcEast = xFlatW - 5.0;  // WC door wall (E-W); WC east wall (5 ft WC)
+  const wcS = pz + 1.75;                          // WC door wall (E-W)
   // ENTRANCE on the EAST wall (x1); the east wall runs only up to the north wall
   // (NOT the full depth), leaving the north dormer alcove open to the attic.
   framedDoor({ axis: "z", line: x1, oa: 0.5, ob: 3.5, wa: z1, wb: zFlatN, hinge: "a", swing: 1.2 });
-  // bathroom NORTH wall on the flat/N-slope line, so the whole room is under the flat
-  // 8.5 ft ceiling and the north dormer stays out in the open attic.
+  // bathroom NORTH wall on the flat/N-slope line, so the room stays clear of the north
+  // dormer alcove (open attic beyond).
   xWall(zFlatN, x1, F.x2);
 
   // The bathroom's perimeter walls (3 ft knee walls + the 7 ft room walls with
@@ -609,16 +606,17 @@ function buildBathroom(p) {
     grp.position.copy(V(plx - px, plz - pz, 0));
     g.add(grp);
   };
-  // wall-hung on the WEST wall (under the flat 8.5 ft ceiling), facing EAST into the WC
+  // wall-hung on the WEST wall (the far-west 7 ft wall xW7), facing EAST into the WC
   // (rotY=0 -> back/plate on the west wall, bowl projects east into the room).
-  makeToilet(xFlatW - 0.7, (wcS + zFlatN) / 2, 0);
+  makeToilet(xW7 - 0.7, (wcS + zFlatN) / 2, 0);
 
-  // --- WC: a compartment whose WEST wall sits on the flat/slope line (xFlatW) so its
-  // ceiling is the simple flat 8.5'; ~5 ft wide x ~3.3 ft deep. The N side is the
-  // bathroom north wall; the S side carries the WC door.
-  zWall(xFlatW, wcS, zFlatN);                            // WC west wall (toilet wall)
-  zWall(wcEast, wcS, zFlatN);                            // WC east wall
-  framedDoor({ axis: "x", line: wcS, oa: wcEast + 1, ob: wcEast + 3, wa: wcEast, wb: xFlatW, hinge: "a", swing: -1.1 });  // WC door, swings IN (north) toward the toilet
+  // --- WC: a compartment in the NW corner. Its WEST wall is the far-west 7 ft wall
+  // (xW7, an IFC wall) — the toilet hangs there and its W end sits under the W slope
+  // (ceiling dips to ~6'). N = the bathroom north wall; E = a new partition; S carries
+  // the WC door. ~4.75 ft deep (E-W) x ~3.25 ft wide (N-S).
+  const wcEast = xW7 - 4.75;                             // WC east wall
+  zWall(wcEast, wcS, zFlatN);                            // WC east partition
+  framedDoor({ axis: "x", line: wcS, oa: wcEast + 1.4, ob: wcEast + 3.4, wa: wcEast, wb: xW7, hinge: "a", swing: -1.1 });  // WC door, swings IN (north) toward the toilet
 
   g.userData.doors = doors;
   return g;
