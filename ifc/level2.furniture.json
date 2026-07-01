@@ -46,6 +46,10 @@
       "type": "partition", "px": 19.0, "pz": 2.5, "axis": "z", "lenFt": 7.0,
       "door": { "atFt": 2.5, "widthFt": 2.5, "hinge": "a", "swing": 1.4 } },
 
+    { "_note": "FAMILY ROOM south wall = north wall of the E-W hall (z=5, spans the landing width x 3.9167..15.0833). Door opens NORTH into the family room; the hall (stair + wing entries) is south of it.",
+      "type": "partition", "px": 9.5, "pz": 5, "axis": "x", "lenFt": 11.1666,
+      "door": { "atFt": 9.5, "widthFt": 3.0, "hinge": "a", "swing": -1.4 } },
+
     { "_note": "PRIMARY BEDROOM king (SOUTH room): headboard on the NORTH wall (walk-in divider, no window); foot points SOUTH to the window wall (no door). Clears the entry, en-suite, and walk-in doors.",
       "type": "bed", "px": -8.7, "pz": 2.48, "head": "N", "widthFt": 6.33, "lenFt": 6.75 },
     { "_note": "SW BEDROOM queen: headboard on the NORTH wall east of the hall door (interior, no window); foot points SOUTH to the window wall (no door).",
@@ -61,6 +65,11 @@
     { "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4): vanity on the north wall, shower SW, toilet on the separator wall.",
       "type": "vanity", "px": -17.0, "pz": 3.1, "faces": "S", "widthFt": 3.2, "depthFt": 1.7 },
     { "type": "shower", "px": -20.0, "pz": -9.3, "opens": "N", "widthFt": 3.6, "depthFt": 3.4 },
-    { "type": "toilet", "px": -12.9, "pz": -2.5, "faces": "E" }
+    { "type": "toilet", "px": -12.9, "pz": -2.5, "faces": "E" },
+
+    { "_note": "FAMILY ROOM (landing north bay, x 3.9167..15.0833, z 5..16.0833): sofa against the west wall facing the TV on the east wall, with a rug between.",
+      "type": "sofa", "px": 13.5, "pz": 10.5, "faces": "E", "wFt": 7.0, "dFt": 3.0 },
+    { "type": "tv", "px": 4.6, "pz": 10.5, "faces": "W", "wFt": 5.0, "dFt": 1.4, "screenFt": 4.5 },
+    { "type": "rug", "px": 9.5, "pz": 10.5, "w": 8, "d": 6, "material": "sage" }
   ]
 }
