@@ -2144,8 +2144,11 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
     # The upper windows are graduated — shorter and narrower than the ground
     # floor (a classic Georgian/Colonial device) — for a balanced, tapering grid.
     if prim:
-        # Second-floor windows (front + west) — shared with the level2 shell.
-        _, specs = second_floor_windows([rooms_cache[s] for s in prim["rooms"]])
+        # Second-floor windows — SINGLE source (second_floor_windows), shared with the
+        # level2 shell. Feed it the SAME 2-storey room set (primary + extension) the
+        # shell uses, so the facade and the interior shell get identical openings.
+        two_storey = list(prim["rooms"]) + list(groups.get("extension", {}).get("rooms", []))
+        _, specs = second_floor_windows([rooms_cache[s] for s in two_storey])
         for w in specs:
             window(w["name"], w["orient"], w["fixed"], w["pos"], w["width"],
                    base + ctx.story + w["sill"] * FT, base + ctx.story + w["head"] * FT, trim="upper")
@@ -2158,6 +2161,8 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
             # short horizontal lights that tuck between the belt course and the
             # dentil course under the cornice (a classic frieze-window band).
             for w in specs:
+                if "Ext bath" in w["name"]:      # extension is a shed roof — no frieze band
+                    continue
                 window(f"Frieze - {w['name']}", w["orient"], w["fixed"], w["pos"], 2.0,
                        band + 0.45 * FT, band + 1.10 * FT, trim="frieze", muntins=False)
         door = next((o for s in prim["rooms"] for o in rooms_cache[s].get("doors", [])
