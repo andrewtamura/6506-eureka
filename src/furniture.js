@@ -639,20 +639,39 @@ function buildWindowBench(p) {
 
 // A straight interior partition wall for laying out a level's rooms. The item's
 // (px,pz) is the wall CENTRE (plan feet); `axis` is the run direction ("x" = E-W,
-// "z" = N-S); `lenFt` its length. Floor-to-ceiling by default. Solid for now —
-// doorways get cut in as a later pass.
+// "z" = N-S); `lenFt` its length. Floor-to-ceiling by default.
+// Optional `door: { atFt, widthFt, headFt }` cuts an opening (with jambs + a head)
+// and fills it with a wood door slab — atFt is the door CENTRE in plan coords
+// along the run axis (a pz for an "z" wall, a px for an "x" wall).
 function buildPartition(p) {
   const ft = FT, g = new THREE.Group();
   const wallMat = new THREE.MeshStandardMaterial({ color: 0xece9e1, roughness: 0.95, side: THREE.DoubleSide });
-  const len = (p.lenFt || 1) * ft;
-  const h = (p.heightFt ?? 9.0) * ft;
-  const t = (p.thickFt ?? 0.4583) * ft;
-  const w = p.axis === "x" ? len : t;                 // world X extent
-  const d = p.axis === "x" ? t : len;                 // world Z extent
-  const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
-  wall.position.y = h / 2;                            // stand on the floor (group origin = floor)
-  wall.castShadow = true; wall.receiveShadow = true;
-  g.add(wall);
+  const leafMat = woodMat(0x8a6a45);
+  const axis = p.axis, t = (p.thickFt ?? 0.4583) * ft, H = p.heightFt ?? 9.0;
+  const len = p.lenFt || 1;
+  const c0 = axis === "x" ? p.px : p.pz;               // wall centre along the run axis (plan ft)
+  const a0 = c0 - len / 2, b0 = c0 + len / 2;          // wall extent along the axis (plan ft)
+  // one box for the run [s..e] (plan ft), between heights [y0..y1] ft.
+  const seg = (s, e, y0, y1) => {
+    if (e - s < 1e-4 || y1 - y0 < 1e-4) return;
+    const L = (e - s) * ft, off = (c0 - (s + e) / 2) * ft;   // local axis pos = (centre - plan)*ft
+    const box = new THREE.Mesh(new THREE.BoxGeometry(axis === "x" ? L : t, (y1 - y0) * ft, axis === "x" ? t : L), wallMat);
+    box.position.set(axis === "x" ? off : 0, (y0 + y1) / 2 * ft, axis === "x" ? 0 : off);
+    box.castShadow = true; box.receiveShadow = true; g.add(box);
+  };
+  const dr = p.door;
+  if (!dr) { seg(a0, b0, 0, H); return g; }
+  const dw = dr.widthFt ?? 2.667, head = dr.headFt ?? 6.85;
+  const oa = dr.atFt - dw / 2, ob = dr.atFt + dw / 2;  // opening edges (plan ft along axis)
+  seg(a0, oa, 0, H);                                   // jamb 1
+  seg(ob, b0, 0, H);                                   // jamb 2
+  seg(oa, ob, head, H);                                // head over the opening
+  // wood door slab filling the opening (thinner than the wall, centred in it)
+  const slabT = 0.05, lw = (dw - 0.03) * ft, lh = (head - 0.03) * ft;
+  const slab = new THREE.Mesh(new THREE.BoxGeometry(axis === "x" ? lw : slabT, lh, axis === "x" ? slabT : lw), leafMat);
+  const doff = (c0 - dr.atFt) * ft;
+  slab.position.set(axis === "x" ? doff : 0, lh / 2, axis === "x" ? 0 : doff);
+  slab.castShadow = true; g.add(slab);
   return g;
 }
 

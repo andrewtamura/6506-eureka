@@ -28,17 +28,26 @@
       }
     },
 
-    { "_note": "Extension <-> main separating wall at x=-12, only where the extension exists (z -11.9167..4).",
-      "type": "partition", "px": -12, "pz": -3.9583, "axis": "z", "lenFt": 15.9167 },
+    { "_note": "Extension (now a full bathroom) <-> main wall at x=-12, with a DOOR into the SE room (east-wing rear).",
+      "type": "partition", "px": -12, "pz": -3.9583, "axis": "z", "lenFt": 15.9167,
+      "door": { "atFt": -4, "widthFt": 2.667 } },
 
-    { "_note": "West wing <-> central landing wall at x=3.9167, FRONT portion (z -0.33..16.0833); the stairwell already walls the rear.",
+    { "_note": "east(cardinal)-wing <-> central landing wall at x=3.9167, front portion.",
       "type": "partition", "px": 3.9167, "pz": 7.8767, "axis": "z", "lenFt": 16.4133 },
-    { "_note": "West wing front/rear divider at z=0 (x -12..3.9167).",
+    { "_note": "east(cardinal)-wing front/rear divider at z=0.",
       "type": "partition", "px": -4.0417, "pz": 0, "axis": "x", "lenFt": 15.9167 },
 
-    { "_note": "East wing <-> central landing wall at x=15.0833, FRONT portion (z -0.33..16.0833).",
+    { "_note": "west(cardinal)-wing <-> central landing wall at x=15.0833, front portion.",
       "type": "partition", "px": 15.0833, "pz": 7.8767, "axis": "z", "lenFt": 16.4133 },
-    { "_note": "East wing front/rear divider at z=2 (x 15.0833..31).",
-      "type": "partition", "px": 23.0417, "pz": 2, "axis": "x", "lenFt": 15.9167 }
+    { "_note": "west-wing front/rear divider at z=2, SHORTENED to stop at the new bathroom inner wall (x 15.0833..23).",
+      "type": "partition", "px": 19.0417, "pz": 2, "axis": "x", "lenFt": 7.9167 },
+
+    { "_note": "Second bathroom in the west wing, against the middle of the exterior west wall (x=31). Footprint x[23,31] z[-1.9167,6.0833].",
+      "type": "partition", "px": 23, "pz": 2.0833, "axis": "z", "lenFt": 8.0,
+      "door": { "atFt": 4, "widthFt": 2.5 } },
+    { "_note": "west bathroom south wall (z=-1.9167).",
+      "type": "partition", "px": 27, "pz": -1.9167, "axis": "x", "lenFt": 8.0 },
+    { "_note": "west bathroom north wall (z=6.0833).",
+      "type": "partition", "px": 27, "pz": 6.0833, "axis": "x", "lenFt": 8.0 }
   ]
 }
