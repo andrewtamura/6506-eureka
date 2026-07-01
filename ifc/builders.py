@@ -1876,9 +1876,11 @@ def second_floor_windows(rooms):
     foyer = next((r for r in rooms if r.get("_stem") == "foyer"), None)
     if foyer and prim_rooms:
         cx1, cx2 = foyer["bounds"]["x1"], foyer["bounds"]["x2"]     # central bay to avoid
-        px1 = min(r["bounds"]["x1"] for r in prim_rooms)            # primary west/east extent
+        px1 = min(r["bounds"]["x1"] for r in prim_rooms)            # primary east/west extent
         px2 = max(r["bounds"]["x2"] for r in prim_rooms)
-        for (a, b, tag) in ((px1, cx1, "E"), (cx2, px2, "W")):      # east wing, west wing
+        CORR = 4.5   # each wing has a gallery corridor this wide along its landing wall
+        # keep the 2 windows/wing in the OUTER (rear-bedroom) span, clear of the corridor
+        for (a, b, tag) in ((px1, cx1 - CORR, "E"), (cx2 + CORR, px2, "W")):  # east wing, west wing
             for k in range(2):
                 add(f"Upper - South {tag}{k + 1}", "H", rear_z, a + (k + 0.5) * (b - a) / 2)
     # EAST: single upper on the primary east wall (exposed only north of the extension)
