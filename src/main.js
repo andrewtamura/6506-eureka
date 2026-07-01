@@ -40,9 +40,11 @@ function addAtticLighting(parent) {
   // ceiling height capped flat at 8.5 ft (sloping down only near the eaves)
   const ceilH = (px, pz) => Math.min(flatCeil, eave + pit * Math.min(px - F.x1, F.x2 - px, pz - F.z1, F.z2 - pz));
   const trimMat = new THREE.MeshStandardMaterial({ color: 0xe9e9e9, roughness: 0.5, metalness: 0.2 });
-  const lensMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff2d6, emissiveIntensity: 0.55, roughness: 0.3 });
-  // recessed can flush with the ceiling at plan (px,pz)
-  const can = (px, pz, intensity = 1.3) => {
+  const lensMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff2d6, emissiveIntensity: 0.28, roughness: 0.3 });
+  // recessed can flush with the ceiling at plan (px,pz). The light is a SpotLight
+  // aimed straight DOWN (like a real downlight) so it pools on the floor instead of
+  // spraying sideways onto nearby walls (which read as a wrong "reflection").
+  const can = (px, pz, intensity = 4.5) => {
     const cy = ceilH(px, pz);
     const g = new THREE.Group();
     g.position.set(-px * FT, cy * FT, -pz * FT);
@@ -50,8 +52,10 @@ function addAtticLighting(parent) {
     trim.position.y = -0.015; g.add(trim);                       // ring flush at ceiling
     const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.012, 20), lensMat);
     lens.position.y = -0.03; g.add(lens);                        // glowing lens just below
-    const light = new THREE.PointLight(0xfff2d6, intensity, 0, 2);
-    light.position.y = -0.18; g.add(light);
+    const light = new THREE.SpotLight(0xfff2d6, intensity, 0, Math.PI / 5.5, 0.7, 2);
+    light.position.y = -0.05;
+    light.target.position.set(0, -3, 0);                         // aim straight down
+    g.add(light); g.add(light.target);
     parent.add(g);
   };
   // wall-mounted vanity bar on the east bathroom wall, above the mirror (faces W into the room)
@@ -60,16 +64,22 @@ function addAtticLighting(parent) {
     g.position.set(-px * FT, y * FT, -pz * FT);
     const bar = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.09, lenZ * FT), trimMat); g.add(bar);
     const lens = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.06, (lenZ - 0.3) * FT), lensMat);
-    lens.position.x = 0.03; g.add(lens);                         // lens faces +localX (-x world = into room)
-    const light = new THREE.PointLight(0xfff2d6, intensity, 0, 2);
-    light.position.set(0.25, -0.1, 0); g.add(light);
+    lens.position.x = -0.03; g.add(lens);                        // lens faces -localX = WEST = into the bathroom
+    // SpotLight aimed DOWN-and-into-the-bathroom (west) so it lights the vanity, not
+    // the stairwell wall on the east side of this wall. (-localX = west = into room.)
+    const light = new THREE.SpotLight(0xfff2d6, intensity, 0, Math.PI / 4, 0.8, 2);
+    light.position.set(-0.05, -0.05, 0);
+    light.target.position.set(-1.0, -2.0, 0);                    // down + west into the bathroom
+    g.add(light); g.add(light.target);
     parent.add(g);
   };
 
-  // Main attic room: a row of recessed cans down the ridge
-  can(-3, 2.08); can(2, 2.08); can(7, 2.08); can(12, 2.08);
+  // Main attic room: a row of recessed cans down the ridge. The row stops well
+  // short of the stairwell's west wall (the bathroom east wall at px=15.1) so no
+  // fixture glow or light lands on that wall.
+  can(-5, 2.08); can(-1, 2.08); can(3, 2.08);
   // Bathroom (main) + WC: recessed cans
-  can(18, 1.0, 1.2); can(22, 6.8, 0.8);
+  can(18, 1.0, 4.0); can(22, 6.8, 2.6);
   // Bathroom vanity light over the mirror (mirror is on the east wall x1=15.1 at z=-0.75)
   vanityBar(15.5, -0.75, 6.0, 2.4, 0.9);
 }
