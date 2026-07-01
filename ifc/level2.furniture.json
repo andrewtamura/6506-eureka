@@ -33,9 +33,10 @@
       "type": "partition", "px": -12, "pz": -3.9583, "axis": "z", "lenFt": 15.9167,
       "door": { "atFt": -6, "widthFt": 2.667, "hinge": "a", "swing": -1.4 } },
 
-    { "_note": "WEST landing wall; ONE cased opening (no door slab) = entry to the small central hall, in the walkable zone north of the stair void. The rooms open off the hall, not the landing.",
-      "type": "partition", "px": 15.0833, "pz": 2.0833, "axis": "z", "lenFt": 28.0,
-      "door": { "atFt": 2.5, "widthFt": 3.5, "opening": true } },
+    { "_note": "West landing wall NORTH segment (z 5..16.0833): family-room + NW-bedroom east wall. Solid.",
+      "type": "partition", "px": 15.0833, "pz": 10.5416, "axis": "z", "lenFt": 11.0833 },
+    { "_note": "West landing wall SOUTH segment (z -11.9167..-1): SW-bedroom east wall (backs the stair). Solid. The z -1..5 gap between the segments is OPEN — the old central hall is now merged into the E-W hall/landing.",
+      "type": "partition", "px": 15.0833, "pz": -6.4583, "axis": "z", "lenFt": 10.9167 },
     { "_note": "NW bedroom / (hall+bath) divider (z=6, clears west windows). Door NW<->hall (in the hall's x-range), opens NORTH into the NW bedroom.",
       "type": "partition", "px": 23.0417, "pz": 6, "axis": "x", "lenFt": 15.9167,
       "door": { "atFt": 17.0, "widthFt": 2.667, "hinge": "a", "swing": -1.4 } },
