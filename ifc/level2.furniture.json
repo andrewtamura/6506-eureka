@@ -20,34 +20,28 @@
       "px": 9.5,
       "pz": -6.1233,
       "up": true,
-      "opening": {
-        "x1": 8.5167,
-        "x2": 15.0833,
-        "z1": -7.317,
-        "z2": -0.33
-      }
+      "opening": { "x1": 8.5167, "x2": 15.0833, "z1": -7.317, "z2": -0.33 }
     },
 
-    { "_note": "Extension (now a full bathroom) <-> main wall at x=-12, with a DOOR into the SE room (east-wing rear).",
+    { "_note": "Extension (east full bathroom) <-> main wall at x=-12, door into the SE room.",
       "type": "partition", "px": -12, "pz": -3.9583, "axis": "z", "lenFt": 15.9167,
       "door": { "atFt": -4, "widthFt": 2.667 } },
 
-    { "_note": "east(cardinal)-wing <-> central landing wall at x=3.9167, front portion.",
+    { "_note": "east(cardinal)-wing <-> landing wall at x=3.9167, front portion.",
       "type": "partition", "px": 3.9167, "pz": 7.8767, "axis": "z", "lenFt": 16.4133 },
     { "_note": "east(cardinal)-wing front/rear divider at z=0.",
       "type": "partition", "px": -4.0417, "pz": 0, "axis": "x", "lenFt": 15.9167 },
 
-    { "_note": "west(cardinal)-wing <-> central landing wall at x=15.0833, front portion.",
-      "type": "partition", "px": 15.0833, "pz": 7.8767, "axis": "z", "lenFt": 16.4133 },
-    { "_note": "west-wing front/rear divider at z=2, SHORTENED to stop at the new bathroom inner wall (x 15.0833..23).",
-      "type": "partition", "px": 19.0417, "pz": 2, "axis": "x", "lenFt": 7.9167 },
-
-    { "_note": "Second bathroom in the west wing, against the middle of the exterior west wall (x=31). Footprint x[23,31] z[-1.9167,6.0833].",
-      "type": "partition", "px": 23, "pz": 2.0833, "axis": "z", "lenFt": 8.0,
-      "door": { "atFt": 4, "widthFt": 2.5 } },
-    { "_note": "west bathroom south wall (z=-1.9167).",
-      "type": "partition", "px": 27, "pz": -1.9167, "axis": "x", "lenFt": 8.0 },
-    { "_note": "west bathroom north wall (z=6.0833).",
-      "type": "partition", "px": 27, "pz": 6.0833, "axis": "x", "lenFt": 8.0 }
+    { "_note": "WEST WING = East gallery corridor layout, two EQUAL bedrooms (9.4 ft) flanking a central bath (9.2 ft).",
+      "_wing_landing_wall": true,
+      "type": "partition", "px": 15.0833, "pz": 7.8767, "axis": "z", "lenFt": 16.4133,
+      "door": { "atFt": 5, "widthFt": 3.0 } },
+    { "_note": "Gallery corridor west wall (x=18.5833) with 3 doors: Bedroom 2 (rear), Bath, Bedroom 1 (front).",
+      "type": "partition", "px": 18.5833, "pz": 2.0833, "axis": "z", "lenFt": 28.0,
+      "doors": [ { "atFt": -7.22, "widthFt": 2.667 }, { "atFt": 2.08, "widthFt": 2.5 }, { "atFt": 11.38, "widthFt": 2.667 } ] },
+    { "_note": "Bath / Bedroom 1 divider (z=6.6833), rooms west of the corridor.",
+      "type": "partition", "px": 24.7917, "pz": 6.6833, "axis": "x", "lenFt": 12.4167 },
+    { "_note": "Bath / Bedroom 2 divider (z=-2.5167).",
+      "type": "partition", "px": 24.7917, "pz": -2.5167, "axis": "x", "lenFt": 12.4167 }
   ]
 }

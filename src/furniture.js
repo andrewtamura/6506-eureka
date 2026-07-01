@@ -659,19 +659,28 @@ function buildPartition(p) {
     box.position.set(axis === "x" ? off : 0, (y0 + y1) / 2 * ft, axis === "x" ? 0 : off);
     box.castShadow = true; box.receiveShadow = true; g.add(box);
   };
-  const dr = p.door;
-  if (!dr) { seg(a0, b0, 0, H); return g; }
-  const dw = dr.widthFt ?? 2.667, head = dr.headFt ?? 6.85;
-  const oa = dr.atFt - dw / 2, ob = dr.atFt + dw / 2;  // opening edges (plan ft along axis)
-  seg(a0, oa, 0, H);                                   // jamb 1
-  seg(ob, b0, 0, H);                                   // jamb 2
-  seg(oa, ob, head, H);                                // head over the opening
-  // wood door slab filling the opening (thinner than the wall, centred in it)
-  const slabT = 0.05, lw = (dw - 0.03) * ft, lh = (head - 0.03) * ft;
-  const slab = new THREE.Mesh(new THREE.BoxGeometry(axis === "x" ? lw : slabT, lh, axis === "x" ? slabT : lw), leafMat);
-  const doff = (c0 - dr.atFt) * ft;
-  slab.position.set(axis === "x" ? doff : 0, lh / 2, axis === "x" ? 0 : doff);
-  slab.castShadow = true; g.add(slab);
+  // openings: p.doors (array) or a single p.door. Each { atFt, widthFt, headFt }.
+  const list = (p.doors || (p.door ? [p.door] : [])).map((d) => {
+    const w = d.widthFt ?? 2.667, head = d.headFt ?? 6.85;
+    return { at: d.atFt, oa: d.atFt - w / 2, ob: d.atFt + w / 2, w, head };
+  }).sort((A, B) => A.oa - B.oa);
+  if (!list.length) { seg(a0, b0, 0, H); return g; }
+  const slabT = 0.05;
+  const addSlab = (o) => {  // wood door slab filling the opening (thin, centred in the wall)
+    const lw = (o.w - 0.03) * ft, lh = (o.head - 0.03) * ft;
+    const slab = new THREE.Mesh(new THREE.BoxGeometry(axis === "x" ? lw : slabT, lh, axis === "x" ? slabT : lw), leafMat);
+    const doff = (c0 - o.at) * ft;
+    slab.position.set(axis === "x" ? doff : 0, lh / 2, axis === "x" ? 0 : doff);
+    slab.castShadow = true; g.add(slab);
+  };
+  let cur = a0;
+  for (const o of list) {
+    seg(cur, o.oa, 0, H);        // jamb up to the opening
+    seg(o.oa, o.ob, o.head, H);  // head over the opening
+    addSlab(o);
+    cur = o.ob;
+  }
+  seg(cur, b0, 0, H);            // final jamb
   return g;
 }
 
