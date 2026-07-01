@@ -36,12 +36,12 @@
       "_wing_landing_wall": true,
       "type": "partition", "px": 15.0833, "pz": 7.8767, "axis": "z", "lenFt": 16.4133,
       "door": { "atFt": 5, "widthFt": 3.0 } },
-    { "_note": "Gallery corridor west wall (x=18.5833) with 3 doors: Bedroom 2 (rear), Bath, Bedroom 1 (front).",
-      "type": "partition", "px": 18.5833, "pz": 2.0833, "axis": "z", "lenFt": 28.0,
+    { "_note": "Gallery corridor west wall (x=19.5833) with 3 doors; corridor widened to 4.5 ft (east wall at x=15.0833 unchanged).",
+      "type": "partition", "px": 19.5833, "pz": 2.0833, "axis": "z", "lenFt": 28.0,
       "doors": [ { "atFt": -7.22, "widthFt": 2.667 }, { "atFt": 2.08, "widthFt": 2.5 }, { "atFt": 11.38, "widthFt": 2.667 } ] },
-    { "_note": "Bath / Bedroom 1 divider (z=6.6833), rooms west of the corridor.",
-      "type": "partition", "px": 24.7917, "pz": 6.6833, "axis": "x", "lenFt": 12.4167 },
+    { "_note": "Bath / Bedroom 1 divider (z=6.6833), rooms west of the corridor (x 19.5833..31).",
+      "type": "partition", "px": 25.2917, "pz": 6.6833, "axis": "x", "lenFt": 11.4167 },
     { "_note": "Bath / Bedroom 2 divider (z=-2.5167).",
-      "type": "partition", "px": 24.7917, "pz": -2.5167, "axis": "x", "lenFt": 12.4167 }
+      "type": "partition", "px": 25.2917, "pz": -2.5167, "axis": "x", "lenFt": 11.4167 }
   ]
 }
