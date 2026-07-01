@@ -675,13 +675,14 @@ function buildPartition(p) {
     box.castShadow = true; box.receiveShadow = true; g.add(box);
   };
   // openings: p.doors (array) or a single p.door. Each { atFt, widthFt, headFt,
-  // hinge, swing }. `hinge` ("a" = low jamb / "b" = high jamb along the run axis)
-  // and `swing` (radians, signed — which room side it opens toward) make the leaf
-  // a hinged, double-tap door; default hinge "a", swing 1.4 (~80°).
+  // hinge, swing, opening }. `hinge` ("a" = low jamb / "b" = high jamb along the
+  // run axis) and `swing` (radians, signed — which room side it opens toward) make
+  // the leaf a hinged, double-tap door; default hinge "a", swing 1.4 (~80°).
+  // `opening: true` cuts a cased opening (jambs + head) with NO door slab.
   const list = (p.doors || (p.door ? [p.door] : [])).map((d) => {
     const w = d.widthFt ?? 2.667, head = d.headFt ?? 6.85;
     return { at: d.atFt, oa: d.atFt - w / 2, ob: d.atFt + w / 2, w, head,
-             hinge: d.hinge || "a", swing: d.swing != null ? d.swing : 1.4 };
+             hinge: d.hinge || "a", swing: d.swing != null ? d.swing : 1.4, opening: !!d.opening };
   }).sort((A, B) => A.oa - B.oa);
   if (!list.length) { seg(a0, b0, 0, H); return g; }
   const slabT = 0.05;
@@ -709,7 +710,7 @@ function buildPartition(p) {
   for (const o of list) {
     seg(cur, o.oa, 0, H);        // jamb up to the opening
     seg(o.oa, o.ob, o.head, H);  // head over the opening
-    addLeaf(o);
+    if (!o.opening) addLeaf(o);  // cased opening (opening:true) skips the door slab
     cur = o.ob;
   }
   seg(cur, b0, 0, H);            // final jamb
