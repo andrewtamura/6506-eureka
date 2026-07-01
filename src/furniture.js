@@ -15,6 +15,21 @@ const col = (name, fallback) => new THREE.Color(PALETTE[name] ?? fallback);
 const fabricMat = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.95 });
 const woodMat = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.5 });
 
+// --- plan-axis orientation helpers (shared by the bed + bath fixtures) ---------
+// Compass -> plan-delta unit vector. Plan px increases WEST, pz increases NORTH
+// (East = low px). A fixture is built around its anchor with a FRONT direction A
+// and a width direction P (perpendicular); fplace() converts an offset along A
+// (`da`, front +) and along width (`ds`) plus sizes (`dl` along A, `dw` along
+// width) into a plan-delta centre (opx,opz) and an axis-aligned footprint
+// (sx = E-W, sz = N-S) — so a box built from it stays square to the walls.
+const DIR = { N: [0, 1], S: [0, -1], E: [-1, 0], W: [1, 0] };
+const OPP = { N: "S", S: "N", E: "W", W: "E" };
+function fplace(A, P, da, ds, dl, dw) {
+  return [A[0] * da + P[0] * ds, A[1] * da + P[1] * ds,
+          Math.abs(A[0]) * dl + Math.abs(P[0]) * dw,
+          Math.abs(A[1]) * dl + Math.abs(P[1]) * dw];
+}
+
 // An upholstered dining chair (front = +Z): tapered splayed legs into an apron,
 // a soft seat cushion, and a raked upholstered back anchored to the seat.
 function buildChair(p) {
@@ -684,7 +699,121 @@ function buildPartition(p) {
   return g;
 }
 
-const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition };
+// A platform bed (default queen: 5.0 x 6.67 ft mattress). The anchor (px,pz) is
+// the MATTRESS centre; `head` names the wall the HEADBOARD backs onto ("N"/"S"/
+// "E"/"W") and the bed extends into the room away from it. Basic: frame, mattress,
+// headboard, two pillows, a folded duvet at the foot.
+function buildBed(p) {
+  const ft = FT, g = new THREE.Group();
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const box = (opx, opz, yc, sx, sz, hy, mat, rad = 0) => {
+    const geo = rad > 0 ? new RoundedBoxGeometry(sx * ft, hy * ft, sz * ft, 3, rad * ft)
+                        : new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft);
+    const m = new THREE.Mesh(geo, mat); m.position.copy(V(opx, opz, yc));
+    m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  const woodm = woodMat(col(p.frame || "walnut", 0x6b4a2f));
+  const sheet = new THREE.MeshStandardMaterial({ color: col(p.linen || "linen", 0xcfc6b4), roughness: 0.98 });
+  const pillowM = new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: 0.98 });
+  const duvetM = new THREE.MeshStandardMaterial({ color: col(p.duvet || "sage", 0x8a9a86), roughness: 0.98 });
+  const L = p.lenFt ?? 6.67, W = p.widthFt ?? 5.0;
+  const A = DIR[OPP[p.head || "S"]], P = [-A[1], A[0]];   // A = away from head wall (foot dir)
+  const frameH = 0.7, matT = 0.75, headH = 3.4, headT = 0.3;
+  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
+  let q;
+  q = pl(0, 0, L + 0.3, W + 0.3);  box(q[0], q[1], frameH / 2, q[2], q[3], frameH, woodm, 0.04);         // platform
+  q = pl(0, 0, L, W);              box(q[0], q[1], frameH + matT / 2, q[2], q[3], matT, sheet, 0.06);     // mattress
+  q = pl(-(L / 2 + headT / 2), 0, headT, W + 0.3); box(q[0], q[1], headH / 2, q[2], q[3], headH, woodm, 0.04); // headboard
+  for (const s of [-1, 1]) {       // two pillows against the headboard
+    q = pl(-(L / 2 - 1.05), s * (W / 4), 1.5, W / 2 - 0.25);
+    box(q[0], q[1], frameH + matT + 0.16, q[2], q[3], 0.42, pillowM, 0.12);
+  }
+  q = pl(L / 2 - 1.5, 0, 2.4, W);  box(q[0], q[1], frameH + matT + 0.05, q[2], q[3], 0.14, duvetM, 0.05); // duvet fold
+  return g;
+}
+
+// Floor-standing toilet. Anchor (px,pz) = footprint centre; `faces` = the
+// direction the bowl/seat point (the tank backs onto the opposite wall).
+function buildToilet(p) {
+  const ft = FT, g = new THREE.Group();
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const box = (opx, opz, yc, sx, sz, hy, mat, rad = 0) => {
+    const geo = rad > 0 ? new RoundedBoxGeometry(sx * ft, hy * ft, sz * ft, 3, rad * ft)
+                        : new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft);
+    const m = new THREE.Mesh(geo, mat); m.position.copy(V(opx, opz, yc)); m.castShadow = true; g.add(m); return m;
+  };
+  const porc = new THREE.MeshStandardMaterial({ color: 0xf7f7f4, roughness: 0.25 });
+  const seatM = new THREE.MeshStandardMaterial({ color: 0xf2f2ee, roughness: 0.4 });
+  const A = DIR[p.faces || "E"], P = [-A[1], A[0]];
+  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
+  let q;
+  q = pl(-0.85, 0, 0.5, 1.7);  box(q[0], q[1], 1.55, q[2], q[3], 1.3, porc, 0.05);   // cistern/tank (0.9..2.2)
+  q = pl(-0.1, 0, 0.7, 0.75);  box(q[0], q[1], 0.35, q[2], q[3], 0.7, porc, 0.1);    // pedestal
+  q = pl(0.15, 0, 1.5, 1.25);  box(q[0], q[1], 0.75, q[2], q[3], 1.1, porc, 0.22);   // bowl body
+  q = pl(0.15, 0, 1.5, 1.3);   box(q[0], q[1], 1.32, q[2], q[3], 0.12, seatM, 0.2);  // seat
+  return g;
+}
+
+// Walk-in shower: a tiled pan with tiled back + two side walls, a fixed glass
+// screen over half the open side (walk-in gap on the other half), and a
+// wall-mounted head. Anchor (px,pz) = footprint centre; `opens` = the open
+// (glass) side (the back tiles onto the opposite wall).
+function buildShower(p) {
+  const ft = FT, g = new THREE.Group();
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const box = (opx, opz, yc, sx, sz, hy, mat) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft), mat);
+    m.position.copy(V(opx, opz, yc)); m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  const tile = new THREE.MeshStandardMaterial({ color: 0xd7dadc, roughness: 0.4, side: THREE.DoubleSide });
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.25, metalness: 0.8 });
+  const glass = new THREE.MeshStandardMaterial({ color: 0xafc4cc, roughness: 0.05, transparent: true, opacity: 0.26 });
+  glass.depthWrite = false;
+  const A = DIR[p.opens || "N"], P = [-A[1], A[0]];   // A = open (glass) side
+  const Wd = p.widthFt ?? 3.6, Dp = p.depthFt ?? 3.2, H = 6.8, wt = 0.3;
+  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
+  let q;
+  q = pl(0, 0, Dp, Wd);            box(q[0], q[1], 0.09, q[2], q[3], 0.18, tile);          // pan/curb
+  q = pl(-(Dp / 2), 0, wt, Wd);    box(q[0], q[1], H / 2, q[2], q[3], H, tile);            // back wall
+  for (const s of [-1, 1]) { q = pl(0, s * (Wd / 2), Dp, wt); box(q[0], q[1], H / 2, q[2], q[3], H, tile); } // sides
+  q = pl(Dp / 2, -(Wd / 4), 0.05, Wd / 2); box(q[0], q[1], 3.3, q[2], q[3], 6.6, glass);  // fixed glass over half
+  q = pl(-(Dp / 2 - 0.35), 0, 0.7, 0.14);  box(q[0], q[1], 5.6, q[2], q[3], 0.14, chrome);// head arm off back wall
+  q = pl(-(Dp / 2 - 0.7), 0, 0.55, 0.55);  box(q[0], q[1], 5.5, q[2], q[3], 0.12, chrome);// shower head
+  return g;
+}
+
+// Single vanity: a cabinet backing onto a wall, stone top, undermount basin,
+// faucet, and a wall mirror above. Anchor (px,pz) = footprint centre; `faces` =
+// the direction the basin faces (the cabinet backs onto the opposite wall).
+function buildVanity(p) {
+  const ft = FT, g = new THREE.Group();
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const box = (opx, opz, yc, sx, sz, hy, mat, rad = 0) => {
+    const geo = rad > 0 ? new RoundedBoxGeometry(sx * ft, hy * ft, sz * ft, 3, rad * ft)
+                        : new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft);
+    const m = new THREE.Mesh(geo, mat); m.position.copy(V(opx, opz, yc)); m.castShadow = true; g.add(m); return m;
+  };
+  const cyl = (opx, opz, yc, r, h, mat) => {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r * ft, r * ft, h * ft, 24), mat);
+    m.position.copy(V(opx, opz, yc)); g.add(m); return m;
+  };
+  const woodv = woodMat(col(p.cabinet || "walnut", 0x6b4a2f));
+  const porc = new THREE.MeshStandardMaterial({ color: 0xf7f7f4, roughness: 0.25 });
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.25, metalness: 0.8 });
+  const mirror = new THREE.MeshStandardMaterial({ color: 0xbfd0d6, roughness: 0.05, metalness: 0.3 });
+  const A = DIR[p.faces || "S"], P = [-A[1], A[0]];
+  const Wd = p.widthFt ?? 3.0, Dp = p.depthFt ?? 1.8;
+  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
+  let q;
+  q = pl(0, 0, Dp, Wd);          box(q[0], q[1], 1.45, q[2], q[3], 2.9, woodv, 0.03);      // cabinet
+  q = pl(0.05, 0, Dp + 0.1, Wd + 0.15); box(q[0], q[1], 2.97, q[2], q[3], 0.16, porc, 0.02); // countertop
+  q = pl(0.05, 0, 0, 0);         cyl(q[0], q[1], 3.02, 0.5, 0.16, porc);                    // basin
+  q = pl(-(Dp / 2 - 0.35), 0, 0, 0); cyl(q[0], q[1], 3.2, 0.05, 0.6, chrome);              // faucet
+  q = pl(-(Dp / 2 + 0.02), 0, 0.06, Wd - 0.4); box(q[0], q[1], 4.3, q[2], q[3], 2.2, mirror); // mirror on wall
+  return g;
+}
+
+const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, toilet: buildToilet, shower: buildShower, vanity: buildVanity };
 const CHAIRS = new Set(["upholstered_dining_chair", "highback_chair"]);
 const SEAT_FRONT = 0.225;   // chair seat front is +0.225 m toward the table from its centre
 const TUCK = 0.08;          // pushed-in: seat front this far under the table edge

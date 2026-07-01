@@ -47,6 +47,18 @@
     { "_note": "Bath / Bedroom 1 divider (z=5.5833), rooms west of the corridor (x 19.5833..31). Bath is 7 ft N-S, centered at z=2.0833.",
       "type": "partition", "px": 25.2917, "pz": 5.5833, "axis": "x", "lenFt": 11.4167 },
     { "_note": "Bath / Bedroom 2 divider (z=-1.4167).",
-      "type": "partition", "px": 25.2917, "pz": -1.4167, "axis": "x", "lenFt": 11.4167 }
+      "type": "partition", "px": 25.2917, "pz": -1.4167, "axis": "x", "lenFt": 11.4167 },
+
+    { "_note": "WEST BATHROOM fixtures (bath px[19.5833,31] x pz[-1.4167,5.5833]): toilet far-west, shower centered, vanity at the east end.",
+      "type": "toilet", "px": 29.75, "pz": -0.35, "faces": "E" },
+    { "_note": "Shower centered E-W, backing the south wall, glass opening north.",
+      "type": "shower", "px": 25.0, "pz": 0.1833, "opens": "N", "widthFt": 3.6, "depthFt": 3.2 },
+    { "_note": "Vanity at the east end, backing the north wall (clear of the corridor door), facing south.",
+      "type": "vanity", "px": 21.3, "pz": 4.68, "faces": "S", "widthFt": 3.0, "depthFt": 1.8 },
+
+    { "_note": "BEDROOM 1 (NW) queen: headboard on the SOUTH wall (commanding position - sees the NE door across the room, off the door line; not under a window).",
+      "type": "bed", "px": 25.5, "pz": 8.9, "head": "S" },
+    { "_note": "BEDROOM 2 (SW) queen: headboard on the NORTH wall (sees the E door, feet away from it; not under a window).",
+      "type": "bed", "px": 25.5, "pz": -5.05, "head": "N" }
   ]
 }
