@@ -58,10 +58,10 @@
     { "_note": "NW BEDROOM queen: headboard on the NORTH wall BETWEEN the two windows (not under one); foot points south but offset from the hall door (door is to the west).",
       "type": "bed", "px": 22.0, "pz": 12.58, "head": "N" },
 
-    { "_note": "WEST BATH (x 19..31, z -1..6): shower in the NW corner, vanity on the south wall, toilet on the north wall.",
-      "type": "shower", "px": 29.0, "pz": 4.3, "opens": "S", "widthFt": 3.2, "depthFt": 3.2 },
-    { "type": "vanity", "px": 23.0, "pz": -0.2, "faces": "N", "widthFt": 3.2, "depthFt": 1.6 },
-    { "type": "toilet", "px": 20.6, "pz": 4.9, "faces": "S" },
+    { "_note": "WEST BATH (x 19..31, z -1..6): toilet at the WEST end (west wall), shower centered on the north wall, vanity by the door (SE corner, south wall). Door is on the east wall at z=2.5.",
+      "type": "toilet", "px": 30.0, "pz": 2.5, "faces": "E" },
+    { "type": "shower", "px": 24.5, "pz": 4.25, "opens": "S", "widthFt": 3.5, "depthFt": 3.5 },
+    { "type": "vanity", "px": 21.0, "pz": -0.2, "faces": "N", "widthFt": 3.0, "depthFt": 1.6 },
 
     { "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4): vanity on the north wall, shower SW, toilet on the separator wall.",
       "type": "vanity", "px": -17.0, "pz": 3.1, "faces": "S", "widthFt": 3.2, "depthFt": 1.7 },
