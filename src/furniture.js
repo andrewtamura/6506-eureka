@@ -832,7 +832,58 @@ function buildVanity(p) {
   return g;
 }
 
-const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, toilet: buildToilet, shower: buildShower, vanity: buildVanity };
+// An upholstered sofa (3-seat by default). Anchor (px,pz) = footprint centre;
+// `faces` = the direction the seat faces (the back rests on the opposite wall).
+// `wFt` = width along the back wall, `dFt` = depth (front-to-back).
+function buildSofa(p) {
+  const ft = FT, g = new THREE.Group();
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const box = (opx, opz, yc, sx, sz, hy, mat, rad = 0) => {
+    const geo = rad > 0 ? new RoundedBoxGeometry(sx * ft, hy * ft, sz * ft, 3, rad * ft)
+                        : new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft);
+    const m = new THREE.Mesh(geo, mat); m.position.copy(V(opx, opz, yc)); m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  const frame = fabricMat(col(p.material || "upholstery", 0x5a6b80));
+  const cush = fabricMat(col(p.cushion || "oatmeal", 0xd9d2c4));
+  const leg = woodMat(col(p.legMaterial || "walnut", 0x6b4a2f));
+  const W = p.wFt ?? 7.0, D = p.dFt ?? 3.0;
+  const A = DIR[p.faces || "N"], P = [-A[1], A[0]];   // A = facing dir; back = -A
+  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
+  let q;
+  q = pl(0, 0, D, W);              box(q[0], q[1], 0.85, q[2], q[3], 0.9, frame, 0.08);            // base/apron
+  q = pl(-(D / 2 - 0.4), 0, 0.8, W - 0.5);  box(q[0], q[1], 1.85, q[2], q[3], 1.9, frame, 0.12);   // backrest (at the back, -A)
+  for (const s of [-1, 1]) { q = pl(0, s * (W / 2 - 0.35), D, 0.7); box(q[0], q[1], 1.35, q[2], q[3], 1.0, frame, 0.12); } // arms
+  for (const s of [-1, 0, 1]) { q = pl(0.15, s * (W / 3), D - 0.9, W / 3 - 0.2); box(q[0], q[1], 1.35, q[2], q[3], 0.5, cush, 0.14); } // seat cushions
+  for (const s of [-1, 0, 1]) { q = pl(-(D / 2 - 0.55), s * (W / 3), 0.5, W / 3 - 0.2); box(q[0], q[1], 1.95, q[2], q[3], 0.9, cush, 0.16); } // back cushions
+  for (const sx of [-1, 1]) for (const sd of [-1, 1]) { q = pl(sd * (D / 2 - 0.3), sx * (W / 2 - 0.3), 0, 0); const m = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * ft, 0.04 * ft, 0.45 * ft, 8), leg); m.position.copy(V(q[0], q[1], 0.22)); g.add(m); } // legs
+  return g;
+}
+
+// A wall media unit: a low console + a wall-mounted flat-screen above it.
+// Anchor (px,pz) = centre; `faces` = the direction the screen faces (console backs
+// onto the opposite wall).
+function buildTV(p) {
+  const ft = FT, g = new THREE.Group();
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const box = (opx, opz, yc, sx, sz, hy, mat, rad = 0) => {
+    const geo = rad > 0 ? new RoundedBoxGeometry(sx * ft, hy * ft, sz * ft, 2, rad * ft)
+                        : new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft);
+    const m = new THREE.Mesh(geo, mat); m.position.copy(V(opx, opz, yc)); m.castShadow = true; g.add(m); return m;
+  };
+  const wood = woodMat(col(p.console || "darkwalnut", 0x3a2a1c));
+  const screen = new THREE.MeshStandardMaterial({ color: 0x111417, roughness: 0.35, metalness: 0.2 });
+  const bezel = new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 0.5 });
+  const W = p.wFt ?? 5.0, D = p.dFt ?? 1.4, scrW = p.screenFt ?? 4.5;
+  const A = DIR[p.faces || "N"], P = [-A[1], A[0]];
+  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
+  let q;
+  q = pl(0, 0, D, W);            box(q[0], q[1], 0.9, q[2], q[3], 1.8, wood, 0.03);        // console cabinet
+  q = pl(-(D / 2 - 0.12), 0, 0.12, scrW + 0.15); box(q[0], q[1], 4.1, q[2], q[3], 2.65, bezel, 0.02); // TV bezel (on the back wall)
+  q = pl(-(D / 2 - 0.15), 0, 0.06, scrW); box(q[0], q[1], 4.1, q[2], q[3], 2.5, screen); // screen face
+  return g;
+}
+
+const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV };
 const CHAIRS = new Set(["upholstered_dining_chair", "highback_chair"]);
 const SEAT_FRONT = 0.225;   // chair seat front is +0.225 m toward the table from its centre
 const TUCK = 0.08;          // pushed-in: seat front this far under the table edge
