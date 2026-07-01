@@ -674,28 +674,46 @@ function buildPartition(p) {
     box.position.set(axis === "x" ? off : 0, (y0 + y1) / 2 * ft, axis === "x" ? 0 : off);
     box.castShadow = true; box.receiveShadow = true; g.add(box);
   };
-  // openings: p.doors (array) or a single p.door. Each { atFt, widthFt, headFt }.
+  // openings: p.doors (array) or a single p.door. Each { atFt, widthFt, headFt,
+  // hinge, swing }. `hinge` ("a" = low jamb / "b" = high jamb along the run axis)
+  // and `swing` (radians, signed — which room side it opens toward) make the leaf
+  // a hinged, double-tap door; default hinge "a", swing 1.4 (~80°).
   const list = (p.doors || (p.door ? [p.door] : [])).map((d) => {
     const w = d.widthFt ?? 2.667, head = d.headFt ?? 6.85;
-    return { at: d.atFt, oa: d.atFt - w / 2, ob: d.atFt + w / 2, w, head };
+    return { at: d.atFt, oa: d.atFt - w / 2, ob: d.atFt + w / 2, w, head,
+             hinge: d.hinge || "a", swing: d.swing != null ? d.swing : 1.4 };
   }).sort((A, B) => A.oa - B.oa);
   if (!list.length) { seg(a0, b0, 0, H); return g; }
   const slabT = 0.05;
-  const addSlab = (o) => {  // wood door slab filling the opening (thin, centred in the wall)
-    const lw = (o.w - 0.03) * ft, lh = (o.head - 0.03) * ft;
-    const slab = new THREE.Mesh(new THREE.BoxGeometry(axis === "x" ? lw : slabT, lh, axis === "x" ? slabT : lw), leafMat);
-    const doff = (c0 - o.at) * ft;
-    slab.position.set(axis === "x" ? doff : 0, lh / 2, axis === "x" ? 0 : doff);
-    slab.castShadow = true; g.add(slab);
+  const doorEntries = [];
+  // A hinged wood leaf filling the opening: a pivot Group at the hinge jamb with
+  // the slab offset half its width toward the opening centre, so rotating the
+  // pivot about Y swings it into the room. Registered for the shared toggle/ease.
+  const addLeaf = (o) => {
+    const lw = o.w - 0.03, lh = o.head - 0.03;                 // ft
+    const hx = o.hinge === "b" ? o.ob : o.oa;                  // hinge coord along the run axis
+    const sgn = o.hinge === "b" ? 1 : -1;                      // slab sits this side of the hinge
+    const leaf = new THREE.Group();
+    const panel = new THREE.Mesh(
+      new THREE.BoxGeometry(axis === "x" ? lw * ft : slabT, lh * ft, axis === "x" ? slabT : lw * ft), leafMat);
+    if (axis === "x") panel.position.set(sgn * (lw / 2) * ft, (lh / 2) * ft, 0);
+    else              panel.position.set(0, (lh / 2) * ft, sgn * (lw / 2) * ft);
+    panel.castShadow = true; leaf.add(panel);
+    const off = (c0 - hx) * ft;                                // pivot at the hinge, on the wall centreline
+    leaf.position.set(axis === "x" ? off : 0, 0, axis === "x" ? 0 : off);
+    g.add(leaf);
+    const entry = { pivot: leaf, openAngle: o.swing, current: 0, open: false };
+    panel.userData.fdoor = entry; doorEntries.push(entry);
   };
   let cur = a0;
   for (const o of list) {
     seg(cur, o.oa, 0, H);        // jamb up to the opening
     seg(o.oa, o.ob, o.head, H);  // head over the opening
-    addSlab(o);
+    addLeaf(o);
     cur = o.ob;
   }
   seg(cur, b0, 0, H);            // final jamb
+  if (doorEntries.length) g.userData.doors = doorEntries;   // buildFurniture wires these into double-tap
   return g;
 }
 
