@@ -23,13 +23,13 @@
       "opening": { "x1": 8.5167, "x2": 15.0833, "z1": -7.317, "z2": -0.33 }
     },
 
-    { "_note": "EAST landing wall (encloses the primary suite from the landing/stair); one door = primary-bedroom entry, opens into the suite.",
+    { "_note": "EAST landing wall (encloses the primary suite from the landing/stair); one door = primary-bedroom entry (into the SOUTH primary room), in the walkable landing zone north of the stair.",
       "type": "partition", "px": 3.9167, "pz": 2.0833, "axis": "z", "lenFt": 28.0,
-      "door": { "atFt": 7, "widthFt": 3.0, "hinge": "a", "swing": -1.4 } },
-    { "_note": "Primary bedroom / walk-in-dressing divider (z=-2), full wing width; door bedroom->dressing.",
-      "type": "partition", "px": -4.0417, "pz": -2, "axis": "x", "lenFt": 15.9167,
+      "door": { "atFt": 3, "widthFt": 3.0, "hinge": "a", "swing": -1.4 } },
+    { "_note": "Walk-in (NORTH) / primary bedroom (SOUTH) divider (z=6); primary is the larger, south room next to the en-suite. Door primary->walk-in.",
+      "type": "partition", "px": -4.0417, "pz": 6, "axis": "x", "lenFt": 15.9167,
       "door": { "atFt": -4, "widthFt": 2.667, "hinge": "a", "swing": 1.4 } },
-    { "_note": "Suite <-> en-suite (extension) separator at x=-12; door from the dressing room into the en-suite.",
+    { "_note": "Primary <-> en-suite (extension) separator at x=-12; door from the primary bedroom into the en-suite.",
       "type": "partition", "px": -12, "pz": -3.9583, "axis": "z", "lenFt": 15.9167,
       "door": { "atFt": -6, "widthFt": 2.667, "hinge": "a", "swing": -1.4 } },
 
@@ -41,8 +41,8 @@
     { "_note": "Bath / NW bedroom divider (z=8.0, clears the north west window at z=10.75).",
       "type": "partition", "px": 23.0417, "pz": 8.0, "axis": "x", "lenFt": 15.9167 },
 
-    { "_note": "PRIMARY BEDROOM king: headboard on the east wall (x=-12), facing the entry door across the room; clear of the en-suite door and east window.",
-      "type": "bed", "px": -8.5, "pz": 4.0, "head": "E", "widthFt": 6.33, "lenFt": 6.75 },
+    { "_note": "PRIMARY BEDROOM king (SOUTH room): headboard on the east wall (x=-12), facing the entry door; clear of the en-suite door, south windows, and the walk-in divider.",
+      "type": "bed", "px": -8.5, "pz": -1.0, "head": "E", "widthFt": 6.33, "lenFt": 6.75 },
     { "_note": "SW BEDROOM queen: headboard on the west (exterior) wall, north of the west window; faces the landing door.",
       "type": "bed", "px": 27.0, "pz": -1.0, "head": "W" },
     { "_note": "NW BEDROOM queen: headboard on the south divider (z=8.0); faces north; clear of windows.",
