@@ -45,7 +45,7 @@
       "door": { "atFt": 17.0, "widthFt": 2.667, "hinge": "a", "swing": 1.4 } },
     { "_note": "Central hall / bath divider (x=19, spanning z -1..6); door hall->bath near the north end (opening z 3.0..5.5), leaving a 6\" return of east wall to the NE corner (z 5.5..6). Hinged on the north jamb; opens west into the bath toward the north wall.",
       "type": "partition", "px": 19.0, "pz": 2.5, "axis": "z", "lenFt": 7.0,
-      "door": { "atFt": 4.25, "widthFt": 2.5, "hinge": "b", "swing": -1.55 } },
+      "door": { "atFt": 4.25, "widthFt": 2.5, "hinge": "b", "swing": -1.78 } },
 
     { "_note": "FAMILY ROOM south wall = north wall of the E-W hall (z=6, aligned with the NW-bedroom south wall to make one continuous line across the floor). Door opens NORTH into the family room; the hall is south of it.",
       "type": "partition", "px": 9.5, "pz": 6, "axis": "x", "lenFt": 11.1666,
