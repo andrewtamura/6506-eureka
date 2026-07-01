@@ -20,12 +20,45 @@
       "px": 9.5,
       "pz": -6.1233,
       "up": true,
-      "opening": {
-        "x1": 8.5167,
-        "x2": 15.0833,
-        "z1": -7.317,
-        "z2": -0.33
-      }
-    }
+      "opening": { "x1": 8.5167, "x2": 15.0833, "z1": -7.317, "z2": -0.33 }
+    },
+
+    { "_note": "Extension (east full bathroom) <-> main wall at x=-12, door into the SE room.",
+      "type": "partition", "px": -12, "pz": -3.9583, "axis": "z", "lenFt": 15.9167,
+      "door": { "atFt": -4, "widthFt": 2.667, "hinge": "a", "swing": -1.4 } },
+
+    { "_note": "EAST WING = second gallery corridor (mirrors the west) connecting the SE bedroom (and NE) to the landing.",
+      "_wing_landing_wall": true,
+      "type": "partition", "px": 3.9167, "pz": 7.8767, "axis": "z", "lenFt": 16.4133,
+      "door": { "atFt": 5, "widthFt": 3.0, "hinge": "a", "swing": 1.4 } },
+    { "_note": "East gallery corridor west wall (x=-0.5833), 4.5 ft corridor; doors to NE + SE bedrooms.",
+      "type": "partition", "px": -0.5833, "pz": 2.0833, "axis": "z", "lenFt": 28.0,
+      "doors": [ { "atFt": 8, "widthFt": 2.667, "hinge": "a", "swing": -1.4 }, { "atFt": -6, "widthFt": 2.667, "hinge": "a", "swing": -1.4 } ] },
+    { "_note": "east-wing NE/SE bedroom divider at z=0, rooms west of the corridor (x -12..-0.5833).",
+      "type": "partition", "px": -6.2917, "pz": 0, "axis": "x", "lenFt": 11.4167 },
+
+    { "_note": "WEST WING = East gallery corridor layout, two EQUAL bedrooms (10.5 ft) flanking a central bath (7.0 ft N-S).",
+      "_wing_landing_wall": true,
+      "type": "partition", "px": 15.0833, "pz": 7.8767, "axis": "z", "lenFt": 16.4133,
+      "door": { "atFt": 5, "widthFt": 3.0, "hinge": "a", "swing": -1.4 } },
+    { "_note": "Gallery corridor west wall (x=19.5833) with 3 doors; corridor widened to 4.5 ft (east wall at x=15.0833 unchanged). Bath door centered on the 7 ft bath.",
+      "type": "partition", "px": 19.5833, "pz": 2.0833, "axis": "z", "lenFt": 28.0,
+      "doors": [ { "atFt": -7.22, "widthFt": 2.667, "hinge": "a", "swing": 1.4 }, { "atFt": 0, "widthFt": 2.5, "hinge": "a", "swing": 1.4 }, { "atFt": 11.38, "widthFt": 2.667, "hinge": "a", "swing": 1.4 } ] },
+    { "_note": "Bath / Bedroom 1 divider (z=5.5833), rooms west of the corridor (x 19.5833..31). Bath is 7 ft N-S, centered at z=2.0833.",
+      "type": "partition", "px": 25.2917, "pz": 5.5833, "axis": "x", "lenFt": 11.4167 },
+    { "_note": "Bath / Bedroom 2 divider (z=-1.4167).",
+      "type": "partition", "px": 25.2917, "pz": -1.4167, "axis": "x", "lenFt": 11.4167 },
+
+    { "_note": "WEST BATHROOM fixtures (bath px[19.5833,31] x pz[-1.4167,5.5833]): toilet far-west, shower centered, vanity at the east end.",
+      "type": "toilet", "px": 29.75, "pz": -0.35, "faces": "E" },
+    { "_note": "Shower centered E-W, backing the south wall, glass opening north.",
+      "type": "shower", "px": 25.0, "pz": 0.1833, "opens": "N", "widthFt": 3.6, "depthFt": 3.2 },
+    { "_note": "Vanity at the east end, backing the north wall (clear of the corridor door), facing south.",
+      "type": "vanity", "px": 21.3, "pz": 4.68, "faces": "S", "widthFt": 3.0, "depthFt": 1.8 },
+
+    { "_note": "BEDROOM 1 (NW) queen: headboard on the SOUTH wall (commanding position - sees the NE door across the room, off the door line; not under a window).",
+      "type": "bed", "px": 25.5, "pz": 8.9, "head": "S" },
+    { "_note": "BEDROOM 2 (SW) queen: headboard on the NORTH wall (sees the E door, feet away from it; not under a window).",
+      "type": "bed", "px": 25.5, "pz": -5.05, "head": "N" }
   ]
 }

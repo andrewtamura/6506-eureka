@@ -1837,33 +1837,63 @@ def add_entry(ctx, px, pz, dw_ft, base):
 
 
 def second_floor_windows(rooms):
-    """(front_z, specs) for the second-floor windows. The North (front) row stacks
-    one upper over each ground-floor front opening (already the even 5-bay
-    rhythm); the West wall gets four equally-spaced uppers across its length. All
-    graduated to 2.5' wide, sill 2.5' / head 6' above the second floor. Shared by
-    the exterior massing's upper row and the second-floor shell so they stay in
-    sync."""
-    front_z = max(r["bounds"]["z2"] for r in rooms)   # North wall
-    west_x = max(r["bounds"]["x2"] for r in rooms)     # West wall
+    """(front_z, specs) for the second-floor windows. NORTH (front/street) is
+    locked: one upper over each ground-floor front opening (the even 5-bay
+    rhythm). The other three faces are the flexible ones:
+      - WEST wall: a three-bay layout (3 equally-spaced uppers).
+      - SOUTH wall: 4 uppers, 2 per wing, skipping the central stair/landing bay.
+      - EAST: one upper on the primary east wall (the stretch exposed north of the
+        extension), plus TWO east-facing uppers on the extension's far wall (its
+        second-floor bathroom).
+    All 2.5' wide, sill 2.5' / head 6' above the second floor. Shared by the
+    exterior massing's upper row and the second-floor shell so they stay in sync."""
+    front_z = max(r["bounds"]["z2"] for r in rooms)   # North (street) wall — locked
+    rear_z  = min(r["bounds"]["z1"] for r in rooms)    # South wall
+    west_x  = max(r["bounds"]["x2"] for r in rooms)    # West exterior wall
+    W, SILL, HEAD = 2.5, 2.5, 6.0
     specs = []
-    # North: one upper over each ground-floor front opening (windows + door)
+    def add(name, orient, fixed, pos):
+        specs.append({"name": name, "orient": orient, "fixed": fixed, "pos": pos,
+                      "width": W, "sill": SILL, "head": HEAD})
+    # NORTH (locked): one upper over each ground-floor front opening (windows + door)
     for r in rooms:
         for o in r.get("windows", []) + r.get("doors", []):
             if not o.get("opening") and o["orient"] == "H" and abs(o["fixed"] - front_z) < 1e-3:
-                specs.append({"name": f"Upper - {o['name']}", "orient": "H", "fixed": front_z,
-                              "pos": o["pos"], "width": 2.5, "sill": 2.5, "head": 6.0})
-    # West: four equally-spaced uppers, inset from the corners so the end
-    # windows aren't tight to them
+                add(f"Upper - {o['name']}", "H", front_z, o["pos"])
+    # WEST: three-bay — 3 equally-spaced uppers, inset from the corners
     west_rooms = [r for r in rooms if abs(r["bounds"]["x2"] - west_x) < 1e-3]
     if west_rooms:
-        margin = 1.0   # end windows ~3' off the corners (2.5' wide, so edge at z1+3)
-        z1 = min(r["bounds"]["z1"] for r in west_rooms) + margin
-        z2 = max(r["bounds"]["z2"] for r in west_rooms) - margin
-        n = 4
-        for i in range(n):
-            specs.append({"name": f"Upper - West {i + 1}", "orient": "V", "fixed": west_x,
-                          "pos": z1 + (i + 0.5) * (z2 - z1) / n,
-                          "width": 2.5, "sill": 2.5, "head": 6.0})
+        m = 1.0
+        z1 = min(r["bounds"]["z1"] for r in west_rooms) + m
+        z2 = max(r["bounds"]["z2"] for r in west_rooms) - m
+        for i in range(3):
+            add(f"Upper - West {i + 1}", "V", west_x, z1 + (i + 0.5) * (z2 - z1) / 3)
+    # Split the rooms into the primary block vs. the extension (which juts to the
+    # east, i.e. lower x). The extension carries the second-floor bathroom.
+    ext_rooms  = [r for r in rooms if r["bounds"]["x1"] < -12 - 1e-3]
+    prim_rooms = [r for r in rooms if r["bounds"]["x1"] >= -12 - 1e-3]
+    # SOUTH: 4 uppers, 2 per wing, skipping the central stair/landing bay (foyer x-range)
+    foyer = next((r for r in rooms if r.get("_stem") == "foyer"), None)
+    if foyer and prim_rooms:
+        cx1, cx2 = foyer["bounds"]["x1"], foyer["bounds"]["x2"]     # central bay to avoid
+        px1 = min(r["bounds"]["x1"] for r in prim_rooms)            # primary east/west extent
+        px2 = max(r["bounds"]["x2"] for r in prim_rooms)
+        CORR = 4.5   # each wing has a gallery corridor this wide along its landing wall
+        # keep the 2 windows/wing in the OUTER (rear-bedroom) span, clear of the corridor
+        for (a, b, tag) in ((px1, cx1 - CORR, "E"), (cx2 + CORR, px2, "W")):  # east wing, west wing
+            for k in range(2):
+                add(f"Upper - South {tag}{k + 1}", "H", rear_z, a + (k + 0.5) * (b - a) / 2)
+    # EAST: single upper on the primary east wall (exposed only north of the extension)
+    if ext_rooms and prim_rooms:
+        east_prim_x = min(r["bounds"]["x1"] for r in prim_rooms)    # primary east edge (x=-12)
+        ext_top = max(r["bounds"]["z2"] for r in ext_rooms)         # extension north edge
+        add("Upper - East", "V", east_prim_x, (ext_top + front_z) / 2)
+        # extension bathroom: two east-facing uppers on its far (east) wall
+        ext_x = min(r["bounds"]["x1"] for r in ext_rooms)
+        ez1 = min(r["bounds"]["z1"] for r in ext_rooms)
+        ez2 = max(r["bounds"]["z2"] for r in ext_rooms)
+        for k in range(2):
+            add(f"Upper - Ext bath {k + 1}", "V", ext_x, ez1 + (k + 0.5) * (ez2 - ez1) / 2)
     return front_z, specs
 
 
@@ -2116,8 +2146,11 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
     # The upper windows are graduated — shorter and narrower than the ground
     # floor (a classic Georgian/Colonial device) — for a balanced, tapering grid.
     if prim:
-        # Second-floor windows (front + west) — shared with the level2 shell.
-        _, specs = second_floor_windows([rooms_cache[s] for s in prim["rooms"]])
+        # Second-floor windows — SINGLE source (second_floor_windows), shared with the
+        # level2 shell. Feed it the SAME 2-storey room set (primary + extension) the
+        # shell uses, so the facade and the interior shell get identical openings.
+        two_storey = list(prim["rooms"]) + list(groups.get("extension", {}).get("rooms", []))
+        _, specs = second_floor_windows([rooms_cache[s] for s in two_storey])
         for w in specs:
             window(w["name"], w["orient"], w["fixed"], w["pos"], w["width"],
                    base + ctx.story + w["sill"] * FT, base + ctx.story + w["head"] * FT, trim="upper")
@@ -2130,6 +2163,8 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
             # short horizontal lights that tuck between the belt course and the
             # dentil course under the cornice (a classic frieze-window band).
             for w in specs:
+                if "Ext bath" in w["name"]:      # extension is a shed roof — no frieze band
+                    continue
                 window(f"Frieze - {w['name']}", w["orient"], w["fixed"], w["pos"], 2.0,
                        band + 0.45 * FT, band + 1.10 * FT, trim="frieze", muntins=False)
         door = next((o for s in prim["rooms"] for o in rooms_cache[s].get("doors", [])
