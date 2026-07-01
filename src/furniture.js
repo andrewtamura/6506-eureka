@@ -637,7 +637,26 @@ function buildWindowBench(p) {
   return g;
 }
 
-const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench };
+// A straight interior partition wall for laying out a level's rooms. The item's
+// (px,pz) is the wall CENTRE (plan feet); `axis` is the run direction ("x" = E-W,
+// "z" = N-S); `lenFt` its length. Floor-to-ceiling by default. Solid for now —
+// doorways get cut in as a later pass.
+function buildPartition(p) {
+  const ft = FT, g = new THREE.Group();
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0xece9e1, roughness: 0.95, side: THREE.DoubleSide });
+  const len = (p.lenFt || 1) * ft;
+  const h = (p.heightFt ?? 9.0) * ft;
+  const t = (p.thickFt ?? 0.4583) * ft;
+  const w = p.axis === "x" ? len : t;                 // world X extent
+  const d = p.axis === "x" ? t : len;                 // world Z extent
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
+  wall.position.y = h / 2;                            // stand on the floor (group origin = floor)
+  wall.castShadow = true; wall.receiveShadow = true;
+  g.add(wall);
+  return g;
+}
+
+const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition };
 const CHAIRS = new Set(["upholstered_dining_chair", "highback_chair"]);
 const SEAT_FRONT = 0.225;   // chair seat front is +0.225 m toward the table from its centre
 const TUCK = 0.08;          // pushed-in: seat front this far under the table edge

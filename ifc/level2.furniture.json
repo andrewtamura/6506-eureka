@@ -26,6 +26,19 @@
         "z1": -7.317,
         "z2": -0.33
       }
-    }
+    },
+
+    { "_note": "Extension <-> main separating wall at x=-12, only where the extension exists (z -11.9167..4).",
+      "type": "partition", "px": -12, "pz": -3.9583, "axis": "z", "lenFt": 15.9167 },
+
+    { "_note": "West wing <-> central landing wall at x=3.9167, FRONT portion (z -0.33..16.0833); the stairwell already walls the rear.",
+      "type": "partition", "px": 3.9167, "pz": 7.8767, "axis": "z", "lenFt": 16.4133 },
+    { "_note": "West wing front/rear divider at z=0 (x -12..3.9167).",
+      "type": "partition", "px": -4.0417, "pz": 0, "axis": "x", "lenFt": 15.9167 },
+
+    { "_note": "East wing <-> central landing wall at x=15.0833, FRONT portion (z -0.33..16.0833).",
+      "type": "partition", "px": 15.0833, "pz": 7.8767, "axis": "z", "lenFt": 16.4133 },
+    { "_note": "East wing front/rear divider at z=2 (x 15.0833..31).",
+      "type": "partition", "px": 23.0417, "pz": 2, "axis": "x", "lenFt": 15.9167 }
   ]
 }
