@@ -674,15 +674,31 @@ function buildPartition(p) {
     box.position.set(axis === "x" ? off : 0, (y0 + y1) / 2 * ft, axis === "x" ? 0 : off);
     box.castShadow = true; box.receiveShadow = true; g.add(box);
   };
-  // openings: p.doors (array) or a single p.door. Each { atFt, widthFt, headFt,
-  // hinge, swing, opening }. `hinge` ("a" = low jamb / "b" = high jamb along the
-  // run axis) and `swing` (radians, signed — which room side it opens toward) make
-  // the leaf a hinged, double-tap door; default hinge "a", swing 1.4 (~80°).
-  // `opening: true` cuts a cased opening (jambs + head) with NO door slab.
+  // openings: p.doors (array) or a single p.door. Each has atFt (opening centre, plan
+  // ft along the run), widthFt, headFt. The leaf can be specified two ways:
+  //   (a) PLAIN ENGLISH (preferred): `hinge` = which END the hinge is on — a north-south
+  //       (axis "z") wall uses "N"/"S"; an east-west (axis "x") wall uses "E"/"W". `opens`
+  //       = which SIDE the leaf swings into — a "z" wall opens "E"/"W", an "x" wall opens
+  //       "N"/"S". `openDeg` = open angle in degrees (default 80). All hinge/swing geometry
+  //       (incl. the tricky rotation sign) is derived here, so callers never touch it.
+  //   (b) LOW-LEVEL (legacy): `hinge` = "a"/"b" (low/high jamb) + `swing` = signed radians.
+  //   `opening: true` cuts a cased opening (jambs + head) with NO door slab.
+  // For a "z" wall oa=south/ob=north; for an "x" wall oa=east/ob=west (plan px grows west).
+  const HI = axis === "z" ? "N" : "W";   // the ob (higher-coord) jamb is at this compass end
   const list = (p.doors || (p.door ? [p.door] : [])).map((d) => {
     const w = d.widthFt ?? 2.667, head = d.headFt ?? 6.85;
-    return { at: d.atFt, oa: d.atFt - w / 2, ob: d.atFt + w / 2, w, head,
-             hinge: d.hinge || "a", swing: d.swing != null ? d.swing : 1.4, opening: !!d.opening };
+    const o = { at: d.atFt, oa: d.atFt - w / 2, ob: d.atFt + w / 2, w, head, opening: !!d.opening };
+    if (/^[NSEW]$/.test(d.hinge || "")) {                       // (a) plain-English form
+      o.hinge = d.hinge === HI ? "b" : "a";                     // which jamb the hinge sits on
+      const sgn = o.hinge === "b" ? 1 : -1;                     // slab offset direction (see addLeaf)
+      const sign = axis === "z" ? (d.opens === "W" ? -sgn : sgn)   // z wall: opens west vs east
+                                : (d.opens === "N" ? sgn : -sgn);  // x wall: opens north vs south
+      o.swing = sign * (d.openDeg ?? 80) * Math.PI / 180;
+    } else {                                                    // (b) legacy form
+      o.hinge = d.hinge || "a";
+      o.swing = d.swing != null ? d.swing : 1.4;
+    }
+    return o;
   }).sort((A, B) => A.oa - B.oa);
   if (!list.length) { seg(a0, b0, 0, H); return g; }
   const slabT = 0.05;
