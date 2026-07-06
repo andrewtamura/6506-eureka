@@ -1841,7 +1841,8 @@ def second_floor_windows(rooms):
     locked: one upper over each ground-floor front opening (the even 5-bay
     rhythm). The other three faces are the flexible ones:
       - WEST wall: a three-bay layout (3 equally-spaced uppers).
-      - SOUTH wall: 4 uppers, 2 per wing, skipping the central stair/landing bay.
+      - SOUTH wall: 2 uppers, 1 per wing (one per rear bedroom), skipping the
+        central stair/landing bay.
       - EAST: one upper on the primary east wall (the stretch exposed north of the
         extension), plus TWO east-facing uppers on the extension's far wall (its
         second-floor bathroom).
@@ -1872,17 +1873,17 @@ def second_floor_windows(rooms):
     # east, i.e. lower x). The extension carries the second-floor bathroom.
     ext_rooms  = [r for r in rooms if r["bounds"]["x1"] < -12 - 1e-3]
     prim_rooms = [r for r in rooms if r["bounds"]["x1"] >= -12 - 1e-3]
-    # SOUTH: 4 uppers, 2 per wing, skipping the central stair/landing bay (foyer x-range)
+    # SOUTH: 2 uppers, 1 per wing (one per rear bedroom), skipping the central
+    # stair/landing bay (foyer x-range)
     foyer = next((r for r in rooms if r.get("_stem") == "foyer"), None)
     if foyer and prim_rooms:
         cx1, cx2 = foyer["bounds"]["x1"], foyer["bounds"]["x2"]     # central bay to avoid
         px1 = min(r["bounds"]["x1"] for r in prim_rooms)            # primary east/west extent
         px2 = max(r["bounds"]["x2"] for r in prim_rooms)
-        CORR = 4.5   # each wing has a gallery corridor this wide along its landing wall
-        # keep the 2 windows/wing in the OUTER (rear-bedroom) span, clear of the corridor
+        CORR = 4.5   # keep clear of the landing wall at each wing's inner edge
+        # one window per wing, centered in the OUTER (rear-bedroom) span
         for (a, b, tag) in ((px1, cx1 - CORR, "E"), (cx2 + CORR, px2, "W")):  # east wing, west wing
-            for k in range(2):
-                add(f"Upper - South {tag}{k + 1}", "H", rear_z, a + (k + 0.5) * (b - a) / 2)
+            add(f"Upper - South {tag}", "H", rear_z, (a + b) / 2)
     # EAST: single upper on the primary east wall (exposed only north of the extension)
     if ext_rooms and prim_rooms:
         east_prim_x = min(r["bounds"]["x1"] for r in prim_rooms)    # primary east edge (x=-12)
