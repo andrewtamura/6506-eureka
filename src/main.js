@@ -196,7 +196,8 @@ async function main() {
   dial.addEventListener("pointerdown", (e) => { dragging = true; dial.setPointerCapture(e.pointerId); fromPointer(e); });
   dial.addEventListener("pointermove", (e) => { if (dragging) fromPointer(e); });
   dial.addEventListener("pointerup", () => { dragging = false; });
-  apply(14);   // initialize at 2:00 PM
+  const now = new Date();                                // seed both dials to the load moment
+  apply(now.getHours() + now.getMinutes() / 60);         // current local time of day
 
   // --- season dial -------------------------------------------------------
   // A second ring for the time of YEAR: drag the knob to move the sun's seasonal
@@ -247,7 +248,10 @@ async function main() {
   sdial.addEventListener("pointerdown", (e) => { sdragging = true; sdial.setPointerCapture(e.pointerId); seasonFromPointer(e); });
   sdial.addEventListener("pointermove", (e) => { if (sdragging) seasonFromPointer(e); });
   sdial.addEventListener("pointerup", () => { sdragging = false; });
-  applySeason(3 * Math.PI / 2);   // start at the spring equinox (declination 0)
+  // seed to today's date, mapped to the dial angle via the SAME simplified 365-day
+  // calendar fmtDate reads back (so the centre label matches the browser's date).
+  const doyNow = MDAYS.slice(0, now.getMonth()).reduce((s, d) => s + d, 0) + now.getDate() - 1;
+  applySeason(2 * Math.PI * (doyNow - 171) / 365);   // applySeason normalises the angle
 
   // --- fragments engine ---------------------------------------------------
   const fragments = components.get(OBC.FragmentsManager);
