@@ -818,18 +818,22 @@ function buildShower(p) {
   q = pl(-(Dp / 2), 0, wt, Wd);    box(q[0], q[1], H / 2, q[2], q[3], H, tile);            // back wall
   for (const s of [-1, 1]) { q = pl(0, s * (Wd / 2), Dp, wt); box(q[0], q[1], H / 2, q[2], q[3], H, tile); } // sides
   if (p.ponyWalls) {
-    // Central walk-in opening flanked by half-height pony walls (glass above); behind
-    // each pony wall a bench runs along the side wall, with a recessed niche above it.
+    // Central walk-in opening flanked by half-height pony walls (glass above). A bench
+    // runs the full depth along each side wall — front end butting into the pony wall —
+    // and a product niche is recessed INTO each pony wall, above where the bench meets it.
     const bench = new THREE.MeshStandardMaterial({ color: 0xcfd2d4, roughness: 0.5 });
     const niche = new THREE.MeshStandardMaterial({ color: 0x39424a, roughness: 0.7 });
     const openW = p.openFt ?? 4.0, ponyW = (Wd - openW) / 2, ponyH = 3.4;
+    const inner = Dp / 2 - wt / 2;                      // shower-side face of the front pony walls
     for (const s of [-1, 1]) {
       const c = s * (openW / 2 + ponyW / 2);
       q = pl(Dp / 2, c, wt, ponyW);         box(q[0], q[1], ponyH / 2, q[2], q[3], ponyH, tile);              // pony wall at the opening
       q = pl(Dp / 2, c, 0.05, ponyW - 0.1); box(q[0], q[1], (ponyH + H) / 2, q[2], q[3], H - ponyH, glass);   // glass above the pony wall
-      q = pl(-0.4, s * (Wd / 2 - 0.7), 2.6, 1.4);  box(q[0], q[1], 0.75, q[2], q[3], 1.5, bench);             // bench along the side wall
-      q = pl(-0.4, s * (Wd / 2 - 0.18), 1.3, 0.08); box(q[0], q[1], 4.0, q[2], q[3], 1.3, niche);             // recessed product niche above the bench
-      q = pl(-0.4, s * (Wd / 2 - 0.2), 1.2, 0.16);  box(q[0], q[1], 3.85, q[2], q[3], 0.05, bench);           // niche shelf
+      // bench: full depth from the back wall face to the pony wall face (they connect)
+      q = pl(0, s * (Wd / 2 - 0.7), 2 * inner, 1.4);  box(q[0], q[1], 0.75, q[2], q[3], 1.5, bench);          // bench spans back wall -> pony wall
+      // niche recessed into the pony wall (dark pocket + shelf), above the bench top
+      q = pl(inner, c, 0.1, ponyW * 0.6);   box(q[0], q[1], 2.45, q[2], q[3], 1.2, niche);                    // recessed product niche in the pony wall
+      q = pl(inner, c, 0.16, ponyW * 0.6);  box(q[0], q[1], 2.45, q[2], q[3], 0.05, bench);                   // niche shelf
     }
   } else {
     q = pl(Dp / 2, -(Wd / 4), 0.05, Wd / 2); box(q[0], q[1], 3.3, q[2], q[3], 6.6, glass);  // fixed glass over half
