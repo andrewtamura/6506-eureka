@@ -423,6 +423,9 @@ async function main() {
     // level's finish (the model sits with its slab top at object.position.y).
     if (lvl.id !== "exterior" && lvl.manifests?.floors)
       await buildWoodFloor({ scene, model: m, fragments, floorY: m.object.position.y, baseUrl: BASE, manifestFile: lvl.manifests.floors + VER });
+    // patterned tile mosaic (e.g. the primary en-suite hex floor); empty manifest is a no-op.
+    if (lvl.id !== "exterior" && lvl.manifests?.tiles)
+      await buildTileFloor({ scene, model: m, fragments, floorY: m.object.position.y, baseUrl: BASE, manifestFile: lvl.manifests.tiles + VER });
     // plywood subfloor (4x8 sheets) — the attic's low-headroom zone beyond the
     // finished floor; empty manifest (other levels) is a no-op.
     if (lvl.id !== "exterior" && lvl.manifests?.subfloor)

@@ -2293,6 +2293,36 @@ def add_hardwood_finish(ctx, r):
         ctx.plank_floors.append({"name": name, "rgb": [round(c2, 4) for c2 in rgb]})
 
 
+def add_tile_finish(ctx, r, pattern):
+    """A flat tile FLOORING covering over the room footprint, recorded to
+    tile_floors so the viewer re-renders it as an instanced mosaic (`pattern`).
+    Used on levels (e.g. the shell 2nd floor) where a room's declarative
+    interior.flooring isn't otherwise applied — lets the primary en-suite run one
+    continuous tile pattern across its shared footprint rooms. The mosaic is
+    globally anchored, so the per-room coverings tile seamlessly at their shared
+    wall centerlines."""
+    rgb = (0.85, 0.84, 0.80)                # light tile base (mosaic drawn over it)
+    x1, x2, y1, y2 = ifc_bounds(ctx, r["bounds"])
+    X1, X2 = sorted((x1, x2)); Y1, Y2 = sorted((y1, y2))
+    opening = r.get("floorOpening")
+    if opening:
+        ox1, ox2 = sorted((ctx.X(opening["x1"]), ctx.X(opening["x2"])))
+        oy1, oy2 = sorted((ctx.Y(opening["z1"]), ctx.Y(opening["z2"])))
+        ox1, ox2 = max(ox1, X1), min(ox2, X2)
+        oy1, oy2 = max(oy1, Y1), min(oy2, Y2)
+        rects = [(X1, X2, Y1, oy1), (X1, X2, oy2, Y2), (X1, ox1, oy1, oy2), (ox2, X2, oy1, oy2)]
+    else:
+        rects = [(X1, X2, Y1, Y2)]
+    for i, (a, b, c, d) in enumerate(rects):
+        if b - a < 1e-4 or d - c < 1e-4:
+            continue
+        name = f"{r['name']} - Tile Flooring" + (f" {i}" if opening else "")
+        cov = make_box(ctx, "IfcCovering", name, b - a, d - c, 0.05 * FT,
+                       (a + b) / 2, (c + d) / 2, 0.0, predefined="FLOORING", color=rgb)
+        run("spatial.assign_container", ctx.model, products=[cov], relating_structure=ctx.storey)
+        ctx.tile_floors.append({"name": name, "pattern": pattern})
+
+
 def _rect_minus(a, b, c, d, hole):
     """Rectangle [a,b]x[c,d] minus an axis-aligned `hole` (x1,x2,y1,y2, same metres),
     returned as a list of non-overlapping sub-rectangles (a frame of bands around the

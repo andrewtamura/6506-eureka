@@ -809,7 +809,12 @@ function buildShower(p) {
   const Wd = p.widthFt ?? 3.6, Dp = p.depthFt ?? 3.2, H = 6.8, wt = 0.3;
   const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
   let q;
-  q = pl(0, 0, Dp, Wd);            box(q[0], q[1], 0.09, q[2], q[3], 0.18, tile);          // pan/curb
+  // Curb ONLY across the walk-in opening — not a full pan — so the continuous hex
+  // floor tile runs unbroken through the shower (this threshold is the single break).
+  { const curbMat = new THREE.MeshStandardMaterial({ color: 0xcfd2d4, roughness: 0.5 });
+    const oW = p.ponyWalls ? (p.openFt ?? 4.0) : Wd / 2;
+    const oC = p.ponyWalls ? 0 : Wd / 4;
+    q = pl(Dp / 2, oC, 0.34, oW); box(q[0], q[1], 0.14, q[2], q[3], 0.28, curbMat); }       // threshold curb at the opening
   q = pl(-(Dp / 2), 0, wt, Wd);    box(q[0], q[1], H / 2, q[2], q[3], H, tile);            // back wall
   for (const s of [-1, 1]) { q = pl(0, s * (Wd / 2), Dp, wt); box(q[0], q[1], H / 2, q[2], q[3], H, tile); } // sides
   if (p.ponyWalls) {

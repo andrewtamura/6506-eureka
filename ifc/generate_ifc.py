@@ -153,8 +153,16 @@ def build_level(cfg, rooms_cache, level):
         if level.get("upperWindows"):     # second-floor windows, synced to the exterior
             B.add_shell_windows(ctx, rooms)
         emit_stairwells(ctx, rooms, up=True)              # 2nd-floor hall: run up to the attic
+        # Per-level floor override: rooms not listed get hardwood (like the ground
+        # floor); listed rooms get tile so the primary en-suite runs one continuous
+        # pattern across its shared footprint rooms without touching the ground floor.
+        overrides = level.get("floorOverrides") or {}
         for r in rooms:
-            B.add_hardwood_finish(ctx, r)                 # hardwood floor, same as the ground floor
+            ov = overrides.get(r["_stem"])
+            if ov and (ov.get("material") or "").lower() == "tile":
+                B.add_tile_finish(ctx, r, ov["pattern"])
+            else:
+                B.add_hardwood_finish(ctx, r)             # hardwood floor, same as the ground floor
     elif kind == "attic":
         # Habitable attic: shaped to the exterior roof (single source of truth
         # for type + pitch) rather than drawn as a full-height storey.
