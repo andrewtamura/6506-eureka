@@ -61,12 +61,12 @@
       "type": "partition", "px": 9.5, "pz": 6, "axis": "x", "lenFt": 11.1666,
       "door": { "atFt": 9.5, "widthFt": 6.0, "opening": true } },
 
-    { "_note": "PRIMARY BEDROOM king (SOUTH room): headboard on the NORTH wall (walk-in divider, no window); foot points SOUTH to the window wall (no door). Clears the entry, en-suite, and walk-in doors.",
-      "type": "bed", "px": -8.7, "pz": 2.48, "head": "N", "widthFt": 6.33, "lenFt": 6.75 },
-    { "_note": "SW BEDROOM queen (room x 15.0833..31, z -11.9167..-1, a clean rectangle): headboard on the EAST (landing) wall - interior, no window; foot points WEST toward the window wall (no door). Centered z ~ -6.5. Fully private now - reached only via the alcove door; no bath door.",
-      "type": "bed", "px": 18.5, "pz": -6.5, "head": "E" },
-    { "_note": "NW BEDROOM queen (room x 15.0833..31, z 6..16.0833, a clean rectangle): headboard on the EAST (landing) wall - interior, no window; foot points WEST toward the window wall (no door). Centered z ~ 11.0. Fully private now - reached only via the alcove door; no bath door.",
-      "type": "bed", "px": 18.5, "pz": 11.0, "head": "E" },
+    { "_note": "PRIMARY BEDROOM king (east wing): headboard CENTERED on the NORTH wall segment (x -12..-1.0833, the walk-in divider west of the hall bite; no window). Was tucked in the NE corner - now centred. Foot points S to the window wall (no door). Clears the en-suite, hall, and walk-in doors.",
+      "type": "bed", "px": -6.54, "pz": 2.48, "head": "N", "widthFt": 6.33, "lenFt": 6.75 },
+    { "_note": "SW BEDROOM queen (room x 15.0833..31, z -11.9167..-1): headboard on the SOUTH wall, placed directly EAST of the south window (window ~x24..26.5) so it sits beside the window, not under it. Foot points N. Moved off the east wall so it no longer fouls the alcove door swing.",
+      "type": "bed", "px": 21.5, "pz": -8.58, "head": "S" },
+    { "_note": "NW BEDROOM queen (room x 15.0833..31, z 6..16.0833): headboard on the NORTH wall, CENTERED between the two north windows (~x17.9 and ~x26.3) so it rests on solid wall between them, not under a window. Foot points S. Moved off the east wall so it no longer fouls the alcove door swing.",
+      "type": "bed", "px": 22.06, "pz": 12.75, "head": "N" },
 
     { "_note": "WEST BATH (x 20.0833..31, z -1..6). Shower on the NORTH wall (x 24..27.5), shallow 2.5 ft depth since the room is only ~7 ft N-S. Toilet in the west bay BETWEEN the west wall (x31) and the shower's west edge (x27.5), facing S with ~21 in clearance each side. Vanity in the SE corner (faces N). All clear of the entry-door swing.",
       "type": "shower", "px": 25.75, "pz": 4.75, "opens": "S", "widthFt": 3.5, "depthFt": 2.5 },
@@ -80,7 +80,8 @@
 
     { "_note": "FAMILY ROOM (landing north bay, x 3.9167..15.0833, z 5..16.0833): sofa against the west wall facing the TV on the east wall, with a rug between.",
       "type": "sofa", "px": 13.5, "pz": 10.5, "faces": "E", "wFt": 7.0, "dFt": 3.0 },
-    { "type": "tv", "px": 4.6, "pz": 10.5, "faces": "W", "wFt": 5.0, "dFt": 1.4, "screenFt": 4.5 },
+    { "_note": "77-inch TV on the east wall facing W toward the sofa (screenFt = 5.6 ft wide, 16:9 -> ~3.15 ft tall -> 6.42 ft / 77 in diagonal), on a 6 ft media console.",
+      "type": "tv", "px": 4.6, "pz": 10.5, "faces": "W", "wFt": 6.0, "dFt": 1.4, "screenFt": 5.6 },
     { "type": "rug", "px": 9.5, "pz": 10.5, "w": 8, "d": 6, "material": "sage" }
   ]
 }
