@@ -867,7 +867,7 @@ function buildVanity(p) {
   const kbH = 0.33, cabTop = 2.9;
   q = pl(-0.13, 0, Dp - 0.28, Wd - 0.15); box(q[0], q[1], kbH / 2, q[2], q[3], kbH, toekick);          // recessed toe-kick
   q = pl(0, 0, Dp, Wd);                    box(q[0], q[1], kbH + (cabTop - kbH) / 2, q[2], q[3], cabTop - kbH, woodv, 0.02); // cabinet body
-  const nCols = Math.max(2, Math.round(Wd / 1.7)), nRows = 3, colW = Wd / nCols, rowH = (cabTop - kbH) / nRows;
+  const nCols = 3, nRows = 3, colW = Wd / nCols, rowH = (cabTop - kbH) / nRows;
   for (let c = 0; c < nCols; c++) for (let r = 0; r < nRows; r++) {
     const ds = -Wd / 2 + (c + 0.5) * colW, yc = kbH + (r + 0.5) * rowH;
     q = pl(Dp / 2 + 0.02, ds, 0.04, colW - 0.07); box(q[0], q[1], yc, q[2], q[3], rowH - 0.07, woodv, 0.015);  // drawer front (proud)
@@ -885,11 +885,11 @@ function buildVanity(p) {
   // Mount proud of the wall's inner face (the cabinet back sits at the ~0.46 ft-thick
   // wall centreline, so -(Dp/2) would bury the mirror inside the wall).
   if (p.mirror !== false) {
-    const mw = sinks === 2 ? 1.2 : Wd - 0.4;
+    const mw = sinks === 2 ? 1.0 : Wd - 0.4;
     for (const ds of dsList) { q = pl(-(Dp / 2 - 0.3), ds, 0.06, mw); box(q[0], q[1], 4.3, q[2], q[3], 2.2, mirror); }
   }
   // Slim wall sconces outboard of the mirrors (at the vanity ends), proud of the wall.
-  if (p.sconces) for (const s of [-1, 1]) { q = pl(-(Dp / 2 - 0.28), s * (Wd / 2 - 0.35), 0.08, 0.22); box(q[0], q[1], 5.0, q[2], q[3], 1.2, sconceMat); }
+  if (p.sconces) for (const s of [-1, 1]) { q = pl(-(Dp / 2 - 0.28), s * (Wd / 2 - 0.25), 0.08, 0.22); box(q[0], q[1], 5.0, q[2], q[3], 1.2, sconceMat); }
   return g;
 }
 
