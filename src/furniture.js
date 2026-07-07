@@ -838,14 +838,17 @@ function buildVanity(p) {
   const chrome = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.25, metalness: 0.8 });
   const mirror = new THREE.MeshStandardMaterial({ color: 0xbfd0d6, roughness: 0.05, metalness: 0.3 });
   const A = DIR[p.faces || "S"], P = [-A[1], A[0]];
-  const Wd = p.widthFt ?? 3.0, Dp = p.depthFt ?? 1.8;
+  const Wd = p.widthFt ?? 3.0, Dp = p.depthFt ?? 1.8, sinks = p.sinks ?? 1;
   const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
   let q;
   q = pl(0, 0, Dp, Wd);          box(q[0], q[1], 1.45, q[2], q[3], 2.9, woodv, 0.03);      // cabinet
   q = pl(0.05, 0, Dp + 0.1, Wd + 0.15); box(q[0], q[1], 2.97, q[2], q[3], 0.16, porc, 0.02); // countertop
-  q = pl(0.05, 0, 0, 0);         cyl(q[0], q[1], 3.02, 0.5, 0.16, porc);                    // basin
-  q = pl(-(Dp / 2 - 0.35), 0, 0, 0); cyl(q[0], q[1], 3.2, 0.05, 0.6, chrome);              // faucet
-  q = pl(-(Dp / 2 + 0.02), 0, 0.06, Wd - 0.4); box(q[0], q[1], 4.3, q[2], q[3], 2.2, mirror); // mirror on wall
+  for (const ds of (sinks === 2 ? [-Wd / 4, Wd / 4] : [0])) {                              // one or two basins
+    q = pl(0.05, ds, 0, 0);             cyl(q[0], q[1], 3.02, 0.5, 0.16, porc);            // basin
+    q = pl(-(Dp / 2 - 0.35), ds, 0, 0); cyl(q[0], q[1], 3.2, 0.05, 0.6, chrome);          // faucet
+  }
+  // Wall mirror above (skip when `mirror:false`, e.g. a vanity set under windows).
+  if (p.mirror !== false) { q = pl(-(Dp / 2 + 0.02), 0, 0.06, Wd - 0.4); box(q[0], q[1], 4.3, q[2], q[3], 2.2, mirror); }
   return g;
 }
 
