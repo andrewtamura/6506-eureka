@@ -73,9 +73,9 @@
     { "type": "vanity", "px": 21.9, "pz": -0.1, "faces": "N", "widthFt": 3.0, "depthFt": 1.8 },
     { "type": "toilet", "px": 29.25, "pz": 4.5, "faces": "S" },
 
-    { "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4) - spacious, NO tub. LARGE walk-in shower spans the SOUTH wall under the two windows (glass opens N); long double vanity on the NORTH wall; WC on the WEST wall just north of the (locked) door, clear of its swing. Open centre keeps it uncluttered.",
-      "type": "shower", "px": -18.5, "pz": -9.97, "opens": "N", "widthFt": 8.8, "depthFt": 3.9 },
-    { "type": "vanity", "px": -17.25, "pz": 3.0, "faces": "S", "widthFt": 7.5, "depthFt": 2.0 },
+    { "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4) - spacious, NO tub. Shower kept OFF the window (south) wall: LARGE walk-in shower on the NORTH wall (glass opens S); long double vanity on the EAST wall (mirror on solid wall); WC on the WEST wall just north of the (locked) door, clear of its swing. The SOUTH wall's two windows light an open, uncluttered wall.",
+      "type": "shower", "px": -17.5, "pz": 1.75, "opens": "S", "widthFt": 7.0, "depthFt": 4.5 },
+    { "type": "vanity", "px": -21.9, "pz": -5.5, "faces": "W", "widthFt": 8.0, "depthFt": 2.0 },
     { "type": "toilet", "px": -13.0, "pz": -2.1, "faces": "E" },
 
     { "_note": "FAMILY ROOM (landing north bay, x 3.9167..15.0833, z 5..16.0833): sofa against the west wall facing the TV on the east wall, with a rug between.",
