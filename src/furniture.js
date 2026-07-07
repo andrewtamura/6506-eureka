@@ -891,12 +891,15 @@ function buildTV(p) {
   const screen = new THREE.MeshStandardMaterial({ color: 0x111417, roughness: 0.35, metalness: 0.2 });
   const bezel = new THREE.MeshStandardMaterial({ color: 0x0a0a0c, roughness: 0.5 });
   const W = p.wFt ?? 5.0, D = p.dFt ?? 1.4, scrW = p.screenFt ?? 4.5;
+  const scrH = scrW * 9 / 16;    // 16:9 panel: derive height from width (so screenFt sets a real TV size)
   const A = DIR[p.faces || "N"], P = [-A[1], A[0]];
   const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
   let q;
   q = pl(0, 0, D, W);            box(q[0], q[1], 0.9, q[2], q[3], 1.8, wood, 0.03);        // console cabinet
-  q = pl(-(D / 2 - 0.12), 0, 0.12, scrW + 0.15); box(q[0], q[1], 4.1, q[2], q[3], 2.65, bezel, 0.02); // TV bezel (on the back wall)
-  q = pl(-(D / 2 - 0.15), 0, 0.06, scrW); box(q[0], q[1], 4.1, q[2], q[3], 2.5, screen); // screen face
+  // Mount the panel proud of the wall face (the anchor sits ~0.45 ft off the wall,
+  // so the old console-relative offset buried the panel inside the wall thickness).
+  q = pl(-0.23, 0, 0.12, scrW + 0.15); box(q[0], q[1], 4.1, q[2], q[3], scrH + 0.15, bezel, 0.02); // TV bezel
+  q = pl(-0.20, 0, 0.06, scrW);        box(q[0], q[1], 4.1, q[2], q[3], scrH, screen);        // screen face (just proud of the bezel)
   return g;
 }
 

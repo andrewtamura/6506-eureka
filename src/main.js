@@ -430,12 +430,13 @@ async function main() {
     // Attic interior lighting: recessed LED downlights (ridge + bath/WC) plus a
     // vanity light over the bathroom mirror. Daylight (dormers) does the rest.
     if (lvl.id === "attic") addAtticLighting(m.object);
-    // Second floor is an open shell with no rooms yet -> give it ONE flat ceiling
-    // over its whole footprint (independent of the ground floor's room layout), plus
-    // a grid of sample semi-flush fixtures. Ceiling toggles opaque (POV) /
+    // Second floor is an open shell with no IfcSpaces -> give it ONE flat ceiling
+    // over its whole footprint, plus a central semi-flush fixture in EACH room (the
+    // only nighttime light source per room). Ceiling toggles opaque (POV) /
     // translucent (overview), like the others.
     if (lvl.id === "level2") {
-      const WALL = 0.4583 * 0.3048;                      // land the ceiling on the perimeter wall centerline
+      const FT = 0.3048;
+      const WALL = 0.4583 * FT;                          // land the ceiling on the perimeter wall centerline
       const bb = new THREE.Box3().setFromObject(m.object);
       const x0 = bb.min.x + WALL / 2, x1 = bb.max.x - WALL / 2, z0 = bb.min.z + WALL / 2, z1 = bb.max.z - WALL / 2;
       const cy = m.object.position.y + ceilHt;
@@ -443,9 +444,24 @@ async function main() {
       slab.position.set((x0 + x1) / 2, cy - 0.03, (z0 + z1) / 2);
       slab.castShadow = true; slab.receiveShadow = true;
       scene.add(slab); exhibitCeilingMats.push(slab.material);
-      const nx = 3, nz = 2;                                 // sample fixture grid
-      for (let i = 0; i < nx; i++) for (let j = 0; j < nz; j++)
-        semiFlush(x0 + (x1 - x0) * (i + 0.5) / nx, cy - 0.04, z0 + (z1 - z0) * (j + 0.5) / nz, 3.0);
+      // One central fixture per room. Centres in plan feet (px grows WEST, pz grows
+      // NORTH); world x/z = this exhibit's model origin minus plan*FT. Intensity is
+      // scaled loosely to room size for even, realistic residential light.
+      const wx = (px) => m.object.position.x - px * FT;
+      const wz = (pz) => m.object.position.z - pz * FT;
+      const L2_ROOMS = [
+        ["NW bedroom",       23.04,  11.04, 3.2],
+        ["SW bedroom",       23.04,  -6.46, 3.2],
+        ["Primary bedroom",  -4.0,   -3.0,  3.4],
+        ["Walk-in closet",   -4.04,  11.04, 2.6],
+        ["En-suite",        -17.46,  -4.0,  3.0],
+        ["West bath",        25.54,   2.5,  2.8],
+        ["Family room",       9.5,   11.04, 3.4],
+        ["E-W landing",       9.5,    2.8,  3.0],
+        ["East hall",         1.42,   2.5,  2.2],
+        ["West alcove",      17.58,   2.5,  2.2],
+      ];
+      for (const [, px, pz, inten] of L2_ROOMS) semiFlush(wx(px), cy - 0.04, wz(pz), inten);
     }
     exhibitModels.push({ lvl, model: m });             // register as a walk target after the walker exists
     return buildingBox(m.object);
