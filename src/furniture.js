@@ -812,7 +812,23 @@ function buildShower(p) {
   q = pl(0, 0, Dp, Wd);            box(q[0], q[1], 0.09, q[2], q[3], 0.18, tile);          // pan/curb
   q = pl(-(Dp / 2), 0, wt, Wd);    box(q[0], q[1], H / 2, q[2], q[3], H, tile);            // back wall
   for (const s of [-1, 1]) { q = pl(0, s * (Wd / 2), Dp, wt); box(q[0], q[1], H / 2, q[2], q[3], H, tile); } // sides
-  q = pl(Dp / 2, -(Wd / 4), 0.05, Wd / 2); box(q[0], q[1], 3.3, q[2], q[3], 6.6, glass);  // fixed glass over half
+  if (p.ponyWalls) {
+    // Central walk-in opening flanked by half-height pony walls (glass above); behind
+    // each pony wall a bench runs along the side wall, with a recessed niche above it.
+    const bench = new THREE.MeshStandardMaterial({ color: 0xcfd2d4, roughness: 0.5 });
+    const niche = new THREE.MeshStandardMaterial({ color: 0x39424a, roughness: 0.7 });
+    const openW = p.openFt ?? 4.0, ponyW = (Wd - openW) / 2, ponyH = 3.4;
+    for (const s of [-1, 1]) {
+      const c = s * (openW / 2 + ponyW / 2);
+      q = pl(Dp / 2, c, wt, ponyW);         box(q[0], q[1], ponyH / 2, q[2], q[3], ponyH, tile);              // pony wall at the opening
+      q = pl(Dp / 2, c, 0.05, ponyW - 0.1); box(q[0], q[1], (ponyH + H) / 2, q[2], q[3], H - ponyH, glass);   // glass above the pony wall
+      q = pl(-0.4, s * (Wd / 2 - 0.7), 2.6, 1.4);  box(q[0], q[1], 0.75, q[2], q[3], 1.5, bench);             // bench along the side wall
+      q = pl(-0.4, s * (Wd / 2 - 0.18), 1.3, 0.08); box(q[0], q[1], 4.0, q[2], q[3], 1.3, niche);             // recessed product niche above the bench
+      q = pl(-0.4, s * (Wd / 2 - 0.2), 1.2, 0.16);  box(q[0], q[1], 3.85, q[2], q[3], 0.05, bench);           // niche shelf
+    }
+  } else {
+    q = pl(Dp / 2, -(Wd / 4), 0.05, Wd / 2); box(q[0], q[1], 3.3, q[2], q[3], 6.6, glass);  // fixed glass over half
+  }
   q = pl(-(Dp / 2 - 0.35), 0, 0.7, 0.14);  box(q[0], q[1], 5.6, q[2], q[3], 0.14, chrome);// head arm off back wall
   q = pl(-(Dp / 2 - 0.7), 0, 0.55, 0.55);  box(q[0], q[1], 5.5, q[2], q[3], 0.12, chrome);// shower head
   return g;
