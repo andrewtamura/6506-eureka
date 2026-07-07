@@ -57,9 +57,9 @@
     { "_note": "WEST BATH south wall (z=-1, x 20.0833..31): SOLID. The SW bedroom no longer opens into the bath.",
       "type": "partition", "px": 25.5417, "pz": -1, "axis": "x", "lenFt": 10.9167 },
 
-    { "_note": "FAMILY ROOM south wall = north wall of the E-W hall (z=6, aligned with the NW-bedroom south wall to make one continuous line across the floor). Door opens NORTH into the family room; the hall is south of it.",
+    { "_note": "FAMILY ROOM south wall = north wall of the E-W hall (z=6, aligned with the NW-bedroom south wall to make one continuous line across the floor). A double-wide (6 ft) CASED OPENING - no door slab - so the family room reads as an open bay off the landing.",
       "type": "partition", "px": 9.5, "pz": 6, "axis": "x", "lenFt": 11.1666,
-      "door": { "atFt": 9.5, "widthFt": 3.0, "hinge": "E", "opens": "N" } },
+      "door": { "atFt": 9.5, "widthFt": 6.0, "opening": true } },
 
     { "_note": "PRIMARY BEDROOM king (SOUTH room): headboard on the NORTH wall (walk-in divider, no window); foot points SOUTH to the window wall (no door). Clears the entry, en-suite, and walk-in doors.",
       "type": "bed", "px": -8.7, "pz": 2.48, "head": "N", "widthFt": 6.33, "lenFt": 6.75 },
@@ -68,10 +68,10 @@
     { "_note": "NW BEDROOM queen (room x 15.0833..31, z 6..16.0833, a clean rectangle): headboard on the EAST (landing) wall - interior, no window; foot points WEST toward the window wall (no door). Centered z ~ 11.0. Fully private now - reached only via the alcove door; no bath door.",
       "type": "bed", "px": 18.5, "pz": 11.0, "head": "E" },
 
-    { "_note": "WEST BATH (x 20.0833..31, z -1..6 = 10.9 x 7 ft), entered by ONE door off the alcove on the east wall. Shower (N) + vanity (S, under the west window ~z2.08) on the west wet wall (x=31). The toilet moved off the (now doored) east wall onto the SOUTH wall, in the SE area, facing N - clear of the entry-door swing and the vanity.",
-      "type": "shower", "px": 29.0, "pz": 4.15, "opens": "E", "widthFt": 3.4, "depthFt": 3.6 },
-    { "type": "vanity", "px": 29.9, "pz": 0.6, "faces": "E", "widthFt": 3.0, "depthFt": 1.6 },
-    { "type": "toilet", "px": 23.0, "pz": -0.1, "faces": "N" },
+    { "_note": "WEST BATH (x 20.0833..31, z -1..6 = 10.9 x 7 ft), entered by ONE door off the alcove on the east wall. Shower centered in the room; toilet near the WEST (wet) wall facing S (tank toward the north); vanity in the SE corner backing onto the south wall (faces N), clear of the entry-door swing.",
+      "type": "shower", "px": 25.54, "pz": 2.5, "opens": "E", "widthFt": 3.5, "depthFt": 3.5 },
+    { "type": "vanity", "px": 21.9, "pz": -0.1, "faces": "N", "widthFt": 3.0, "depthFt": 1.8 },
+    { "type": "toilet", "px": 29.7, "pz": 4.2, "faces": "S" },
 
     { "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4): vanity on the north wall, shower SW, toilet on the separator wall.",
       "type": "vanity", "px": -17.0, "pz": 3.1, "faces": "S", "widthFt": 3.2, "depthFt": 1.7 },
