@@ -903,7 +903,32 @@ function buildTV(p) {
   return g;
 }
 
-const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV };
+// A freestanding soaking tub. Anchor (px,pz) = footprint centre; wFt (E-W) x
+// dFt (N-S) footprint. `deckFt` > 0 sits the tub on a raised stone platform (a
+// step-up "elevated" spa deck). A slim floor-mounted filler stands at one end.
+function buildTub(p) {
+  const ft = FT, g = new THREE.Group();
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const box = (opx, opz, yc, sx, sz, hy, mat, rad = 0) => {
+    const geo = rad > 0 ? new RoundedBoxGeometry(sx * ft, hy * ft, sz * ft, 5, rad * ft)
+                        : new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft);
+    const m = new THREE.Mesh(geo, mat); m.position.copy(V(opx, opz, yc)); m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  const acrylic = new THREE.MeshStandardMaterial({ color: 0xf6f7f5, roughness: 0.15, metalness: 0.05 });
+  const water = new THREE.MeshStandardMaterial({ color: 0xdbe7ea, roughness: 0.2 });
+  const stone = new THREE.MeshStandardMaterial({ color: col(p.deckMaterial || "limestone", 0xcdc3b0), roughness: 0.75 });
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.25, metalness: 0.8 });
+  const W = p.wFt ?? 6.0, D = p.dFt ?? 2.8, deck = p.deckFt ?? 0, tubH = 1.9;
+  if (deck > 0) box(0, 0, deck / 2, W + 1.0, D + 1.0, deck, stone, 0.06);   // raised deck (step up), 6" ledge around the tub
+  const rad = Math.min(W, D) * 0.3;
+  box(0, 0, deck + tubH / 2, W, D, tubH, acrylic, rad);                      // tub body (rounded)
+  box(0, 0, deck + tubH - 0.12, W - 0.8, D - 0.8, 1.2, water, rad * 0.8);    // recessed basin, rim frames it
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.055 * ft, 0.055 * ft, 2.7 * ft, 16), chrome);
+  post.position.copy(V(-(W / 2 - 0.4), 0, deck + 1.35)); g.add(post);        // floor filler at one end
+  return g;
+}
+
+const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 const CHAIRS = new Set(["upholstered_dining_chair", "highback_chair"]);
 const SEAT_FRONT = 0.225;   // chair seat front is +0.225 m toward the table from its centre
 const TUCK = 0.08;          // pushed-in: seat front this far under the table edge

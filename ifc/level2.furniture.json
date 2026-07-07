@@ -73,10 +73,11 @@
     { "type": "vanity", "px": 21.9, "pz": -0.1, "faces": "N", "widthFt": 3.0, "depthFt": 1.8 },
     { "type": "toilet", "px": 29.25, "pz": 4.5, "faces": "S" },
 
-    { "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4): vanity on the north wall, shower SW, toilet on the separator wall.",
-      "type": "vanity", "px": -17.0, "pz": 3.1, "faces": "S", "widthFt": 3.2, "depthFt": 1.7 },
-    { "type": "shower", "px": -20.0, "pz": -9.3, "opens": "N", "widthFt": 3.6, "depthFt": 3.4 },
-    { "type": "toilet", "px": -12.9, "pz": -2.5, "faces": "E" },
+    { "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4) - ELEVATED WET-ROOM. Walk-in shower spans the NORTH wall; a freestanding soaking tub on a raised deck sits against the SOUTH wall under the two south windows, with the WC beside it (west); a long double vanity runs the EAST wall. Door (locked) on the west wall at z-6.",
+      "type": "shower", "px": -19.2, "pz": 2.0, "opens": "S", "widthFt": 7.4, "depthFt": 4.0 },
+    { "type": "vanity", "px": -21.9, "pz": -4.0, "faces": "W", "widthFt": 6.0, "depthFt": 2.0 },
+    { "type": "tub", "px": -18.0, "pz": -10.0, "wFt": 6.0, "dFt": 2.8, "deckFt": 0.5 },
+    { "type": "toilet", "px": -13.25, "pz": -10.6, "faces": "N" },
 
     { "_note": "FAMILY ROOM (landing north bay, x 3.9167..15.0833, z 5..16.0833): sofa against the west wall facing the TV on the east wall, with a rug between.",
       "type": "sofa", "px": 13.5, "pz": 10.5, "faces": "E", "wFt": 7.0, "dFt": 3.0 },
