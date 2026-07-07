@@ -40,6 +40,14 @@ export function setupLighting(scene) {
   const fill = new THREE.AmbientLight(0xaab6c6, 0.12);   // minimal interior black-floor (no GI to bounce light)
   scene.add(sun, sun.target, sky, fill);
 
+  // Per-time listeners (get the current 0..1 `day` factor). Used to drive an
+  // exterior-only "sky fill" via emissive on the massing materials — ambient and
+  // hemisphere lights are global (gated by the camera's layers, not per-object) so
+  // they can't be isolated to the outdoors; a per-material emissive floor can.
+  const timeListeners = [];
+  let lastDay = 0;
+  const onTime = (cb) => { timeListeners.push(cb); cb(lastDay); };
+
   const focus = new THREE.Vector3();   // sun + shadow frustum aim point
   let dist = 40, hour = 14;
 
@@ -75,6 +83,8 @@ export function setupLighting(scene) {
       ? mix(0x0b1020, 0xf0c39a, clamp(altSin * 9 + 1, 0, 1))  // night -> dawn/dusk glow at the horizon
       : mix(0xf3c79a, 0xaed2f0, day);                         // warm horizon -> daytime blue
     sun.shadow.needsUpdate = true;
+    lastDay = day;
+    timeListeners.forEach((cb) => cb(day));
   };
 
   // Aim the sun + size its (orthographic) shadow camera to cover the model.
@@ -94,5 +104,5 @@ export function setupLighting(scene) {
   // re-place the sun at the current hour.
   const setSeason = (declDeg) => { decl = declDeg * DEG; setTime(hour); };
 
-  return { setTime, setSeason, focusShadow, refreshShadow };
+  return { setTime, setSeason, focusShadow, refreshShadow, onTime };
 }
