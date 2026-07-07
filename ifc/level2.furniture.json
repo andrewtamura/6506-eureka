@@ -73,9 +73,9 @@
     { "type": "vanity", "px": 21.9, "pz": -0.1, "faces": "N", "widthFt": 3.0, "depthFt": 1.8 },
     { "type": "toilet", "px": 29.25, "pz": 4.5, "faces": "S" },
 
-    { "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4). NORTH wall = full-width walk-in shower (glass opens S). Middle: DOUBLE-SINK vanity on the EAST wall, set UNDER the two east windows (no wall mirror - the windows are the backdrop). SOUTH end = an ENCLOSED WC room behind a partition at z-7.5; its inswing door is toward the EAST (hinge on the east jamb, opens S into the room); toilet against the WC room's WEST wall.",
+    { "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4). NORTH wall = full-width walk-in shower (glass opens S). Middle: DOUBLE-SINK vanity on the EAST wall - a single centered window (z-3.75) flanked by a mirror over each sink, with wall sconces outboard of the mirrors. SOUTH end = an ENCLOSED WC room behind a partition at z-7.5; its inswing door is toward the EAST (hinge on the east jamb, opens S into the room); toilet against the WC room's WEST wall.",
       "type": "shower", "px": -17.46, "pz": 2.0, "opens": "S", "widthFt": 10.9, "depthFt": 4.0 },
-    { "type": "vanity", "px": -21.9, "pz": -3.75, "faces": "W", "widthFt": 6.0, "depthFt": 2.0, "sinks": 2, "mirror": false },
+    { "type": "vanity", "px": -21.9, "pz": -3.75, "faces": "W", "widthFt": 6.5, "depthFt": 2.0, "sinks": 2, "sconces": true },
     { "_note": "WC room NORTH wall = partition at z=-7.5 (x -22.92..-12). 2'8\" INSWING door toward the EAST end (hinge on the east jamb, opens S into the WC room).",
       "type": "partition", "px": -17.4585, "pz": -7.5, "axis": "x", "lenFt": 10.9167,
       "door": { "atFt": -19, "widthFt": 2.667, "hinge": "E", "opens": "S" } },

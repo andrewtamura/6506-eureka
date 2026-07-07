@@ -837,18 +837,29 @@ function buildVanity(p) {
   const porc = new THREE.MeshStandardMaterial({ color: 0xf7f7f4, roughness: 0.25 });
   const chrome = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.25, metalness: 0.8 });
   const mirror = new THREE.MeshStandardMaterial({ color: 0xbfd0d6, roughness: 0.05, metalness: 0.3 });
+  const sconceMat = new THREE.MeshStandardMaterial({ color: 0xfff4d8, emissive: 0xffd9a6, emissiveIntensity: 0.9, roughness: 0.5 });
   const A = DIR[p.faces || "S"], P = [-A[1], A[0]];
   const Wd = p.widthFt ?? 3.0, Dp = p.depthFt ?? 1.8, sinks = p.sinks ?? 1;
   const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
   let q;
   q = pl(0, 0, Dp, Wd);          box(q[0], q[1], 1.45, q[2], q[3], 2.9, woodv, 0.03);      // cabinet
   q = pl(0.05, 0, Dp + 0.1, Wd + 0.15); box(q[0], q[1], 2.97, q[2], q[3], 0.16, porc, 0.02); // countertop
-  for (const ds of (sinks === 2 ? [-Wd / 4, Wd / 4] : [0])) {                              // one or two basins
+  // Two sinks flank a central gap (a window sits above it); one sink is centred.
+  const off = sinks === 2 ? Wd / 2 - 1.25 : 0;
+  const dsList = sinks === 2 ? [-off, off] : [0];
+  for (const ds of dsList) {
     q = pl(0.05, ds, 0, 0);             cyl(q[0], q[1], 3.02, 0.5, 0.16, porc);            // basin
     q = pl(-(Dp / 2 - 0.35), ds, 0, 0); cyl(q[0], q[1], 3.2, 0.05, 0.6, chrome);          // faucet
   }
-  // Wall mirror above (skip when `mirror:false`, e.g. a vanity set under windows).
-  if (p.mirror !== false) { q = pl(-(Dp / 2 + 0.02), 0, 0.06, Wd - 0.4); box(q[0], q[1], 4.3, q[2], q[3], 2.2, mirror); }
+  // A mirror over each sink (double) or one wide mirror (single); skip if `mirror:false`.
+  // Mount proud of the wall's inner face (the cabinet back sits at the ~0.46 ft-thick
+  // wall centreline, so -(Dp/2) would bury the mirror inside the wall).
+  if (p.mirror !== false) {
+    const mw = sinks === 2 ? 1.2 : Wd - 0.4;
+    for (const ds of dsList) { q = pl(-(Dp / 2 - 0.3), ds, 0.06, mw); box(q[0], q[1], 4.3, q[2], q[3], 2.2, mirror); }
+  }
+  // Slim wall sconces outboard of the mirrors (at the vanity ends), proud of the wall.
+  if (p.sconces) for (const s of [-1, 1]) { q = pl(-(Dp / 2 - 0.28), s * (Wd / 2 - 0.35), 0.08, 0.22); box(q[0], q[1], 5.0, q[2], q[3], 1.2, sconceMat); }
   return g;
 }
 
