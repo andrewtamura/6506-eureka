@@ -1853,9 +1853,9 @@ def second_floor_windows(rooms):
     west_x  = max(r["bounds"]["x2"] for r in rooms)    # West exterior wall
     W, SILL, HEAD = 2.5, 2.5, 6.0
     specs = []
-    def add(name, orient, fixed, pos):
+    def add(name, orient, fixed, pos, sill=SILL):
         specs.append({"name": name, "orient": orient, "fixed": fixed, "pos": pos,
-                      "width": W, "sill": SILL, "head": HEAD})
+                      "width": W, "sill": sill, "head": HEAD})
     # NORTH (locked): one upper over each ground-floor front opening (windows + door)
     for r in rooms:
         for o in r.get("windows", []) + r.get("doors", []):
@@ -1892,7 +1892,9 @@ def second_floor_windows(rooms):
         # extension en-suite: ONE east-facing upper centred on the double vanity
         # (between its two flanking mirrors), lighting the vanity / main area.
         ext_x = min(r["bounds"]["x1"] for r in ext_rooms)    # far (east) wall
-        add("Upper - Ext bath", "V", ext_x, -3.75)
+        # sill raised to sit ~8 in above the vanity counter (top ~3.05 ft): a transom
+        # over the double vanity rather than a standard sill-height window.
+        add("Upper - Ext bath", "V", ext_x, -3.75, sill=3.72)
     return front_z, specs
 
 
