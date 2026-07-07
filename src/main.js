@@ -780,6 +780,7 @@ async function main() {
     }
   };
   window.__eureka.setPlanView = setPlanView;   // debug handle (headless render harness)
+  window.__eureka.setHour = apply;             // debug handle: set time of day (0-24)
 
   // --- interior light fixtures: a semi-flush ceiling fixture (canopy + short stem
   // + glowing shade) with a downlight in EACH room, for sample lighting. The attic
