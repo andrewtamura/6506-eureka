@@ -719,7 +719,8 @@ function buildPartition(p) {
     const off = (c0 - hx) * ft;                                // pivot at the hinge, on the wall centreline
     leaf.position.set(axis === "x" ? off : 0, 0, axis === "x" ? 0 : off);
     g.add(leaf);
-    const entry = { pivot: leaf, openAngle: o.swing, current: 0, open: false };
+    leaf.rotation.y = o.swing;                                // doors default OPEN
+    const entry = { pivot: leaf, openAngle: o.swing, current: o.swing, open: true };
     panel.userData.fdoor = entry; doorEntries.push(entry);
   };
   let cur = a0;
