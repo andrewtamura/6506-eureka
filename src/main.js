@@ -145,7 +145,7 @@ async function main() {
   // sun knob around the ring. Noon is at top, midnight at the bottom; the sun
   // rises on the left (dawn) and sets on the right (dusk) — its daily arc. The
   // top half of the ring is tinted day, the bottom half night.
-  const { setTime, setSeason, focusShadow, refreshShadow } = setupLighting(scene);
+  const { setTime, setSeason, focusShadow, refreshShadow, onTime } = setupLighting(scene);
   const lightEl = document.getElementById("lighting");
   const caption = (t) => {
     const d = document.createElement("div");
@@ -358,6 +358,7 @@ async function main() {
   let exteriorModel = null;                             // captured for the walk-the-lot POV
   const exhibitModels = [];                             // {lvl, model} for each placed exhibit (walk targets)
   const povCeilingMats = [];                            // attic ceiling materials: opaque in POV, translucent in overview
+  const extFillMats = new Set();                        // exterior massing materials: get a day-tracked emissive sky fill
   const exhibitCeilingMats = [];                        // second-floor flat ceilings: same opaque-POV / translucent-overview toggle
   const furnitureDoorMeshes = [];                       // procedural door leaves (e.g. attic bathroom): double-tap to toggle
   const modelViews = [{ id: groundLevel.id, label: groundLevel.label || groundLevel.storey, box: buildingBox(model.object) }];
@@ -384,11 +385,21 @@ async function main() {
     m.object.traverse((o) => {
       if (!o.isMesh) return;
       o.frustumCulled = false; o.castShadow = true; o.receiveShadow = true;
-      // The exterior massing is outdoors -> let it receive the sky hemisphere
-      // (layer 2). Interiors stay on layer 0 (sun + fixtures + faint floor only).
+      // Tag the exterior massing (layer 2) to mark it as "outdoors". NOTE: this does
+      // NOT isolate the sky hemisphere to it — ambient/hemisphere lights are gated by
+      // the CAMERA's layers, not per-object, so a layer-2-only light is simply inert.
+      // The outdoor sky fill is instead the per-material emissive floor added below.
       if (lvl.id === "exterior") o.layers.enable(2);
       for (const mat of (Array.isArray(o.material) ? o.material : [o.material])) {
         if (!mat) continue;
+        // Exterior sky fill: collect each OPAQUE massing material so a day-tracked
+        // emissive floor can lift its shaded faces (no GI + global-only ambient means
+        // a shaded facade otherwise renders near-black despite light-coloured walls).
+        // Skip glass/transparent so it doesn't glow.
+        if (lvl.id === "exterior" && mat.color && mat.emissive && !(mat.transparent && mat.opacity < 1) && !extFillMats.has(mat)) {
+          mat.userData._fillBase = mat.color.clone();
+          extFillMats.add(mat);
+        }
         // Render both faces so downward-facing surfaces (the roof soffit / eave
         // overhang undersides) are visible when looking up — otherwise back-face
         // culling makes the roof read as see-through from below.
@@ -475,6 +486,18 @@ async function main() {
   if (exteriorLvl) {
     const bld = await placeExhibit(exteriorLvl, true);
     if (bld) frameModel(bld, false);
+    // Exterior sky fill: add a per-material emissive floor (a fraction of each
+    // material's own colour) that scales with daylight, so shaded outdoor faces
+    // read as the light masonry they are by day and still go dark at night. This
+    // is isolated to the exterior massing — global ambient/hemisphere lights can't
+    // be, since they're gated by the camera's layers rather than per-object.
+    onTime((day) => {
+      const k = 0.34 * day;
+      for (const mat of extFillMats) {
+        if (!mat.userData._fillBase) continue;
+        mat.emissive.copy(mat.userData._fillBase).multiplyScalar(k);
+      }
+    });
   }
   setStatus("");
 
@@ -757,6 +780,7 @@ async function main() {
     }
   };
   window.__eureka.setPlanView = setPlanView;   // debug handle (headless render harness)
+  window.__eureka.setHour = apply;             // debug handle: set time of day (0-24)
 
   // --- interior light fixtures: a semi-flush ceiling fixture (canopy + short stem
   // + glowing shade) with a downlight in EACH room, for sample lighting. The attic
