@@ -73,9 +73,9 @@
     { "type": "vanity", "px": 21.9, "pz": -0.1, "faces": "N", "widthFt": 3.0, "depthFt": 1.8 },
     { "type": "toilet", "px": 29.25, "pz": 4.5, "faces": "S" },
 
-    { "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4). NORTH wall = full-width walk-in shower (glass opens S) with a CENTRAL opening (no door) flanked by half-height pony walls (glass above); behind each pony wall a bench runs along the side wall with a recessed product niche above it. Middle: DOUBLE-SINK vanity on the EAST wall - a single centered window (z-3.75) flanked by a mirror over each sink, wall sconces outboard. SOUTH end = an ENCLOSED WC room behind a partition at z-7.5; inswing door toward the EAST (hinge east jamb, opens S); toilet against the WC room's WEST wall.",
-      "type": "shower", "px": -17.46, "pz": 2.0, "opens": "S", "widthFt": 10.9, "depthFt": 4.0, "ponyWalls": true, "openFt": 4.0 },
-    { "type": "vanity", "px": -21.9, "pz": -3.75, "faces": "W", "widthFt": 6.5, "depthFt": 2.0, "sinks": 2, "sconces": true },
+    { "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4). NORTH wall = full-width walk-in shower (glass opens S) with a CENTRAL opening (no door) flanked by half-height pony walls (glass above), TWO wall-mounted heads (2-person); behind each pony wall a bench runs along the side wall with a recessed product niche above it. Middle: full-width DOUBLE-SINK vanity on the EAST wall (runs pony wall to WC wall) - custom cabinetry with pullout drawer fronts + toe-kick, a single centered window (z-3.75) flanked by a mirror over each sink, wall sconces outboard. SOUTH end = an ENCLOSED WC room behind a partition at z-7.5; inswing door toward the EAST (hinge east jamb, opens S); toilet against the WC room's WEST wall.",
+      "type": "shower", "px": -17.46, "pz": 2.0, "opens": "S", "widthFt": 10.9, "depthFt": 4.0, "ponyWalls": true, "openFt": 4.0, "heads": 2 },
+    { "type": "vanity", "px": -21.9, "pz": -3.75, "faces": "W", "widthFt": 7.4, "depthFt": 2.0, "sinks": 2, "sconces": true },
     { "_note": "WC room NORTH wall = partition at z=-7.5 (x -22.92..-12). 2'8\" INSWING door toward the EAST end (hinge on the east jamb, opens S into the WC room).",
       "type": "partition", "px": -17.4585, "pz": -7.5, "axis": "x", "lenFt": 10.9167,
       "door": { "atFt": -19, "widthFt": 2.667, "hinge": "E", "opens": "S" } },
