@@ -1889,13 +1889,12 @@ def second_floor_windows(rooms):
         east_prim_x = min(r["bounds"]["x1"] for r in prim_rooms)    # primary east edge (x=-12)
         ext_top = max(r["bounds"]["z2"] for r in ext_rooms)         # extension north edge
         add("Upper - East", "V", east_prim_x, (ext_top + front_z) / 2)
-        # extension en-suite: two SOUTH-facing uppers on the rear (south) wall,
-        # flanking the freestanding tub that sits against that wall.
-        ext_x1 = min(r["bounds"]["x1"] for r in ext_rooms)   # far (east) wall
-        ext_x2 = max(r["bounds"]["x2"] for r in ext_rooms)   # separator (x = -12)
-        south_z = min(r["bounds"]["z1"] for r in ext_rooms)  # rear wall
-        for k in range(2):
-            add(f"Upper - Ext bath {k + 1}", "H", south_z, ext_x1 + (k + 0.5) * (ext_x2 - ext_x1) / 2)
+        # extension en-suite: two EAST-facing uppers on the far (east) wall, in the
+        # middle zone between the north shower and the south WC room, lighting the
+        # vanity / main area.
+        ext_x = min(r["bounds"]["x1"] for r in ext_rooms)    # far (east) wall
+        for i, ez in enumerate((-2.5, -5.0)):
+            add(f"Upper - Ext bath {i + 1}", "V", ext_x, ez)
     return front_z, specs
 
 

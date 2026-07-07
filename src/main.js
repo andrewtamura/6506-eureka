@@ -455,6 +455,7 @@ async function main() {
         ["Primary bedroom",  -4.0,   -3.0,  3.4],
         ["Walk-in closet",   -4.04,  11.04, 2.6],
         ["En-suite",        -17.46,  -4.0,  3.0],
+        ["En-suite WC",     -17.46,  -9.7,  2.2],
         ["West bath",        25.54,   2.5,  2.8],
         ["Family room",       9.5,   11.04, 3.4],
         ["E-W landing",       9.5,    2.8,  3.0],
