@@ -809,12 +809,36 @@ function buildShower(p) {
   const Wd = p.widthFt ?? 3.6, Dp = p.depthFt ?? 3.2, H = 6.8, wt = 0.3;
   const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
   let q;
-  q = pl(0, 0, Dp, Wd);            box(q[0], q[1], 0.09, q[2], q[3], 0.18, tile);          // pan/curb
+  // Curb ONLY across the walk-in opening — not a full pan — so the continuous hex
+  // floor tile runs unbroken through the shower (this threshold is the single break).
+  { const curbMat = new THREE.MeshStandardMaterial({ color: 0xcfd2d4, roughness: 0.5 });
+    const oW = p.ponyWalls ? (p.openFt ?? 4.0) : Wd / 2;
+    const oC = p.ponyWalls ? 0 : Wd / 4;
+    q = pl(Dp / 2, oC, 0.34, oW); box(q[0], q[1], 0.14, q[2], q[3], 0.28, curbMat); }       // threshold curb at the opening
   q = pl(-(Dp / 2), 0, wt, Wd);    box(q[0], q[1], H / 2, q[2], q[3], H, tile);            // back wall
   for (const s of [-1, 1]) { q = pl(0, s * (Wd / 2), Dp, wt); box(q[0], q[1], H / 2, q[2], q[3], H, tile); } // sides
-  q = pl(Dp / 2, -(Wd / 4), 0.05, Wd / 2); box(q[0], q[1], 3.3, q[2], q[3], 6.6, glass);  // fixed glass over half
-  q = pl(-(Dp / 2 - 0.35), 0, 0.7, 0.14);  box(q[0], q[1], 5.6, q[2], q[3], 0.14, chrome);// head arm off back wall
-  q = pl(-(Dp / 2 - 0.7), 0, 0.55, 0.55);  box(q[0], q[1], 5.5, q[2], q[3], 0.12, chrome);// shower head
+  if (p.ponyWalls) {
+    // Central walk-in opening flanked by half-height pony walls (glass above); behind
+    // each pony wall a bench runs along the side wall, with a recessed niche above it.
+    const bench = new THREE.MeshStandardMaterial({ color: 0xcfd2d4, roughness: 0.5 });
+    const niche = new THREE.MeshStandardMaterial({ color: 0x39424a, roughness: 0.7 });
+    const openW = p.openFt ?? 4.0, ponyW = (Wd - openW) / 2, ponyH = 3.4;
+    for (const s of [-1, 1]) {
+      const c = s * (openW / 2 + ponyW / 2);
+      q = pl(Dp / 2, c, wt, ponyW);         box(q[0], q[1], ponyH / 2, q[2], q[3], ponyH, tile);              // pony wall at the opening
+      q = pl(Dp / 2, c, 0.05, ponyW - 0.1); box(q[0], q[1], (ponyH + H) / 2, q[2], q[3], H - ponyH, glass);   // glass above the pony wall
+      q = pl(-0.4, s * (Wd / 2 - 0.7), 2.6, 1.4);  box(q[0], q[1], 0.75, q[2], q[3], 1.5, bench);             // bench along the side wall
+      q = pl(-0.4, s * (Wd / 2 - 0.18), 1.3, 0.08); box(q[0], q[1], 4.0, q[2], q[3], 1.3, niche);             // recessed product niche above the bench
+      q = pl(-0.4, s * (Wd / 2 - 0.2), 1.2, 0.16);  box(q[0], q[1], 3.85, q[2], q[3], 0.05, bench);           // niche shelf
+    }
+  } else {
+    q = pl(Dp / 2, -(Wd / 4), 0.05, Wd / 2); box(q[0], q[1], 3.3, q[2], q[3], 6.6, glass);  // fixed glass over half
+  }
+  const heads = p.heads ?? 1, hOff = heads === 2 ? Wd * 0.23 : 0;   // twin wall-mounted heads for a 2-person shower
+  for (const hs of (heads === 2 ? [-hOff, hOff] : [0])) {
+    q = pl(-(Dp / 2 - 0.35), hs, 0.7, 0.14);  box(q[0], q[1], 5.6, q[2], q[3], 0.14, chrome); // head arm off back wall
+    q = pl(-(Dp / 2 - 0.7), hs, 0.55, 0.55);  box(q[0], q[1], 5.5, q[2], q[3], 0.12, chrome); // shower head
+  }
   return g;
 }
 
@@ -837,15 +861,40 @@ function buildVanity(p) {
   const porc = new THREE.MeshStandardMaterial({ color: 0xf7f7f4, roughness: 0.25 });
   const chrome = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.25, metalness: 0.8 });
   const mirror = new THREE.MeshStandardMaterial({ color: 0xbfd0d6, roughness: 0.05, metalness: 0.3 });
+  const sconceMat = new THREE.MeshStandardMaterial({ color: 0xfff4d8, emissive: 0xffd9a6, emissiveIntensity: 0.9, roughness: 0.5 });
+  const toekick = new THREE.MeshStandardMaterial({ color: 0x241b13, roughness: 0.8 });
   const A = DIR[p.faces || "S"], P = [-A[1], A[0]];
-  const Wd = p.widthFt ?? 3.0, Dp = p.depthFt ?? 1.8;
+  const Wd = p.widthFt ?? 3.0, Dp = p.depthFt ?? 1.8, sinks = p.sinks ?? 1;
   const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
   let q;
-  q = pl(0, 0, Dp, Wd);          box(q[0], q[1], 1.45, q[2], q[3], 2.9, woodv, 0.03);      // cabinet
+  // Custom cabinetry: recessed toe-kick, a body sitting on it, and a grid of
+  // pullout drawer fronts (each proud, with a slim bar pull).
+  const kbH = 0.33, cabTop = 2.9;
+  q = pl(-0.13, 0, Dp - 0.28, Wd - 0.15); box(q[0], q[1], kbH / 2, q[2], q[3], kbH, toekick);          // recessed toe-kick
+  q = pl(0, 0, Dp, Wd);                    box(q[0], q[1], kbH + (cabTop - kbH) / 2, q[2], q[3], cabTop - kbH, woodv, 0.02); // cabinet body
+  const nCols = 3, nRows = 3, colW = Wd / nCols, rowH = (cabTop - kbH) / nRows;
+  for (let c = 0; c < nCols; c++) for (let r = 0; r < nRows; r++) {
+    const ds = -Wd / 2 + (c + 0.5) * colW, yc = kbH + (r + 0.5) * rowH;
+    q = pl(Dp / 2 + 0.02, ds, 0.04, colW - 0.07); box(q[0], q[1], yc, q[2], q[3], rowH - 0.07, woodv, 0.015);  // drawer front (proud)
+    q = pl(Dp / 2 + 0.06, ds, 0.04, colW * 0.5);   box(q[0], q[1], yc + rowH / 2 - 0.14, q[2], q[3], 0.05, chrome); // slim bar pull
+  }
   q = pl(0.05, 0, Dp + 0.1, Wd + 0.15); box(q[0], q[1], 2.97, q[2], q[3], 0.16, porc, 0.02); // countertop
-  q = pl(0.05, 0, 0, 0);         cyl(q[0], q[1], 3.02, 0.5, 0.16, porc);                    // basin
-  q = pl(-(Dp / 2 - 0.35), 0, 0, 0); cyl(q[0], q[1], 3.2, 0.05, 0.6, chrome);              // faucet
-  q = pl(-(Dp / 2 + 0.02), 0, 0.06, Wd - 0.4); box(q[0], q[1], 4.3, q[2], q[3], 2.2, mirror); // mirror on wall
+  // Two sinks flank a central gap (a window sits above it); one sink is centred.
+  const off = sinks === 2 ? Wd / 2 - 1.25 : 0;
+  const dsList = sinks === 2 ? [-off, off] : [0];
+  for (const ds of dsList) {
+    q = pl(0.05, ds, 0, 0);             cyl(q[0], q[1], 3.02, 0.5, 0.16, porc);            // basin
+    q = pl(-(Dp / 2 - 0.35), ds, 0, 0); cyl(q[0], q[1], 3.2, 0.05, 0.6, chrome);          // faucet
+  }
+  // A mirror over each sink (double) or one wide mirror (single); skip if `mirror:false`.
+  // Mount proud of the wall's inner face (the cabinet back sits at the ~0.46 ft-thick
+  // wall centreline, so -(Dp/2) would bury the mirror inside the wall).
+  if (p.mirror !== false) {
+    const mw = sinks === 2 ? 1.0 : Wd - 0.4;
+    for (const ds of dsList) { q = pl(-(Dp / 2 - 0.3), ds, 0.06, mw); box(q[0], q[1], 4.3, q[2], q[3], 2.2, mirror); }
+  }
+  // Slim wall sconces outboard of the mirrors (at the vanity ends), proud of the wall.
+  if (p.sconces) for (const s of [-1, 1]) { q = pl(-(Dp / 2 - 0.28), s * (Wd / 2 - 0.25), 0.08, 0.22); box(q[0], q[1], 5.0, q[2], q[3], 1.2, sconceMat); }
   return g;
 }
 
@@ -903,7 +952,32 @@ function buildTV(p) {
   return g;
 }
 
-const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV };
+// A freestanding soaking tub. Anchor (px,pz) = footprint centre; wFt (E-W) x
+// dFt (N-S) footprint. `deckFt` > 0 sits the tub on a raised stone platform (a
+// step-up "elevated" spa deck). A slim floor-mounted filler stands at one end.
+function buildTub(p) {
+  const ft = FT, g = new THREE.Group();
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const box = (opx, opz, yc, sx, sz, hy, mat, rad = 0) => {
+    const geo = rad > 0 ? new RoundedBoxGeometry(sx * ft, hy * ft, sz * ft, 5, rad * ft)
+                        : new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft);
+    const m = new THREE.Mesh(geo, mat); m.position.copy(V(opx, opz, yc)); m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  const acrylic = new THREE.MeshStandardMaterial({ color: 0xf6f7f5, roughness: 0.15, metalness: 0.05 });
+  const water = new THREE.MeshStandardMaterial({ color: 0xdbe7ea, roughness: 0.2 });
+  const stone = new THREE.MeshStandardMaterial({ color: col(p.deckMaterial || "limestone", 0xcdc3b0), roughness: 0.75 });
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.25, metalness: 0.8 });
+  const W = p.wFt ?? 6.0, D = p.dFt ?? 2.8, deck = p.deckFt ?? 0, tubH = 1.9;
+  if (deck > 0) box(0, 0, deck / 2, W + 1.0, D + 1.0, deck, stone, 0.06);   // raised deck (step up), 6" ledge around the tub
+  const rad = Math.min(W, D) * 0.3;
+  box(0, 0, deck + tubH / 2, W, D, tubH, acrylic, rad);                      // tub body (rounded)
+  box(0, 0, deck + tubH - 0.12, W - 0.8, D - 0.8, 1.2, water, rad * 0.8);    // recessed basin, rim frames it
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.055 * ft, 0.055 * ft, 2.7 * ft, 16), chrome);
+  post.position.copy(V(-(W / 2 - 0.4), 0, deck + 1.35)); g.add(post);        // floor filler at one end
+  return g;
+}
+
+const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 const CHAIRS = new Set(["upholstered_dining_chair", "highback_chair"]);
 const SEAT_FRONT = 0.225;   // chair seat front is +0.225 m toward the table from its centre
 const TUCK = 0.08;          // pushed-in: seat front this far under the table edge

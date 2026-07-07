@@ -1853,9 +1853,9 @@ def second_floor_windows(rooms):
     west_x  = max(r["bounds"]["x2"] for r in rooms)    # West exterior wall
     W, SILL, HEAD = 2.5, 2.5, 6.0
     specs = []
-    def add(name, orient, fixed, pos):
+    def add(name, orient, fixed, pos, sill=SILL, width=W, head=HEAD):
         specs.append({"name": name, "orient": orient, "fixed": fixed, "pos": pos,
-                      "width": W, "sill": SILL, "head": HEAD})
+                      "width": width, "sill": sill, "head": head})
     # NORTH (locked): one upper over each ground-floor front opening (windows + door)
     for r in rooms:
         for o in r.get("windows", []) + r.get("doors", []):
@@ -1889,12 +1889,12 @@ def second_floor_windows(rooms):
         east_prim_x = min(r["bounds"]["x1"] for r in prim_rooms)    # primary east edge (x=-12)
         ext_top = max(r["bounds"]["z2"] for r in ext_rooms)         # extension north edge
         add("Upper - East", "V", east_prim_x, (ext_top + front_z) / 2)
-        # extension bathroom: two east-facing uppers on its far (east) wall
-        ext_x = min(r["bounds"]["x1"] for r in ext_rooms)
-        ez1 = min(r["bounds"]["z1"] for r in ext_rooms)
-        ez2 = max(r["bounds"]["z2"] for r in ext_rooms)
-        for k in range(2):
-            add(f"Upper - Ext bath {k + 1}", "V", ext_x, ez1 + (k + 0.5) * (ez2 - ez1) / 2)
+        # extension en-suite: ONE east-facing upper centred on the double vanity
+        # (between its two flanking mirrors), lighting the vanity / main area.
+        ext_x = min(r["bounds"]["x1"] for r in ext_rooms)    # far (east) wall
+        # A narrower, taller transom over the double vanity: sill ~8 in above the
+        # counter (3.72 ft), raised head (6.5 ft), narrower than the standard upper.
+        add("Upper - Ext bath", "V", ext_x, -3.75, sill=3.72, width=2.0, head=6.5)
     return front_z, specs
 
 
@@ -2291,6 +2291,36 @@ def add_hardwood_finish(ctx, r):
                        (a + b) / 2, (c + d) / 2, 0.0, predefined="FLOORING", color=rgb)
         run("spatial.assign_container", ctx.model, products=[cov], relating_structure=ctx.storey)
         ctx.plank_floors.append({"name": name, "rgb": [round(c2, 4) for c2 in rgb]})
+
+
+def add_tile_finish(ctx, r, pattern):
+    """A flat tile FLOORING covering over the room footprint, recorded to
+    tile_floors so the viewer re-renders it as an instanced mosaic (`pattern`).
+    Used on levels (e.g. the shell 2nd floor) where a room's declarative
+    interior.flooring isn't otherwise applied — lets the primary en-suite run one
+    continuous tile pattern across its shared footprint rooms. The mosaic is
+    globally anchored, so the per-room coverings tile seamlessly at their shared
+    wall centerlines."""
+    rgb = (0.85, 0.84, 0.80)                # light tile base (mosaic drawn over it)
+    x1, x2, y1, y2 = ifc_bounds(ctx, r["bounds"])
+    X1, X2 = sorted((x1, x2)); Y1, Y2 = sorted((y1, y2))
+    opening = r.get("floorOpening")
+    if opening:
+        ox1, ox2 = sorted((ctx.X(opening["x1"]), ctx.X(opening["x2"])))
+        oy1, oy2 = sorted((ctx.Y(opening["z1"]), ctx.Y(opening["z2"])))
+        ox1, ox2 = max(ox1, X1), min(ox2, X2)
+        oy1, oy2 = max(oy1, Y1), min(oy2, Y2)
+        rects = [(X1, X2, Y1, oy1), (X1, X2, oy2, Y2), (X1, ox1, oy1, oy2), (ox2, X2, oy1, oy2)]
+    else:
+        rects = [(X1, X2, Y1, Y2)]
+    for i, (a, b, c, d) in enumerate(rects):
+        if b - a < 1e-4 or d - c < 1e-4:
+            continue
+        name = f"{r['name']} - Tile Flooring" + (f" {i}" if opening else "")
+        cov = make_box(ctx, "IfcCovering", name, b - a, d - c, 0.05 * FT,
+                       (a + b) / 2, (c + d) / 2, 0.0, predefined="FLOORING", color=rgb)
+        run("spatial.assign_container", ctx.model, products=[cov], relating_structure=ctx.storey)
+        ctx.tile_floors.append({"name": name, "pattern": pattern})
 
 
 def _rect_minus(a, b, c, d, hole):

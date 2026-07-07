@@ -170,7 +170,13 @@
         "ext_vestibule",
         "ext_laundry"
       ],
-      "upperWindows": true
+      "upperWindows": true,
+      "floorOverrides": {
+        "ext_bath": { "material": "tile", "pattern": "hexagon" },
+        "wc": { "material": "tile", "pattern": "hexagon" },
+        "ext_vestibule": { "material": "tile", "pattern": "hexagon" },
+        "ext_laundry": { "material": "tile", "pattern": "hexagon" }
+      }
     },
     {
       "id": "attic",

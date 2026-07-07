@@ -73,10 +73,13 @@
     { "type": "vanity", "px": 21.9, "pz": -0.1, "faces": "N", "widthFt": 3.0, "depthFt": 1.8 },
     { "type": "toilet", "px": 29.25, "pz": 4.5, "faces": "S" },
 
-    { "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4): vanity on the north wall, shower SW, toilet on the separator wall.",
-      "type": "vanity", "px": -17.0, "pz": 3.1, "faces": "S", "widthFt": 3.2, "depthFt": 1.7 },
-    { "type": "shower", "px": -20.0, "pz": -9.3, "opens": "N", "widthFt": 3.6, "depthFt": 3.4 },
-    { "type": "toilet", "px": -12.9, "pz": -2.5, "faces": "E" },
+    { "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4). NORTH wall = full-width walk-in shower (glass opens S) with a CENTRAL opening (no door) flanked by half-height pony walls (glass above), TWO wall-mounted heads (2-person); behind each pony wall a bench runs along the side wall with a recessed product niche above it. Middle: full-width DOUBLE-SINK vanity on the EAST wall (runs pony wall to WC wall) - custom cabinetry with pullout drawer fronts + toe-kick, a single centered window (z-3.75) flanked by a mirror over each sink, wall sconces outboard. SOUTH end = an ENCLOSED WC room behind a partition at z-7.5; inswing door toward the EAST (hinge east jamb, opens S); toilet against the WC room's WEST wall.",
+      "type": "shower", "px": -17.46, "pz": 2.0, "opens": "S", "widthFt": 10.9, "depthFt": 4.0, "ponyWalls": true, "openFt": 4.0, "heads": 2 },
+    { "type": "vanity", "px": -21.9, "pz": -3.75, "faces": "W", "widthFt": 7.4, "depthFt": 2.0, "sinks": 2, "sconces": true },
+    { "_note": "WC room NORTH wall = partition at z=-7.5 (x -22.92..-12). 2'8\" INSWING door toward the EAST end (hinge on the east jamb, opens S into the WC room).",
+      "type": "partition", "px": -17.4585, "pz": -7.5, "axis": "x", "lenFt": 10.9167,
+      "door": { "atFt": -19, "widthFt": 2.667, "hinge": "E", "opens": "S" } },
+    { "type": "toilet", "px": -13.0, "pz": -9.7, "faces": "E" },
 
     { "_note": "FAMILY ROOM (landing north bay, x 3.9167..15.0833, z 5..16.0833): sofa against the west wall facing the TV on the east wall, with a rug between.",
       "type": "sofa", "px": 13.5, "pz": 10.5, "faces": "E", "wFt": 7.0, "dFt": 3.0 },
