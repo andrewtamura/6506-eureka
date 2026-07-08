@@ -662,6 +662,8 @@ function buildPartition(p) {
   const ft = FT, g = new THREE.Group();
   const wallMat = new THREE.MeshStandardMaterial({ color: 0xece9e1, roughness: 0.95, side: THREE.DoubleSide });
   const leafMat = woodMat(0x8a6a45);
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0xbcd2d8, roughness: 0.05, metalness: 0.1, transparent: true, opacity: 0.32 });
+  glassMat.depthWrite = false;
   const axis = p.axis, t = (p.thickFt ?? 0.4583) * ft, H = p.heightFt ?? 9.0;
   const len = p.lenFt || 1;
   const c0 = axis === "x" ? p.px : p.pz;               // wall centre along the run axis (plan ft)
@@ -685,20 +687,33 @@ function buildPartition(p) {
   //   `opening: true` cuts a cased opening (jambs + head) with NO door slab.
   // For a "z" wall oa=south/ob=north; for an "x" wall oa=east/ob=west (plan px grows west).
   const HI = axis === "z" ? "N" : "W";   // the ob (higher-coord) jamb is at this compass end
-  const list = (p.doors || (p.door ? [p.door] : [])).map((d) => {
+  // swing angle (signed) for a leaf hinged at jamb `hingeSide` ("a" low / "b" high)
+  // opening toward compass side `opens`.
+  const swingFor = (hingeSide, opens, openDeg) => {
+    const sgn = hingeSide === "b" ? 1 : -1;
+    const sign = axis === "z" ? (opens === "W" ? -sgn : sgn) : (opens === "N" ? sgn : -sgn);
+    return sign * (openDeg ?? 80) * Math.PI / 180;
+  };
+  const list = (p.doors || (p.door ? [p.door] : [])).flatMap((d) => {
     const w = d.widthFt ?? 2.667, head = d.headFt ?? 6.85;
-    const o = { at: d.atFt, oa: d.atFt - w / 2, ob: d.atFt + w / 2, w, head, opening: !!d.opening };
+    // FRENCH/double: two half-width leaves hinged on the two jambs, meeting at the
+    // centre and both swinging the same way (out); each a divided-light glass leaf.
+    if (d.french) {
+      const c = d.atFt, li = d.lites ?? 8, deg = d.openDeg ?? 80;
+      return [
+        { oa: c - w / 2, ob: c, w: w / 2, head, hinge: "a", glass: true, lites: li, swing: swingFor("a", d.opens, deg) },
+        { oa: c, ob: c + w / 2, w: w / 2, head, hinge: "b", glass: true, lites: li, swing: swingFor("b", d.opens, deg) },
+      ];
+    }
+    const o = { at: d.atFt, oa: d.atFt - w / 2, ob: d.atFt + w / 2, w, head, opening: !!d.opening, glass: !!d.glass, lites: d.lites };
     if (/^[NSEW]$/.test(d.hinge || "")) {                       // (a) plain-English form
       o.hinge = d.hinge === HI ? "b" : "a";                     // which jamb the hinge sits on
-      const sgn = o.hinge === "b" ? 1 : -1;                     // slab offset direction (see addLeaf)
-      const sign = axis === "z" ? (d.opens === "W" ? -sgn : sgn)   // z wall: opens west vs east
-                                : (d.opens === "N" ? sgn : -sgn);  // x wall: opens north vs south
-      o.swing = sign * (d.openDeg ?? 80) * Math.PI / 180;
+      o.swing = swingFor(o.hinge, d.opens, d.openDeg);
     } else {                                                    // (b) legacy form
       o.hinge = d.hinge || "a";
       o.swing = d.swing != null ? d.swing : 1.4;
     }
-    return o;
+    return [o];
   }).sort((A, B) => A.oa - B.oa);
   if (!list.length) { seg(a0, b0, 0, H); return g; }
   const slabT = 0.05;
@@ -706,22 +721,48 @@ function buildPartition(p) {
   // A hinged wood leaf filling the opening: a pivot Group at the hinge jamb with
   // the slab offset half its width toward the opening centre, so rotating the
   // pivot about Y swings it into the room. Registered for the shared toggle/ease.
+  // A thin box in the leaf's local frame: `uc` = position along the run axis from
+  // the hinge (0), `yc` = height; `du` = size along the run, `dy` = height, `dz` = thickness.
+  const leafBox = (leaf, uc, yc, du, dy, mat, dz = slabT) => {
+    const geo = new THREE.BoxGeometry(axis === "x" ? du * ft : dz, dy * ft, axis === "x" ? dz : du * ft);
+    const m = new THREE.Mesh(geo, mat); m.position.set(axis === "x" ? uc * ft : 0, yc * ft, axis === "x" ? 0 : uc * ft);
+    m.castShadow = true; leaf.add(m); return m;
+  };
+  // A divided-light (french) glass leaf: stiles + rails frame, a glass pane, and
+  // muntins splitting it into a 2-wide x (lites/2)-tall grid.
+  const addGlassLeaf = (leaf, lw, lh, sgn, lites) => {
+    const stile = 0.13, topR = 0.16, botR = 0.7, mun = 0.045, S = sgn;
+    leafBox(leaf, S * (stile / 2), lh / 2, stile, lh, leafMat);              // hinge stile
+    leafBox(leaf, S * (lw - stile / 2), lh / 2, stile, lh, leafMat);         // free stile
+    leafBox(leaf, S * (lw / 2), lh - topR / 2, lw, topR, leafMat);           // top rail
+    leafBox(leaf, S * (lw / 2), botR / 2, lw, botR, leafMat);                // bottom rail
+    const gy0 = botR, gy1 = lh - topR, gH = gy1 - gy0, gW = lw - 2 * stile;
+    leafBox(leaf, S * (lw / 2), (gy0 + gy1) / 2, gW, gH, glassMat, slabT * 0.4);   // glass pane
+    leafBox(leaf, S * (lw / 2), (gy0 + gy1) / 2, mun, gH, leafMat);          // centre vertical muntin (2 cols)
+    const rows = Math.max(1, Math.round(lites / 2));
+    for (let k = 1; k < rows; k++) leafBox(leaf, S * (lw / 2), gy0 + gH * k / rows, gW, mun, leafMat); // horizontal muntins
+  };
   const addLeaf = (o) => {
     const lw = o.w - 0.03, lh = o.head - 0.03;                 // ft
     const hx = o.hinge === "b" ? o.ob : o.oa;                  // hinge coord along the run axis
     const sgn = o.hinge === "b" ? 1 : -1;                      // slab sits this side of the hinge
     const leaf = new THREE.Group();
-    const panel = new THREE.Mesh(
-      new THREE.BoxGeometry(axis === "x" ? lw * ft : slabT, lh * ft, axis === "x" ? slabT : lw * ft), leafMat);
-    if (axis === "x") panel.position.set(sgn * (lw / 2) * ft, (lh / 2) * ft, 0);
-    else              panel.position.set(0, (lh / 2) * ft, sgn * (lw / 2) * ft);
-    panel.castShadow = true; leaf.add(panel);
+    if (o.glass) {
+      addGlassLeaf(leaf, lw, lh, sgn, o.lites ?? 8);
+    } else {
+      const panel = new THREE.Mesh(
+        new THREE.BoxGeometry(axis === "x" ? lw * ft : slabT, lh * ft, axis === "x" ? slabT : lw * ft), leafMat);
+      if (axis === "x") panel.position.set(sgn * (lw / 2) * ft, (lh / 2) * ft, 0);
+      else              panel.position.set(0, (lh / 2) * ft, sgn * (lw / 2) * ft);
+      panel.castShadow = true; leaf.add(panel);
+    }
     const off = (c0 - hx) * ft;                                // pivot at the hinge, on the wall centreline
     leaf.position.set(axis === "x" ? off : 0, 0, axis === "x" ? 0 : off);
     g.add(leaf);
     leaf.rotation.y = o.swing;                                // doors default OPEN
     const entry = { pivot: leaf, openAngle: o.swing, current: o.swing, open: true };
-    panel.userData.fdoor = entry; doorEntries.push(entry);
+    leaf.children.forEach((m) => { m.userData.fdoor = entry; });   // any leaf mesh double-taps the door
+    doorEntries.push(entry);
   };
   let cur = a0;
   for (const o of list) {

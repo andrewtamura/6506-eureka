@@ -60,9 +60,9 @@
     { "_note": "WEST BATH south wall (z=-1, x 20.0833..31): SOLID. The SW bedroom no longer opens into the bath.",
       "type": "partition", "px": 25.5417, "pz": -1, "axis": "x", "lenFt": 10.9167 },
 
-    { "_note": "FAMILY ROOM south wall = north wall of the E-W hall (z=6, aligned with the NW-bedroom south wall to make one continuous line across the floor). A double-wide (6 ft) CASED OPENING - no door slab - so the family room reads as an open bay off the landing.",
+    { "_note": "FAMILY ROOM south wall = north wall of the E-W hall (z=6, aligned with the NW-bedroom south wall). A 6 ft opening with a PAIR of 8-lite FRENCH DOORS (divided-light glass) that swing OUT into the hall (south).",
       "type": "partition", "px": 9.5, "pz": 6, "axis": "x", "lenFt": 11.1666,
-      "door": { "atFt": 9.5, "widthFt": 6.0, "opening": true } },
+      "door": { "atFt": 9.5, "widthFt": 6.0, "french": true, "lites": 8, "opens": "S", "openDeg": 80, "headFt": 6.85 } },
 
     { "_note": "PRIMARY BEDROOM king: CENTERED on the WEST (landing) wall (px3.9167, its south segment z-11.9167..-1), headboard on the west wall, foot pointing EAST so the bed faces east. Flanked by a matching night table on each side.",
       "type": "bed", "px": 0.4, "pz": -6.46, "head": "W", "widthFt": 6.33, "lenFt": 6.75 },
