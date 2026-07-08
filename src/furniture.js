@@ -795,7 +795,7 @@ function buildBed(p) {
   const duvetM = new THREE.MeshStandardMaterial({ color: col(p.duvet || "sage", 0x8a9a86), roughness: 0.98 });
   const L = p.lenFt ?? 6.67, W = p.widthFt ?? 5.0;
   const A = DIR[OPP[p.head || "S"]], P = [-A[1], A[0]];   // A = away from head wall (foot dir)
-  const frameH = 0.7, matT = 0.75, headH = 3.4, headT = 0.3;
+  const frameH = 0.7, matT = 0.75, headH = p.headFt ?? 3.4, headT = 0.3;   // headFt: low headboard fits under a sloped attic ceiling
   const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
   let q;
   q = pl(0, 0, L + 0.3, W + 0.3);  box(q[0], q[1], frameH / 2, q[2], q[3], frameH, woodm, 0.04);         // platform
@@ -1123,7 +1123,132 @@ function buildTub(p) {
   return g;
 }
 
-const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
+// A single sloped-top interior partition for the habitable attic: a wall along
+// plan-z at x=`line`, from `za`..`zb`, its top following the hip-roof underside
+// (so it never pokes through the roof), with an optional hinged door. Anchor (px,pz).
+function buildAtticPartition(p) {
+  const ft = FT, g = new THREE.Group();
+  const px = p.px, pz = p.pz;
+  const V = (eo, no, y) => new THREE.Vector3(-eo * ft, y * ft, -no * ft);
+  const F = p.roof.footprint, eaveFt = p.roof.eaveFt || 0, pit = p.roof.pitch ?? 0.5, flatCeil = p.flatCeilFt || Infinity;
+  const rz = (plx, plz) => Math.min(flatCeil, Math.max(0.4, eaveFt + pit * Math.min(plx - F.x1, F.x2 - plx, plz - F.z1, F.z2 - plz)));
+  const wall = new THREE.MeshStandardMaterial({ color: 0xece9e1, roughness: 0.95, side: THREE.DoubleSide });
+  const leafMat = woodMat(0x8a6a45);
+  const t = 0.46, M = 14;
+  const prismPanel = (pts, off, mat) => {
+    const A = pts.map(([x, z, y]) => V(x - px, z - pz, y));
+    const B = pts.map(([x, z, y]) => V(x - px + off[0], z - pz + off[1], y + off[2]));
+    const n = pts.length, pos = [];
+    const tri = (a, b, c) => pos.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z);
+    for (let i = 0; i < n; i++) { const j = (i + 1) % n; tri(A[i], A[j], B[j]); tri(A[i], B[j], B[i]); }
+    for (let i = 1; i < n - 1; i++) { tri(A[0], A[i], A[i + 1]); tri(B[0], B[i + 1], B[i]); }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.computeVertexNormals();
+    const me = new THREE.Mesh(geo, mat); me.castShadow = true; me.receiveShadow = true; g.add(me);
+  };
+  const zWall = (fx, za, zb) => {
+    const pts = [[fx, za, 0], [fx, zb, 0]];
+    for (let i = 0; i <= M; i++) { const z = zb + (za - zb) * i / M; pts.push([fx, z, rz(fx, z)]); }
+    prismPanel(pts, [t, 0, 0], wall);
+  };
+  const line = p.line, za = p.za, zb = p.zb, d = p.door, doors = [];
+  if (d) {
+    const oa = d.atFt - d.widthFt / 2, ob = d.atFt + d.widthFt / 2;
+    zWall(line, za, oa); zWall(line, ob, zb);
+    const hd = Math.min(d.headFt ?? 6.85, Math.min(rz(line, oa), rz(line, ob)) - 0.1);
+    prismPanel([[line, oa, hd], [line, ob, hd], [line, ob, rz(line, ob)], [line, oa, rz(line, oa)]], [t, 0, 0], wall);
+    const lw = (ob - oa) - 0.03, lh = hd - 0.03;
+    const hinge = d.hinge === "N" ? "b" : "a";                // z-wall: N = high (z) jamb (b), S = low jamb (a)
+    const hx = hinge === "b" ? ob : oa, sgn = hinge === "b" ? 1 : -1;
+    const swing = (d.opens === "W" ? -sgn : sgn) * (d.openDeg ?? 80) * Math.PI / 180;
+    const leaf = new THREE.Group();
+    const panel = new THREE.Mesh(new RoundedBoxGeometry(0.06, lh * ft, lw * ft, 2, 0.02), leafMat);
+    panel.position.set(0, (lh / 2) * ft, sgn * (lw / 2) * ft); panel.castShadow = true;
+    leaf.add(panel); leaf.position.copy(V(line - px, hx - pz, 0)); leaf.rotation.y = swing; g.add(leaf);
+    const entry = { pivot: leaf, openAngle: swing, current: swing, open: true };
+    panel.userData.fdoor = entry; doors.push(entry);
+  } else zWall(line, za, zb);
+  if (doors.length) g.userData.doors = doors;
+  return g;
+}
+
+// Compact one-wall kitchenette (matches the cabinetry wood): a base run with a
+// stone counter, undermount sink + faucet, a range (cooktop + oven front), a tall
+// fridge at one end, and upper cabinets. Anchor (px,pz) = footprint centre;
+// `faces` = the front (access) direction; the run backs onto the opposite wall.
+function buildKitchenette(p) {
+  const ft = FT, g = new THREE.Group();
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const box = (opx, opz, yc, sx, sz, hy, mat, rad = 0) => {
+    const geo = rad > 0 ? new RoundedBoxGeometry(sx * ft, hy * ft, sz * ft, 3, rad * ft) : new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft);
+    const m = new THREE.Mesh(geo, mat); m.position.copy(V(opx, opz, yc)); m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  const cyl = (opx, opz, yc, r, h, mat) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r * ft, r * ft, h * ft, 16), mat); m.position.copy(V(opx, opz, yc)); g.add(m); return m; };
+  const wood = woodMat(col(p.cabinet || "walnut", 0x6b4a2f));
+  const stone = new THREE.MeshStandardMaterial({ color: 0xdad7cf, roughness: 0.3 });
+  const steel = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.35, metalness: 0.7 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x26262a, roughness: 0.5 });
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.25, metalness: 0.8 });
+  const toeM = new THREE.MeshStandardMaterial({ color: 0x241b13, roughness: 0.8 });
+  const A = DIR[p.faces || "E"], P = [-A[1], A[0]];
+  const D = p.depthFt ?? 2.0, L = p.lenFt ?? 6.0, TOE = 0.3, CT = 3.0, baseTop = 2.9;
+  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
+  let q;
+  if (p.lowerOnly) {
+    // Lower cabinets ONLY (e.g. under a low dormer): a full-width counter, an
+    // under-counter mini-fridge, a range (cooktop + oven), a sink, and cabinets.
+    q = pl(-0.12, 0, D - 0.24, L - 0.04); box(q[0], q[1], TOE / 2, q[2], q[3], TOE, toeM);                       // toe kick (full width)
+    q = pl(0, 0, D, L - 0.02); box(q[0], q[1], TOE + (baseTop - TOE) / 2, q[2], q[3], baseTop - TOE, wood, 0.01); // base body (full width)
+    q = pl(0.05, 0, D + 0.12, L + 0.06); box(q[0], q[1], CT, q[2], q[3], 0.16, stone, 0.02);                     // FULL-WIDTH countertop
+    const frW = 1.9, frDs = L / 2 - frW / 2 - 0.1;                          // under-counter MINI-fridge at the +ds end
+    q = pl(D / 2 + 0.02, frDs, 0.04, frW - 0.06); box(q[0], q[1], (TOE + baseTop) / 2, q[2], q[3], baseTop - TOE - 0.05, steel, 0.02);
+    q = pl(D / 2 + 0.06, frDs + frW / 2 - 0.18, 0, 0); box(q[0], q[1], (TOE + baseTop) / 2, q[2], q[3], baseTop - TOE - 0.5, chrome, 0.02); // handle
+    const rW = 2.5, rDs = -L / 2 + rW / 2 + 0.1;                            // range: cooktop on the counter + oven front
+    q = pl(0.05, rDs, 2.3, rW - 0.2); box(q[0], q[1], CT + 0.03, q[2], q[3], 0.05, dark, 0.02);
+    q = pl(D / 2 + 0.02, rDs, 0.04, rW - 0.12); box(q[0], q[1], (TOE + CT) / 2 - 0.05, q[2], q[3], CT - TOE - 0.4, dark, 0.02);
+    const sDs = 0.6;                                                        // sink + faucet
+    q = pl(0.05, sDs, 1.4, 1.7); box(q[0], q[1], CT + 0.02, q[2], q[3], 0.05, dark, 0.03);
+    q = pl(-0.15, sDs, 0, 0); cyl(q[0], q[1], CT + 0.35, 0.04, 0.7, chrome);
+    for (const [a, b] of [[-L / 2 + rW + 0.1, sDs - 0.95], [sDs + 0.95, frDs - frW / 2 - 0.05]]) {  // cabinet fronts in the gaps
+      const w = b - a; if (w < 0.6) continue; const n = Math.max(1, Math.round(w / 1.4));
+      for (let i = 0; i < n; i++) {
+        const ds = a + (i + 0.5) * w / n;
+        q = pl(D / 2 + 0.02, ds, 0.04, w / n - 0.08); box(q[0], q[1], (TOE + baseTop) / 2, q[2], q[3], baseTop - TOE - 0.06, wood, 0.015);
+        q = pl(D / 2 + 0.06, ds, 0.05, 0.05); box(q[0], q[1], baseTop - 0.25, q[2], q[3], 0.05, chrome);
+      }
+    }
+    return g;
+  }
+  const frW = 2.2, frH = 5.8, frDs = L / 2 - frW / 2;                     // tall fridge at the +ds end
+  q = pl(0, frDs, D, frW); box(q[0], q[1], frH / 2, q[2], q[3], frH, steel, 0.03);
+  q = pl(D / 2 + 0.05, frDs + frW / 2 - 0.25, frH * 0.6, 0.05); box(q[0], q[1], frH * 0.6, q[2], q[3], 1.2, chrome); // handle
+  const baseW = L - frW, baseC = -L / 2 + baseW / 2;                      // base run over the rest
+  q = pl(-0.12, baseC, D - 0.24, baseW); box(q[0], q[1], TOE / 2, q[2], q[3], TOE, toeM);                    // toe kick
+  q = pl(0, baseC, D, baseW); box(q[0], q[1], TOE + (baseTop - TOE) / 2, q[2], q[3], baseTop - TOE, wood, 0.01); // base body
+  q = pl(0.05, baseC, D + 0.12, baseW + 0.06); box(q[0], q[1], CT, q[2], q[3], 0.16, stone, 0.02);           // countertop
+  const nC = Math.max(2, Math.round(baseW / 1.4));                        // base door fronts
+  for (let i = 0; i < nC; i++) {
+    const ds = -L / 2 + (i + 0.5) * baseW / nC;
+    q = pl(D / 2 + 0.02, ds, 0.04, baseW / nC - 0.08); box(q[0], q[1], (TOE + baseTop) / 2, q[2], q[3], baseTop - TOE - 0.06, wood, 0.015);
+    q = pl(D / 2 + 0.06, ds, 0.05, 0.05); box(q[0], q[1], baseTop - 0.25, q[2], q[3], 0.05, chrome);
+  }
+  q = pl(0.05, baseC, 1.4, 1.4); box(q[0], q[1], CT + 0.02, q[2], q[3], 0.05, dark, 0.03);                   // undermount sink rim
+  q = pl(-0.15, baseC, 0, 0); cyl(q[0], q[1], CT + 0.35, 0.04, 0.7, chrome);                                 // faucet
+  const rangeDs = -L / 2 + 1.3;
+  q = pl(0.05, rangeDs, 2.4, 2.3); box(q[0], q[1], CT + 0.03, q[2], q[3], 0.05, dark, 0.02);                 // cooktop
+  q = pl(D / 2 + 0.02, rangeDs, 0.04, 2.2); box(q[0], q[1], (TOE + CT) / 2 - 0.05, q[2], q[3], CT - TOE - 0.4, dark, 0.02); // oven front
+  const upD = 1.4, upDa = -D / 2 + upD / 2, upW = baseW - 0.2, upC = baseC;                                  // upper cabinets
+  q = pl(upDa, upC, upD, upW); box(q[0], q[1], 6.05, q[2], q[3], 1.7, wood, 0.01);
+  const nU = Math.max(2, Math.round(upW / 1.6));
+  for (let i = 0; i < nU; i++) {
+    const ds = -L / 2 + (i + 0.5) * upW / nU;
+    q = pl(upDa + upD / 2 + 0.02, ds, 0.04, upW / nU - 0.08); box(q[0], q[1], 6.05, q[2], q[3], 1.6, wood, 0.015);
+    q = pl(upDa + upD / 2 + 0.06, ds, 0.05, 0.05); box(q[0], q[1], 5.35, q[2], q[3], 0.05, chrome);
+  }
+  return g;
+}
+
+const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 const CHAIRS = new Set(["upholstered_dining_chair", "highback_chair"]);
 const SEAT_FRONT = 0.225;   // chair seat front is +0.225 m toward the table from its centre
 const TUCK = 0.08;          // pushed-in: seat front this far under the table edge

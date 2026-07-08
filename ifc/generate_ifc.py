@@ -205,6 +205,18 @@ def build_level(cfg, rooms_cache, level):
                                   "flatCeilFt": level.get("flatCeilFt"),
                                   "nDormerWestFt": n_dormer_west,
                                   "x1": bath["x1"], "x2": bath["x2"], "z1": bath["z1"], "z2": bath["z2"]})
+        # Split the open attic into rooms: a partition makes the EAST wing one bedroom,
+        # positioned just west of the easternmost (final) north dormer so that dormer
+        # sits inside the bedroom; the bathroom already occupies the WEST wing; the
+        # roomy central (stair) bay gets a kitchenette.
+        Fp = roof_fp["footprint"]
+        PART = 3.9167                                    # aligned with the level-2 east landing wall; keeps the east dormer inside
+        ctx.furniture.append({"type": "attic_partition", "px": PART, "pz": (Fp["z1"] + Fp["z2"]) / 2,
+                              "line": PART, "za": Fp["z1"], "zb": Fp["z2"], "roof": roof_fp,
+                              "flatCeilFt": level.get("flatCeilFt"),
+                              "door": {"atFt": -3.9, "widthFt": 2.667, "hinge": "S", "opens": "E", "headFt": 6.85}})
+        ctx.furniture.append({"type": "bed", "px": -4.10, "pz": 7.20, "head": "N", "widthFt": 5.0, "lenFt": 6.67})  # east-wing bedroom: east edge + headboard exactly on the 6ft usable-headroom lines (NE corner), facing south
+        ctx.furniture.append({"type": "kitchenette", "px": 9.5, "pz": -10.5, "faces": "N", "lenFt": 10.9, "depthFt": 2.0, "lowerOnly": True})  # in the south shed dormer: full-width lower run
         # cute window-seat benches under each north dormer, against the 3 ft knee wall
         dm_spec = g.get("dormers")
         if dm_spec:

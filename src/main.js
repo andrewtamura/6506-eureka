@@ -44,8 +44,8 @@ function addAtticLighting(parent, onFixture) {
   // recessed can flush with the ceiling at plan (px,pz). The light is a SpotLight
   // aimed straight DOWN (like a real downlight) so it pools on the floor instead of
   // spraying sideways onto nearby walls (which read as a wrong "reflection").
-  const can = (px, pz, intensity = 4.5) => {
-    const cy = ceilH(px, pz);
+  const can = (px, pz, intensity = 4.5, yFt = null) => {
+    const cy = yFt != null ? yFt : ceilH(px, pz);   // yFt overrides for dormer pockets (higher than the main slope)
     const g = new THREE.Group();
     g.position.set(-px * FT, cy * FT, -pz * FT);
     const trim = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.03, 20), trimMat);
@@ -53,7 +53,7 @@ function addAtticLighting(parent, onFixture) {
     const lm = lensMat.clone();
     const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.012, 20), lm);
     lens.position.y = -0.03; g.add(lens);                        // glowing lens just below
-    const light = new THREE.SpotLight(0xfff2d6, intensity, 0, Math.PI / 5.5, 0.7, 2);
+    const light = new THREE.SpotLight(0xfff2d6, intensity, 0, Math.PI / 4.4, 0.7, 2);
     light.position.y = -0.05;
     light.target.position.set(0, -3, 0);                         // aim straight down
     g.add(light); g.add(light.target);
@@ -78,14 +78,20 @@ function addAtticLighting(parent, onFixture) {
     onFixture && onFixture(light, lm);
   };
 
-  // Main attic room: a row of recessed cans down the ridge. The row stops well
-  // short of the stairwell's west wall (the bathroom east wall at px=15.1) so no
-  // fixture glow or light lands on that wall.
-  can(-5, 2.08); can(-1, 2.08); can(3, 2.08);
-  // Bathroom (main) + WC: recessed cans
-  can(18, 1.0, 4.0); can(22, 6.8, 2.6);
-  // Bathroom vanity light over the mirror (mirror is on the east wall x1=15.1 at z=-0.75)
-  vanityBar(15.5, -0.75, 6.0, 2.4, 0.9);
+  // Recessed downlights laid out for the three attic ROOMS (see the attic furniture:
+  // EAST-wing bedroom px -12..3.9167, CENTRAL hall px 3.9167..15.1 with the kitchenette
+  // + stair, WEST-wing bathroom px 15.1..31). Brighter + wider coverage than the old
+  // single ridge row so every room actually reads.
+  const CAN = 8.5;
+  // EAST-wing BEDROOM: a spread over the usable floor, incl. one over the NE-corner bed.
+  can(-8, 10, CAN); can(-1, 9, CAN); can(-8, 1, CAN); can(-1, 1, CAN); can(-4, -7, CAN);
+  // CENTRAL hall: stair-landing cans + two cans in the SOUTH shed dormer over the
+  // kitchenette (explicit ~5.9 ft = dormer plate; ceilH would place them at the low main slope).
+  can(6.5, -3, CAN); can(11, 8.5, CAN);
+  can(6.5, -10.5, CAN, 5.9); can(12.5, -10.5, CAN, 5.9);
+  // WEST-wing BATHROOM: brighter cans (+ one for the west end) and a brighter vanity bar.
+  can(18, 1.0, CAN); can(22, 6.8, CAN); can(27, -4, CAN);
+  vanityBar(15.5, -0.75, 6.0, 2.4, 2.4);
 }
 
 async function main() {
@@ -789,6 +795,7 @@ async function main() {
   window.__eureka.setPlanView = setPlanView;   // debug handle (headless render harness)
   window.__eureka.setHour = apply;             // debug handle: set time of day (0-24)
   window.__eureka.fixtures = fixtures;         // debug handle: interior light fixtures (scene control)
+  window.__eureka.exhibits = exhibitModels;    // debug handle: [{lvl, model}] placed exhibits (render harness)
 
   // --- interior light fixtures: a semi-flush ceiling fixture (canopy + short stem
   // + glowing shade) with a downlight in EACH room, for sample lighting. The attic
