@@ -366,9 +366,10 @@ def add_attic(ctx, rooms, roof):
     n_apex = ny0 - nwd / 2 if n_holes else None        # = ny1 - zR/pitch
     ss = roof.get("shedDormer") or {}
     s_holes = []
+    s_gable = None
     s_plate = ss.get("plateFt", 5.0) * FT
     sy0 = y1 + ss.get("recessFt", 0.0) * FT           # recessed (south) dormer face
-    sy1 = sy0 + s_plate / pitch                         # cheeks die into the slope
+    sy1 = sy0 + s_plate / pitch                         # cheeks / springline die into the slope
     if ss:
         if ss.get("spanFt"):                          # align the dormer to the stairwell walls
             sW = ss["spanFt"] * FT
@@ -376,6 +377,18 @@ def add_attic(ctx, rooms, roof):
             shalf = min(x2 - x1, y2 - y1) / 2.0
             sW = max(2.0 * FT, (x2 - x1) - 2 * shalf - 2 * ss.get("marginFt", 0.5) * FT)
         s_holes = [(cx - sW / 2, cx + sW / 2)]
+        # The wide S dormer VAULTS: its two pitched planes rise from the springline
+        # (plate, tied to the flat ceiling) to a ridge and die into the main roof
+        # along valleys — a raised, open ceiling like the N dormer pockets (max
+        # headroom), not a flat soffit. The ceiling opens a GABLE PENTAGON: the sloped
+        # band [sy0..sy1] full width, then a triangular notch through the FLAT ceiling
+        # from sy1 back to where the ridge dies (s_apex), so the vault reads all the
+        # way up. `s_apex` sits past the flat edge because the ridge rises above the
+        # 8.5 ft flat ceiling (the dormer projects above the room's dropped ceiling).
+        pp = ss.get("pedimentPitch", ss.get("pitch", 0.33))
+        s_zR = s_plate + (sW / 2) * pp                 # dormer ridge height (rel eave base)
+        s_apex = sy0 + s_zR / pitch                    # where that ridge dies into the roof
+        s_gable = (sy0, sy1, s_apex, cx - sW / 2, cx + sW / 2)
 
     # E / W hip dormer GABLE wells (the x<->y mirror of the N dormer pentagons):
     # (face, cheek, apex, yL, yR) — face = recessed front line, cheek = where the
@@ -394,9 +407,9 @@ def add_attic(ctx, rooms, roof):
 
     # sloped ceiling = the hip underside, springing from the eave (z = eave), with
     # the dormer wells cut OPEN so each dormer reads up into the attic room.
-    sy1c = min(sy1, y1 + du0)                          # cap the deep shed well at the 7 ft wall (keep the room vault intact)
     cv, cf = _hip_ceiling_with_wells(x1, x2, y1, y2, eave, pitch,
-                                     n_holes, ny0, ny1, s_holes, sy0, sy1c, e_well, w_well, n_apex, flat_z)
+                                     n_holes, ny0, ny1, s_holes, sy0, sy1, e_well, w_well, n_apex, flat_z,
+                                     s_gable=s_gable)
     # Translucent so the 3/4 exhibit view reads INTO the room (floor + walls show
     # through) — i.e. you can see the habitable volume under the slope.
     add_brep(ctx, "Attic ceiling", cv, cf, CEIL, ifc_class="IfcCovering",
@@ -456,39 +469,10 @@ def add_attic(ctx, rooms, roof):
         roomwall("Room wall E", "V", rx2, ry1r, ry2r, -1, eh)
         roomwall("Room wall W", "V", rx1, ry1r, ry2r, +1, wh)
 
-        # ALCOVE CHEEK WALLS: one smooth drywall wall per side — VERTICAL, floor to
-        # the dormer's flat ceiling (no sloped top), so the inside of the alcove is
-        # entirely flat with no diagonal joint. The interior dormer cheeks are
-        # dropped (the dormer builders skip them for style="interior"); these stand
-        # directly under the dormer, in their place.
-        # `sgn` extrudes the wall away from the opening, `a` is the 7 ft wall's room
-        # face, and `eps` overlaps the opening edge so no faces coincide (no seam).
-        eps = 0.06 * FT
-
-        def cheek(nm, axis, fixed, a, b, sgn, top):
-            base = (fixed - t) if sgn < 0 else (fixed - eps)
-            length = t + eps
-            if axis == "z":                               # wall runs along z at x=fixed
-                pts = [(base, a, 0.0), (base, b, 0.0), (base, b, top), (base, a, top)]
-                vec = (length, 0.0, 0.0)
-            else:                                         # wall runs along x at z=fixed
-                pts = [(a, base, 0.0), (b, base, 0.0), (b, base, top), (a, base, top)]
-                vec = (0.0, length, 0.0)
-            v, f = _prism(pts, vec)
-            add_brep(ctx, nm, v, f, KNEE, ifc_class="IfcWall")
-        sfa = ry1r + t / 2                            # S 7 ft-wall room face
-        s_ceil = eave + pitch * ss.get("recessFt", 0.0) * FT + s_plate
-        # (No alcove cheeks for the N or E/W dormers — each gable dormer (add_dormers /
-        # add_hip_dormer) builds its OWN two cheek walls + gable roof, and its ceiling
-        # well is a matching gable pentagon. Only the S shed keeps flat alcove cheeks.)
-        for h0, h1 in sh:
-            cheek("Alcove cheek S", "z", h0, sfa, sy0, -1, s_ceil); cheek("Alcove cheek S", "z", h1, sfa, sy0, +1, s_ceil)
-            # the shed alcove ceiling (s_ceil) is above the 7 ft wall, and its well is
-            # capped there, so close the well's north face with a header above the opening.
-            if s_ceil > rh + 0.02:
-                hb = make_box(ctx, "IfcWall", "Shed alcove header", h1 - h0, t, s_ceil - rh,
-                              (h0 + h1) / 2, ry1r, rh, color=KNEE)
-                run("spatial.assign_container", ctx.model, products=[hb], relating_structure=ctx.storey)
+        # (No alcove cheeks for any dormer — each dormer (add_dormers / add_hip_dormer
+        # / the S vaulted shed) builds its OWN two full-height cheek walls + gable
+        # ceiling for style="interior", and its ceiling well is a matching gable
+        # pentagon, so the alcove sides + vault come from the dormer itself.)
     else:
         # inset knee walls where the bare hip ceiling first reaches `knee`
         dk = knee / pitch
@@ -750,10 +734,29 @@ def add_shed_dormer(ctx, x1, x2, y1, y2, pitch, spec, base_z=0.0, style="interio
             prism("Shed dormer cheek W", [(xa, yS, 0.0), (xa, yS, plate), (xa, y_p, plate)], (tx, 0, 0), WALL)
             prism("Shed dormer cheek E", [(xb, yS, 0.0), (xb, yS, plate), (xb, y_p, plate)], (-tx, 0, 0), WALL)
         if style == "interior":
-            # inside the attic the dormer pocket has a FLAT ceiling at the springline;
-            # the pediment + gable roof are exterior-only features.
-            prism("Shed dormer ceiling", [(xa, yS, plate), (xb, yS, plate), (xb, y_p, plate), (xa, y_p, plate)],
+            # inside the attic the dormer opens into a VAULTED gable ceiling: the two
+            # pitched planes rise from the springline (plate) at the cheeks to the
+            # ridge (zR) and DIE INTO THE MAIN SLOPE along the valleys (like the N
+            # dormers), so the bay keeps maximum headroom and the ceiling drops to the
+            # main roofline instead of a flat soffit. Full-height cheek walls enclose
+            # the sides up to the springline; the gable triangle closes the front.
+            z0 = -base_z
+            prism("Shed dormer cheek W", [(xa, yS, z0), (xa, y_p, z0), (xa, y_p, plate), (xa, yS, plate)], (tx, 0, 0), WALL)
+            prism("Shed dormer cheek E", [(xb, yS, z0), (xb, y_p, z0), (xb, y_p, plate), (xb, yS, plate)], (-tx, 0, 0), WALL)
+            prism("Shed dormer ceiling W", [(xa, yS, plate), (cx, yS, zR), (cx, y_r, zR), (xa, y_p, plate)],
                   (0, 0, tz), ROOF, cls="IfcCovering")
+            prism("Shed dormer ceiling E", [(xb, yS, plate), (cx, yS, zR), (cx, y_r, zR), (xb, y_p, plate)],
+                  (0, 0, tz), ROOF, cls="IfcCovering")
+            prism("Shed dormer gable inner", [(xa, yS, plate), (xb, yS, plate), (cx, yS, zR)], (0, ty, 0), WALL)
+            # valley infill: past the springline the ridge rises ABOVE the flat ceiling,
+            # so each valley edge (springline -> ridge) needs a thin vertical triangle
+            # closing the gap between the flat-ceiling notch edge (at `plate`) and the
+            # rising valley — otherwise the room reads through to the void above.
+            for sx in (xa, xb):
+                dxv, dyv = cx - sx, y_r - y_p
+                L = math.hypot(dxv, dyv) or 1.0
+                nvec = (-dyv / L * 0.05, dxv / L * 0.05, 0.0)
+                prism("Shed dormer valley wall", [(sx, y_p, plate), (cx, y_r, plate), (cx, y_r, zR)], nvec, WALL)
         else:
             # gable roof: two planes meeting at the ridge, dying into the main slope
             prism("Shed dormer roof W", [(xa, yS, plate), (cx, yS, zR), (cx, y_r, zR), (xa, y_p, plate)],
@@ -1088,13 +1091,17 @@ def _hip_surface(x1, x2, y1, y2, eave, pitch, oh=0.0):
 
 
 def _hip_ceiling_with_wells(x1, x2, y1, y2, eave, pitch, n_wells, ny0, ny1, s_wells, sy0, sy1,
-                            e_well=None, w_well=None, n_apex=None, flat_z=None):
+                            e_well=None, w_well=None, n_apex=None, flat_z=None, s_gable=None):
     """Hip-roof soffit (w>=d) decomposed into panels with dormer-well HOLES. The N
     slope gets GABLE (pentagon) wells (`n_wells` x-ranges, cheek line ny0, face ny1,
     ridge apex `n_apex`); the S slope rectangular wells (`s_wells` over [sy0,sy1]);
     and the E / W hips matching GABLE wells (`e_well` / `w_well` =
-    (face, cheek, apex, yL, yR)). Returns (verts, faces) for a one-sided (DoubleSide)
-    surface, so the attic room reads up into each dormer."""
+    (face, cheek, apex, yL, yR)). When `s_gable=(sy0, sy1, s_apex, xa, xb)` is given
+    the wide S dormer VAULTS above the flat ceiling: the S slope opens fully over
+    [sy0,sy1] (springline) and a TRIANGULAR notch is cut through the flat ceiling
+    from sy1 back to the ridge apex, so the raised gable ceiling reads all the way up.
+    Returns (verts, faces) for a one-sided (DoubleSide) surface, so the attic room
+    reads up into each dormer."""
     yc = (y1 + y2) / 2.0
     half = (y2 - y1) / 2.0
     verts, faces = [], []
@@ -1122,7 +1129,20 @@ def _hip_ceiling_with_wells(x1, x2, y1, y2, eave, pitch, n_wells, ny0, ny1, s_we
     xTe = fx2 if flat_z is not None else (x2 - half)              # E slope top edge (x)
     xTw = fx1 if flat_z is not None else (x1 + half)              # W slope top edge (x)
     if flat_z is not None:
-        panel([(fx1, fy1), (fx2, fy1), (fx2, fy2), (fx1, fy2)], lambda x, y: flat_z)
+        fz = lambda x, y: flat_z
+        if s_gable:
+            # flat ceiling with a TRIANGULAR notch on its S edge: base [sxa,sxb] at
+            # fy1, apex (scx, s_apex) — the wide S dormer's ridge dies here, so the
+            # notch opens the flat ceiling for the raised vault.
+            _, _, s_apex, sxa, sxb = s_gable
+            scx = (sxa + sxb) / 2.0
+            panel([(fx1, fy1), (sxa, fy1), (sxa, fy2), (fx1, fy2)], fz)          # left strip
+            panel([(sxb, fy1), (fx2, fy1), (fx2, fy2), (sxb, fy2)], fz)          # right strip
+            panel([(sxa, s_apex), (sxb, s_apex), (sxb, fy2), (sxa, fy2)], fz)    # middle, N of apex
+            panel([(sxa, fy1), (scx, s_apex), (sxa, s_apex)], fz)               # notch side W
+            panel([(sxb, fy1), (sxb, s_apex), (scx, s_apex)], fz)               # notch side E
+        else:
+            panel([(fx1, fy1), (fx2, fy1), (fx2, fy2), (fx1, fy2)], fz)
 
     def long_slope(zf, xLf, xRf, y_eave, y_top, wells, w0, w1):
         wf, wn = (w0, w1) if abs(w0 - y_top) < abs(w1 - y_top) else (w1, w0)   # wf nearer top
