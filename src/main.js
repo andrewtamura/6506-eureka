@@ -604,6 +604,7 @@ async function main() {
   // --- interior camera: confine to a room so panning can't fly through walls
   const FLOOR = modelBox.min.y + 0.2; // floor surface (slab top) in world Y
   let setPlanView = () => {};          // assigned once ceilings exist (POV opaque / plan transparent)
+  let setActiveLevel = () => {};       // assigned once the level switcher is built (highlights the current level)
   const EYE = 1.63;                    // eye height for a 5'8" person (~1.63 m)
   const LOOK_DIST = 0.05;              // orbit radius indoors: ~0 so you spin in place
   const ROOM_INSET = 0.55;             // keep the standing point this far from walls (m)
@@ -668,6 +669,7 @@ async function main() {
       if (d < bd) { bd = d; best = v; }
     }
     frameModel(best ? best.box : viewBox, true);
+    setActiveLevel(best ? best.id : null);   // keep the switcher in sync with the backed-out view
   }
   let pinch0 = 0;
   dom.addEventListener("wheel", (e) => { if (inPov && e.deltaY > 0) exitPov(); }, { passive: true });
@@ -1000,7 +1002,41 @@ async function main() {
   // Click empty space (Esc) to clear.
   window.addEventListener("keydown", (e) => { if (e.key === "Escape") clearSelection(); });
 
-  // --- preset POV views ---------------------------------------------------
+  // --- level views: a persistent switcher + a menu preset per model --------
+  // Glide the orbit camera to a 3/4 view of a given level and mark it active.
+  // Shared by the always-visible #level-switcher, the 📷 Camera views menu, and
+  // the pinch/scroll "back out" gesture, so they all stay in sync.
+  const focusLevel = async (id, transition = true) => {
+    const mv = modelViews.find((v) => v.id === id);
+    if (!mv) return;
+    await clearSelection();
+    overviewControls();
+    frameModel(mv.box, transition);
+    setActiveLevel(id);
+  };
+
+  // Persistent segmented control: one tab per model (levels.json order — Exterior,
+  // Ground, Second Floor, Attic), short-labelled, current level highlighted. This
+  // is the fast path for hopping between the level orbit views without digging
+  // into a menu (which was painful, especially on the far-out exterior view).
+  const switcherEl = document.getElementById("level-switcher");
+  const SHORT = { exterior: "Lot", ground: "Ground", level2: "2nd", attic: "Attic" };
+  setActiveLevel = (id) => {
+    for (const b of switcherEl.children) b.classList.toggle("active", b.dataset.id === id);
+  };
+  for (const lvl of levelsCfg) {
+    const mv = modelViews.find((v) => v.id === lvl.id);
+    if (!mv) continue;
+    const tab = document.createElement("button");
+    tab.className = "level-tab";
+    tab.dataset.id = mv.id;
+    tab.title = mv.label;
+    tab.textContent = SHORT[mv.id] || mv.label;
+    tab.addEventListener("click", () => focusLevel(mv.id, true));
+    switcherEl.appendChild(tab);
+  }
+
+  // 📷 Camera views menu: same presets, full labels (routes through focusLevel).
   const viewsEl = document.getElementById("views");
   const addView = (label, fn) => {
     const btn = document.createElement("button");
@@ -1009,16 +1045,10 @@ async function main() {
     btn.addEventListener("click", fn);
     viewsEl.appendChild(btn);
   };
-  // One preset per model: glide to a 3/4 view of that level (in levels.json
-  // order — Exterior, Ground, Second Floor, Attic).
   for (const lvl of levelsCfg) {
     const mv = modelViews.find((v) => v.id === lvl.id);
     if (!mv) continue;
-    addView(mv.label, async () => {
-      await clearSelection();
-      overviewControls();
-      frameModel(mv.box, true);
-    });
+    addView(mv.label, () => focusLevel(mv.id, true));
   }
 
   // --- lighting scenes: presets that drive the sun (time of day) and the interior
