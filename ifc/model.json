@@ -95,7 +95,8 @@
           },
           "shedDormer": {
             "side": "south",
-            "roof": "pyramid",
+            "roof": "pediment",
+            "pedimentPitch": 0.4,
             "plateFt": 6.0,
             "marginFt": 0.5,
             "spanFt": 11.1666,
