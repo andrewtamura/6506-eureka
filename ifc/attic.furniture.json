@@ -61,6 +61,49 @@
       "z2": 16.0833
     },
     {
+      "type": "attic_partition",
+      "px": 3.9167,
+      "pz": 2.0833000000000004,
+      "line": 3.9167,
+      "za": -11.9167,
+      "zb": 16.0833,
+      "roof": {
+        "footprint": {
+          "x1": -12,
+          "x2": 31,
+          "z1": -11.9167,
+          "z2": 16.0833
+        },
+        "eaveFt": 2.5,
+        "pitch": 0.6667
+      },
+      "flatCeilFt": 8.5,
+      "door": {
+        "atFt": -3.9,
+        "widthFt": 2.667,
+        "hinge": "S",
+        "opens": "E",
+        "headFt": 6.85
+      }
+    },
+    {
+      "type": "bed",
+      "px": -4.1,
+      "pz": 7.2,
+      "head": "N",
+      "widthFt": 5.0,
+      "lenFt": 6.67
+    },
+    {
+      "type": "kitchenette",
+      "px": 9.5,
+      "pz": -10.5,
+      "faces": "N",
+      "lenFt": 10.9,
+      "depthFt": 2.0,
+      "lowerOnly": true
+    },
+    {
       "type": "window_bench",
       "px": 1.125,
       "pz": 15.333,
