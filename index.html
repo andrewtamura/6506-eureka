@@ -100,11 +100,12 @@
       /* Centre the expanded dropdown's content (text, dials, view buttons). */
       .menu.open .menu-body { text-align: center; }
       .menu.open .menu-body #views,
-      .menu.open .menu-body #lighting { justify-content: center; align-items: center; }
+      .menu.open .menu-body #lighting,
+      .menu.open .menu-body #scenes { justify-content: center; align-items: center; }
       .menu.open .menu-body .page-link { margin-left: auto; margin-right: auto; }
       .menu.open .menu-body .muted { margin-left: auto; margin-right: auto; max-width: 34ch; }
     }
-    #views, #lighting { display: flex; flex-wrap: wrap; gap: 5px; }
+    #views, #lighting, #scenes { display: flex; flex-wrap: wrap; gap: 5px; }
     .view-btn {
       background: rgba(255,255,255,0.9); backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
@@ -137,6 +138,10 @@
     <div class="menu" data-menu>
       <div class="menu-header"><span class="mi">🌞</span><span class="ml">Sun Position</span><span class="chev">▸</span></div>
       <div class="menu-body"><div id="lighting"></div></div>
+    </div>
+    <div class="menu" data-menu>
+      <div class="menu-header"><span class="mi">💡</span><span class="ml">Lighting scenes</span><span class="chev">▸</span></div>
+      <div class="menu-body"><div id="scenes"></div></div>
     </div>
     <div class="menu" data-menu id="props-menu">
       <div class="menu-header"><span class="mi">ℹ️</span><span class="ml" id="props-title">Selection</span><span class="chev">▸</span></div>

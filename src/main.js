@@ -34,7 +34,7 @@ const setStatus = (t) => { statusEl.textContent = t; statusEl.style.display = t 
 // bright emissive lens set into the (flat 8.5 ft) ceiling, plus a downlight
 // below. Parented to the attic model (local plan coords: x->-x, z->-z, y up;
 // floor at local y=0). Also a wall-mounted vanity light over the bathroom mirror.
-function addAtticLighting(parent) {
+function addAtticLighting(parent, onFixture) {
   const FT = 0.3048, eave = 2.5, pit = 0.6667, flatCeil = 8.5;
   const F = { x1: -12, x2: 31, z1: -11.9167, z2: 16.0833 };      // attic footprint (plan ft)
   // ceiling height capped flat at 8.5 ft (sloping down only near the eaves)
@@ -50,20 +50,23 @@ function addAtticLighting(parent) {
     g.position.set(-px * FT, cy * FT, -pz * FT);
     const trim = new THREE.Mesh(new THREE.CylinderGeometry(0.105, 0.105, 0.03, 20), trimMat);
     trim.position.y = -0.015; g.add(trim);                       // ring flush at ceiling
-    const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.012, 20), lensMat);
+    const lm = lensMat.clone();
+    const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.012, 20), lm);
     lens.position.y = -0.03; g.add(lens);                        // glowing lens just below
     const light = new THREE.SpotLight(0xfff2d6, intensity, 0, Math.PI / 5.5, 0.7, 2);
     light.position.y = -0.05;
     light.target.position.set(0, -3, 0);                         // aim straight down
     g.add(light); g.add(light.target);
     parent.add(g);
+    onFixture && onFixture(light, lm);
   };
   // wall-mounted vanity bar on the east bathroom wall, above the mirror (faces W into the room)
   const vanityBar = (px, pz, y, lenZ, intensity = 1.8) => {
     const g = new THREE.Group();
     g.position.set(-px * FT, y * FT, -pz * FT);
     const bar = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.09, lenZ * FT), trimMat); g.add(bar);
-    const lens = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.06, (lenZ - 0.3) * FT), lensMat);
+    const lm = lensMat.clone();
+    const lens = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.06, (lenZ - 0.3) * FT), lm);
     lens.position.x = -0.03; g.add(lens);                        // lens faces -localX = WEST = into the bathroom
     // SpotLight aimed DOWN-and-into-the-bathroom (west) so it lights the vanity, not
     // the stairwell wall on the east side of this wall. (-localX = west = into room.)
@@ -72,6 +75,7 @@ function addAtticLighting(parent) {
     light.target.position.set(-1.0, -2.0, 0);                    // down + west into the bathroom
     g.add(light); g.add(light.target);
     parent.add(g);
+    onFixture && onFixture(light, lm);
   };
 
   // Main attic room: a row of recessed cans down the ridge. The row stops well
@@ -359,6 +363,9 @@ async function main() {
   const exhibitModels = [];                             // {lvl, model} for each placed exhibit (walk targets)
   const povCeilingMats = [];                            // attic ceiling materials: opaque in POV, translucent in overview
   const extFillMats = new Set();                        // exterior massing materials: get a day-tracked emissive sky fill
+  const fixtures = [];                                  // interior light fixtures for scenes: { light, level, base, emiss, emBase }
+  const registerFixture = (light, level, emiss) => fixtures.push(
+    { light, level, base: light.intensity, emiss, emBase: emiss ? emiss.emissiveIntensity : 0 });
   const exhibitCeilingMats = [];                        // second-floor flat ceilings: same opaque-POV / translucent-overview toggle
   const furnitureDoorMeshes = [];                       // procedural door leaves (e.g. attic bathroom): double-tap to toggle
   const modelViews = [{ id: groundLevel.id, label: groundLevel.label || groundLevel.storey, box: buildingBox(model.object) }];
@@ -443,7 +450,7 @@ async function main() {
       await buildSubfloor({ scene, model: m, fragments, floorY: m.object.position.y, baseUrl: BASE, manifestFile: lvl.manifests.subfloor + VER });
     // Attic interior lighting: recessed LED downlights (ridge + bath/WC) plus a
     // vanity light over the bathroom mirror. Daylight (dormers) does the rest.
-    if (lvl.id === "attic") addAtticLighting(m.object);
+    if (lvl.id === "attic") addAtticLighting(m.object, (light, emiss) => registerFixture(light, "attic", emiss));
     // Second floor is an open shell with no IfcSpaces -> give it ONE flat ceiling
     // over its whole footprint, plus a central semi-flush fixture in EACH room (the
     // only nighttime light source per room). Ceiling toggles opaque (POV) /
@@ -476,7 +483,7 @@ async function main() {
         ["East hall",         1.42,   2.5,  2.2],
         ["West alcove",      17.58,   2.5,  2.2],
       ];
-      for (const [, px, pz, inten] of L2_ROOMS) semiFlush(wx(px), cy - 0.04, wz(pz), inten);
+      for (const [, px, pz, inten] of L2_ROOMS) semiFlush(wx(px), cy - 0.04, wz(pz), inten, "level2");
     }
     exhibitModels.push({ lvl, model: m });             // register as a walk target after the walker exists
     return buildingBox(m.object);
@@ -781,6 +788,7 @@ async function main() {
   };
   window.__eureka.setPlanView = setPlanView;   // debug handle (headless render harness)
   window.__eureka.setHour = apply;             // debug handle: set time of day (0-24)
+  window.__eureka.fixtures = fixtures;         // debug handle: interior light fixtures (scene control)
 
   // --- interior light fixtures: a semi-flush ceiling fixture (canopy + short stem
   // + glowing shade) with a downlight in EACH room, for sample lighting. The attic
@@ -791,17 +799,19 @@ async function main() {
   const fxMetal = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.5, metalness: 0.6 });
   const fxShade = new THREE.MeshStandardMaterial({ color: 0xfff6e6, emissive: 0xffe7b8, emissiveIntensity: 1.2, roughness: 0.45 });
   const newCeilMat = () => new THREE.MeshStandardMaterial({ color: 0xf2efe9, roughness: 0.95, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide });
-  const semiFlush = (x, ceilY, z, intensity) => {
+  const semiFlush = (x, ceilY, z, intensity, level) => {
     const g = new THREE.Group(); g.position.set(x, ceilY, z);
     const canopy = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.04, 16), fxMetal); canopy.position.y = -0.02; g.add(canopy);
     const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.1, 8), fxMetal); stem.position.y = -0.09; g.add(stem);
-    const shade = new THREE.Mesh(new THREE.SphereGeometry(0.12, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), fxShade); shade.rotation.x = Math.PI; shade.position.y = -0.17; g.add(shade);
+    const shadeMat = fxShade.clone();                    // per-fixture so scenes can dim/kill its glow
+    const shade = new THREE.Mesh(new THREE.SphereGeometry(0.12, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), shadeMat); shade.rotation.x = Math.PI; shade.position.y = -0.17; g.add(shade);
     const light = new THREE.PointLight(0xfff0db, intensity, 0, 2); light.position.y = -0.27; g.add(light);
     scene.add(g);
+    registerFixture(light, level, shadeMat);
   };
   const roomCenters = roomBoxes.map((r) => ({ x: (r.box.min.x + r.box.max.x) / 2, z: (r.box.min.z + r.box.max.z) / 2,
                                               sx: r.box.max.x - r.box.min.x, sz: r.box.max.z - r.box.min.z }));
-  for (const c of roomCenters) semiFlush(c.x, modelBox.max.y - 0.04, c.z, 3.0);   // ground floor: one per room
+  for (const c of roomCenters) semiFlush(c.x, modelBox.max.y - 0.04, c.z, 3.0, "ground");   // ground floor: one per room
 
   // Opaque blockers (ceiling, walls, floor, furniture) cast shadow so the sun
   // can't pass through them; transparent glass does NOT cast, so windows let
@@ -1002,6 +1012,37 @@ async function main() {
       overviewControls();
       frameModel(mv.box, true);
     });
+  }
+
+  // --- lighting scenes: presets that drive the sun (time of day) and the interior
+  // light fixtures (on / off / dimmed) together, plus per-level fixture toggles.
+  const scenesEl = document.getElementById("scenes");
+  const addScene = (label, fn) => {
+    const btn = document.createElement("button");
+    btn.className = "view-btn";
+    btn.textContent = label;
+    btn.addEventListener("click", fn);
+    scenesEl.appendChild(btn);
+  };
+  // Set every fixture on `level` ("all" = every level) to `factor`x its nominal
+  // brightness (0 = off, 1 = full, ~0.5 = dimmed); the glowing shade tracks it too.
+  const setFixtures = (level, factor) => {
+    for (const f of fixtures) {
+      if (level !== "all" && f.level !== level) continue;
+      f.light.intensity = f.base * factor;
+      if (f.emiss) f.emiss.emissiveIntensity = f.emBase * factor;
+    }
+  };
+  // Morning: early sun, fixtures off (daylight). Evening: low sun, fixtures on but
+  // dimmed for a warm glow. Both move the sun (via the time-of-day control) too.
+  scenesEl.appendChild(caption("Time of day"));
+  addScene("🌅 Morning", () => { apply(7.5); setFixtures("all", 0); });
+  addScene("🌆 Evening", () => { apply(19.3); setFixtures("all", 0.6); });
+  // Per-level fixture toggles (sun unchanged).
+  for (const [label, id] of [["Ground floor", "ground"], ["Second floor", "level2"], ["Attic", "attic"]]) {
+    scenesEl.appendChild(caption(label));
+    addScene("On", () => setFixtures(id, 1));
+    addScene("Off", () => setFixtures(id, 0));
   }
 
   // --- build swinging door overlays ---------------------------------------
