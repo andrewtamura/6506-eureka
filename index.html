@@ -117,6 +117,29 @@
       display: inline-block; margin-top: 9px; font: 600 12px sans-serif;
       color: #2563c9; text-decoration: none; }
     .page-link:hover { text-decoration: underline; }
+    /* Persistent level switcher: an always-visible segmented control that jumps the
+       orbit camera between the models (Lot / Ground / 2nd / Attic). The active level
+       is highlighted. Top-centre on desktop; bottom-centre on phones (clear of the
+       top icon-chip row). */
+    #level-switcher {
+      position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 11;
+      display: flex; gap: 3px; padding: 4px; max-width: calc(100vw - 24px);
+      overflow-x: auto; scrollbar-width: none;
+      background: rgba(255,255,255,0.92); backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.12); }
+    #level-switcher::-webkit-scrollbar { display: none; }
+    .level-tab {
+      border: none; background: transparent; border-radius: 9px; padding: 7px 13px;
+      font: 600 12px sans-serif; color: #445; cursor: pointer; white-space: nowrap;
+      transition: background 0.15s, color 0.15s; }
+    .level-tab:hover { background: rgba(0,0,0,0.06); }
+    .level-tab.active { background: #2563c9; color: #fff; }
+    @media (max-width: 640px) {
+      /* sit just ABOVE the bottom-right compass (top ≈ 80px) so they never touch */
+      #level-switcher { top: auto; bottom: 88px; left: 50%; max-width: calc(100vw - 16px); }
+      .level-tab { padding: 8px 12px; }
+    }
   </style>
 </head>
 <body>
@@ -148,6 +171,7 @@
       <div class="menu-body"><div id="props-body"><div class="muted">Tap an element — a wall, the floor, a window — to see what it is.</div></div></div>
     </div>
   </div>
+  <div id="level-switcher"></div>
   <div id="status">Loading…</div>
   <div id="compass" title="North">
     <div id="compass-rose">
