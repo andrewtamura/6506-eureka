@@ -528,14 +528,14 @@ async function main() {
 
   async function clearSelection() {
     if (selected != null) { await model.resetHighlight([selected]); selected = null; }
-    propsTitle.textContent = "ℹ️ Selection";
+    propsTitle.textContent = "Selection";
     propsBody.innerHTML = PROPS_HINT;
     propsEl.classList.remove("open"); // collapse the menu when nothing is picked
   }
 
   function renderProps(title, rows) {
     propsBody.innerHTML = "";
-    propsTitle.textContent = `ℹ️ ${title}`;
+    propsTitle.textContent = title;
     for (const [k, v] of rows) {
       const row = document.createElement("div"); row.className = "row";
       row.innerHTML = `<span class="k"></span><span class="v"></span>`;
