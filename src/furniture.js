@@ -768,6 +768,33 @@ function buildBed(p) {
   return g;
 }
 
+// Bedside night table (matches the bed-frame wood): a drawer box on short tapered
+// legs with a slim overhanging top and a bar pull. `faces` = the drawer-front dir.
+function buildNightstand(p) {
+  const ft = FT, g = new THREE.Group();
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const box = (opx, opz, yc, sx, sz, hy, mat, rad = 0) => {
+    const geo = rad > 0 ? new RoundedBoxGeometry(sx * ft, hy * ft, sz * ft, 3, rad * ft)
+                        : new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft);
+    const m = new THREE.Mesh(geo, mat); m.position.copy(V(opx, opz, yc)); m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  const wood = woodMat(col(p.wood || "walnut", 0x6b4a2f));
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.25, metalness: 0.8 });
+  const A = DIR[p.faces || "E"], P = [-A[1], A[0]];
+  const W = p.widthFt ?? 1.6, D = p.depthFt ?? 1.5, legH = 0.5, bodyH = 1.15;
+  const topY = legH + bodyH;
+  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
+  let q;
+  q = pl(0, 0, D, W);                     box(q[0], q[1], legH + bodyH / 2, q[2], q[3], bodyH, wood, 0.02);      // drawer box
+  q = pl(0, 0, D + 0.12, W + 0.12);       box(q[0], q[1], topY + 0.03, q[2], q[3], 0.09, wood, 0.02);           // top overhang
+  q = pl(D / 2 + 0.02, 0, 0.04, W - 0.2); box(q[0], q[1], legH + bodyH / 2, q[2], q[3], bodyH - 0.2, wood, 0.01); // drawer front
+  q = pl(D / 2 + 0.06, 0, 0.05, 0.2);     box(q[0], q[1], legH + bodyH / 2, q[2], q[3], 0.05, chrome);          // bar pull
+  for (const sa of [-1, 1]) for (const sp of [-1, 1]) {                                                          // four legs
+    q = pl(sa * (D / 2 - 0.12), sp * (W / 2 - 0.12), 0.11, 0.11); box(q[0], q[1], legH / 2, q[2], q[3], legH, wood);
+  }
+  return g;
+}
+
 // Floor-standing toilet. Anchor (px,pz) = footprint centre; `faces` = the
 // direction the bowl/seat point (the tank backs onto the opposite wall).
 function buildToilet(p) {
@@ -981,7 +1008,7 @@ function buildTub(p) {
   return g;
 }
 
-const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
+const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 const CHAIRS = new Set(["upholstered_dining_chair", "highback_chair"]);
 const SEAT_FRONT = 0.225;   // chair seat front is +0.225 m toward the table from its centre
 const TUCK = 0.08;          // pushed-in: seat front this far under the table edge
