@@ -69,6 +69,24 @@
     { "_note": "Night tables flanking the king (against the west wall, at the head).",
       "type": "nightstand", "px": 3.1, "pz": -2.5, "faces": "E" },
     { "type": "nightstand", "px": 3.1, "pz": -10.4, "faces": "E" },
+
+    { "_note": "WALK-IN CLOSET north wall cabinetry (full-height, full-depth, faces S into the closet). Two window bays frame the north windows (x1.125 and x-7.25, sill2.5/head6.0): drawers below the sill, framed opening, uppers above the head. Solid bays are full-height hanging + a drawers-over-hanging bay + a west-corner drawer tower; upper cabinets across the top. Run spans x-12..3.9167.",
+      "type": "closet_run", "px": -4.0417, "pz": 14.85, "faces": "S", "lenFt": 15.9167, "depthFt": 2.0, "heightFt": 8.6,
+      "bays": [
+        { "type": "hang", "widthFt": 3.5 },
+        { "type": "window", "widthFt": 2.5, "sill": 2.5, "head": 6.0 },
+        { "type": "drawhang", "widthFt": 2.9167 },
+        { "type": "hang", "widthFt": 2.9583 },
+        { "type": "window", "widthFt": 2.5, "sill": 2.5, "head": 6.0 },
+        { "type": "drawtower", "widthFt": 1.5417 }
+      ] },
+    { "_note": "WALK-IN CLOSET south wall cabinetry (full-height, full-depth, faces N). Fills the run BETWEEN the two doors (x-8.67..-0.083): full-height hanging + central drawer tower + full-height hanging, upper cabinets across the top.",
+      "type": "closet_run", "px": -4.3765, "pz": 7.23, "faces": "N", "lenFt": 8.587, "depthFt": 2.0, "heightFt": 8.6,
+      "bays": [
+        { "type": "hang", "widthFt": 2.862 },
+        { "type": "drawtower", "widthFt": 2.863 },
+        { "type": "hang", "widthFt": 2.862 }
+      ] },
     { "_note": "SW BEDROOM queen (room x 15.0833..31, z -11.9167..-1): headboard on the SOUTH wall, placed directly EAST of the south window (window ~x24..26.5) so it sits beside the window, not under it. Foot points N. Moved off the east wall so it no longer fouls the alcove door swing.",
       "type": "bed", "px": 21.5, "pz": -8.58, "head": "S" },
     { "_note": "NW BEDROOM queen (room x 15.0833..31, z 6..16.0833): headboard on the NORTH wall, CENTERED between the two north windows (~x17.9 and ~x26.3) so it rests on solid wall between them, not under a window. Foot points S. Moved off the east wall so it no longer fouls the alcove door swing.",

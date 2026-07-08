@@ -768,6 +768,80 @@ function buildBed(p) {
   return g;
 }
 
+// Full-height, full-depth built-in closet cabinetry along one wall. Anchor
+// (px,pz) = footprint CENTRE; `faces` = the direction it opens into the room
+// (back sits against the wall). `bays` (laid from one end) are objects:
+//   { type: "drawtower" | "hang" | "drawhang" | "window", widthFt, sill?, head? }
+// Every bay carries an upper cabinet on top; a "window" bay leaves the sill..head
+// gap open (drawers below, uppers above, gables at the sides) so it frames a window.
+function buildClosetRun(p) {
+  const ft = FT, g = new THREE.Group();
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const box = (opx, opz, yc, sx, sz, hy, mat, rad = 0) => {
+    const geo = rad > 0 ? new RoundedBoxGeometry(sx * ft, hy * ft, sz * ft, 3, rad * ft) : new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft);
+    const m = new THREE.Mesh(geo, mat); m.position.copy(V(opx, opz, yc)); m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  const wood = woodMat(col(p.wood || "walnut", 0x6b4a2f));
+  const backM = new THREE.MeshStandardMaterial({ color: 0x513923, roughness: 0.7 });
+  const toeM = new THREE.MeshStandardMaterial({ color: 0x241b13, roughness: 0.8 });
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.25, metalness: 0.8 });
+  const rodM = new THREE.MeshStandardMaterial({ color: 0x9a9a9a, roughness: 0.3, metalness: 0.7 });
+  const garM = new THREE.MeshStandardMaterial({ color: 0xcabfa8, roughness: 0.95 });
+  const A = DIR[p.faces || "S"], P = [-A[1], A[0]];
+  const D = p.depthFt ?? 2.0, TOP = p.heightFt ?? 8.6, TOE = 0.3, UP = 7.0, SILL = 2.5, HEAD = 6.0, CEIL = 9.0;
+  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
+  let q;
+  const bodyBox = (ds, w, y0, y1) => { q = pl(0, ds, D, w - 0.04); box(q[0], q[1], (y0 + y1) / 2, q[2], q[3], y1 - y0, wood, 0.01); };
+  const toeKick = (ds, w) => { q = pl(-0.12, ds, D - 0.24, w - 0.04); box(q[0], q[1], TOE / 2, q[2], q[3], TOE, toeM); };
+  const drawerFaces = (ds, w, y0, y1, n) => {
+    for (let i = 0; i < n; i++) {
+      const yc = y0 + (y1 - y0) * (i + 0.5) / n;
+      q = pl(D / 2 + 0.02, ds, 0.04, w - 0.1); box(q[0], q[1], yc, q[2], q[3], (y1 - y0) / n - 0.05, wood, 0.015);
+      q = pl(D / 2 + 0.06, ds, 0.05, w * 0.45); box(q[0], q[1], yc, q[2], q[3], 0.05, chrome);   // bar pull
+    }
+  };
+  const doorFaces = (ds, w, y0, y1) => {
+    for (const s of [-1, 1]) {
+      q = pl(D / 2 + 0.02, ds + s * (w / 4), 0.04, w / 2 - 0.08); box(q[0], q[1], (y0 + y1) / 2, q[2], q[3], y1 - y0 - 0.06, wood, 0.015);
+      q = pl(D / 2 + 0.06, ds - s * 0.1, 0.06, 0.06);            box(q[0], q[1], (y0 + y1) / 2, q[2], q[3], 0.06, chrome); // knob near centre
+    }
+  };
+  const hangBlock = (ds, w, y0, y1) => {
+    for (const s of [-1, 1]) { q = pl(0, ds + s * (w / 2 - 0.03), D, 0.06); box(q[0], q[1], (y0 + y1) / 2, q[2], q[3], y1 - y0, wood); } // gables
+    q = pl(-(D / 2 - 0.03), ds, 0.06, w - 0.08); box(q[0], q[1], (y0 + y1) / 2, q[2], q[3], y1 - y0, backM);   // back panel
+    q = pl(0, ds, D, w - 0.06); box(q[0], q[1], y1 - 0.04, q[2], q[3], 0.08, wood, 0.01);                       // top shelf
+    const rY = y1 - 0.45;
+    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.03 * ft, 0.03 * ft, (w - 0.2) * ft, 12), rodM);
+    rod.rotation.z = Math.PI / 2; q = pl(0.15, ds, 0, 0); rod.position.copy(V(q[0], q[1], rY)); g.add(rod);     // rod along the run
+    const nG = Math.max(2, Math.round((w - 0.2) / 0.55)), gTop = rY - 0.12, gBot = y0 + 0.3;
+    for (let i = 0; i < nG; i++) {
+      const gs = -w / 2 + 0.35 + (nG > 1 ? i * (w - 0.7) / (nG - 1) : 0);
+      q = pl(0.12, ds + gs, 0.55, 0.3); box(q[0], q[1], (gTop + gBot) / 2, q[2], q[3], gTop - gBot, garM, 0.05); // hanging garments
+    }
+  };
+  const crown = (ds, w) => { q = pl(0, ds, D + 0.06, w); box(q[0], q[1], (TOP + CEIL) / 2, q[2], q[3], CEIL - TOP, wood, 0.01); };  // filler to ceiling
+  const bay = {
+    drawtower: (ds, w) => { toeKick(ds, w); bodyBox(ds, w, TOE, UP); drawerFaces(ds, w, TOE, UP, 7); bodyBox(ds, w, UP, TOP); doorFaces(ds, w, UP, TOP); },
+    hang:      (ds, w) => { toeKick(ds, w); hangBlock(ds, w, TOE, UP); bodyBox(ds, w, UP, TOP); doorFaces(ds, w, UP, TOP); },
+    drawhang:  (ds, w) => { toeKick(ds, w); bodyBox(ds, w, TOE, SILL); drawerFaces(ds, w, TOE, SILL, 3); hangBlock(ds, w, SILL, UP); bodyBox(ds, w, UP, TOP); doorFaces(ds, w, UP, TOP); },
+    window:    (ds, w, sill, head) => {
+      toeKick(ds, w); bodyBox(ds, w, TOE, sill); drawerFaces(ds, w, TOE, sill, 3);   // drawers below sill
+      for (const s of [-1, 1]) { q = pl(0, ds + s * (w / 2 - 0.03), D, 0.06); box(q[0], q[1], (sill + head) / 2, q[2], q[3], head - sill, wood); } // jamb gables
+      bodyBox(ds, w, head, TOP); doorFaces(ds, w, head, TOP);                        // uppers above head
+    },
+  };
+  const L = p.lenFt, bays = p.bays || [];
+  let cur = -L / 2;
+  for (const b of bays) {
+    const w = b.widthFt, ds = cur + w / 2;
+    if (b.type === "window") bay.window(ds, w, b.sill ?? SILL, b.head ?? HEAD);
+    else (bay[b.type] || bay.hang)(ds, w);
+    crown(ds, w);
+    cur += w;
+  }
+  return g;
+}
+
 // Bedside night table (matches the bed-frame wood): a drawer box on short tapered
 // legs with a slim overhanging top and a bar pull. `faces` = the drawer-front dir.
 function buildNightstand(p) {
@@ -1008,7 +1082,7 @@ function buildTub(p) {
   return g;
 }
 
-const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
+const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 const CHAIRS = new Set(["upholstered_dining_chair", "highback_chair"]);
 const SEAT_FRONT = 0.225;   // chair seat front is +0.225 m toward the table from its centre
 const TUCK = 0.08;          // pushed-in: seat front this far under the table edge
