@@ -34,10 +34,14 @@
       position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
       z-index: 10; background: rgba(20,24,33,0.85); color: #fff;
       padding: 8px 16px; border-radius: 20px; font-size: 13px; }
-    /* Compass: the rose rotates so "N" always points to true (model) north.
-       Centred along the bottom, directly below the level switcher. */
+    /* Bottom bar: the level switcher and the compass share a single centred row
+       along the bottom, compass on the right. */
+    #bottom-bar {
+      position: fixed; left: 50%; transform: translateX(-50%); bottom: 16px; z-index: 11;
+      display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 16px); }
+    /* Compass: the rose rotates so "N" always points to true (model) north. */
     #compass {
-      position: fixed; left: 50%; transform: translateX(-50%); bottom: 16px; z-index: 10;
+      position: relative; flex: 0 0 auto;
       width: 64px; height: 64px; border-radius: 50%;
       background: rgba(255,255,255,0.9); backdrop-filter: blur(8px);
       -webkit-backdrop-filter: blur(8px);
@@ -120,11 +124,10 @@
     .page-link:hover { text-decoration: underline; }
     /* Persistent level switcher: an always-visible segmented control that jumps the
        orbit camera between the models (Lot / Ground / 2nd / Attic). The active level
-       is highlighted. Top-centre on desktop; bottom-centre on phones (clear of the
-       top icon-chip row). */
+       is highlighted. Shares the bottom-centre row with the compass (see #bottom-bar). */
     #level-switcher {
-      position: fixed; bottom: 92px; left: 50%; transform: translateX(-50%); z-index: 11;
-      display: flex; gap: 3px; padding: 4px; max-width: calc(100vw - 24px);
+      flex: 0 1 auto; min-width: 0;
+      display: flex; gap: 3px; padding: 4px;
       overflow-x: auto; scrollbar-width: none;
       background: rgba(255,255,255,0.92); backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
@@ -137,7 +140,6 @@
     .level-tab:hover { background: rgba(0,0,0,0.06); }
     .level-tab.active { background: #2563c9; color: #fff; }
     @media (max-width: 640px) {
-      #level-switcher { max-width: calc(100vw - 16px); }
       .level-tab { padding: 8px 12px; }
     }
   </style>
@@ -171,13 +173,15 @@
       <div class="menu-body"><div id="props-body"><div class="muted">Tap an element — a wall, the floor, a window — to see what it is.</div></div></div>
     </div>
   </div>
-  <div id="level-switcher"></div>
   <div id="status">Loading…</div>
-  <div id="compass" title="North">
-    <div id="compass-rose">
-      <div class="needle"></div>
-      <span class="dir n">N</span><span class="dir e">E</span>
-      <span class="dir s">S</span><span class="dir w">W</span>
+  <div id="bottom-bar">
+    <div id="level-switcher"></div>
+    <div id="compass" title="North">
+      <div id="compass-rose">
+        <div class="needle"></div>
+        <span class="dir n">N</span><span class="dir e">E</span>
+        <span class="dir s">S</span><span class="dir w">W</span>
+      </div>
     </div>
   </div>
   <script>
