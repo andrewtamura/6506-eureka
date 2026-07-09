@@ -168,7 +168,7 @@ function addLandscapeLighting(parent, onFixture) {
       // compensate for the longer throw.
       const light = new THREE.SpotLight(0xffe9c8, 16, 0, Math.PI / 7, 0.6, 2);
       light.position.set(0, 0.45 * FT, 0);
-      light.target.position.set(0, 13 * FT, throwZ);   // up + back toward the wall face
+      light.target.position.set(0, 6 * FT, throwZ);    // up + back toward the wall face (aimed low)
       g.add(light); g.add(light.target);
       onFixture && onFixture(light, lm);
     }
@@ -243,23 +243,6 @@ function addLandscapeLighting(parent, onFixture) {
     }
   }
 
-  // 7) Eave soffit downlights: recessed downlights tucked in the north roof-overhang
-  //    soffit (wall top ≈ 25'), washing DOWN the front facade to complement the
-  //    pier uplights below and light the upper storey the uplights can't reach.
-  {
-    const eaveY = 24, soffitPz = 16.4;
-    const lensMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffe9c8, emissiveIntensity: 0.6, roughness: 0.3 });
-    for (const px of [-10.5, -3, 5.5, 13.5, 22, 29.5]) {
-      const g = new THREE.Group(); g.position.copy(P(px, soffitPz, eaveY)); parent.add(g);
-      const lm = lensMat.clone();
-      g.add(mesh(new THREE.CylinderGeometry(0.13 * FT, 0.13 * FT, 0.04, 12), lm, 0)); // flush soffit lens
-      const light = new THREE.SpotLight(0xffe9c8, 12, 0, Math.PI / 7, 0.6, 2);
-      light.position.set(0, 0, 0);
-      light.target.position.set(0, -6, 0.15);       // down + slightly toward the wall face
-      g.add(light); g.add(light.target);
-      onFixture && onFixture(light, lm);
-    }
-  }
 }
 
 async function main() {
