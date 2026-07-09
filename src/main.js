@@ -151,28 +151,6 @@ function addLandscapeLighting(parent, onFixture) {
     const pl = new THREE.PointLight(0xffe0b0, 4, 8, 2); pl.position.copy(A); parent.add(pl); onFixture && onFixture(pl, bulbMat);
   }
 
-  // 3) Facade uplights across the north (front) elevation. Placed on the SOLID
-  //    PIERS between the front windows (centres -7.25, 1.125, door 9.5, 17.875,
-  //    26.25) and flanking the entry — a tight, gentle graze up the masonry, NOT
-  //    a wash straight up through the glazing.
-  {
-    const lensMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffe4ad, emissiveIntensity: 0.7, roughness: 0.3 });
-    const upPz = 22.7, wallPz = 16.0833, throwZ = (upPz - wallPz) * FT;   // set 6' out in the lawn
-    for (const px of [-10.5, -3, 5.5, 13.5, 22, 29.5]) {
-      const g = new THREE.Group(); g.position.copy(P(px, upPz, 0)); parent.add(g);
-      g.add(mesh(new THREE.CylinderGeometry(0.16 * FT, 0.18 * FT, 0.45 * FT, 12), metalDark, 0.22 * FT)); // housing
-      const lm = lensMat.clone();
-      g.add(mesh(new THREE.CylinderGeometry(0.13 * FT, 0.13 * FT, 0.05 * FT, 12), lm, 0.45 * FT));        // lens
-      // Set back 6' from the wall for a larger, softer wash — re-aimed up AND back at
-      // the facade (target on the wall plane ~13' up) and widened, brighter to
-      // compensate for the longer throw.
-      const light = new THREE.SpotLight(0xffe9c8, 16, 0, Math.PI / 7, 0.6, 2);
-      light.position.set(0, 0.45 * FT, 0);
-      light.target.position.set(0, 6 * FT, throwZ);    // up + back toward the wall face (aimed low)
-      g.add(light); g.add(light.target);
-      onFixture && onFixture(light, lm);
-    }
-  }
 
   // 4) Front-step puddle lights: little warm downlights tucked just under the
   //    splayed cheek-wall caps, spilling pools onto the treads. Porch geometry
@@ -566,8 +544,11 @@ async function main() {
           extFillMats.add(mat);
         }
         // Exterior window glass: collect it so the night scene can give it a warm
-        // "interior lights on" glow (the day-fill above deliberately skips glass).
-        if (lvl.id === "exterior" && mat.color && mat.emissive && mat.transparent && mat.opacity < 1 && !extWindowMats.has(mat)) {
+        // "interior lights on" glow. Includes translucent glass (dormers, transom)
+        // AND the OPAQUE bluish pane material used for the main ground/upper windows
+        // (b noticeably > r picks glass while skipping the neutral walls/roof/trim).
+        if (lvl.id === "exterior" && mat.color && mat.emissive && !extWindowMats.has(mat) &&
+            ((mat.transparent && mat.opacity < 1) || (mat.color.b > mat.color.r + 0.05 && mat.color.b < 0.72))) {
           extWindowMats.add(mat);
         }
         // Render both faces so downward-facing surfaces (the roof soffit / eave
@@ -1233,8 +1214,8 @@ async function main() {
   // on" from outside. Both start OFF for the daytime landing view.
   const setWindowGlow = (on) => {
     for (const m of extWindowMats) {
-      m.emissive.setRGB(on ? 0.55 : 0, on ? 0.4 : 0, on ? 0.18 : 0);
-      m.emissiveIntensity = 1; m.needsUpdate = true;
+      m.emissive.setRGB(on ? 0.95 : 0, on ? 0.7 : 0, on ? 0.34 : 0);
+      m.emissiveIntensity = on ? 1.5 : 1; m.needsUpdate = true;   // strong "lit from inside" warm glow
     }
   };
   if (exteriorModel) addLandscapeLighting(exteriorModel.object, (light, emiss) => registerFixture(light, "exterior", emiss));
