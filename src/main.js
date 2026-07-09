@@ -125,9 +125,10 @@ function addLandscapeLighting(parent, onFixture) {
   }
 
   // 2) String-light post in the middle of the west side yard, fanning catenary
-  //    strands to the house's west wall at 10' above grade.
+  //    strands to the house's west wall. The strands leave the post at 10' and
+  //    rise to meet the wall at 12' above grade.
   {
-    const postPx = 46, postPz = -3.9, hFt = 10;
+    const postPx = 46, postPz = -3.9, hFt = 10, wallFt = 12;
     const g = new THREE.Group(); g.position.copy(P(postPx, postPz, 0)); parent.add(g);
     g.add(mesh(new THREE.CylinderGeometry(0.2 * FT, 0.24 * FT, 10.6 * FT, 12), wood, 5.3 * FT));
     g.add(mesh(new THREE.ConeGeometry(0.26 * FT, 0.4 * FT, 12), wood, 10.8 * FT));                      // post cap
@@ -135,7 +136,7 @@ function addLandscapeLighting(parent, onFixture) {
     const A = P(postPx, postPz, hFt);
     const mids = [];
     for (const tz of [-11, -3, 5, 13]) {              // fan to 4 points on the house west wall (px≈31)
-      const B = P(30.6, tz, hFt);
+      const B = P(30.6, tz, wallFt);
       const sag = 1.4 * FT, pts = [];
       for (let i = 0; i <= 16; i++) { const t = i / 16, p = A.clone().lerp(B, t); p.y -= sag * 4 * t * (1 - t); pts.push(p); }
       const curve = new THREE.CatmullRomCurve3(pts);
