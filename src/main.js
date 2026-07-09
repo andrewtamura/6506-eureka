@@ -150,17 +150,20 @@ function addLandscapeLighting(parent, onFixture) {
     const pl = new THREE.PointLight(0xffe0b0, 6, 8, 2); pl.position.copy(A); parent.add(pl); onFixture && onFixture(pl, bulbMat);
   }
 
-  // 3) Facade uplights across the north (front) elevation, grazing up the wall.
+  // 3) Facade uplights across the north (front) elevation. Placed on the SOLID
+  //    PIERS between the front windows (centres -7.25, 1.125, door 9.5, 17.875,
+  //    26.25) and flanking the entry — a tight, gentle graze up the masonry, NOT
+  //    a wash straight up through the glazing.
   {
-    const lensMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffe4ad, emissiveIntensity: 0.9, roughness: 0.3 });
-    for (const px of [-8, 1, 10, 19, 28]) {
+    const lensMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffe4ad, emissiveIntensity: 0.7, roughness: 0.3 });
+    for (const px of [-10.5, -3, 5.5, 13.5, 22, 29.5]) {
       const g = new THREE.Group(); g.position.copy(P(px, 16.7, 0)); parent.add(g);
-      g.add(mesh(new THREE.CylinderGeometry(0.18 * FT, 0.2 * FT, 0.5 * FT, 12), metalDark, 0.25 * FT)); // housing
+      g.add(mesh(new THREE.CylinderGeometry(0.16 * FT, 0.18 * FT, 0.45 * FT, 12), metalDark, 0.22 * FT)); // housing
       const lm = lensMat.clone();
-      g.add(mesh(new THREE.CylinderGeometry(0.15 * FT, 0.15 * FT, 0.05 * FT, 12), lm, 0.5 * FT));       // lens
-      const light = new THREE.SpotLight(0xffe9c8, 22, 0, Math.PI / 7, 0.6, 2);
-      light.position.set(0, 0.5 * FT, 0);
-      light.target.position.set(0, 8 * FT, 0.19);      // up + toward the wall (north)
+      g.add(mesh(new THREE.CylinderGeometry(0.13 * FT, 0.13 * FT, 0.05 * FT, 12), lm, 0.45 * FT));        // lens
+      const light = new THREE.SpotLight(0xffe9c8, 9, 0, Math.PI / 9, 0.5, 2);
+      light.position.set(0, 0.45 * FT, 0);
+      light.target.position.set(0, 9 * FT, 0.1);       // near-vertical graze up the pier, slight lean to the wall
       g.add(light); g.add(light.target);
       onFixture && onFixture(light, lm);
     }
@@ -1155,7 +1158,7 @@ async function main() {
   // on" from outside. Both start OFF for the daytime landing view.
   const setWindowGlow = (on) => {
     for (const m of extWindowMats) {
-      m.emissive.setRGB(on ? 0.34 : 0, on ? 0.25 : 0, on ? 0.12 : 0);
+      m.emissive.setRGB(on ? 0.55 : 0, on ? 0.4 : 0, on ? 0.18 : 0);
       m.emissiveIntensity = 1; m.needsUpdate = true;
     }
   };
