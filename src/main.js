@@ -194,6 +194,68 @@ function addLandscapeLighting(parent, onFixture) {
       }
     }
   }
+
+  // 5) Entry lanterns: give the two flanking porch pendants real, scene-switched
+  //    light (they carry only a faint baked glow otherwise) — a warm filament in
+  //    each lantern cage plus a soft wash over the stoop. Bulb position mirrors
+  //    buildPorchPendant: below + forward of the wall mount (px 5.6 / 13.4).
+  {
+    const flame = new THREE.MeshStandardMaterial({ color: 0xfff2cf, emissive: 0xffcf82, emissiveIntensity: 2.4, roughness: 1 });
+    for (const px of [5.6, 13.4]) {
+      const g = new THREE.Group();
+      g.position.set(-px * FT, 2.7127 - 0.42, -16.0833 * FT - 0.40); parent.add(g);
+      const fm = flame.clone();
+      g.add(new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 10), fm));
+      const light = new THREE.PointLight(0xffdca0, 6, 5, 2); g.add(light);
+      onFixture && onFixture(light, fm);
+    }
+  }
+
+  // 6) Rear deck / patio: string lights strung from the house's south wall to the
+  //    top of the CMU garden wall, plus warm cap lights along that wall — lighting
+  //    the outdoor room off the family-room patio doors.
+  {
+    const houseS = -11.9167, wallS = -23.2, hHouse = 9, hWall = 7;
+    const bulbMat = new THREE.MeshStandardMaterial({ color: 0xfff3d4, emissive: 0xffca73, emissiveIntensity: 1.2, roughness: 0.35 });
+    const mids = [];
+    for (const px of [-19, -13, -7, -1]) {             // strands span the deck (family/extension bay)
+      const A = P(px, houseS, hHouse), B = P(px, wallS, hWall);
+      const sag = 1.3 * FT, pts = [];
+      for (let i = 0; i <= 16; i++) { const t = i / 16, p = A.clone().lerp(B, t); p.y -= sag * 4 * t * (1 - t); pts.push(p); }
+      const curve = new THREE.CatmullRomCurve3(pts);
+      parent.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 20, 0.012, 5, false), wireMat));
+      for (let i = 1; i < 16; i += 2) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), bulbMat); b.position.copy(pts[i]); parent.add(b); }
+      mids.push(curve.getPoint(0.5));
+    }
+    for (const idx of [0, 3]) { const light = new THREE.PointLight(0xffe0b0, 8, 9, 2); light.position.copy(mids[idx]); parent.add(light); onFixture && onFixture(light, bulbMat); }
+    const capMat = new THREE.MeshStandardMaterial({ color: 0xfff0cc, emissive: 0xffcf85, emissiveIntensity: 1.0, roughness: 0.5 });
+    for (const px of [-18, -6, 6, 18]) {               // post-cap lights on the CMU wall top
+      const g = new THREE.Group(); g.position.copy(P(px, wallS, hWall)); parent.add(g);
+      const cm = capMat.clone();
+      g.add(mesh(new THREE.CylinderGeometry(0.1 * FT, 0.12 * FT, 0.14 * FT, 10), metalDark, 0.07 * FT)); // cap fixture
+      g.add(mesh(new THREE.SphereGeometry(0.05, 10, 8), cm, 0.22 * FT));                                 // glowing globe
+      const light = new THREE.PointLight(0xffe0b0, 2, 3.5, 2); light.position.y = 0.22 * FT; g.add(light);
+      onFixture && onFixture(light, cm);
+    }
+  }
+
+  // 7) Eave soffit downlights: recessed downlights tucked in the north roof-overhang
+  //    soffit (wall top ≈ 25'), washing DOWN the front facade to complement the
+  //    pier uplights below and light the upper storey the uplights can't reach.
+  {
+    const eaveY = 24, soffitPz = 16.4;
+    const lensMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffe9c8, emissiveIntensity: 0.6, roughness: 0.3 });
+    for (const px of [-10.5, -3, 5.5, 13.5, 22, 29.5]) {
+      const g = new THREE.Group(); g.position.copy(P(px, soffitPz, eaveY)); parent.add(g);
+      const lm = lensMat.clone();
+      g.add(mesh(new THREE.CylinderGeometry(0.13 * FT, 0.13 * FT, 0.04, 12), lm, 0)); // flush soffit lens
+      const light = new THREE.SpotLight(0xffe9c8, 38, 0, Math.PI / 7, 0.6, 2);
+      light.position.set(0, 0, 0);
+      light.target.position.set(0, -6, 0.15);       // down + slightly toward the wall face
+      g.add(light); g.add(light.target);
+      onFixture && onFixture(light, lm);
+    }
+  }
 }
 
 async function main() {
