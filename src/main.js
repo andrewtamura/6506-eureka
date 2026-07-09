@@ -169,6 +169,31 @@ function addLandscapeLighting(parent, onFixture) {
       onFixture && onFixture(light, lm);
     }
   }
+
+  // 4) Front-step puddle lights: little warm downlights tucked just under the
+  //    splayed cheek-wall caps, spilling pools onto the treads. Porch geometry
+  //    mirrors add_porch: 5 flaring steps from the terrace front (pz 19.08) down
+  //    to the foot (pz 22.88); cheek half-width curves 4.5'→6.5'; cap top ramps
+  //    from 4.7' at the terrace to 2.2' at the foot.
+  {
+    const doorPx = 9.5, base = 2.5, ph = 2.2, tread = 0.95;
+    const zTf = 16.0833 + 3.0, run = 4 * tread;                 // terrace front -> cascade foot
+    const wcurve = (t) => 4.5 + (6.5 - 4.5) * Math.pow(t, 1.8); // cheek half-width along the run
+    const lensMat = new THREE.MeshStandardMaterial({ color: 0xffe9c8, emissive: 0xffcf94, emissiveIntensity: 0.9, roughness: 0.35 });
+    for (const s of [-1, 1]) {                                  // left + right cheek walls
+      for (const t of [0.18, 0.5, 0.82]) {
+        const pz = zTf + t * run, px = doorPx - s * wcurve(t), y = (base + ph - base * t) - 0.5;
+        const g = new THREE.Group(); g.position.copy(P(px, pz, y)); parent.add(g);
+        const lm = lensMat.clone();
+        g.add(mesh(new THREE.CylinderGeometry(0.08 * FT, 0.08 * FT, 0.035, 10), lm, 0)); // small flush lens
+        const light = new THREE.SpotLight(0xffe0b0, 2.6, 2.2, Math.PI / 6, 0.7, 2);
+        light.position.set(0, 0, 0);
+        light.target.position.set(0, -1, 0.12);               // down, spilling a pool onto the tread
+        g.add(light); g.add(light.target);
+        onFixture && onFixture(light, lm);
+      }
+    }
+  }
 }
 
 async function main() {
