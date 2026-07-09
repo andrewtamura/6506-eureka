@@ -663,9 +663,10 @@ async function main() {
       }
       const eb = new THREE.Box3().setFromObject(exteriorModel.object);
       // identical geometry → matching the original's transform places it exactly on
-      // top of it; then shift one lot-depth + a gap SOUTH so the two sit side by side.
+      // top of it; then shift SOUTH by TWO lot-depths + a margin, leaving a gap
+      // between the two big enough to drop a third identical model in.
       alt.object.position.copy(exteriorModel.object.position);
-      alt.object.position.z += (eb.max.z - eb.min.z) + 4;
+      alt.object.position.z += 2 * (eb.max.z - eb.min.z) + 4;
       alt.object.updateMatrixWorld(true);
       alt.object.traverse((o) => {
         if (!o.isMesh) return;
