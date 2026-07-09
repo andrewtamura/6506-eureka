@@ -649,6 +649,40 @@ async function main() {
         mat.emissive.copy(mat.userData._fillBase).multiplyScalar(k);
       }
     });
+
+    // Alternative exterior lot: a full duplicate of the exterior model dropped to
+    // the SOUTH (world +Z), a scratch lot for trying a different eastern addition.
+    // It gets the same day sky-fill, night window glow, and landscape lighting, so
+    // it reads identically; the switcher's Lot slot toggles between the two lots.
+    try {
+      const alt = await loadIfc(exteriorLvl.ifc, "Exterior (alt)");
+      let ab = new THREE.Box3().setFromObject(alt.object);
+      for (let t = 0; ab.isEmpty() && t < 40; t++) {
+        await new Promise((r) => setTimeout(r, 50)); await fragments.core.update(true);
+        ab = new THREE.Box3().setFromObject(alt.object);
+      }
+      const eb = new THREE.Box3().setFromObject(exteriorModel.object);
+      // identical geometry → matching the original's transform places it exactly on
+      // top of it; then shift one lot-depth + a gap SOUTH so the two sit side by side.
+      alt.object.position.copy(exteriorModel.object.position);
+      alt.object.position.z += (eb.max.z - eb.min.z) + 4;
+      alt.object.updateMatrixWorld(true);
+      alt.object.traverse((o) => {
+        if (!o.isMesh) return;
+        o.frustumCulled = false; o.castShadow = true; o.receiveShadow = true; o.layers.enable(2);
+        for (const mat of (Array.isArray(o.material) ? o.material : [o.material])) {
+          if (!mat || !mat.color || !mat.emissive) continue;
+          const glass = (mat.transparent && mat.opacity < 1) || (mat.color.b > mat.color.r + 0.05 && mat.color.b < 0.72);
+          if (!glass && !extFillMats.has(mat)) { mat.userData._fillBase = mat.color.clone(); extFillMats.add(mat); }
+          if (glass && !extWindowMats.has(mat)) extWindowMats.add(mat);
+          mat.side = THREE.DoubleSide;
+          if (mat.transparent && mat.opacity < 1) mat.depthWrite = false;
+        }
+      });
+      modelViews.push({ id: "exterior-alt", label: "Alternative Lot", box: buildingBox(alt.object) });
+      labelViews.push({ label: "Alternative Lot", box: new THREE.Box3().setFromObject(alt.object) });
+      addLandscapeLighting(alt.object, (light, emiss) => registerFixture(light, "exterior", emiss));
+    } catch (err) { console.warn("alt exterior failed", err); }
   }
   setStatus("");
 
@@ -1160,18 +1194,29 @@ async function main() {
   const switcherEl = document.getElementById("level-switcher");
   const SHORT = { exterior: "Lot", ground: "Ground", level2: "2nd", attic: "Attic" };
   setActiveLevel = (id) => {
-    for (const b of switcherEl.children) b.classList.toggle("active", b.dataset.id === id);
+    for (const b of switcherEl.querySelectorAll("[data-id]")) b.classList.toggle("active", b.dataset.id === id);
   };
+  const makeTab = (id, label, title) => {
+    const t = document.createElement("button");
+    t.className = "level-tab"; t.dataset.id = id; t.title = title || label; t.textContent = label;
+    t.addEventListener("click", () => focusLevel(id, true));
+    return t;
+  };
+  const hasAlt = modelViews.some((v) => v.id === "exterior-alt");
   for (const lvl of levelsCfg) {
     const mv = modelViews.find((v) => v.id === lvl.id);
     if (!mv) continue;
-    const tab = document.createElement("button");
-    tab.className = "level-tab";
-    tab.dataset.id = mv.id;
-    tab.title = mv.label;
-    tab.textContent = SHORT[mv.id] || mv.label;
-    tab.addEventListener("click", () => focusLevel(mv.id, true));
-    switcherEl.appendChild(tab);
+    if (lvl.id === "exterior" && hasAlt) {
+      // Lot slot gets an up/down toggle: the default exterior lot (top) and the
+      // alternative lot (bottom), stacked within the left-to-right switcher.
+      const col = document.createElement("div");
+      col.className = "level-col";
+      col.appendChild(makeTab("exterior", "Lot", "Default exterior lot"));
+      col.appendChild(makeTab("exterior-alt", "Alt", "Alternative exterior lot (south)"));
+      switcherEl.appendChild(col);
+    } else {
+      switcherEl.appendChild(makeTab(mv.id, SHORT[mv.id] || mv.label, mv.label));
+    }
   }
 
   // 📷 Camera views menu: same presets, full labels (routes through focusLevel).
@@ -1188,6 +1233,7 @@ async function main() {
     if (!mv) continue;
     addView(mv.label, () => focusLevel(mv.id, true));
   }
+  if (hasAlt) addView("Alternative Lot", () => focusLevel("exterior-alt", true));
 
   // --- lighting scenes: presets that drive the sun (time of day) and the interior
   // light fixtures (on / off / dimmed) together, plus per-level fixture toggles.
