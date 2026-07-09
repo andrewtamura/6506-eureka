@@ -181,8 +181,11 @@ function buildBuiltinHutch(p) {
 function buildPorchPendant(p) {
   const g = new THREE.Group();
   const bronze = new THREE.MeshStandardMaterial({ color: 0x2e2a22, roughness: 0.45, metalness: 0.75 });
-  const glass = new THREE.MeshStandardMaterial({ color: 0xfff1c2, roughness: 0.15, transparent: true, opacity: 0.32, emissive: 0xffce82, emissiveIntensity: 0.45, depthWrite: false });
-  const bulb = new THREE.MeshStandardMaterial({ color: 0xfff4d0, emissive: 0xffdd99, emissiveIntensity: 1.8, roughness: 1 });
+  // Faint baked glow only: the actual "lit" state (bright bulb + real light) is
+  // driven by the exterior lighting scene (see addLandscapeLighting), so the
+  // lanterns read as OFF by day and switch on at night.
+  const glass = new THREE.MeshStandardMaterial({ color: 0xfff1c2, roughness: 0.15, transparent: true, opacity: 0.32, emissive: 0xffce82, emissiveIntensity: 0.1, depthWrite: false });
+  const bulb = new THREE.MeshStandardMaterial({ color: 0xfff4d0, emissive: 0xffdd99, emissiveIntensity: 0.22, roughness: 1 });
   const add = (geo, mat, x, y, z, rx = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); if (rx) m.rotation.x = rx; g.add(m); return m; };
 
   const reach = 0.36, hz = -0.04 - reach;          // arm projection; lantern z (out front)
