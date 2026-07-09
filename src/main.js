@@ -655,6 +655,7 @@ async function main() {
     // It gets the same day sky-fill, night window glow, and landscape lighting, so
     // it reads identically; the switcher's Lot slot toggles between the two lots.
     try {
+      const FT = 0.3048;
       const alt = await loadIfc(exteriorLvl.ifc, "Exterior (alt)");
       let ab = new THREE.Box3().setFromObject(alt.object);
       for (let t = 0; ab.isEmpty() && t < 40; t++) {
@@ -680,6 +681,29 @@ async function main() {
           if (mat.transparent && mat.opacity < 1) mat.depthWrite = false;
         }
       });
+      // Remove the EASTERN EXTENSION (the ext_bath/wc/laundry wing) from the alt so
+      // it's a clean slate for a different addition. The extension sits at local
+      // x = -px·FT for px ∈ [-22.92,-12] → x ∈ [~3.7, 7], z = -pz·FT for pz ∈
+      // [-11.92, 4] → z ∈ [~-1.2, 3.6]; the primary block is all at x < 3.66, so a
+      // center-in-box test cleanly isolates the extension's massing/roof/windows.
+      try {
+        const ids = await alt.getLocalIds();
+        const boxes = await alt.getBoxes(ids);
+        const uni = new THREE.Box3();
+        for (const b of boxes) if (b && !b.isEmpty()) uni.union(b);
+        const wbb = new THREE.Box3().setFromObject(alt.object);
+        const off = new THREE.Vector3().subVectors(wbb.min, uni.min); // getBoxes-space → world
+        const pos = alt.object.position, c = new THREE.Vector3();
+        const X0 = 12 * FT - 0.3, X1 = 22.9167 * FT + 0.8, Z0 = -4 * FT - 0.6, Z1 = 11.9167 * FT + 0.6;
+        const hide = [];
+        for (let i = 0; i < ids.length; i++) {
+          const b = boxes[i]; if (!b || b.isEmpty()) continue;
+          b.getCenter(c);
+          const lx = c.x + off.x - pos.x, lz = c.z + off.z - pos.z;   // → local model space
+          if (lx >= X0 && lx <= X1 && lz >= Z0 && lz <= Z1) hide.push(ids[i]);
+        }
+        if (hide.length) { await alt.setVisible(hide, false); await fragments.core.update(true); }
+      } catch (e) { console.warn("alt: could not hide extension", e); }
       modelViews.push({ id: "exterior-alt", label: "Alternative Lot", box: buildingBox(alt.object) });
       labelViews.push({ label: "Alternative Lot", box: new THREE.Box3().setFromObject(alt.object) });
       addLandscapeLighting(alt.object, (light, emiss) => registerFixture(light, "exterior", emiss));
