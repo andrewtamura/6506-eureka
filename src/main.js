@@ -116,11 +116,11 @@ function addLandscapeLighting(parent, onFixture) {
     g.add(mesh(new THREE.CylinderGeometry(0.5 * FT, 0.64 * FT, 1.3 * FT, 20), concrete, 0.65 * FT));   // poured base
     g.add(mesh(new THREE.CylinderGeometry(0.28 * FT, 0.32 * FT, 0.5 * FT, 16), metalDark, 1.45 * FT)); // base collar
     g.add(mesh(new THREE.CylinderGeometry(0.11 * FT, 0.17 * FT, 9.5 * FT, 16), metalDark, (1.3 + 9.5 / 2) * FT)); // tapered pole
-    const lampGlass = new THREE.MeshStandardMaterial({ color: 0xfff1cf, emissive: 0xffb14a, emissiveIntensity: 1.0, roughness: 0.3, transparent: true, opacity: 0.9 });
+    const lampGlass = new THREE.MeshStandardMaterial({ color: 0xfff1cf, emissive: 0xffb14a, emissiveIntensity: 0.7, roughness: 0.3, transparent: true, opacity: 0.9 });
     g.add(mesh(new THREE.CylinderGeometry(0.34 * FT, 0.46 * FT, 1.1 * FT, 6), lampGlass, 11.55 * FT));  // hex glass lantern
     g.add(mesh(new THREE.CylinderGeometry(0.10 * FT, 0.52 * FT, 0.55 * FT, 6), metalDark, 12.4 * FT));  // roof cap
     g.add(mesh(new THREE.SphereGeometry(0.09 * FT, 10, 8), metalDark, 12.85 * FT));                     // finial
-    const light = new THREE.PointLight(0xffd39a, 28, 14, 2); light.position.y = 11.55 * FT; g.add(light);
+    const light = new THREE.PointLight(0xffd39a, 18, 14, 2); light.position.y = 11.55 * FT; g.add(light);
     onFixture && onFixture(light, lampGlass);
   }
 
@@ -144,11 +144,11 @@ function addLandscapeLighting(parent, onFixture) {
       for (let i = 1; i < 16; i += 2) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), bulbMat); b.position.copy(pts[i]); parent.add(b); }
       mids.push(curve.getPoint(0.5));
     }
-    for (const idx of [0, 2]) {                        // a couple of warm lights to wash the yard
-      const light = new THREE.PointLight(0xffe0b0, 9, 9, 2); light.position.copy(mids[idx]); light.position.y += 0.1; parent.add(light);
+    for (const idx of [0, 2]) {                        // a couple of warm lights to wash the yard (high → soft)
+      const light = new THREE.PointLight(0xffe0b0, 5, 9, 2); light.position.copy(mids[idx]); light.position.y += 0.1; parent.add(light);
       onFixture && onFixture(light, bulbMat);
     }
-    const pl = new THREE.PointLight(0xffe0b0, 6, 8, 2); pl.position.copy(A); parent.add(pl); onFixture && onFixture(pl, bulbMat);
+    const pl = new THREE.PointLight(0xffe0b0, 4, 8, 2); pl.position.copy(A); parent.add(pl); onFixture && onFixture(pl, bulbMat);
   }
 
   // 3) Facade uplights across the north (front) elevation. Placed on the SOLID
@@ -157,14 +157,18 @@ function addLandscapeLighting(parent, onFixture) {
   //    a wash straight up through the glazing.
   {
     const lensMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffe4ad, emissiveIntensity: 0.7, roughness: 0.3 });
+    const upPz = 22.7, wallPz = 16.0833, throwZ = (upPz - wallPz) * FT;   // set 6' out in the lawn
     for (const px of [-10.5, -3, 5.5, 13.5, 22, 29.5]) {
-      const g = new THREE.Group(); g.position.copy(P(px, 16.7, 0)); parent.add(g);
+      const g = new THREE.Group(); g.position.copy(P(px, upPz, 0)); parent.add(g);
       g.add(mesh(new THREE.CylinderGeometry(0.16 * FT, 0.18 * FT, 0.45 * FT, 12), metalDark, 0.22 * FT)); // housing
       const lm = lensMat.clone();
       g.add(mesh(new THREE.CylinderGeometry(0.13 * FT, 0.13 * FT, 0.05 * FT, 12), lm, 0.45 * FT));        // lens
-      const light = new THREE.SpotLight(0xffe9c8, 9, 0, Math.PI / 9, 0.5, 2);
+      // Set back 6' from the wall for a larger, softer wash — re-aimed up AND back at
+      // the facade (target on the wall plane ~13' up) and widened, brighter to
+      // compensate for the longer throw.
+      const light = new THREE.SpotLight(0xffe9c8, 16, 0, Math.PI / 7, 0.6, 2);
       light.position.set(0, 0.45 * FT, 0);
-      light.target.position.set(0, 9 * FT, 0.1);       // near-vertical graze up the pier, slight lean to the wall
+      light.target.position.set(0, 13 * FT, throwZ);   // up + back toward the wall face
       g.add(light); g.add(light.target);
       onFixture && onFixture(light, lm);
     }
@@ -200,13 +204,13 @@ function addLandscapeLighting(parent, onFixture) {
   //    each lantern cage plus a soft wash over the stoop. Bulb position mirrors
   //    buildPorchPendant: below + forward of the wall mount (px 5.6 / 13.4).
   {
-    const flame = new THREE.MeshStandardMaterial({ color: 0xfff2cf, emissive: 0xffcf82, emissiveIntensity: 2.4, roughness: 1 });
+    const flame = new THREE.MeshStandardMaterial({ color: 0xfff2cf, emissive: 0xffcf82, emissiveIntensity: 1.2, roughness: 1 });
     for (const px of [5.6, 13.4]) {
       const g = new THREE.Group();
       g.position.set(-px * FT, 2.7127 - 0.42, -16.0833 * FT - 0.40); parent.add(g);
       const fm = flame.clone();
       g.add(new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 10), fm));
-      const light = new THREE.PointLight(0xffdca0, 6, 5, 2); g.add(light);
+      const light = new THREE.PointLight(0xffdca0, 2.2, 4.5, 2); g.add(light);
       onFixture && onFixture(light, fm);
     }
   }
@@ -227,7 +231,7 @@ function addLandscapeLighting(parent, onFixture) {
       for (let i = 1; i < 16; i += 2) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), bulbMat); b.position.copy(pts[i]); parent.add(b); }
       mids.push(curve.getPoint(0.5));
     }
-    for (const idx of [0, 3]) { const light = new THREE.PointLight(0xffe0b0, 8, 9, 2); light.position.copy(mids[idx]); parent.add(light); onFixture && onFixture(light, bulbMat); }
+    for (const idx of [0, 3]) { const light = new THREE.PointLight(0xffe0b0, 5, 9, 2); light.position.copy(mids[idx]); parent.add(light); onFixture && onFixture(light, bulbMat); }
     const capMat = new THREE.MeshStandardMaterial({ color: 0xfff0cc, emissive: 0xffcf85, emissiveIntensity: 1.0, roughness: 0.5 });
     for (const px of [-18, -6, 6, 18]) {               // post-cap lights on the CMU wall top
       const g = new THREE.Group(); g.position.copy(P(px, wallS, hWall)); parent.add(g);
@@ -249,7 +253,7 @@ function addLandscapeLighting(parent, onFixture) {
       const g = new THREE.Group(); g.position.copy(P(px, soffitPz, eaveY)); parent.add(g);
       const lm = lensMat.clone();
       g.add(mesh(new THREE.CylinderGeometry(0.13 * FT, 0.13 * FT, 0.04, 12), lm, 0)); // flush soffit lens
-      const light = new THREE.SpotLight(0xffe9c8, 38, 0, Math.PI / 7, 0.6, 2);
+      const light = new THREE.SpotLight(0xffe9c8, 12, 0, Math.PI / 7, 0.6, 2);
       light.position.set(0, 0, 0);
       light.target.position.set(0, -6, 0.15);       // down + slightly toward the wall face
       g.add(light); g.add(light.target);
