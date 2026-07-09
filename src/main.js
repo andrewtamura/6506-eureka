@@ -94,6 +94,79 @@ function addAtticLighting(parent, onFixture) {
   vanityBar(15.5, -0.75, 6.0, 2.4, 2.4);
 }
 
+// Landscape / exterior lighting, built on the exterior massing and tagged
+// "exterior" so a scene switches it on as a group (starts OFF for the daytime
+// landing view). Three pieces: an elegant post-top STREET LAMP on a poured
+// concrete base at the NW lot corner; a STRING-LIGHT post in the middle of the
+// west side yard fanning catenary strands to the house at 10' above grade; and a
+// row of facade UPLIGHTS across the north (front) elevation. Plan feet: px grows
+// WEST, pz grows NORTH; parent-local (x,y,z) = (-px, height, -pz)·FT, grade y=0.
+function addLandscapeLighting(parent, onFixture) {
+  const FT = 0.3048;
+  const concrete = new THREE.MeshStandardMaterial({ color: 0xb9b5ac, roughness: 0.96, metalness: 0.0 });
+  const metalDark = new THREE.MeshStandardMaterial({ color: 0x20211f, roughness: 0.5, metalness: 0.7 });
+  const wood = new THREE.MeshStandardMaterial({ color: 0x5b4632, roughness: 0.85, metalness: 0.05 });
+  const wireMat = new THREE.MeshStandardMaterial({ color: 0x1c1c1c, roughness: 0.7 });
+  const mesh = (geo, mat, y) => { const m = new THREE.Mesh(geo, mat); m.position.y = y; m.castShadow = true; return m; };
+  const P = (px, pz, y) => new THREE.Vector3(-px * FT, y * FT, -pz * FT);   // parent-local point
+
+  // 1) Post-top street lamp at the NW lot corner, on a poured concrete base.
+  {
+    const g = new THREE.Group(); g.position.copy(P(44.5, 23.5, 0)); parent.add(g);
+    g.add(mesh(new THREE.CylinderGeometry(0.5 * FT, 0.64 * FT, 1.3 * FT, 20), concrete, 0.65 * FT));   // poured base
+    g.add(mesh(new THREE.CylinderGeometry(0.28 * FT, 0.32 * FT, 0.5 * FT, 16), metalDark, 1.45 * FT)); // base collar
+    g.add(mesh(new THREE.CylinderGeometry(0.11 * FT, 0.17 * FT, 9.5 * FT, 16), metalDark, (1.3 + 9.5 / 2) * FT)); // tapered pole
+    const lampGlass = new THREE.MeshStandardMaterial({ color: 0xfff1cf, emissive: 0xffb14a, emissiveIntensity: 1.0, roughness: 0.3, transparent: true, opacity: 0.9 });
+    g.add(mesh(new THREE.CylinderGeometry(0.34 * FT, 0.46 * FT, 1.1 * FT, 6), lampGlass, 11.55 * FT));  // hex glass lantern
+    g.add(mesh(new THREE.CylinderGeometry(0.10 * FT, 0.52 * FT, 0.55 * FT, 6), metalDark, 12.4 * FT));  // roof cap
+    g.add(mesh(new THREE.SphereGeometry(0.09 * FT, 10, 8), metalDark, 12.85 * FT));                     // finial
+    const light = new THREE.PointLight(0xffd39a, 28, 14, 2); light.position.y = 11.55 * FT; g.add(light);
+    onFixture && onFixture(light, lampGlass);
+  }
+
+  // 2) String-light post in the middle of the west side yard, fanning catenary
+  //    strands to the house's west wall at 10' above grade.
+  {
+    const postPx = 46, postPz = -3.9, hFt = 10;
+    const g = new THREE.Group(); g.position.copy(P(postPx, postPz, 0)); parent.add(g);
+    g.add(mesh(new THREE.CylinderGeometry(0.2 * FT, 0.24 * FT, 10.6 * FT, 12), wood, 5.3 * FT));
+    g.add(mesh(new THREE.ConeGeometry(0.26 * FT, 0.4 * FT, 12), wood, 10.8 * FT));                      // post cap
+    const bulbMat = new THREE.MeshStandardMaterial({ color: 0xfff3d4, emissive: 0xffca73, emissiveIntensity: 1.2, roughness: 0.35 });
+    const A = P(postPx, postPz, hFt);
+    const mids = [];
+    for (const tz of [-11, -3, 5, 13]) {              // fan to 4 points on the house west wall (px≈31)
+      const B = P(30.6, tz, hFt);
+      const sag = 1.4 * FT, pts = [];
+      for (let i = 0; i <= 16; i++) { const t = i / 16, p = A.clone().lerp(B, t); p.y -= sag * 4 * t * (1 - t); pts.push(p); }
+      const curve = new THREE.CatmullRomCurve3(pts);
+      parent.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 20, 0.012, 5, false), wireMat));
+      for (let i = 1; i < 16; i += 2) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), bulbMat); b.position.copy(pts[i]); parent.add(b); }
+      mids.push(curve.getPoint(0.5));
+    }
+    for (const idx of [0, 2]) {                        // a couple of warm lights to wash the yard
+      const light = new THREE.PointLight(0xffe0b0, 9, 9, 2); light.position.copy(mids[idx]); light.position.y += 0.1; parent.add(light);
+      onFixture && onFixture(light, bulbMat);
+    }
+    const pl = new THREE.PointLight(0xffe0b0, 6, 8, 2); pl.position.copy(A); parent.add(pl); onFixture && onFixture(pl, bulbMat);
+  }
+
+  // 3) Facade uplights across the north (front) elevation, grazing up the wall.
+  {
+    const lensMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xffe4ad, emissiveIntensity: 0.9, roughness: 0.3 });
+    for (const px of [-8, 1, 10, 19, 28]) {
+      const g = new THREE.Group(); g.position.copy(P(px, 16.7, 0)); parent.add(g);
+      g.add(mesh(new THREE.CylinderGeometry(0.18 * FT, 0.2 * FT, 0.5 * FT, 12), metalDark, 0.25 * FT)); // housing
+      const lm = lensMat.clone();
+      g.add(mesh(new THREE.CylinderGeometry(0.15 * FT, 0.15 * FT, 0.05 * FT, 12), lm, 0.5 * FT));       // lens
+      const light = new THREE.SpotLight(0xffe9c8, 22, 0, Math.PI / 7, 0.6, 2);
+      light.position.set(0, 0.5 * FT, 0);
+      light.target.position.set(0, 8 * FT, 0.19);      // up + toward the wall (north)
+      g.add(light); g.add(light.target);
+      onFixture && onFixture(light, lm);
+    }
+  }
+}
+
 async function main() {
   const container = document.getElementById("viewer");
 
@@ -369,6 +442,7 @@ async function main() {
   const exhibitModels = [];                             // {lvl, model} for each placed exhibit (walk targets)
   const povCeilingMats = [];                            // attic ceiling materials: opaque in POV, translucent in overview
   const extFillMats = new Set();                        // exterior massing materials: get a day-tracked emissive sky fill
+  const extWindowMats = new Set();                      // exterior window glass: warm "interior-on" glow for the night scene
   const fixtures = [];                                  // interior light fixtures for scenes: { light, level, base, emiss, emBase }
   const registerFixture = (light, level, emiss) => fixtures.push(
     { light, level, base: light.intensity, emiss, emBase: emiss ? emiss.emissiveIntensity : 0 });
@@ -412,6 +486,11 @@ async function main() {
         if (lvl.id === "exterior" && mat.color && mat.emissive && !(mat.transparent && mat.opacity < 1) && !extFillMats.has(mat)) {
           mat.userData._fillBase = mat.color.clone();
           extFillMats.add(mat);
+        }
+        // Exterior window glass: collect it so the night scene can give it a warm
+        // "interior lights on" glow (the day-fill above deliberately skips glass).
+        if (lvl.id === "exterior" && mat.color && mat.emissive && mat.transparent && mat.opacity < 1 && !extWindowMats.has(mat)) {
+          extWindowMats.add(mat);
         }
         // Render both faces so downward-facing surfaces (the roof soffit / eave
         // overhang undersides) are visible when looking up — otherwise back-face
@@ -1067,20 +1146,37 @@ async function main() {
     for (const f of fixtures) {
       if (level !== "all" && f.level !== level) continue;
       f.light.intensity = f.base * factor;
+      f.light.visible = factor > 0;                 // fully drop dark fixtures (skip them in the shader)
       if (f.emiss) f.emiss.emissiveIntensity = f.emBase * factor;
     }
   };
+  // Landscape lights (street lamp, side-yard string lights, facade uplights) live on
+  // the exterior massing, tagged "exterior"; a warm window glow fakes "interior lights
+  // on" from outside. Both start OFF for the daytime landing view.
+  const setWindowGlow = (on) => {
+    for (const m of extWindowMats) {
+      m.emissive.setRGB(on ? 0.34 : 0, on ? 0.25 : 0, on ? 0.12 : 0);
+      m.emissiveIntensity = 1; m.needsUpdate = true;
+    }
+  };
+  if (exteriorModel) addLandscapeLighting(exteriorModel.object, (light, emiss) => registerFixture(light, "exterior", emiss));
+  setFixtures("exterior", 0);
+
   // Morning: early sun, fixtures off (daylight). Evening: low sun, fixtures on but
-  // dimmed for a warm glow. Both move the sun (via the time-of-day control) too.
+  // dimmed for a warm glow. Night: sun down, landscape lights on + windows aglow.
   scenesEl.appendChild(caption("Time of day"));
-  addScene("🌅 Morning", () => { apply(7.5); setFixtures("all", 0); });
-  addScene("🌆 Evening", () => { apply(19.3); setFixtures("all", 0.6); });
+  addScene("🌅 Morning", () => { apply(7.5); setFixtures("all", 0); setWindowGlow(false); });
+  addScene("🌆 Evening", () => { apply(19.3); setFixtures("all", 0.6); setWindowGlow(false); });
+  addScene("🌙 Night", () => { apply(21); setFixtures("all", 0.75); setFixtures("exterior", 1); setWindowGlow(true); });
   // Per-level fixture toggles (sun unchanged).
   for (const [label, id] of [["Ground floor", "ground"], ["Second floor", "level2"], ["Attic", "attic"]]) {
     scenesEl.appendChild(caption(label));
     addScene("On", () => setFixtures(id, 1));
     addScene("Off", () => setFixtures(id, 0));
   }
+  scenesEl.appendChild(caption("Landscape"));
+  addScene("On", () => { setFixtures("exterior", 1); setWindowGlow(true); });
+  addScene("Off", () => { setFixtures("exterior", 0); setWindowGlow(false); });
 
   // --- build swinging door overlays ---------------------------------------
   // Hide the baked IFC door panels (can't cheaply animate them) and overlay our
