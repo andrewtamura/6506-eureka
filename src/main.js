@@ -268,6 +268,42 @@ function addAltExtension(parent, extFillMats) {
   }
 }
 
+// Six-lite divided windows on the east extension's three exterior walls
+// (east/south/north), white-trimmed. Modest and secondary next to the primary's
+// tall formal windows. Footprint px ∈ [-38,-11.5], pz ∈ [-11.9167,10.0833]; one
+// story (floor 2.5' → deck 12.5'). Local coords: x=-px·FT, z=-pz·FT, grade y=0.
+function addAltExtensionWindows(parent, extFillMats) {
+  const FT = 0.3048;
+  const glass = new THREE.MeshStandardMaterial({ roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.5 }); glass.color.setRGB(0.42, 0.52, 0.60);
+  const white = new THREE.MeshStandardMaterial({ roughness: 0.7 }); white.color.setRGB(0.93, 0.92, 0.88);
+  if (extFillMats) { white.userData._fillBase = white.color.clone(); extFillMats.add(white); }  // white trim joins the day sky-fill
+  const g = new THREE.Group(); parent.add(g);
+  const box = (cx, cy, cz, sx, sy, sz, mat) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat);
+    m.position.set(cx, cy, cz); m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; g.add(m);
+  };
+  const W = 3.2, SILL = 5.0, HEAD = 8.4, yc = (SILL + HEAD) / 2 * FT, hM = (HEAD - SILL) * FT, wM = W * FT, fb = 0.35 * FT;
+  // one six-lite window: `axis` = wall-normal ('x' east, 'z' south/north); face at
+  // `wall`; `along` = position along the wall (local z for east, local x for s/n).
+  const win = (axis, wall, along, out) => {
+    if (axis === "x") {   // east wall: thin in x; width along z, height along y
+      box(wall + out * 0.02, yc, along, 0.05, hM + fb, wM + fb, white);   // frame
+      box(wall + out * 0.05, yc, along, 0.04, hM, wM, glass);             // glazing
+      box(wall + out * 0.07, yc, along, 0.05, hM, 0.04, white);           // vertical muntin (2 cols)
+      for (const t of [-1, 1]) box(wall + out * 0.07, yc + t * hM / 6, along, 0.05, 0.04, wM, white); // 2 horiz (3 rows)
+    } else {              // south/north wall: thin in z; width along x, height along y
+      box(along, yc, wall + out * 0.02, wM + fb, hM + fb, 0.05, white);
+      box(along, yc, wall + out * 0.05, wM, hM, 0.04, glass);
+      box(along, yc, wall + out * 0.07, 0.04, hM, 0.05, white);
+      for (const t of [-1, 1]) box(along, yc + t * hM / 6, wall + out * 0.07, wM, 0.04, 0.05, white);
+    }
+  };
+  const eX = 38 * FT, sZ = 11.9167 * FT, nZ = -10.0833 * FT;
+  for (const pz of [-6, 5]) win("x", eX, -pz * FT, +1);              // EAST (2)
+  for (const px of [-32, -24.75, -17.5]) win("z", sZ, -px * FT, +1); // SOUTH (3)
+  for (const px of [-32, -24.75, -17.5]) win("z", nZ, -px * FT, -1); // NORTH (3)
+}
+
 // Re-draw the 2nd-floor east window (moved 4' south of "Upper - East" at pz 10.0417
 // → pz 6.0417) plus a new exterior egress DOOR 6" further south, on the primary's
 // east wall (px -12 → local x = 12·FT) facing the roof deck (+x). Both sit at the
@@ -788,6 +824,7 @@ async function main() {
       } catch (e) { console.warn("alt: could not hide extension", e); }
       // Build the NEW east extension (one story + roof deck) on the alt lot.
       addAltExtension(alt.object, extFillMats);
+      addAltExtensionWindows(alt.object, extFillMats);   // 6-lite windows on the 3 exterior walls
       // Deck access: hide the whole 2nd-floor east window ("Upper - East" @ pz
       // 10.0417 on the east wall px-12 — glass AND its frame/muntins are separate
       // items, so hide everything in a tight box around it) and re-draw it 4' south
