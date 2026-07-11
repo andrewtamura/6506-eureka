@@ -333,6 +333,42 @@ function addAltDeckFurniture(parent) {
   g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; } });
 }
 
+// Concrete driveway filling the 15' east setback of the alt lot: it runs the full
+// north-south length of the lot, in the strip between the extension's east wall
+// (px -38) and the east property line (px -53). A raised charcoal border frames
+// the concrete field on its three inner sides, and where it reaches the north
+// (street) perimeter the raised street curb is broken by a curb cut — a flush
+// apron that ramps down to the street. Parented to the alt model; plan px WEST,
+// pz NORTH → local x=-px·FT, z=-pz·FT, grade y=0.
+function addAltDriveway(parent) {
+  const FT = 0.3048;
+  const g = new THREE.Group(); parent.add(g);
+  const box = (x0, x1, z0, z1, y0, y1, m, shadow = false) => {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(Math.abs(x1 - x0) * FT, (y1 - y0) * FT, Math.abs(z1 - z0) * FT), m);
+    b.position.set(-(x0 + x1) / 2 * FT, (y0 + y1) / 2 * FT, -(z0 + z1) / 2 * FT);
+    b.castShadow = shadow; b.receiveShadow = true; b.frustumCulled = false; g.add(b); return b;
+  };
+  const concrete = new THREE.MeshStandardMaterial({ color: 0xc4c3bf, roughness: 0.95 });   // light concrete grey
+  const border = new THREE.MeshStandardMaterial({ color: 0x4a4850, roughness: 0.9 });      // charcoal banding
+  const asphalt = new THREE.MeshStandardMaterial({ color: 0x37373a, roughness: 1.0 });     // street
+  // setback strip: extension east wall (WX) → inner face of the east boundary wall
+  // (EX = east line -53 + 8" CMU); south inner wall face (SZ) → north property line
+  // (NZ). The slab sits nearly flush with grade; reserve the last stretch
+  // (apronZ→NZ) for the flush street apron of the curb cut.
+  const WX = -38, EX = -52.33, SZ = -23.208, NZ = 26.125, BW = 1.0, apronZ = NZ - 3.5;
+  const fW = WX - BW, fE = EX + BW, fS = SZ + BW;       // concrete field, inset by the border
+  box(fW, fE, fS, apronZ, 0, 0.12, concrete);           // concrete field (near-flush, ~1.5")
+  box(WX, fW, SZ, apronZ, 0, 0.18, border);             // decorative border — west (along the extension wall)
+  box(EX, fE, SZ, apronZ, 0, 0.18, border);             // decorative border — east (along the property wall)
+  box(WX, EX, SZ, fS, 0, 0.18, border);                 // decorative border — south
+  // Curb cut at the north (street) perimeter: a short strip of street sits beyond
+  // the property line, a raised 6" street curb runs the frontage WEST of the drive,
+  // and across the driveway the curb is cut away to a flush apron a car can cross.
+  box(-20, -53, NZ, NZ + 8, -0.06, 0.03, asphalt);          // street beyond the north line
+  box(WX, EX, apronZ, NZ + 0.4, 0, 0.05, concrete, false);  // flush apron (the cut) lapping to the street
+  box(WX, -20, NZ - 0.2, NZ + 0.5, 0.03, 0.5, concrete, true);  // raised street curb west of the opening
+}
+
 // Six-lite divided windows on the east extension's three exterior walls
 // (east/south/north), white-trimmed. Modest and secondary next to the primary's
 // tall formal windows. Footprint px ∈ [-38,-11.5], pz ∈ [-11.9167,10.0833]; one
@@ -916,6 +952,7 @@ async function main() {
       } catch (e) { console.warn("alt: window move failed", e); }
       addAltDeckAccess(alt.object, extFillMats);
       addAltDeckFurniture(alt.object);   // patio lounge set + outdoor rug on the roof deck
+      addAltDriveway(alt.object);        // concrete driveway in the east setback + curb cut
       modelViews.push({ id: "exterior-alt", label: "Alternative Lot", box: buildingBox(alt.object) });
       labelViews.push({ label: "Alternative Lot", box: new THREE.Box3().setFromObject(alt.object) });
       addLandscapeLighting(alt.object, (light, emiss) => registerFixture(light, "exterior", emiss));
