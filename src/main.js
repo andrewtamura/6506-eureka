@@ -12,7 +12,7 @@ import { setupCompass } from "./compass.js";
 import { buildWoodFloor } from "./wood-floor.js";
 import { buildSubfloor } from "./subfloor.js";
 import { buildTileFloor } from "./tile-floor.js";
-import { buildFurniture } from "./furniture.js";
+import { buildFurniture, buildChair, buildRug, buildSofa } from "./furniture.js";
 import { buildWallFinish } from "./wall-finish.js";
 import { buildCeilings } from "./ceilings.js";
 import { createWalker } from "./pov.js";
@@ -239,8 +239,9 @@ function addAltExtension(parent, extFillMats) {
     m.color.setRGB(r, g, b); m.side = THREE.DoubleSide; return m;
   };
   const wallMat = mat(0.87, 0.86, 0.83), foundMat = mat(0.55, 0.54, 0.52), trimMat = mat(0.93, 0.92, 0.88);
-  const deckMat = mat(0.60, 0.47, 0.34, 0.8), railMat = mat(0.40, 0.30, 0.20, 0.7);
+  const roofMat = mat(0.19, 0.19, 0.21, 0.9);    // dark flat-roof membrane (mostly hidden behind the parapet)
   for (const m of [wallMat, foundMat, trimMat]) { m.userData._fillBase = m.color.clone(); extFillMats.add(m); }
+  // (roofMat is kept OUT of the day sky-fill so the low membrane reads dark, not pale.)
   const g = new THREE.Group(); parent.add(g);
   const box = (x0, x1, z0, z1, y0, y1, m) => {
     const b = new THREE.Mesh(new THREE.BoxGeometry(Math.abs(x1 - x0) * FT, (y1 - y0) * FT, Math.abs(z1 - z0) * FT), m);
@@ -248,30 +249,95 @@ function addAltExtension(parent, extFillMats) {
     b.castShadow = true; b.receiveShadow = true; b.frustumCulled = false; g.add(b); return b;
   };
   const PX0 = -38, PX1 = -11.5, PZ0 = -11.9167, PZ1 = 10.0833;
-  const CRAWL = 2.5, DECK = 12.5, RAIL = 3.5, WP = 0.06 / FT, WH = 0.15 / FT;
+  const CRAWL = 2.5, ROOF = 12.5, WP = 0.06 / FT, WH = 0.15 / FT;   // one story: roof/deck at 12.5'
   box(PX0, PX1, PZ0, PZ1, 0, CRAWL, foundMat);                                          // crawlspace / foundation
   box(PX0 - WP, PX1 + WP, PZ0 - WP, PZ1 + WP, CRAWL - WH, CRAWL + 0.05 / FT, trimMat);   // water-table belt
-  box(PX0, PX1, PZ0, PZ1, CRAWL, DECK, wallMat);                                        // one-story walls (massing)
-  box(PX0, PX1, PZ0, PZ1, DECK, DECK + 0.12 / FT, deckMat);                             // roof-deck floor
-  // perimeter guard railing (cap on posts) on the 3 exposed edges — not the west
-  // edge, which abuts the primary's tall east wall.
-  const yTop = DECK + RAIL, T = 0.25, P = 0.28;
-  for (const [axis, fixed, a, b] of [["z", PX0, PZ0, PZ1], ["x", PZ0, PX0, PX1], ["x", PZ1, PX0, PX1]]) {
-    if (axis === "z") box(fixed - T / 2, fixed + T / 2, a, b, yTop - 0.18, yTop, railMat);
-    else box(a, b, fixed - T / 2, fixed + T / 2, yTop - 0.18, yTop, railMat);
-    const n = Math.max(2, Math.round(Math.abs(b - a) / 6));
-    for (let i = 0; i <= n; i++) {
-      const t = a + (b - a) * i / n;
-      if (axis === "z") box(fixed - P / 2, fixed + P / 2, t - P / 2, t + P / 2, DECK, yTop, railMat);
-      else box(t - P / 2, t + P / 2, fixed - P / 2, fixed + P / 2, DECK, yTop, railMat);
+  box(PX0, PX1, PZ0, PZ1, CRAWL, ROOF, wallMat);                                        // single-story walls
+  // FLAT roof behind a decorated PARAPET — matching the primary's flat-roof
+  // treatment (a raised parapet capped with a projecting coping, a cornice band,
+  // and a dentil course, all in the same white trim), with a partial roof DECK on
+  // top (see below). The single-story parapet stays well below the primary's ~25'
+  // eave so the wing reads as a low, subordinate echo of its classical detailing.
+  const PARA = ROOF + 2.5, pt = 0.5;                    // parapet top (15'); parapet-wall thickness (ft)
+  box(PX0, PX1, PZ0, PZ1, ROOF, ROOF + 0.2, roofMat);   // flat roof membrane
+  box(PX0, PX0 + pt, PZ0, PZ1, ROOF, PARA, wallMat);    // parapet — east
+  box(PX0, PX1, PZ0, PZ0 + pt, ROOF, PARA, wallMat);    // parapet — south
+  box(PX0, PX1, PZ1 - pt, PZ1, ROOF, PARA, wallMat);    // parapet — north
+  // (No west parapet: the primary's tall east wall bounds the deck on that side and
+  //  keeps the 2nd-floor egress door clear onto the deck.)
+  // Decorate the 3 exterior parapet faces (E/S/N; the west abuts the primary).
+  // `band` runs a continuous horizontal trim member (coping / cornice) along a face,
+  // projecting `pr` ft proud; `dentils` studs a face with evenly spaced small blocks.
+  const band = (face, y0, y1, pr) => {
+    if (face === "E") box(PX0 - pr, PX0 + 0.12, PZ0 - pr, PZ1 + pr, y0, y1, trimMat);
+    if (face === "S") box(PX0 - pr, PX1, PZ0 - pr, PZ0 + 0.12, y0, y1, trimMat);
+    if (face === "N") box(PX0 - pr, PX1, PZ1 - 0.12, PZ1 + pr, y0, y1, trimMat);
+  };
+  const dentils = (face, y0, y1, pr) => {
+    const step = 0.85, bw = 0.4;
+    if (face === "E") {
+      const lo = Math.min(PZ0, PZ1), n = Math.floor(Math.abs(PZ1 - PZ0) / step);
+      for (let i = 0; i < n; i++) { const c = lo + (i + 0.5) * step; box(PX0 - pr, PX0 + 0.06, c - bw / 2, c + bw / 2, y0, y1, trimMat); }
+    } else {
+      const outer = face === "S" ? PZ0 - pr : PZ1 + pr, inner = face === "S" ? PZ0 + 0.06 : PZ1 - 0.06;
+      const lo = Math.min(PX0, PX1), hi = Math.max(PX0, PX1), n = Math.floor((hi - lo - 1.0) / step);
+      for (let i = 0; i < n; i++) { const c = lo + 0.5 + (i + 0.5) * step; box(c - bw / 2, c + bw / 2, outer, inner, y0, y1, trimMat); }
     }
+  };
+  for (const f of ["E", "S", "N"]) {
+    band(f, PARA - 0.25, PARA + 0.3, 0.55);      // projecting coping cap
+    band(f, PARA - 1.0, PARA - 0.55, 0.35);      // cornice band
+    dentils(f, PARA - 1.7, PARA - 1.15, 0.22);   // dentil course beneath the cornice
   }
+  // Roof DECK on the private SOUTH half (~50% coverage), kept away from the north
+  // wall. It's bounded by the parapet on the east + south and by the primary's wall
+  // on the west; a guard railing along its north edge separates it from the plain
+  // membrane on the north half of the roof.
+  const deckMat = mat(0.60, 0.47, 0.34, 0.8), railMat = mat(0.40, 0.30, 0.20, 0.7);
+  const Zdeck = PZ0 + 0.66 * (PZ1 - PZ0);               // deck north edge at 66% coverage (still short of the north wall)
+  const dxa = PX0 + pt, dxb = PX1;                       // inside the east parapet → primary's wall
+  box(dxa, dxb, PZ0 + pt, Zdeck, ROOF + 0.05, ROOF + 0.25, deckMat);   // deck floor (over the membrane)
+  const rTop = PARA, T = 0.25, P = 0.28;                 // railing top matched to the parapet height
+  box(dxa, dxb, Zdeck - T / 2, Zdeck + T / 2, rTop - 0.18, rTop, railMat);  // top rail
+  const nP = Math.max(2, Math.round((dxb - dxa) / 6));
+  for (let i = 0; i <= nP; i++) {                        // evenly spaced posts
+    const t = dxa + (dxb - dxa) * i / nP;
+    box(t - P / 2, t + P / 2, Zdeck - P / 2, Zdeck + P / 2, ROOF, rTop, railMat);
+  }
+}
+
+// Patio furniture + an outdoor rug on the alt extension's south roof deck (deck
+// top ≈ 12.75'). Reuses the procedural furniture builders (sofa / chair / rug).
+// A lounge grouping: a sofa backed to the house facing east, two accent chairs
+// opposite facing back west, and a low coffee table between them, all on the rug.
+// Parented to the alt model; plan px WEST, pz NORTH → local x=-px·FT, z=-pz·FT.
+function addAltDeckFurniture(parent) {
+  const FT = 0.3048;
+  const g = new THREE.Group(); parent.add(g);
+  const deckY = 12.75;                                  // deck floor top (ft)
+  const P = (px, pz, y) => new THREE.Vector3(-px * FT, y * FT, -pz * FT);
+  const place = (obj, px, pz, yaw = 0) => { obj.position.copy(P(px, pz, deckY)); obj.rotation.y = yaw; g.add(obj); return obj; };
+  place(buildRug({ w: 15, d: 9, material: "slate" }), -23, -4.5);                                  // outdoor rug
+  place(buildSofa({ wFt: 7, dFt: 3, faces: "E", material: "sage", cushion: "oatmeal", legMaterial: "walnut" }), -19.5, -4.5); // sofa, back to the house
+  place(buildChair({ material: "oatmeal", legMaterial: "walnut" }), -27.5, -2.5, -Math.PI / 2);    // accent chair (faces the sofa)
+  place(buildChair({ material: "oatmeal", legMaterial: "walnut" }), -27.5, -6.5, -Math.PI / 2);    // accent chair (faces the sofa)
+  // low coffee table (teak top on four legs) between the sofa and chairs
+  const wood = new THREE.MeshStandardMaterial({ color: 0x6b4a2f, roughness: 0.5 });
+  const ct = new THREE.Group();
+  const top = new THREE.Mesh(new THREE.BoxGeometry(3.4 * FT, 0.14 * FT, 1.9 * FT), wood); top.position.y = 1.3 * FT; ct.add(top);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.16 * FT, 1.25 * FT, 0.16 * FT), wood);
+    leg.position.set(sx * 1.5 * FT, 0.62 * FT, sz * 0.8 * FT); ct.add(leg);
+  }
+  place(ct, -23.5, -4.5, 0);
+  g.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.frustumCulled = false; } });
 }
 
 // Six-lite divided windows on the east extension's three exterior walls
 // (east/south/north), white-trimmed. Modest and secondary next to the primary's
 // tall formal windows. Footprint px ∈ [-38,-11.5], pz ∈ [-11.9167,10.0833]; one
-// story (floor 2.5' → deck 12.5'). Local coords: x=-px·FT, z=-pz·FT, grade y=0.
+// story (floor 2.5' → roof 12.5'), one quiet row of six-lite windows. Local coords:
+// x=-px·FT, z=-pz·FT, grade y=0.
 function addAltExtensionWindows(parent, extFillMats) {
   const FT = 0.3048;
   const glass = new THREE.MeshStandardMaterial({ roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.5 }); glass.color.setRGB(0.42, 0.52, 0.60);
@@ -282,10 +348,12 @@ function addAltExtensionWindows(parent, extFillMats) {
     const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat);
     m.position.set(cx, cy, cz); m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; g.add(m);
   };
-  const W = 3.2, SILL = 5.0, HEAD = 8.4, yc = (SILL + HEAD) / 2 * FT, hM = (HEAD - SILL) * FT, wM = W * FT, fb = 0.35 * FT;
-  // one six-lite window: `axis` = wall-normal ('x' east, 'z' south/north); face at
-  // `wall`; `along` = position along the wall (local z for east, local x for s/n).
-  const win = (axis, wall, along, out) => {
+  const W = 3.2, wM = W * FT, fb = 0.35 * FT;
+  // one six-lite window at sill height `sill` (ft): `axis` = wall-normal ('x' east,
+  // 'z' south/north); face at `wall`; `along` = position along the wall (local z for
+  // east, local x for s/n). Head is `hgt` above the sill.
+  const win = (axis, wall, along, out, sill, hgt) => {
+    const yc = (sill + sill + hgt) / 2 * FT, hM = hgt * FT;
     if (axis === "x") {   // east wall: thin in x; width along z, height along y
       box(wall + out * 0.02, yc, along, 0.05, hM + fb, wM + fb, white);   // frame
       box(wall + out * 0.05, yc, along, 0.04, hM, wM, glass);             // glazing
@@ -299,9 +367,13 @@ function addAltExtensionWindows(parent, extFillMats) {
     }
   };
   const eX = 38 * FT, sZ = 11.9167 * FT, nZ = -10.0833 * FT;
-  for (const pz of [-6, 5]) win("x", eX, -pz * FT, +1);              // EAST (2)
-  for (const px of [-32, -24.75, -17.5]) win("z", sZ, -px * FT, +1); // SOUTH (3)
-  for (const px of [-32, -24.75, -17.5]) win("z", nZ, -px * FT, -1); // NORTH (3)
+  // Single story: sill 5.0' → head 8.4', comfortably below the 12.5' roof.
+  const rows = [{ sill: 5.0, hgt: 3.4 }];
+  for (const { sill, hgt } of rows) {
+    for (const pz of [-6, 5]) win("x", eX, -pz * FT, +1, sill, hgt);              // EAST (2)
+    for (const px of [-32, -24.75, -17.5]) win("z", sZ, -px * FT, +1, sill, hgt); // SOUTH (3)
+    for (const px of [-32, -24.75, -17.5]) win("z", nZ, -px * FT, -1, sill, hgt); // NORTH (3)
+  }
 }
 
 // Re-draw the 2nd-floor east window (moved 4' south of "Upper - East" at pz 10.0417
@@ -843,9 +915,11 @@ async function main() {
         if (hideW.length) { await alt.setVisible(hideW, false); await fragments.core.update(true); }
       } catch (e) { console.warn("alt: window move failed", e); }
       addAltDeckAccess(alt.object, extFillMats);
+      addAltDeckFurniture(alt.object);   // patio lounge set + outdoor rug on the roof deck
       modelViews.push({ id: "exterior-alt", label: "Alternative Lot", box: buildingBox(alt.object) });
       labelViews.push({ label: "Alternative Lot", box: new THREE.Box3().setFromObject(alt.object) });
       addLandscapeLighting(alt.object, (light, emiss) => registerFixture(light, "exterior", emiss));
+      window.__altPos = { x: alt.object.position.x, y: alt.object.position.y, z: alt.object.position.z }; // render-harness handle
       apply(hour);   // re-fire the day sky-fill so the alt's added materials match the primary
     } catch (err) { console.warn("alt exterior failed", err); }
   }
@@ -1399,6 +1473,8 @@ async function main() {
     addView(mv.label, () => focusLevel(mv.id, true));
   }
   if (hasAlt) addView("Alternative Lot", () => focusLevel("exterior-alt", true));
+  window.__eureka.focusLevel = focusLevel;     // debug handle: frame a level (render harness)
+  window.__eureka.modelViews = modelViews;     // debug handle: [{id,label,box}] (render harness)
 
   // --- lighting scenes: presets that drive the sun (time of day) and the interior
   // light fixtures (on / off / dimmed) together, plus per-level fixture toggles.
