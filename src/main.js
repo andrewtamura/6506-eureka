@@ -268,6 +268,39 @@ function addAltExtension(parent, extFillMats) {
   }
 }
 
+// Re-draw the 2nd-floor east window (moved 4' south of "Upper - East" at pz 10.0417
+// → pz 6.0417) plus a new exterior egress DOOR 6" further south, on the primary's
+// east wall (px -12 → local x = 12·FT) facing the roof deck (+x). Both sit at the
+// 2nd-floor line (12.5'); the door threshold is level with the deck. Parented to the
+// alt model (local x=-px·FT, z=-pz·FT, grade y=0).
+function addAltDeckAccess(parent) {
+  const FT = 0.3048;
+  const wallX = 12 * FT, F2 = 12.5;                 // east-wall local x; 2nd-floor level (ft)
+  const glass = new THREE.MeshStandardMaterial({ roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.5 }); glass.color.setRGB(0.42, 0.52, 0.60);
+  const trim = new THREE.MeshStandardMaterial({ roughness: 0.7 }); trim.color.setRGB(0.93, 0.92, 0.88);
+  const wood = new THREE.MeshStandardMaterial({ roughness: 0.6 }); wood.color.setRGB(0.36, 0.26, 0.18);
+  const g = new THREE.Group(); parent.add(g);
+  // slab on the east wall: zW/y in FEET (z = north/south span, y0..y1 vertical), proud
+  // of the wall by `out` ft toward the deck (+x), thickness `th` ft.
+  const slab = (pzc, zW, y0, y1, out, th, mat) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(th * FT, (y1 - y0) * FT, zW * FT), mat);
+    m.position.set(wallX + out * FT, (y0 + y1) / 2 * FT, -pzc * FT);
+    m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; g.add(m); return m;
+  };
+  // WINDOW at pz 6.0417 (sill 2.5' / head 6' above the 2nd floor)
+  const wz = 6.0417, ws = F2 + 2.5, wh = F2 + 6.0;
+  slab(wz, 2.6, ws - 0.15, wh + 0.15, 0.05, 0.5, trim);            // frame/surround (recessed)
+  slab(wz, 2.2, ws, wh, 0.18, 0.1, glass);                        // glazing (proud)
+  slab(wz, 0.14, ws, wh, 0.2, 0.12, trim);                        // vertical muntin
+  slab(wz, 2.2, (ws + wh) / 2 - 0.07, (ws + wh) / 2 + 0.07, 0.2, 0.12, trim);  // horizontal muntin
+  // DOOR: window south edge = 6.0417-1.25=4.79; 6" gap → door north edge 4.29; 3' wide → centre 2.79
+  const dz = 2.79, dh = F2 + 6.83;
+  slab(dz, 3.5, F2, dh + 0.2, 0.05, 0.5, trim);                   // casing
+  slab(dz, 3.0, F2, dh, 0.16, 0.16, wood);                       // door slab
+  slab(dz, 2.4, F2 + 3.6, dh - 0.4, 0.26, 0.06, glass);          // upper lite
+  slab(dz - 1.15, 0.28, F2 + 2.7, F2 + 3.3, 0.3, 0.1, trim);     // lever handle (near the south stile)
+}
+
 async function main() {
   const container = document.getElementById("viewer");
 
@@ -751,6 +784,27 @@ async function main() {
       } catch (e) { console.warn("alt: could not hide extension", e); }
       // Build the NEW east extension (one story + roof deck) on the alt lot.
       addAltExtension(alt.object, extFillMats);
+      // Deck access: hide the 2nd-floor east window ("Upper - East" @ pz 10.0417 on
+      // the east wall px-12) and re-draw it 4' south + an egress door 6" further
+      // south (see addAltDeckAccess).
+      try {
+        const wids = Object.values(await alt.getItemsOfCategories([/IFCWINDOW/])).flat();
+        const wbx = await alt.getBoxes(wids);
+        const aids = await alt.getLocalIds(), abx = await alt.getBoxes(aids);
+        const u = new THREE.Box3(); for (const b of abx) if (b && !b.isEmpty()) u.union(b);
+        const o2 = new THREE.Vector3().subVectors(new THREE.Box3().setFromObject(alt.object).min, u.min);
+        const p2 = alt.object.position, cc = new THREE.Vector3();
+        const tx = 12 * FT, tz = -10.0417 * FT;    // local x/z of "Upper - East"
+        let best = null, bd = 1e9;
+        for (let i = 0; i < wids.length; i++) {
+          const b = wbx[i]; if (!b || b.isEmpty()) continue; b.getCenter(cc);
+          const lx = cc.x + o2.x - p2.x, lz = cc.z + o2.z - p2.z;
+          const d = (lx - tx) ** 2 + (lz - tz) ** 2;
+          if (Math.abs(lx - tx) < 0.6 && d < bd) { bd = d; best = wids[i]; }
+        }
+        if (best != null) { await alt.setVisible([best], false); await fragments.core.update(true); }
+      } catch (e) { console.warn("alt: window move failed", e); }
+      addAltDeckAccess(alt.object);
       modelViews.push({ id: "exterior-alt", label: "Alternative Lot", box: buildingBox(alt.object) });
       labelViews.push({ label: "Alternative Lot", box: new THREE.Box3().setFromObject(alt.object) });
       addLandscapeLighting(alt.object, (light, emiss) => registerFixture(light, "exterior", emiss));
