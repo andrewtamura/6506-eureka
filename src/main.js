@@ -223,6 +223,88 @@ function addLandscapeLighting(parent, onFixture) {
 
 }
 
+// A new one-story attached extension on the EAST side of the ALTERNATIVE lot, with
+// a full roof deck on top. Footprint (plan ft): px ∈ [-38, -11.5] — west wall on
+// the primary's east wall (px -12; nudged 0.5' in so faces don't z-fight), east
+// wall 15' off the east property line (px -53 → -38); pz ∈ [-11.9167, 10.0833] —
+// south wall aligned with the primary's south wall, north wall set back 6' from
+// the primary's north wall (pz 16.0833). One story to the primary's 2nd-floor line
+// (deck at 12.5' = 2.5' crawl + 10' story), matching the primary foundation +
+// water-table belt. Parented to the alt model (local x=-px·FT, z=-pz·FT, grade
+// y=0); its massing materials join the day sky-fill so they match the primary.
+function addAltExtension(parent, extFillMats) {
+  const FT = 0.3048;
+  const mat = (r, g, b, rough = 0.92) => {
+    const m = new THREE.MeshStandardMaterial({ roughness: rough, metalness: 0 });
+    m.color.setRGB(r, g, b); m.side = THREE.DoubleSide; return m;
+  };
+  const wallMat = mat(0.87, 0.86, 0.83), foundMat = mat(0.55, 0.54, 0.52), trimMat = mat(0.93, 0.92, 0.88);
+  const deckMat = mat(0.60, 0.47, 0.34, 0.8), railMat = mat(0.40, 0.30, 0.20, 0.7);
+  for (const m of [wallMat, foundMat, trimMat]) { m.userData._fillBase = m.color.clone(); extFillMats.add(m); }
+  const g = new THREE.Group(); parent.add(g);
+  const box = (x0, x1, z0, z1, y0, y1, m) => {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(Math.abs(x1 - x0) * FT, (y1 - y0) * FT, Math.abs(z1 - z0) * FT), m);
+    b.position.set(-(x0 + x1) / 2 * FT, (y0 + y1) / 2 * FT, -(z0 + z1) / 2 * FT);
+    b.castShadow = true; b.receiveShadow = true; b.frustumCulled = false; g.add(b); return b;
+  };
+  const PX0 = -38, PX1 = -11.5, PZ0 = -11.9167, PZ1 = 10.0833;
+  const CRAWL = 2.5, DECK = 12.5, RAIL = 3.5, WP = 0.06 / FT, WH = 0.15 / FT;
+  box(PX0, PX1, PZ0, PZ1, 0, CRAWL, foundMat);                                          // crawlspace / foundation
+  box(PX0 - WP, PX1 + WP, PZ0 - WP, PZ1 + WP, CRAWL - WH, CRAWL + 0.05 / FT, trimMat);   // water-table belt
+  box(PX0, PX1, PZ0, PZ1, CRAWL, DECK, wallMat);                                        // one-story walls (massing)
+  box(PX0, PX1, PZ0, PZ1, DECK, DECK + 0.12 / FT, deckMat);                             // roof-deck floor
+  // perimeter guard railing (cap on posts) on the 3 exposed edges — not the west
+  // edge, which abuts the primary's tall east wall.
+  const yTop = DECK + RAIL, T = 0.25, P = 0.28;
+  for (const [axis, fixed, a, b] of [["z", PX0, PZ0, PZ1], ["x", PZ0, PX0, PX1], ["x", PZ1, PX0, PX1]]) {
+    if (axis === "z") box(fixed - T / 2, fixed + T / 2, a, b, yTop - 0.18, yTop, railMat);
+    else box(a, b, fixed - T / 2, fixed + T / 2, yTop - 0.18, yTop, railMat);
+    const n = Math.max(2, Math.round(Math.abs(b - a) / 6));
+    for (let i = 0; i <= n; i++) {
+      const t = a + (b - a) * i / n;
+      if (axis === "z") box(fixed - P / 2, fixed + P / 2, t - P / 2, t + P / 2, DECK, yTop, railMat);
+      else box(t - P / 2, t + P / 2, fixed - P / 2, fixed + P / 2, DECK, yTop, railMat);
+    }
+  }
+}
+
+// Re-draw the 2nd-floor east window (moved 4' south of "Upper - East" at pz 10.0417
+// → pz 6.0417) plus a new exterior egress DOOR 6" further south, on the primary's
+// east wall (px -12 → local x = 12·FT) facing the roof deck (+x). Both sit at the
+// 2nd-floor line (12.5'); the door threshold is level with the deck. Parented to the
+// alt model (local x=-px·FT, z=-pz·FT, grade y=0).
+function addAltDeckAccess(parent, extFillMats) {
+  const FT = 0.3048;
+  const wallX = 12 * FT, F2 = 12.5;                 // east-wall local x; 2nd-floor level (ft)
+  const glass = new THREE.MeshStandardMaterial({ roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.5 }); glass.color.setRGB(0.42, 0.52, 0.60);
+  const trim = new THREE.MeshStandardMaterial({ roughness: 0.7 }); trim.color.setRGB(0.93, 0.92, 0.88);
+  const wood = new THREE.MeshStandardMaterial({ roughness: 0.6 }); wood.color.setRGB(0.36, 0.26, 0.18);
+  // Join the white TRIM to the day sky-fill so it reads as bright as the other
+  // windows' trim; the door slab (wood) and glass stay out so they keep their own
+  // (darker / see-through) look.
+  if (extFillMats) { trim.userData._fillBase = trim.color.clone(); extFillMats.add(trim); }
+  const g = new THREE.Group(); parent.add(g);
+  // slab on the east wall: zW/y in FEET (z = north/south span, y0..y1 vertical), proud
+  // of the wall by `out` ft toward the deck (+x), thickness `th` ft.
+  const slab = (pzc, zW, y0, y1, out, th, mat) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(th * FT, (y1 - y0) * FT, zW * FT), mat);
+    m.position.set(wallX + out * FT, (y0 + y1) / 2 * FT, -pzc * FT);
+    m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; g.add(m); return m;
+  };
+  // WINDOW at pz 6.0417 (sill 2.5' / head 6' above the 2nd floor)
+  const wz = 6.0417, ws = F2 + 2.5, wh = F2 + 6.0;
+  slab(wz, 2.6, ws - 0.15, wh + 0.15, 0.05, 0.5, trim);            // frame/surround (recessed)
+  slab(wz, 2.2, ws, wh, 0.18, 0.1, glass);                        // glazing (proud)
+  slab(wz, 0.14, ws, wh, 0.2, 0.12, trim);                        // vertical muntin
+  slab(wz, 2.2, (ws + wh) / 2 - 0.07, (ws + wh) / 2 + 0.07, 0.2, 0.12, trim);  // horizontal muntin
+  // DOOR: window south edge = 6.0417-1.25=4.79; 6' gap → door north edge -1.21; 3' wide → centre -2.71
+  const dz = -2.71, dh = F2 + 6.83;
+  slab(dz, 3.5, F2, dh + 0.2, 0.05, 0.5, trim);                   // casing
+  slab(dz, 3.0, F2, dh, 0.16, 0.16, wood);                       // door slab
+  slab(dz, 2.4, F2 + 3.6, dh - 0.4, 0.26, 0.06, glass);          // upper lite
+  slab(dz - 1.15, 0.28, F2 + 2.7, F2 + 3.3, 0.3, 0.1, trim);     // lever handle (near the south stile)
+}
+
 async function main() {
   const container = document.getElementById("viewer");
 
@@ -649,6 +731,86 @@ async function main() {
         mat.emissive.copy(mat.userData._fillBase).multiplyScalar(k);
       }
     });
+
+    // Alternative exterior lot: a full duplicate of the exterior model dropped to
+    // the SOUTH (world +Z), a scratch lot for trying a different eastern addition.
+    // It gets the same day sky-fill, night window glow, and landscape lighting, so
+    // it reads identically; the switcher's Lot slot toggles between the two lots.
+    try {
+      const FT = 0.3048;
+      const alt = await loadIfc(exteriorLvl.ifc, "Exterior (alt)");
+      let ab = new THREE.Box3().setFromObject(alt.object);
+      for (let t = 0; ab.isEmpty() && t < 40; t++) {
+        await new Promise((r) => setTimeout(r, 50)); await fragments.core.update(true);
+        ab = new THREE.Box3().setFromObject(alt.object);
+      }
+      const eb = new THREE.Box3().setFromObject(exteriorModel.object);
+      // identical geometry → matching the original's transform places it exactly on
+      // top of it; then shift SOUTH by TWO lot-depths + a margin, leaving a gap
+      // between the two big enough to drop a third identical model in.
+      alt.object.position.copy(exteriorModel.object.position);
+      alt.object.position.z += 2 * (eb.max.z - eb.min.z) + 4;
+      alt.object.updateMatrixWorld(true);
+      alt.object.traverse((o) => {
+        if (!o.isMesh) return;
+        o.frustumCulled = false; o.castShadow = true; o.receiveShadow = true; o.layers.enable(2);
+        for (const mat of (Array.isArray(o.material) ? o.material : [o.material])) {
+          if (!mat || !mat.color || !mat.emissive) continue;
+          const glass = (mat.transparent && mat.opacity < 1) || (mat.color.b > mat.color.r + 0.05 && mat.color.b < 0.72);
+          if (!glass && !extFillMats.has(mat)) { mat.userData._fillBase = mat.color.clone(); extFillMats.add(mat); }
+          if (glass && !extWindowMats.has(mat)) extWindowMats.add(mat);
+          mat.side = THREE.DoubleSide;
+          if (mat.transparent && mat.opacity < 1) mat.depthWrite = false;
+        }
+      });
+      // Remove the EASTERN EXTENSION (the ext_bath/wc/laundry wing) from the alt so
+      // it's a clean slate for a different addition. The extension sits at local
+      // x = -px·FT for px ∈ [-22.92,-12] → x ∈ [~3.7, 7], z = -pz·FT for pz ∈
+      // [-11.92, 4] → z ∈ [~-1.2, 3.6]; the primary block is all at x < 3.66, so a
+      // center-in-box test cleanly isolates the extension's massing/roof/windows.
+      try {
+        const ids = await alt.getLocalIds();
+        const boxes = await alt.getBoxes(ids);
+        const uni = new THREE.Box3();
+        for (const b of boxes) if (b && !b.isEmpty()) uni.union(b);
+        const wbb = new THREE.Box3().setFromObject(alt.object);
+        const off = new THREE.Vector3().subVectors(wbb.min, uni.min); // getBoxes-space → world
+        const pos = alt.object.position, c = new THREE.Vector3();
+        const X0 = 12 * FT - 0.3, X1 = 22.9167 * FT + 0.8, Z0 = -4 * FT - 0.6, Z1 = 11.9167 * FT + 0.6;
+        const hide = [];
+        for (let i = 0; i < ids.length; i++) {
+          const b = boxes[i]; if (!b || b.isEmpty()) continue;
+          b.getCenter(c);
+          const lx = c.x + off.x - pos.x, lz = c.z + off.z - pos.z;   // → local model space
+          if (lx >= X0 && lx <= X1 && lz >= Z0 && lz <= Z1) hide.push(ids[i]);
+        }
+        if (hide.length) { await alt.setVisible(hide, false); await fragments.core.update(true); }
+      } catch (e) { console.warn("alt: could not hide extension", e); }
+      // Build the NEW east extension (one story + roof deck) on the alt lot.
+      addAltExtension(alt.object, extFillMats);
+      // Deck access: hide the whole 2nd-floor east window ("Upper - East" @ pz
+      // 10.0417 on the east wall px-12 — glass AND its frame/muntins are separate
+      // items, so hide everything in a tight box around it) and re-draw it 4' south
+      // + an egress door 6' further south (see addAltDeckAccess).
+      try {
+        const aids = await alt.getLocalIds(), abx = await alt.getBoxes(aids);
+        const u = new THREE.Box3(); for (const b of abx) if (b && !b.isEmpty()) u.union(b);
+        const o2 = new THREE.Vector3().subVectors(new THREE.Box3().setFromObject(alt.object).min, u.min);
+        const p2 = alt.object.position, cc = new THREE.Vector3();
+        const hideW = [];   // tight box around the original window: x≈3.66, z≈-3.06 (pz10.04), 2nd-floor y
+        for (let i = 0; i < aids.length; i++) {
+          const b = abx[i]; if (!b || b.isEmpty()) continue; b.getCenter(cc);
+          const lx = cc.x + o2.x - p2.x, ly = cc.y + o2.y - p2.y, lz = cc.z + o2.z - p2.z;
+          if (lx > 3.35 && lx < 4.05 && lz > -3.55 && lz < -2.55 && ly > 4.2 && ly < 6.0) hideW.push(aids[i]);
+        }
+        if (hideW.length) { await alt.setVisible(hideW, false); await fragments.core.update(true); }
+      } catch (e) { console.warn("alt: window move failed", e); }
+      addAltDeckAccess(alt.object, extFillMats);
+      modelViews.push({ id: "exterior-alt", label: "Alternative Lot", box: buildingBox(alt.object) });
+      labelViews.push({ label: "Alternative Lot", box: new THREE.Box3().setFromObject(alt.object) });
+      addLandscapeLighting(alt.object, (light, emiss) => registerFixture(light, "exterior", emiss));
+      apply(hour);   // re-fire the day sky-fill so the alt's added materials match the primary
+    } catch (err) { console.warn("alt exterior failed", err); }
   }
   setStatus("");
 
@@ -1160,18 +1322,29 @@ async function main() {
   const switcherEl = document.getElementById("level-switcher");
   const SHORT = { exterior: "Lot", ground: "Ground", level2: "2nd", attic: "Attic" };
   setActiveLevel = (id) => {
-    for (const b of switcherEl.children) b.classList.toggle("active", b.dataset.id === id);
+    for (const b of switcherEl.querySelectorAll("[data-id]")) b.classList.toggle("active", b.dataset.id === id);
   };
+  const makeTab = (id, label, title) => {
+    const t = document.createElement("button");
+    t.className = "level-tab"; t.dataset.id = id; t.title = title || label; t.textContent = label;
+    t.addEventListener("click", () => focusLevel(id, true));
+    return t;
+  };
+  const hasAlt = modelViews.some((v) => v.id === "exterior-alt");
   for (const lvl of levelsCfg) {
     const mv = modelViews.find((v) => v.id === lvl.id);
     if (!mv) continue;
-    const tab = document.createElement("button");
-    tab.className = "level-tab";
-    tab.dataset.id = mv.id;
-    tab.title = mv.label;
-    tab.textContent = SHORT[mv.id] || mv.label;
-    tab.addEventListener("click", () => focusLevel(mv.id, true));
-    switcherEl.appendChild(tab);
+    if (lvl.id === "exterior" && hasAlt) {
+      // Lot slot gets an up/down toggle: the default exterior lot (top) and the
+      // alternative lot (bottom), stacked within the left-to-right switcher.
+      const col = document.createElement("div");
+      col.className = "level-col";
+      col.appendChild(makeTab("exterior", "Lot", "Default exterior lot"));
+      col.appendChild(makeTab("exterior-alt", "Alt", "Alternative exterior lot (south)"));
+      switcherEl.appendChild(col);
+    } else {
+      switcherEl.appendChild(makeTab(mv.id, SHORT[mv.id] || mv.label, mv.label));
+    }
   }
 
   // 📷 Camera views menu: same presets, full labels (routes through focusLevel).
@@ -1188,6 +1361,7 @@ async function main() {
     if (!mv) continue;
     addView(mv.label, () => focusLevel(mv.id, true));
   }
+  if (hasAlt) addView("Alternative Lot", () => focusLevel("exterior-alt", true));
 
   // --- lighting scenes: presets that drive the sun (time of day) and the interior
   // light fixtures (on / off / dimmed) together, plus per-level fixture toggles.

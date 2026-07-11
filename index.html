@@ -139,6 +139,11 @@
       transition: background 0.15s, color 0.15s; }
     .level-tab:hover { background: rgba(0,0,0,0.06); }
     .level-tab.active { background: #2563c9; color: #fff; }
+    /* The Lot slot stacks two tabs vertically (default lot / alternative lot) so the
+       left-to-right switcher gains an up-down toggle between the two exterior lots. */
+    #level-switcher { align-items: stretch; }
+    .level-col { display: flex; flex-direction: column; gap: 2px; }
+    .level-col .level-tab { flex: 1; padding: 3px 13px; font-size: 11px; }
     @media (max-width: 640px) {
       .level-tab { padding: 8px 12px; }
     }
