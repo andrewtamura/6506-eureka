@@ -223,6 +223,51 @@ function addLandscapeLighting(parent, onFixture) {
 
 }
 
+// A new one-story attached extension on the EAST side of the ALTERNATIVE lot, with
+// a full roof deck on top. Footprint (plan ft): px ∈ [-38, -11.5] — west wall on
+// the primary's east wall (px -12; nudged 0.5' in so faces don't z-fight), east
+// wall 15' off the east property line (px -53 → -38); pz ∈ [-11.9167, 10.0833] —
+// south wall aligned with the primary's south wall, north wall set back 6' from
+// the primary's north wall (pz 16.0833). One story to the primary's 2nd-floor line
+// (deck at 12.5' = 2.5' crawl + 10' story), matching the primary foundation +
+// water-table belt. Parented to the alt model (local x=-px·FT, z=-pz·FT, grade
+// y=0); its massing materials join the day sky-fill so they match the primary.
+function addAltExtension(parent, extFillMats) {
+  const FT = 0.3048;
+  const mat = (r, g, b, rough = 0.92) => {
+    const m = new THREE.MeshStandardMaterial({ roughness: rough, metalness: 0 });
+    m.color.setRGB(r, g, b); m.side = THREE.DoubleSide; return m;
+  };
+  const wallMat = mat(0.87, 0.86, 0.83), foundMat = mat(0.55, 0.54, 0.52), trimMat = mat(0.93, 0.92, 0.88);
+  const deckMat = mat(0.60, 0.47, 0.34, 0.8), railMat = mat(0.40, 0.30, 0.20, 0.7);
+  for (const m of [wallMat, foundMat, trimMat]) { m.userData._fillBase = m.color.clone(); extFillMats.add(m); }
+  const g = new THREE.Group(); parent.add(g);
+  const box = (x0, x1, z0, z1, y0, y1, m) => {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(Math.abs(x1 - x0) * FT, (y1 - y0) * FT, Math.abs(z1 - z0) * FT), m);
+    b.position.set(-(x0 + x1) / 2 * FT, (y0 + y1) / 2 * FT, -(z0 + z1) / 2 * FT);
+    b.castShadow = true; b.receiveShadow = true; b.frustumCulled = false; g.add(b); return b;
+  };
+  const PX0 = -38, PX1 = -11.5, PZ0 = -11.9167, PZ1 = 10.0833;
+  const CRAWL = 2.5, DECK = 12.5, RAIL = 3.5, WP = 0.06 / FT, WH = 0.15 / FT;
+  box(PX0, PX1, PZ0, PZ1, 0, CRAWL, foundMat);                                          // crawlspace / foundation
+  box(PX0 - WP, PX1 + WP, PZ0 - WP, PZ1 + WP, CRAWL - WH, CRAWL + 0.05 / FT, trimMat);   // water-table belt
+  box(PX0, PX1, PZ0, PZ1, CRAWL, DECK, wallMat);                                        // one-story walls (massing)
+  box(PX0, PX1, PZ0, PZ1, DECK, DECK + 0.12 / FT, deckMat);                             // roof-deck floor
+  // perimeter guard railing (cap on posts) on the 3 exposed edges — not the west
+  // edge, which abuts the primary's tall east wall.
+  const yTop = DECK + RAIL, T = 0.25, P = 0.28;
+  for (const [axis, fixed, a, b] of [["z", PX0, PZ0, PZ1], ["x", PZ0, PX0, PX1], ["x", PZ1, PX0, PX1]]) {
+    if (axis === "z") box(fixed - T / 2, fixed + T / 2, a, b, yTop - 0.18, yTop, railMat);
+    else box(a, b, fixed - T / 2, fixed + T / 2, yTop - 0.18, yTop, railMat);
+    const n = Math.max(2, Math.round(Math.abs(b - a) / 6));
+    for (let i = 0; i <= n; i++) {
+      const t = a + (b - a) * i / n;
+      if (axis === "z") box(fixed - P / 2, fixed + P / 2, t - P / 2, t + P / 2, DECK, yTop, railMat);
+      else box(t - P / 2, t + P / 2, fixed - P / 2, fixed + P / 2, DECK, yTop, railMat);
+    }
+  }
+}
+
 async function main() {
   const container = document.getElementById("viewer");
 
@@ -704,9 +749,12 @@ async function main() {
         }
         if (hide.length) { await alt.setVisible(hide, false); await fragments.core.update(true); }
       } catch (e) { console.warn("alt: could not hide extension", e); }
+      // Build the NEW east extension (one story + roof deck) on the alt lot.
+      addAltExtension(alt.object, extFillMats);
       modelViews.push({ id: "exterior-alt", label: "Alternative Lot", box: buildingBox(alt.object) });
       labelViews.push({ label: "Alternative Lot", box: new THREE.Box3().setFromObject(alt.object) });
       addLandscapeLighting(alt.object, (light, emiss) => registerFixture(light, "exterior", emiss));
+      apply(hour);   // re-fire the day sky-fill so the alt's added materials match the primary
     } catch (err) { console.warn("alt exterior failed", err); }
   }
   setStatus("");
