@@ -1678,6 +1678,129 @@ def add_picket_fence(ctx, lot, rooms_cache):
     gate_trellis(xg, north)
 
 
+def add_street_frontage(ctx, lot, rooms_cache):
+    """Public frontage along the NORTH and WEST lot lines (this is a corner lot):
+    a retaining wall standing on the property line to hold the flat lot above the
+    falling street grade, and beyond it the right-of-way — sidewalk, park strip
+    and curb — stepped down to match.
+
+    The property stands highest above the sidewalk at the NW corner; the drop dies
+    out in both directions (to nothing part-way along the north line, and to a low
+    step at the SW corner), which works out to a steady ~4% walk each way. Only the
+    right-of-way falls — the lot itself stays flat at grade. Footings are not
+    modelled, as with the CMU lot wall.
+
+    Every sloping piece is emitted as its own CONVEX prism: `add_brep` orients faces
+    by testing them against the solid's centroid, which is only valid for convex
+    solids, so the L wrapping the corner must not be built as one shape.
+    """
+    f = lot.get("frontage") or {}
+    # Blue is deliberately <= red on the paving: the viewer treats a bluish exterior
+    # material as window glass and makes it glow at night (see extWindowMats).
+    CONCRETE = (0.74, 0.73, 0.71)                    # sidewalk / curb
+    GRASS = (0.46, 0.55, 0.34)                       # matches the lot plane
+    STUCCO = (0.90, 0.88, 0.84)                      # matches the CMU lot wall
+
+    B = {k: v["bounds"] for k, v in rooms_cache.items()}
+    pxs = [v for r in B.values() for v in (r["x1"], r["x2"])]
+    pzs = [v for r in B.values() for v in (r["z1"], r["z2"])]
+    west = max(pxs) + lot["westMarginFt"]            # same lot lines as add_lot
+    east = west - lot["widthFt"]
+    south = min(pzs) - lot["scullerySouthFt"]
+    north = south + lot["depthFt"]
+
+    nw = f.get("nwDropIn", 36) / 12.0                # drop at the NW corner (ft)
+    sw = f.get("swDropIn", 12) / 12.0                # drop at the SW corner (ft)
+    x_flat = east + f.get("northLevelFromEastFt", 25)  # north drop dies out here
+    WALK = f.get("sidewalkWidthFt", 4)
+    STRIP = f.get("parkStripWidthFt", 6)
+    CURB = f.get("curbWidthIn", 6) / 12.0
+    CURB_T = f.get("curbDepthIn", 6) / 12.0
+    TH = f.get("pavingThicknessIn", 4) / 12.0
+    WT = f.get("wallThicknessIn", 10) / 12.0
+
+    def at01(t):
+        return max(0.0, min(1.0, t))
+
+    def drop_n(px):
+        """Sidewalk grade (ft below the lot) on the north frontage at plan x."""
+        return -nw * at01((px - x_flat) / (west - x_flat))
+
+    def drop_w(pz):
+        """Sidewalk grade (ft below the lot) on the west frontage at plan z."""
+        return -(sw + (nw - sw) * at01((pz - south) / (north - south)))
+
+    # band edges, measured outward from each property line
+    n1, n2, n3 = north + WALK, north + WALK + STRIP, north + WALK + STRIP + CURB
+    w1, w2, w3 = west + WALK, west + WALK + STRIP, west + WALK + STRIP + CURB
+
+    def paving(name, x1, x2, z1, z2, top, color, th=TH):
+        """Level paving; `top` (ft) is the finished surface, `th` runs below it."""
+        b = make_box(ctx, "IfcSlab", name, abs(x2 - x1) * FT, abs(z2 - z1) * FT, th * FT,
+                     ctx.X((x1 + x2) / 2), ctx.Y((z1 + z2) / 2), (top - th) * FT,
+                     predefined="BASESLAB", color=color)
+        run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
+
+    def ramp_n(name, z1, z2, color, th=TH):
+        """North band falling with drop_n, from the west line east to x_flat."""
+        poly = [(ctx.X(west), ctx.Y(z1), drop_n(west) * FT),
+                (ctx.X(west), ctx.Y(z2), drop_n(west) * FT),
+                (ctx.X(x_flat), ctx.Y(z2), drop_n(x_flat) * FT),
+                (ctx.X(x_flat), ctx.Y(z1), drop_n(x_flat) * FT)]
+        v, fc = _prism(poly, (0, 0, -th * FT))
+        add_brep(ctx, name, v, fc, color, ifc_class="IfcSlab", predefined="BASESLAB")
+
+    def ramp_w(name, x1, x2, color, th=TH):
+        """West band falling with drop_w, from the north line south to the SW corner."""
+        poly = [(ctx.X(x1), ctx.Y(north), drop_w(north) * FT),
+                (ctx.X(x2), ctx.Y(north), drop_w(north) * FT),
+                (ctx.X(x2), ctx.Y(south), drop_w(south) * FT),
+                (ctx.X(x1), ctx.Y(south), drop_w(south) * FT)]
+        v, fc = _prism(poly, (0, 0, -th * FT))
+        add_brep(ctx, name, v, fc, color, ifc_class="IfcSlab", predefined="BASESLAB")
+
+    # --- NORTH frontage: falling run out to x_flat, then level to the east line
+    ramp_n("Sidewalk - north", north, n1, CONCRETE)
+    ramp_n("Park strip - north", n1, n2, GRASS)
+    ramp_n("Curb - north", n2, n3, CONCRETE, th=CURB_T)
+    paving("Sidewalk - north level", x_flat, east, north, n1, 0.0, CONCRETE)
+    paving("Park strip - north level", x_flat, east, n1, n2, 0.0, GRASS)
+    paving("Curb - north level", x_flat, east, n2, n3, 0.0, CONCRETE, th=CURB_T)
+
+    # --- WEST frontage: falls the whole way (36" at the NW corner -> 12" at the SW)
+    ramp_w("Sidewalk - west", west, w1, CONCRETE)
+    ramp_w("Park strip - west", w1, w2, GRASS)
+    ramp_w("Curb - west", w2, w3, CONCRETE, th=CURB_T)
+
+    # --- NW corner: a paved return where the two walks meet, both curb lines
+    # carried around it. Flat — both frontages are at the same -nw here.
+    paving("Sidewalk - NW corner", west, w2, north, n2, -nw, CONCRETE)
+    paving("Curb - NW corner north", west, w3, n2, n3, -nw, CONCRETE, th=CURB_T)
+    paving("Curb - NW corner west", w2, w3, north, n2, -nw, CONCRETE, th=CURB_T)
+
+    # --- retaining wall, outer face ON the property line and the thickness running
+    # inward (the add_lot_wall convention). The top is held FLUSH with the lot grade
+    # so the picket fence along the west line sits on top of it instead of fighting
+    # a raised cap.
+    def wall(name, poly, vec):
+        v, fc = _prism(poly, vec)
+        add_brep(ctx, name, v, fc, STUCCO, ifc_class="IfcWall")
+
+    # north leg: a triangle in elevation — full height at the corner, dying to
+    # nothing at x_flat, where the walk has climbed to meet the lot.
+    wall("Retaining wall - north",
+         [(ctx.X(west), ctx.Y(north), drop_n(west) * FT),
+          (ctx.X(west), ctx.Y(north), 0.0),
+          (ctx.X(x_flat), ctx.Y(north), 0.0)],
+         (0, -WT * FT, 0))
+    # west leg: a trapezoid — runs the full property line, 36" down to 12".
+    wall("Retaining wall - west",
+         [(ctx.X(west), ctx.Y(north), drop_w(north) * FT),
+          (ctx.X(west), ctx.Y(south), drop_w(south) * FT),
+          (ctx.X(west), ctx.Y(south), 0.0),
+          (ctx.X(west), ctx.Y(north), 0.0)],
+         (WT * FT, 0, 0))
+
 
 def add_entry(ctx, px, pz, dw_ft, base):
     """Classical pedimented door surround over the (North-facing) front door:

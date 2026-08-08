@@ -46,7 +46,19 @@
     "widthFt": 100,
     "depthFt": 50,
     "westMarginFt": 16,
-    "scullerySouthFt": 5
+    "scullerySouthFt": 5,
+    "frontage": {
+      "_note": "Corner lot: city frontage on the NORTH and WEST lines. The lot itself is flat; the right-of-way falls away from it. The property stands nwDropIn above the sidewalk at the NW corner. Going EAST along the north line that drop dies to zero northLevelFromEastFt short of the NE corner; going SOUTH along the west line it eases to swDropIn at the SW corner. Both work out to a steady ~4% walk.",
+      "nwDropIn": 36,
+      "swDropIn": 12,
+      "northLevelFromEastFt": 25,
+      "sidewalkWidthFt": 4,
+      "parkStripWidthFt": 6,
+      "curbWidthIn": 6,
+      "curbDepthIn": 6,
+      "pavingThicknessIn": 4,
+      "wallThicknessIn": 10
+    }
   },
   "levels": [
     {
