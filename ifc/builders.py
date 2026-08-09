@@ -1678,6 +1678,25 @@ def add_picket_fence(ctx, lot, rooms_cache):
     gate_trellis(xg, north)
 
 
+def _front_door(rooms_cache):
+    """The Front Door record (plan `pos` = x, `fixed` = the front wall's z)."""
+    for r in rooms_cache.values():
+        for d in r.get("doors", []):
+            if "Front Door" in d.get("name", ""):
+                return d
+    return None
+
+
+def _entry_stair_span(f, rooms_cache):
+    """Plan-x span (low, high) the front entry stair occupies on the north line —
+    the gap the retaining wall has to leave for it. None if there's no front door."""
+    fd = _front_door(rooms_cache)
+    if not fd:
+        return None
+    half = f.get("entryWalkWidthFt", 5.0) / 2.0
+    return (fd["pos"] - half, fd["pos"] + half)
+
+
 def add_street_frontage(ctx, lot, rooms_cache):
     """Public frontage along the NORTH and WEST lot lines (this is a corner lot):
     a retaining wall standing on the property line to hold the flat lot above the
@@ -1799,13 +1818,24 @@ def add_street_frontage(ctx, lot, rooms_cache):
         v, fc = _prism(poly, vec)
         add_brep(ctx, name, v, fc, STUCCO, ifc_class="IfcWall")
 
-    # north leg: a triangle in elevation — full height at the corner, dying to
-    # nothing at x_flat, where the walk has climbed to meet the lot.
-    wall("Retaining wall - north",
-         [(ctx.X(west), ctx.Y(north), drop_n(west) * FT),
-          (ctx.X(west), ctx.Y(north), 0.0),
-          (ctx.X(x_flat), ctx.Y(north), 0.0)],
-         (0, -WT * FT, 0))
+    # North leg, broken by the front entry stair. In elevation it is a trapezoid
+    # between two plan-x stations — full height at the corner, dying to nothing at
+    # x_flat where the walk has climbed to meet the lot. At x_flat the two bottom
+    # points coincide, so drop the duplicate and let it degenerate to a triangle.
+    def wall_n(name, pa, pb):
+        pts = [(ctx.X(pa), ctx.Y(north), drop_n(pa) * FT),
+               (ctx.X(pa), ctx.Y(north), 0.0),
+               (ctx.X(pb), ctx.Y(north), 0.0)]
+        if abs(drop_n(pb)) > 1e-9:
+            pts.append((ctx.X(pb), ctx.Y(north), drop_n(pb) * FT))
+        wall(name, pts, (0, -WT * FT, 0))
+
+    stair = _entry_stair_span(f, rooms_cache)          # (px_low, px_high) or None
+    if stair:
+        wall_n("Retaining wall - north west of entry", west, stair[1])
+        wall_n("Retaining wall - north east of entry", stair[0], x_flat)
+    else:
+        wall_n("Retaining wall - north", west, x_flat)
     # west leg: a trapezoid — runs the full property line, 36" down to 12".
     wall("Retaining wall - west",
          [(ctx.X(west), ctx.Y(north), drop_w(north) * FT),
@@ -1813,6 +1843,42 @@ def add_street_frontage(ctx, lot, rooms_cache):
           (ctx.X(west), ctx.Y(south), 0.0),
           (ctx.X(west), ctx.Y(north), 0.0)],
          (WT * FT, 0, 0))
+
+    # --- front entry: a walk across the planting strip, then a flight up through
+    # the gap left in the retaining wall, landing at the foot of the porch cascade.
+    # Centred on the front door, so the whole route reads sidewalk -> walk -> steps
+    # -> cascade -> door.
+    fd = _front_door(rooms_cache)
+    if stair and fd:
+        sx0, sx1 = stair
+        foot = drop_n(fd["pos"])                       # walk grade at the stair
+        steps = f.get("entryStepCount", 3)
+        rise = -foot / steps                           # 1.5 ft over 3 risers = 6" each
+        TREAD = f.get("entryTreadFt", 1.0)
+        # The porch cascade (add_porch) springs 3.0 ft off the front wall then runs
+        # (nst-1) treads of 0.95 ft; its foot lands here. Keep in step with add_porch.
+        porch_foot = fd["fixed"] + 3.0 + 4 * 0.95
+        # Walk over the planting strip, following the street's cross-slope so it
+        # meets the sidewalk flush. Lifted a hair so it doesn't z-fight the grass.
+        LIFT = 0.02
+        poly = [(ctx.X(sx0), ctx.Y(north), (drop_n(sx0) + LIFT) * FT),
+                (ctx.X(sx0), ctx.Y(n1), (drop_n(sx0) + LIFT) * FT),
+                (ctx.X(sx1), ctx.Y(n1), (drop_n(sx1) + LIFT) * FT),
+                (ctx.X(sx1), ctx.Y(north), (drop_n(sx1) + LIFT) * FT)]
+        v, fc = _prism(poly, (0, 0, -TH * FT))
+        add_brep(ctx, "Entry walk - planting strip", v, fc, CONCRETE,
+                 ifc_class="IfcSlab", predefined="BASESLAB")
+        # Solid steps marching south off the property line. Each is carried well
+        # below the walk so the flight reads as masonry, not floating treads, and
+        # fills the wall opening behind it.
+        for i in range(1, steps + 1):
+            z_near = north - (i - 1) * TREAD
+            z_far = north - i * TREAD
+            if i == steps:                             # last tread runs on as a
+                z_far = min(z_far, porch_foot)         # landing to meet the cascade
+            top = foot + i * rise
+            paving(f"Entry step {i}", sx0, sx1, z_far, z_near, top, CONCRETE,
+                   th=top - (foot - 0.5))
 
 
 def add_entry(ctx, px, pz, dw_ft, base):

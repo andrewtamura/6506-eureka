@@ -58,7 +58,11 @@
       "curbWidthIn": 6,
       "curbDepthIn": 6,
       "pavingThicknessIn": 4,
-      "wallThicknessIn": 10
+      "wallThicknessIn": 10,
+      "_noteEntry": "Front entry: a walk crosses the planting strip on the front door's centreline, then entryStepCount steps climb through a gap left in the retaining wall and land at the foot of the porch cascade. The wall is exactly 18 in high at the front door, so three 6 in risers come out even.",
+      "entryWalkWidthFt": 5.0,
+      "entryStepCount": 3,
+      "entryTreadFt": 1.0
     }
   },
   "levels": [
