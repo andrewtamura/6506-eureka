@@ -42,4 +42,16 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   delete the branch after merge (avoids squash-rebase conflicts).
 - Regenerate IFC after `ifc/` changes: `/tmp/ifcvenv/bin/python ifc/generate_ifc.py`
   (IfcOpenShell venv). Then `npm run build`.
+- **Regenerating is destructive — restore what you didn't mean to change.** Some
+  manifests are hand-authored and the generator does NOT reproduce them: notably
+  `ifc/level2.furniture.json`, which a plain regen rewrites to near-empty, wiping all
+  ~40 second-floor items (beds, vanities, showers, closets, partitions). The generator
+  also rewrites all four `.ifc` files unconditionally, so the three you didn't touch
+  churn on timestamps/GUIDs/entity order alone. Regenerate, then restore everything
+  except the level(s) you actually changed, e.g. for an exterior-only change:
+  ```
+  /tmp/ifcvenv/bin/python ifc/generate_ifc.py
+  git checkout -- ifc/attic.ifc ifc/ground.ifc ifc/level2.ifc ifc/level2.furniture.json
+  ```
+  Always check `git status` after a regen and confirm the diff is only what you intended.
 - Verify changes headless (puppeteer with swiftshader) before merging.

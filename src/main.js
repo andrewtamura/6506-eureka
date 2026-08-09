@@ -359,6 +359,14 @@ function addAltDriveway(parent) {
   box(EX, fE, SZ, NZ, 0, 0.18, border);                 // decorative border — east (along the property wall)
   box(WX, EX, SZ, fS, 0, 0.18, border);                 // decorative border — south
   box(WX, EX, fN, NZ, 0, 0.18, border);                 // decorative border — north (at the property line)
+  // Apron: the drive can't stop at the property line and dump onto grass, so carry
+  // it across the planting strip and the sidewalk to the curb face. Public
+  // right-of-way, so it's plain concrete — the decorative border stops at the line
+  // and reads as the joint between private drive and public apron. The frontage is
+  // level this far east (the north grade dies out well west of here), so a flat
+  // slab is correct; the slight lift keeps it off the ROW paving it overlays.
+  const CURB_FACE = 36.625;
+  box(WX, EX, NZ, CURB_FACE, 0, 0.02, concrete);
 }
 
 // Six-lite divided windows on the east extension's three exterior walls

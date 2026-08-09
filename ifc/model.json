@@ -46,7 +46,24 @@
     "widthFt": 100,
     "depthFt": 50,
     "westMarginFt": 16,
-    "scullerySouthFt": 5
+    "scullerySouthFt": 5,
+    "frontage": {
+      "_note": "Corner lot: city frontage on the NORTH and WEST lines. The lot itself is flat; the right-of-way falls away from it. The property stands nwDropIn above the sidewalk at the NW corner. Going EAST along the north line that drop dies to zero northLevelFromEastFt short of the NE corner; going SOUTH along the west line it eases to swDropIn at the SW corner. Both work out to a steady ~4% walk.",
+      "_noteBandOrder": "The two frontages run the same bands in OPPOSITE order — north is (property line) park strip, sidewalk, curb, with the walk out against the asphalt; west is (property line) sidewalk, park strip, curb. Each is sidewalkWidthFt + parkStripWidthFt overall either way, so the curb lines and the paved NW corner block agree.",
+      "nwDropIn": 36,
+      "swDropIn": 12,
+      "northLevelFromEastFt": 25,
+      "sidewalkWidthFt": 4,
+      "parkStripWidthFt": 6,
+      "curbWidthIn": 6,
+      "curbDepthIn": 6,
+      "pavingThicknessIn": 4,
+      "wallThicknessIn": 10,
+      "_noteEntry": "Front entry: a walk crosses the planting strip on the front door's centreline, then entryStepCount steps climb through a gap left in the retaining wall and land at the foot of the porch cascade. The wall is exactly 18 in high at the front door, so three 6 in risers come out even.",
+      "entryWalkWidthFt": 5.0,
+      "entryStepCount": 3,
+      "entryTreadFt": 1.0
+    }
   },
   "levels": [
     {
