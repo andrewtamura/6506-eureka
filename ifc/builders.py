@@ -1681,8 +1681,17 @@ def add_picket_fence(ctx, lot, rooms_cache):
 def add_street_frontage(ctx, lot, rooms_cache):
     """Public frontage along the NORTH and WEST lot lines (this is a corner lot):
     a retaining wall standing on the property line to hold the flat lot above the
-    falling street grade, and beyond it the right-of-way — sidewalk, park strip
-    and curb — stepped down to match.
+    falling street grade, and beyond it the right-of-way stepped down to match.
+
+    The two frontages carry the SAME bands in the OPPOSITE order, which is how the
+    street actually reads here:
+
+        north:  property line | park strip | sidewalk   | curb | street
+        west:   property line | sidewalk   | park strip | curb | street
+
+    Both are 10 ft overall, so the curb lines agree and the paved NW corner block —
+    which is what carries a pedestrian between the inboard west walk and the
+    outboard north one — needs no special casing.
 
     The property stands highest above the sidewalk at the NW corner; the drop dies
     out in both directions (to nothing part-way along the north line, and to a low
@@ -1730,8 +1739,12 @@ def add_street_frontage(ctx, lot, rooms_cache):
         """Sidewalk grade (ft below the lot) on the west frontage at plan z."""
         return -(sw + (nw - sw) * at01((pz - south) / (north - south)))
 
-    # band edges, measured outward from each property line
-    n1, n2, n3 = north + WALK, north + WALK + STRIP, north + WALK + STRIP + CURB
+    # Band edges, measured outward from each property line. The two frontages run
+    # DIFFERENT orders: on the north the walk sits outboard, hard against the curb,
+    # with the planting strip inboard against the property line; on the west the walk
+    # is inboard against the retaining wall. Both are 10 ft overall, so the outer
+    # edges (n2/n3, w2/w3) — and with them the corner block — line up either way.
+    n1, n2, n3 = north + STRIP, north + STRIP + WALK, north + STRIP + WALK + CURB
     w1, w2, w3 = west + WALK, west + WALK + STRIP, west + WALK + STRIP + CURB
 
     def paving(name, x1, x2, z1, z2, top, color, th=TH):
@@ -1760,11 +1773,11 @@ def add_street_frontage(ctx, lot, rooms_cache):
         add_brep(ctx, name, v, fc, color, ifc_class="IfcSlab", predefined="BASESLAB")
 
     # --- NORTH frontage: falling run out to x_flat, then level to the east line
-    ramp_n("Sidewalk - north", north, n1, CONCRETE)
-    ramp_n("Park strip - north", n1, n2, GRASS)
+    ramp_n("Park strip - north", north, n1, GRASS)
+    ramp_n("Sidewalk - north", n1, n2, CONCRETE)
     ramp_n("Curb - north", n2, n3, CONCRETE, th=CURB_T)
-    paving("Sidewalk - north level", x_flat, east, north, n1, 0.0, CONCRETE)
-    paving("Park strip - north level", x_flat, east, n1, n2, 0.0, GRASS)
+    paving("Park strip - north level", x_flat, east, north, n1, 0.0, GRASS)
+    paving("Sidewalk - north level", x_flat, east, n1, n2, 0.0, CONCRETE)
     paving("Curb - north level", x_flat, east, n2, n3, 0.0, CONCRETE, th=CURB_T)
 
     # --- WEST frontage: falls the whole way (36" at the NW corner -> 12" at the SW)
