@@ -228,9 +228,10 @@ function addLandscapeLighting(parent, onFixture) {
 // the primary's east wall (px -12; nudged 0.5' in so faces don't z-fight), east
 // wall 15' off the east property line (px -53 → -38); pz ∈ [-11.9167, 10.0833] —
 // south wall aligned with the primary's south wall, north wall set back 6' from
-// the primary's north wall (pz 16.0833). One story to the primary's 2nd-floor line
-// (deck at 12.5' = 2.5' crawl + 10' story), matching the primary foundation +
-// water-table belt. Parented to the alt model (local x=-px·FT, z=-pz·FT, grade
+// the primary's north wall (pz 16.0833). A TWO-CAR GARAGE, one story to the
+// primary's 2nd-floor line (deck at 12.5'), so unlike the rest of the house it sits
+// on a slab at grade rather than a crawlspace — see the note at the slab below.
+// Parented to the alt model (local x=-px·FT, z=-pz·FT, grade
 // y=0); its massing materials join the day sky-fill so they match the primary.
 function addAltExtension(parent, extFillMats) {
   const FT = 0.3048;
@@ -249,10 +250,14 @@ function addAltExtension(parent, extFillMats) {
     b.castShadow = true; b.receiveShadow = true; b.frustumCulled = false; g.add(b); return b;
   };
   const PX0 = -38, PX1 = -11.5, PZ0 = -11.9167, PZ1 = 10.0833;
-  const CRAWL = 2.5, ROOF = 12.5, WP = 0.06 / FT, WH = 0.15 / FT;   // one story: roof/deck at 12.5'
-  box(PX0, PX1, PZ0, PZ1, 0, CRAWL, foundMat);                                          // crawlspace / foundation
-  box(PX0 - WP, PX1 + WP, PZ0 - WP, PZ1 + WP, CRAWL - WH, CRAWL + 0.05 / FT, trimMat);   // water-table belt
-  box(PX0, PX1, PZ0, PZ1, CRAWL, ROOF, wallMat);                                        // single-story walls
+  const ROOF = 12.5;                                    // one story: roof/deck at 12.5'
+  // GARAGE, so the floor is a slab ON GRADE, not the 2.5' crawlspace the rest of the
+  // house sits on — cars can't drive up a step. That also means no water-table belt
+  // here: the belt exists to mark the crawlspace top and there is no longer one. The
+  // walls therefore run from 0, giving a 12.5' interior and leaving the roof deck
+  // exactly where it was.
+  box(PX0, PX1, PZ0, PZ1, 0, 0.4, foundMat);                                            // garage slab at grade
+  box(PX0, PX1, PZ0, PZ1, 0, ROOF, wallMat);                                            // single-story walls
   // FLAT roof behind a decorated PARAPET — matching the primary's flat-roof
   // treatment (a raised parapet capped with a projecting coping, a cornice band,
   // and a dentil course, all in the same white trim), with a partial roof DECK on
@@ -369,8 +374,49 @@ function addAltDriveway(parent) {
   box(WX, EX, NZ, CURB_FACE, 0, 0.02, concrete);
 }
 
-// Six-lite divided windows on the east extension's three exterior walls
-// (east/south/north), white-trimmed. Modest and secondary next to the primary's
+// One 16' double garage door centred on the garage's EAST wall, facing the driveway.
+// The wall runs pz -11.9167..10.0833 (22.0'), so a 16' door leaves 3.0' of masonry pier
+// either side — real returns with comfortable header bearing, rather than the ~16" slivers
+// two 9' singles would leave. 8' tall on the 12.5' wall: better proportioned than 7' and
+// useful for a tall vehicle, with 4.5' of wall left above for the header. Divided lites
+// across the top echo the six-lite windows on the other two walls. Local x=-px·FT,
+// z=-pz·FT, grade y=0; the wall face is +x (east) and outward is +x.
+function addAltGarageDoor(parent, extFillMats) {
+  const FT = 0.3048;
+  const glass = new THREE.MeshStandardMaterial({ roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.5 });
+  glass.color.setRGB(0.42, 0.52, 0.60);
+  const white = new THREE.MeshStandardMaterial({ roughness: 0.7 }); white.color.setRGB(0.93, 0.92, 0.88);
+  // Warm off-white door leaf, a shade down from the trim so the panels read against the
+  // casing. Blue stays <= red on both: the viewer treats a bluish exterior material as
+  // window glass and would make it glow at night.
+  const leaf = new THREE.MeshStandardMaterial({ roughness: 0.75 }); leaf.color.setRGB(0.88, 0.86, 0.81);
+  const reveal = new THREE.MeshStandardMaterial({ roughness: 0.9 }); reveal.color.setRGB(0.22, 0.21, 0.20);
+  if (extFillMats) for (const m of [white, leaf]) { m.userData._fillBase = m.color.clone(); extFillMats.add(m); }
+  const g = new THREE.Group(); parent.add(g);
+  const box = (cx, cy, cz, sx, sy, sz, mat) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat);
+    m.position.set(cx, cy, cz); m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; g.add(m);
+  };
+  const eX = 38 * FT;                                   // east wall face
+  const W = 16.0, H = 8.0, CZ = -0.9167;                // width, height, wall centre (pz)
+  const wM = W * FT, hM = H * FT, zc = -CZ * FT, yc = H / 2 * FT;
+  box(eX + 0.02, yc, zc, 0.06, hM + 0.5 * FT, wM + 0.5 * FT, white);   // casing surround
+  box(eX + 0.05, yc, zc, 0.04, hM, wM, reveal);                        // recessed reveal
+  box(eX + 0.09, yc, zc, 0.05, hM - 0.08, wM - 0.08, leaf);            // door leaf
+  // four sectional panel joints across the leaf
+  for (let i = 1; i < 4; i++)
+    box(eX + 0.12, i * hM / 4, zc, 0.03, 0.035, wM - 0.14, reveal);
+  // divided lites in the top section: four square panes with muntins between
+  const ty = 3.5 * hM / 4, lh = 0.62 * (hM / 4), lw = wM * 0.86;
+  box(eX + 0.12, ty, zc, 0.04, lh, lw, glass);
+  for (let i = 1; i < 4; i++)                                           // 3 vertical muntins -> 4 lites
+    box(eX + 0.14, ty, zc - lw / 2 + i * lw / 4, 0.05, lh, 0.035, white);
+  box(eX + 0.14, ty + lh / 2, zc, 0.05, 0.045, lw, white);             // lite head
+  box(eX + 0.14, ty - lh / 2, zc, 0.05, 0.045, lw, white);             // lite sill
+}
+
+// Six-lite divided windows on the garage's SOUTH and NORTH walls, white-trimmed.
+// (The east wall is the door.) Modest and secondary next to the primary's
 // tall formal windows. Footprint px ∈ [-38,-11.5], pz ∈ [-11.9167,10.0833]; one
 // story (floor 2.5' → roof 12.5'), one quiet row of six-lite windows. Local coords:
 // x=-px·FT, z=-pz·FT, grade y=0.
@@ -406,7 +452,7 @@ function addAltExtensionWindows(parent, extFillMats) {
   // Single story: sill 5.0' → head 8.4', comfortably below the 12.5' roof.
   const rows = [{ sill: 5.0, hgt: 3.4 }];
   for (const { sill, hgt } of rows) {
-    for (const pz of [-6, 5]) win("x", eX, -pz * FT, +1, sill, hgt);              // EAST (2)
+    // no EAST windows: that wall is the garage door (see addAltGarageDoor)
     for (const px of [-32, -24.75, -17.5]) win("z", sZ, -px * FT, +1, sill, hgt); // SOUTH (3)
     for (const px of [-32, -24.75, -17.5]) win("z", nZ, -px * FT, -1, sill, hgt); // NORTH (3)
   }
@@ -932,7 +978,8 @@ async function main() {
       } catch (e) { console.warn("alt: could not hide extension", e); }
       // Build the NEW east extension (one story + roof deck) on the alt lot.
       addAltExtension(alt.object, extFillMats);
-      addAltExtensionWindows(alt.object, extFillMats);   // 6-lite windows on the 3 exterior walls
+      addAltExtensionWindows(alt.object, extFillMats);   // 6-lite windows on the N + S walls
+      addAltGarageDoor(alt.object, extFillMats);         // 16' double door on the east wall
       // Deck access: hide the whole 2nd-floor east window ("Upper - East" @ pz
       // 10.0417 on the east wall px-12 — glass AND its frame/muntins are separate
       // items, so hide everything in a tight box around it) and re-draw it 4' south
