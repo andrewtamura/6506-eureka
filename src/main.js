@@ -449,35 +449,62 @@ function addAltGarageDoor(parent, extFillMats, onFixture) {
   box(eX + 0.10, hM + HB / 2, zc, 0.10, HB, wM + 2 * CW, white);        // header board
   box(eX + 0.16, hM + HB + CAP / 2, zc, 0.22, CAP, wM + 2 * CW + 0.34, white);  // drip cap
 
-  // --- two large wall sconces, one centred on each masonry pier -------------
-  // Same lantern vocabulary as the entry lanterns (bronze cage, glazed panels,
-  // peaked cap, finial, warm bulb) but wall-mounted rather than gooseneck-hung.
+  // --- trellis over the opening --------------------------------------------
+  // A wall-mounted arbor in the same white-timber language as the garden gate's
+  // trellis. It CANNOT have posts — the driveway runs right up to the door — so it
+  // is carried on knee braces instead. Sits above the drip cap (top 9.23') at 9.4',
+  // which also clears the 8' door head, so a car entering passes under it.
+  const tY = 9.4 * FT, tW = 18.0 * FT, tOut = 3.0 * FT;
+  box(eX + 0.10, tY + 0.22 * FT, zc, 0.20, 0.55 * FT, tW, white);          // ledger on the wall
+  for (let i = 0; i < 5; i++) {                                            // beams projecting east
+    const bz = zc - tW / 2 + tW * (i + 0.5) / 5;
+    box(eX + tOut / 2, tY, bz, tOut, 0.42 * FT, 0.30 * FT, white);
+  }
+  for (let i = 0; i < 7; i++)                                              // rafters -> the lattice
+    box(eX + tOut * (i + 0.5) / 7, tY + 0.32 * FT, zc, 0.22 * FT, 0.22 * FT, tW, white);
+  // knee braces: diagonal in the XY plane, so built as meshes (the box helper has
+  // no rotation). Each runs from the wall up-and-out, meeting the beam underside.
+  const drop = 1.7 * FT;
+  for (const bz of [zc - tW / 2 + 0.9 * FT, zc, zc + tW / 2 - 0.9 * FT]) {
+    const br = new THREE.Mesh(new THREE.BoxGeometry(drop * Math.SQRT2, 0.24 * FT, 0.24 * FT), white);
+    br.position.set(eX + drop / 2, tY - drop / 2, bz);
+    br.rotation.z = Math.PI / 4;
+    br.castShadow = true; br.receiveShadow = true; br.frustumCulled = false; g.add(br);
+  }
+
+  // --- two wall sconces, one on each masonry pier --------------------------
+  // Sized to the CLEAR masonry, not the full 3' return: the casing takes 0.75' of
+  // it, leaving 2.25'. Every dimension is driven off the cage width so the
+  // proportions hold, and the widest element (the peaked cap, radius 0.8 x cage)
+  // stays inside that. Centred on the clear masonry rather than the pier centre,
+  // which would leave only ~0.07' to the casing.
   const sconce = (pz) => {
-    const z = -pz * FT, y = 7.0 * FT, CGW = 1.4 * FT, CGH = 2.0 * FT, out = 0.9 * FT;
-    box(eX + 0.05, y, z, 0.10, 1.5 * FT, 0.8 * FT, bronze);             // backplate
-    box(eX + 0.16, y + CGH * 0.55, z, 0.32, 0.10, 0.10, bronze);        // top arm
+    const z = -pz * FT, y = 6.8 * FT;
+    const CGW = 0.85 * FT, k = 0.85 / 1.4, CGH = 1.25 * FT, out = 0.62 * FT;
+    box(eX + 0.05, y, z, 0.08, 0.95 * FT, 0.52 * FT, bronze);              // backplate
+    box(eX + 0.13, y + CGH * 0.55, z, 0.22, 0.07, 0.07, bronze);           // top arm
     const cx = eX + out;
-    box(cx, y, z, CGW, CGH, CGW, glass);                                // glazed cage
-    for (const a of [-1, 1]) for (const b of [-1, 1])                   // corner posts
-      box(cx + a * CGW / 2, y, z + b * CGW / 2, 0.05, CGH, 0.05, bronze);
-    for (const t of [-1, 1])                                            // top + bottom rails
-      box(cx, y + t * CGH / 2, z, CGW + 0.06, 0.08, CGW + 0.06, bronze);
-    const cap2 = box(cx, y + CGH / 2 + 0.16, z, 1, 1, 1, bronze);       // peaked roof
-    cap2.geometry.dispose(); cap2.geometry = new THREE.ConeGeometry(CGW * 0.8, 0.32, 4);
+    box(cx, y, z, CGW, CGH, CGW, glass);                                   // glazed cage
+    for (const a of [-1, 1]) for (const b of [-1, 1])                      // corner posts
+      box(cx + a * CGW / 2, y, z + b * CGW / 2, 0.035, CGH, 0.035, bronze);
+    for (const t of [-1, 1])                                               // top + bottom rails
+      box(cx, y + t * CGH / 2, z, CGW + 0.04, 0.05, CGW + 0.04, bronze);
+    const cap2 = box(cx, y + CGH / 2 + 0.16 * k, z, 1, 1, 1, bronze);      // peaked roof
+    cap2.geometry.dispose(); cap2.geometry = new THREE.ConeGeometry(CGW * 0.8, 0.32 * k, 4);
     cap2.rotation.y = Math.PI / 4;
-    const fin = box(cx, y + CGH / 2 + 0.40, z, 1, 1, 1, bronze);        // finial
-    fin.geometry.dispose(); fin.geometry = new THREE.SphereGeometry(0.06, 12, 10);
+    const fin = box(cx, y + CGH / 2 + 0.40 * k, z, 1, 1, 1, bronze);       // finial
+    fin.geometry.dispose(); fin.geometry = new THREE.SphereGeometry(0.06 * k, 12, 10);
     const bulbMat = new THREE.MeshStandardMaterial({ color: 0xfff4d0, emissive: 0xffdd99, emissiveIntensity: 0.22, roughness: 1 });
     const bulb = box(cx, y, z, 1, 1, 1, bulbMat);
-    bulb.geometry.dispose(); bulb.geometry = new THREE.SphereGeometry(0.13, 14, 12);
+    bulb.geometry.dispose(); bulb.geometry = new THREE.SphereGeometry(0.13 * k, 14, 12);
     // Real, scene-switched light: registered as an exterior fixture so the Night
     // scene turns it on with the rest of the landscape lighting.
     const light = new THREE.PointLight(0xffe0b0, 5, 11, 2);
     light.position.set(cx, y, z); g.add(light);
     onFixture && onFixture(light, bulbMat);
   };
-  sconce(-10.4167);                                     // south pier centre
-  sconce(8.5833);                                       // north pier centre
+  sconce(-10.7917);                                     // centre of the south clear masonry
+  sconce(8.9583);                                       // centre of the north clear masonry
 }
 
 // Six-lite divided windows on the garage's SOUTH and NORTH walls, white-trimmed.
