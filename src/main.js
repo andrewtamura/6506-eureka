@@ -239,17 +239,18 @@ function addAltExtension(parent, extFillMats) {
     const m = new THREE.MeshStandardMaterial({ roughness: rough, metalness: 0 });
     m.color.setRGB(r, g, b); m.side = THREE.DoubleSide; return m;
   };
-  // CARRIAGE HOUSE, not a miniature of the house. The wing used to be painted in the
+  // GARDEN HOUSE, not a miniature of the house. The wing used to be painted in the
   // primary's exact stucco cream (0.87, 0.86, 0.83) with its exact white trim, which is
-  // why it read as a shrunken copy; the body is now a painted sage so it stands apart as
+  // why it read as a shrunken copy; the body is now a sage stucco so it stands apart as
   // an outbuilding while the white trim keeps the two related. Blue must stay <= red
   // (+0.05): the viewer treats a bluish exterior material as window glass and would make
   // the whole wall glow at night.
   const wallMat = mat(0.45, 0.48, 0.40), foundMat = mat(0.55, 0.54, 0.52), trimMat = mat(0.93, 0.92, 0.88);
-  const battenMat = mat(0.39, 0.42, 0.34);       // battens a half-tone darker than the boards, so the
-                                                  // relief reads even in flat midday light
+  const stoneMat = mat(0.86, 0.84, 0.79);        // cast stone: water table + quoins. Warmer and heavier
+                                                  // than the white trim it sits beside, so the masonry
+                                                  // members read as masonry rather than as carpentry.
   const roofMat = mat(0.19, 0.19, 0.21, 0.9);    // dark flat-roof membrane (mostly hidden behind the parapet)
-  for (const m of [wallMat, foundMat, trimMat, battenMat]) { m.userData._fillBase = m.color.clone(); extFillMats.add(m); }
+  for (const m of [wallMat, foundMat, trimMat, stoneMat]) { m.userData._fillBase = m.color.clone(); extFillMats.add(m); }
   // (roofMat is kept OUT of the day sky-fill so the low membrane reads dark, not pale.)
   const g = new THREE.Group(); parent.add(g);
   const box = (x0, x1, z0, z1, y0, y1, m) => {
@@ -280,47 +281,68 @@ function addAltExtension(parent, extFillMats) {
   // Trim the 3 exterior faces (E/S/N; the west abuts the primary). `band` runs a
   // continuous horizontal trim member (cap / frieze / skirt) along a face, projecting
   // `pr` ft proud.
-  const band = (face, y0, y1, pr) => {
-    if (face === "E") box(PX0 - pr, PX0 + 0.12, PZ0 - pr, PZ1 + pr, y0, y1, trimMat);
-    if (face === "S") box(PX0 - pr, PX1, PZ0 - pr, PZ0 + 0.12, y0, y1, trimMat);
-    if (face === "N") box(PX0 - pr, PX1, PZ1 - 0.12, PZ1 + pr, y0, y1, trimMat);
+  const band = (face, y0, y1, pr, m = trimMat) => {
+    if (face === "E") box(PX0 - pr, PX0 + 0.12, PZ0 - pr, PZ1 + pr, y0, y1, m);
+    if (face === "S") box(PX0 - pr, PX1, PZ0 - pr, PZ0 + 0.12, y0, y1, m);
+    if (face === "N") box(PX0 - pr, PX1, PZ1 - 0.12, PZ1 + pr, y0, y1, m);
   };
-  // The parapet is simply the wall carried up, so the body treatment runs unbroken from
-  // the skirt board to the frieze: skirt 0.4-1.5, boarding + battens 1.5-WTOP, frieze
-  // board, flat cap.
-  const WTOP = PARA - 1.45, CBW = 0.75;          // top of the boarded body; corner-board width
+  // ORANGERY trim: masonry, not carpentry. The battens, corner boards and skirt board
+  // that made this read as a board-and-batten shed are gone; the stucco is plain and the
+  // character comes from a projecting cast-stone water table, quoined corners and a
+  // bullnose parapet cap. The frieze stays plain — the dentil course belongs to the
+  // primary and stays there.
+  const WTOP = PARA - 1.45;                      // top of the stucco body / underside of the frieze
   for (const f of ["E", "S", "N"]) {
-    band(f, PARA - 0.35, PARA, 0.45);            // flat cap
+    band(f, PARA - 0.35, PARA, 0.45);            // cap, flat body
     band(f, WTOP, PARA - 0.35, 0.30);            // broad plain frieze board
-    band(f, 0.4, 1.5, 0.15);                     // skirt board the battens die into
   }
-  // Wide corner boards at the two exposed corners — an L of two boards each, so the
-  // corner reads as trimmed from both the driveway and the yard. The west ends abut the
-  // primary and need none.
-  const cbpr = 0.10;
-  box(PX0 - cbpr, PX0 + 0.05, PZ0 - cbpr, PZ0 + CBW, 0.4, WTOP, trimMat);   // SE, on the east face
-  box(PX0 - cbpr, PX0 + CBW, PZ0 - cbpr, PZ0 + 0.05, 0.4, WTOP, trimMat);   // SE, on the south face
-  box(PX0 - cbpr, PX0 + 0.05, PZ1 - CBW, PZ1 + cbpr, 0.4, WTOP, trimMat);   // NE, on the east face
-  box(PX0 - cbpr, PX0 + CBW, PZ1 - 0.05, PZ1 + cbpr, 0.4, WTOP, trimMat);   // NE, on the north face
-  // Vertical battens over the body, 16" on centre, between the corner boards. They run
-  // the full height and simply pass BEHIND the casings, window frames and sconce
-  // backplates — every applied element on these walls projects further than the 0.09'
-  // batten does, which is exactly how real board-and-batten siding meets its trim, so no
-  // batten pokes through an opening and none needs to be skipped.
-  const BSP = 4 / 3, BBW = 0.25, bpr = 0.09;
-  const battens = (face) => {
-    if (face === "E") {
-      const lo = Math.min(PZ0, PZ1) + CBW, hi = Math.max(PZ0, PZ1) - CBW;
-      for (let c = lo + BSP / 2; c < hi; c += BSP)
-        box(PX0 - bpr, PX0 + 0.05, c - BBW / 2, c + BBW / 2, 1.5, WTOP, battenMat);
-    } else {
-      const outer = face === "S" ? PZ0 - bpr : PZ1 + bpr, inner = face === "S" ? PZ0 + 0.05 : PZ1 - 0.05;
-      const lo = Math.min(PX0, PX1) + CBW, hi = Math.max(PX0, PX1);
-      for (let c = lo + BSP / 2; c < hi; c += BSP)
-        box(c - BBW / 2, c + BBW / 2, outer, inner, 1.5, WTOP, battenMat);
-    }
+  // The water table is a REAL projecting member (0.35' proud) — more proud than either
+  // door's reveal — so unlike the flat 0.15' skirt board it replaces it cannot simply run
+  // across the openings and hide behind them. It dies into each door surround instead,
+  // which is what the member does in masonry. These are the casing outer edges of the bay
+  // door (addAltGarageDoor: 16' opening + 0.75' casing, centred pz -0.9167) and of the
+  // man door (addAltPedestrianDoor: 3' opening + 0.40' casing, centred px -33.5).
+  const BAY_Z0 = -9.6667, BAY_Z1 = 7.8333, MAN_X0 = -35.4, MAN_X1 = -31.6;
+  const waterTable = (y0, y1, pr) => {
+    box(PX0 - pr, PX0 + 0.12, PZ0 - pr, BAY_Z0, y0, y1, stoneMat);   // east, south pier
+    box(PX0 - pr, PX0 + 0.12, BAY_Z1, PZ1 + pr, y0, y1, stoneMat);   // east, north pier
+    box(PX0 - pr, MAN_X0, PZ0 - pr, PZ0 + 0.12, y0, y1, stoneMat);   // south, east of the man door
+    box(MAN_X1, PX1, PZ0 - pr, PZ0 + 0.12, y0, y1, stoneMat);        // south, west of it
+    box(PX0 - pr, PX1, PZ1 - 0.12, PZ1 + pr, y0, y1, stoneMat);      // north, unbroken
   };
-  for (const f of ["E", "S", "N"]) battens(f);
+  waterTable(1.2, 1.7, 0.35);                    // the member itself
+  waterTable(1.7, 1.82, 0.24);                   // its weathered chamfer, set back from the face below
+  // Half-round nosing along the outer edge of the cap, so the crown finishes as a
+  // bullnose rather than a square board. The box helper has no rotation, so these are
+  // built as meshes; each runs the full length of its face.
+  const nose = (face) => {
+    const r = 0.175 * FT, y = (PARA - 0.175) * FT;
+    const len = (face === "E" ? Math.abs(PZ1 - PZ0) + 0.9 : Math.abs(PX1 - PX0) + 0.45) * FT;
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(r, r, len, 12), trimMat);
+    if (face === "E") { c.rotation.x = Math.PI / 2; c.position.set(-(PX0 - 0.45) * FT, y, -(PZ0 + PZ1) / 2 * FT); }
+    else {
+      c.rotation.z = Math.PI / 2;
+      const pz = face === "S" ? PZ0 - 0.45 : PZ1 + 0.45;
+      c.position.set(-(PX0 - 0.45 + PX1) / 2 * FT, y, -pz * FT);
+    }
+    c.castShadow = true; c.receiveShadow = true; c.frustumCulled = false; g.add(c);
+  };
+  for (const f of ["E", "S", "N"]) nose(f);
+  // QUOINS at the two exposed corners (the west ends abut the primary, so none there).
+  // Courses alternate the standard interlock: even courses run long on the east face and
+  // short on the return, odd courses swap, so the corner reads as bonded stonework.
+  // Course height is derived from the run rather than fixed, so the stack lands exactly
+  // on the frieze instead of leaving a ragged part-course under it.
+  const QY0 = 1.82, QN = 12, QH = (WTOP - QY0) / QN, QL = 1.7, QS = 0.95, qpr = 0.12;
+  for (const [pz, sgn] of [[PZ0, +1], [PZ1, -1]]) {   // sgn: which way the return runs from the corner
+    for (let i = 0; i < QN; i++) {
+      const y0 = QY0 + i * QH, y1 = y0 + QH;
+      const onE = i % 2 === 0 ? QL : QS;               // length along the east face
+      const onR = i % 2 === 0 ? QS : QL;               // length along the south/north return
+      box(PX0 - qpr, PX0 + 0.05, pz - sgn * qpr, pz + sgn * onE, y0, y1, stoneMat);   // east face
+      box(PX0 - qpr, PX0 + onR, pz - sgn * qpr, pz + sgn * 0.05, y0, y1, stoneMat);   // the return
+    }
+  }
   // Roof DECK on the private SOUTH half (~50% coverage), kept away from the north
   // wall. It's bounded by the parapet on the east + south and by the primary's wall
   // on the west; a guard railing along its north edge separates it from the plain
@@ -582,60 +604,80 @@ function addAltGarageDoor(parent, extFillMats, onFixture) {
   sconce(8.9583);                                       // centre of the north clear masonry
 }
 
-// Four-lite barn sash on the garage's SOUTH and NORTH walls, white-trimmed. (The east
-// wall is the door.) Modest and secondary next to the primary's tall formal windows.
+// Round-arched ORANGERY windows on the garage's SOUTH and NORTH walls, white-trimmed.
+// (The east wall is the door.) TWO per wall rather than three, tall and set well apart,
+// so broad blank fields of stucco read between them — the opposite of the primary's even
+// march of formal openings, which is what makes the wing read as a different building.
 // Footprint px ∈ [-38,-11.5], pz ∈ [-11.9167,10.0833]; one story (floor 2.5' → roof
-// 12.5'), one quiet row of four-lite sash. Local coords:
-// x=-px·FT, z=-pz·FT, grade y=0.
+// 12.5'). Local coords: x=-px·FT, z=-pz·FT, grade y=0.
 function addAltExtensionWindows(parent, extFillMats) {
   const FT = 0.3048;
   const glass = new THREE.MeshStandardMaterial({ roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.5 }); glass.color.setRGB(0.42, 0.52, 0.60);
   const white = new THREE.MeshStandardMaterial({ roughness: 0.7 }); white.color.setRGB(0.93, 0.92, 0.88);
-  if (extFillMats) { white.userData._fillBase = white.color.clone(); extFillMats.add(white); }  // white trim joins the day sky-fill
+  // Cast stone matching addAltExtension's water table, so the window sills read as part
+  // of the same masonry rather than as more white joinery.
+  const stone = new THREE.MeshStandardMaterial({ roughness: 0.9 }); stone.color.setRGB(0.86, 0.84, 0.79);
+  if (extFillMats) for (const m of [white, stone]) { m.userData._fillBase = m.color.clone(); extFillMats.add(m); }  // join the day sky-fill
   const g = new THREE.Group(); parent.add(g);
   const box = (cx, cy, cz, sx, sy, sz, mat) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat);
     m.position.set(cx, cy, cz); m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; g.add(m);
   };
-  const W = 2.8, wM = W * FT, fb = 0.35 * FT;
-  // one four-lite BARN SASH at sill height `sill` (ft): `axis` = wall-normal ('x' east,
-  // 'z' south/north); face at `wall`; `along` = position along the wall (local z for
-  // east, local x for s/n). Head is `hgt` above the sill. Taller and narrower than the
-  // six-lite sash it replaces, with a single cross of muntins — an outbuilding window,
-  // not one of the primary's formal openings.
-  const win = (axis, wall, along, out, sill, hgt) => {
-    const yc = (sill + sill + hgt) / 2 * FT, hM = hgt * FT;
-    if (axis === "x") {   // east wall: thin in x; width along z, height along y
-      box(wall + out * 0.02, yc, along, 0.05, hM + fb, wM + fb, white);   // frame
-      box(wall + out * 0.05, yc, along, 0.04, hM, wM, glass);             // glazing
-      box(wall + out * 0.07, yc, along, 0.05, hM, 0.04, white);           // vertical muntin (2 cols)
-      box(wall + out * 0.07, yc, along, 0.05, 0.04, wM, white);           // horizontal muntin (2 rows)
-    } else {              // south/north wall: thin in z; width along x, height along y
-      box(along, yc, wall + out * 0.02, wM + fb, hM + fb, 0.05, white);
-      box(along, yc, wall + out * 0.05, wM, hM, 0.04, glass);
-      box(along, yc, wall + out * 0.07, 0.04, hM, 0.05, white);
-      box(along, yc, wall + out * 0.07, wM, 0.04, 0.05, white);
+  const W = 3.5, wM = W * FT, fb = 0.35 * FT;
+  // One round-arched window on a south/north wall: `wall` is the wall face (local z),
+  // `along` the position along it (local x), `out` the outward normal (+1 south, -1
+  // north). `sill` and `hgt` in ft; the head is a semicircle of radius W/2 springing
+  // from `sill + hgt - W/2`, so the crown lands at sill + hgt.
+  const arch = (wall, along, out, sill, hgt) => {
+    const r = wM / 2, spring = (sill + hgt) * FT - r;      // springline height (m)
+    const rh = spring - sill * FT, ryc = (spring + sill * FT) / 2;   // lower rectangle
+    // --- lower rectangle: frame slab, glazing, one vertical + two horizontal muntins
+    box(along, ryc, wall + out * 0.02, wM + fb, rh + fb / 2, 0.05, white);
+    box(along, ryc, wall + out * 0.05, wM, rh, 0.04, glass);
+    box(along, ryc, wall + out * 0.07, 0.04, rh, 0.05, white);
+    for (const t of [-1, 1]) box(along, ryc + t * rh / 6, wall + out * 0.07, wM, 0.04, 0.05, white);
+    // --- arched head. CircleGeometry(r, segs, 0, PI) is already the UPPER half (theta
+    // runs anticlockwise from +X), so it needs no rotation facing south; facing north it
+    // is turned about Y, which maps +X to -X and leaves the half upright.
+    const disc = (rad, z, m) => {
+      const d = new THREE.Mesh(new THREE.CircleGeometry(rad, 24, 0, Math.PI), m);
+      d.position.set(along, spring, z);
+      if (out < 0) d.rotation.y = Math.PI;
+      d.castShadow = true; d.receiveShadow = true; d.frustumCulled = false; g.add(d);
+    };
+    disc(r + fb / 2, wall + out * 0.02, white);            // frame backing
+    disc(r, wall + out * 0.05, glass);                     // fanlight glazing
+    for (const th of [Math.PI / 4, Math.PI / 2, 3 * Math.PI / 4]) {   // radiating muntins
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(0.04, r, 0.05), white);
+      // NB no `out` mirroring on the offset: the bar's own axis comes from `th` alone, so
+      // mirroring only the position would leave the 45/135 bars pointing the wrong way.
+      // The 45/90/135 fan is symmetric, so the same offsets serve both walls.
+      bar.position.set(along + Math.cos(th) * r / 2, spring + Math.sin(th) * r / 2, wall + out * 0.07);
+      bar.rotation.z = th - Math.PI / 2;
+      bar.castShadow = true; bar.receiveShadow = true; bar.frustumCulled = false; g.add(bar);
     }
+    // impost band across the springline, tying the head to the rectangle
+    box(along, spring, wall + out * 0.08, wM + fb, 0.05, 0.06, white);
+    // projecting cast-stone sill, proud of the frame and wider than the opening
+    box(along, sill * FT - 0.05, wall + out * 0.10, wM + 2 * fb, 0.10, 0.14, stone);
   };
-  const eX = 38 * FT, sZ = 11.9167 * FT, nZ = -10.0833 * FT;
-  // Single story: sill 4.5' → head 8.7', comfortably below the 12.5' roof.
-  const rows = [{ sill: 4.5, hgt: 4.2 }];
-  // Shifted WEST from the old [-32, -24.75, -17.5] to clear the pedestrian door, which
-  // takes the east end of the south wall beside the bay (see addAltPedestrianDoor). The
-  // north wall keeps the same spacing so the two long elevations still agree.
-  for (const { sill, hgt } of rows) {
-    // no EAST windows: that wall is the garage door (see addAltGarageDoor)
-    for (const px of [-27, -21, -15]) win("z", sZ, -px * FT, +1, sill, hgt); // SOUTH (3)
-    for (const px of [-27, -21, -15]) win("z", nZ, -px * FT, -1, sill, hgt); // NORTH (3)
-  }
+  const sZ = 11.9167 * FT, nZ = -10.0833 * FT;
+  // Sill 3.0' → springline 7.75' → crown 9.5', leaving 3' of blank wall to the 12.5' top.
+  const SILL = 3.0, HGT = 6.5;
+  // SOUTH: the pedestrian door already owns the east end (assembly px -36.66..-32.34),
+  // so these two centre the 20.8' of wall left west of it.
+  for (const px of [-27, -17]) arch(sZ, -px * FT, +1, SILL, HGT);
+  // NORTH: no door on this wall, so they sit symmetrically about its centre (px -24.75).
+  for (const px of [-30.75, -18.75]) arch(nZ, -px * FT, -1, SILL, HGT);
 }
 
 // Pedestrian "man door" on the garage's SOUTH wall — the door you actually use when
 // you are not driving in, and a fixture of any real carriage house. It sits at the east
 // end of the south wall (px -34.5), right beside the bay and on the driveway's west leg,
 // so it is reached off the paving rather than across grass. Half-glazed plank door with
-// carriage ironwork, 3.0' x 6.83'; the assembly spans px -36.66..-32.34, clear of the
-// corner board (ends -37.25) and of the westward barn sash (starts -28.575). Local
+// carriage ironwork, 3.0' x 6.83'; the assembly spans px -35.66..-31.34. Held 1' west of
+// where it started so the longest quoin course (which reaches px -36.3) has a clean run of
+// stucco to die into rather than butting straight into the door casing. Local
 // x=-px·FT, z=-pz·FT, grade y=0; the wall face is +z (south) and outward is +z.
 function addAltPedestrianDoor(parent, extFillMats) {
   const FT = 0.3048;
@@ -653,7 +695,7 @@ function addAltPedestrianDoor(parent, extFillMats) {
     return m;
   };
   const sZ = 11.9167 * FT;                              // south wall face (outward is +z)
-  const CX = 34.5 * FT;                                 // px -34.5 -> local x
+  const CX = 33.5 * FT;                                 // px -33.5 -> local x
   const W = 3.0, H = 6.83, wM = W * FT, hM = H * FT;
   // Everything is set out at least 0.07 m proud so the skirt board (0.15' = 0.046 m)
   // passes behind the door rather than running across it.
