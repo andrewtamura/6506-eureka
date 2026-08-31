@@ -400,6 +400,11 @@ function addAltGarageDoor(parent, extFillMats, onFixture) {
   const leaf = new THREE.MeshStandardMaterial({ roughness: 0.75 }); leaf.color.setRGB(0.88, 0.86, 0.81);
   const reveal = new THREE.MeshStandardMaterial({ roughness: 0.9 }); reveal.color.setRGB(0.22, 0.21, 0.20);
   const bronze = new THREE.MeshStandardMaterial({ color: 0x2e2a22, roughness: 0.45, metalness: 0.75 });
+  // The lantern cage gets its OWN warm amber glass. Reusing the door's cold window
+  // glass made the lamp read dead even with the filament lit — and sharing the
+  // instance would set the door's lites glowing along with it.
+  const lanternGlass = new THREE.MeshStandardMaterial({ color: 0xfff1c2, roughness: 0.15,
+    transparent: true, opacity: 0.42, emissive: 0xffce82, emissiveIntensity: 0.9, depthWrite: false });
   if (extFillMats) for (const m of [white, leaf]) { m.userData._fillBase = m.color.clone(); extFillMats.add(m); }
   const g = new THREE.Group(); parent.add(g);
   const box = (cx, cy, cz, sx, sy, sz, mat) => {
@@ -484,7 +489,7 @@ function addAltGarageDoor(parent, extFillMats, onFixture) {
     box(eX + 0.05, y, z, 0.08, 0.95 * FT, 0.52 * FT, bronze);              // backplate
     box(eX + 0.13, y + CGH * 0.55, z, 0.22, 0.07, 0.07, bronze);           // top arm
     const cx = eX + out;
-    box(cx, y, z, CGW, CGH, CGW, glass);                                   // glazed cage
+    box(cx, y, z, CGW, CGH, CGW, lanternGlass);                            // glazed cage
     for (const a of [-1, 1]) for (const b of [-1, 1])                      // corner posts
       box(cx + a * CGW / 2, y, z + b * CGW / 2, 0.035, CGH, 0.035, bronze);
     for (const t of [-1, 1])                                               // top + bottom rails
@@ -494,14 +499,23 @@ function addAltGarageDoor(parent, extFillMats, onFixture) {
     cap2.rotation.y = Math.PI / 4;
     const fin = box(cx, y + CGH / 2 + 0.40 * k, z, 1, 1, 1, bronze);       // finial
     fin.geometry.dispose(); fin.geometry = new THREE.SphereGeometry(0.06 * k, 12, 10);
-    const bulbMat = new THREE.MeshStandardMaterial({ color: 0xfff4d0, emissive: 0xffdd99, emissiveIntensity: 0.22, roughness: 1 });
+    // 1.2 is this codebase's LIT value (street lamp, entry-lantern flame, string
+    // lights all use it). buildPorchPendant's 0.22 is its baked reads-as-OFF glow —
+    // copying that is what made the bulb look grey while the wall was washed bright.
+    const bulbMat = new THREE.MeshStandardMaterial({ color: 0xfff3d4, emissive: 0xffca73, emissiveIntensity: 1.2, roughness: 0.35 });
     const bulb = box(cx, y, z, 1, 1, 1, bulbMat);
     bulb.geometry.dispose(); bulb.geometry = new THREE.SphereGeometry(0.13 * k, 14, 12);
     // Real, scene-switched light: registered as an exterior fixture so the Night
     // scene turns it on with the rest of the landscape lighting.
-    const light = new THREE.PointLight(0xffe0b0, 5, 11, 2);
+    // Sits at the cage centre, coincident with the bulb. Pulled back toward the entry
+    // lantern's (2.2, 4.5): the old 5/11 threw a pool of light so wide it read as the
+    // source instead of the lamp.
+    const light = new THREE.PointLight(0xffdca0, 2.6, 6.5, 2);
     light.position.set(cx, y, z); g.add(light);
+    // Register twice so the scene drives BOTH the filament and the cage glow —
+    // setFixtures only sets intensity/visible on the light, so repeating it is idempotent.
     onFixture && onFixture(light, bulbMat);
+    onFixture && onFixture(light, lanternGlass);
   };
   sconce(-10.7917);                                     // centre of the south clear masonry
   sconce(8.9583);                                       // centre of the north clear masonry
