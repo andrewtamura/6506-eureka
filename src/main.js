@@ -354,22 +354,30 @@ function addAltDriveway(parent) {
   };
   const concrete = new THREE.MeshStandardMaterial({ color: 0xc4c3bf, roughness: 0.95 });   // light concrete grey
   const border = new THREE.MeshStandardMaterial({ color: 0x4a4850, roughness: 0.9 });      // charcoal banding
-  // setback strip: extension east wall (WX) → inner face of the east boundary wall
-  // (EX = east line -53 + 8" CMU); south inner wall face (SZ) → north property line
-  // (NZ). The slab sits nearly flush with grade.
+  // An L: the north leg fills the 15' east setback, then the drive wraps the garage's
+  // SE corner and runs west along its south wall to the rear deck. The numbers meet
+  // exactly — add_deck puts the deck's south edge on the lot wall's inner face (SZ)
+  // and its east edge at ext_east (DW) — so the leg abuts the garage at GSZ, the deck
+  // at DW and the CMU wall at SZ with no gaps.
+  // NB plan px increases WEST, so `- BW` moves EAST, into the strip.
   const WX = -38, EX = -52.33, SZ = -23.208, NZ = 26.125, BW = 1.0;
-  const fW = WX - BW, fE = EX + BW, fS = SZ + BW, fN = NZ - BW;   // concrete field, inset by the border
-  box(fW, fE, fS, fN, 0, 0.12, concrete);               // concrete field (near-flush, ~1.5")
-  box(WX, fW, SZ, NZ, 0, 0.18, border);                 // decorative border — west (along the extension wall)
-  box(EX, fE, SZ, NZ, 0, 0.18, border);                 // decorative border — east (along the property wall)
-  box(WX, EX, SZ, fS, 0, 0.18, border);                 // decorative border — south
-  box(WX, EX, fN, NZ, 0, 0.18, border);                 // decorative border — north (at the property line)
+  const DW = -22.9167, GSZ = -11.9167;                  // deck east edge; garage south wall
+  const fW = WX - BW, fE = EX + BW, fS = SZ + BW, fN = NZ - BW;   // fields, inset by the border
+  box(fE, fW, fS, fN, 0, 0.12, concrete);               // field — north leg (near-flush, ~1.5")
+  box(fW, DW - BW, fS, GSZ - BW, 0, 0.12, concrete);    // field — south leg + the junction
+  // Border traces the L's PERIMETER, so it has six runs rather than four.
+  box(EX, fE, SZ, NZ, 0, 0.18, border);                 // east, along the property wall
+  box(EX, WX, fN, NZ, 0, 0.18, border);                 // north, at the property line
+  box(WX, fW, GSZ, NZ, 0, 0.18, border);                // west of the north leg — STOPS at the
+                                                        // garage's south wall; below it the drive turns
+  box(fW, DW, GSZ - BW, GSZ, 0, 0.18, border);          // along the garage's south wall (starts at fW
+                                                        // so it laps the run above and fills the corner)
+  box(DW - BW, DW, SZ, GSZ, 0, 0.18, border);           // west end, where the drive meets the deck
+  box(EX, DW, SZ, fS, 0, 0.18, border);                 // south, the full length of the L
   // Apron: the drive can't stop at the property line and dump onto grass, so carry
   // it across the planting strip and the sidewalk to the curb face. Public
   // right-of-way, so it's plain concrete — the decorative border stops at the line
-  // and reads as the joint between private drive and public apron. The frontage is
-  // level this far east (the north grade dies out well west of here), so a flat
-  // slab is correct; the slight lift keeps it off the ROW paving it overlays.
+  // and reads as the joint between private drive and public apron.
   const CURB_FACE = 36.625;
   box(WX, EX, NZ, CURB_FACE, 0, 0.02, concrete);
 }
@@ -381,38 +389,95 @@ function addAltDriveway(parent) {
 // useful for a tall vehicle, with 4.5' of wall left above for the header. Divided lites
 // across the top echo the six-lite windows on the other two walls. Local x=-px·FT,
 // z=-pz·FT, grade y=0; the wall face is +x (east) and outward is +x.
-function addAltGarageDoor(parent, extFillMats) {
+function addAltGarageDoor(parent, extFillMats, onFixture) {
   const FT = 0.3048;
   const glass = new THREE.MeshStandardMaterial({ roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.5 });
   glass.color.setRGB(0.42, 0.52, 0.60);
   const white = new THREE.MeshStandardMaterial({ roughness: 0.7 }); white.color.setRGB(0.93, 0.92, 0.88);
-  // Warm off-white door leaf, a shade down from the trim so the panels read against the
-  // casing. Blue stays <= red on both: the viewer treats a bluish exterior material as
-  // window glass and would make it glow at night.
+  // Panel fields a shade warmer than the stiles so the raised panels read with real
+  // relief. Blue stays <= red on every tone: the viewer treats a bluish exterior
+  // material as window glass and would make the door glow at night.
   const leaf = new THREE.MeshStandardMaterial({ roughness: 0.75 }); leaf.color.setRGB(0.88, 0.86, 0.81);
   const reveal = new THREE.MeshStandardMaterial({ roughness: 0.9 }); reveal.color.setRGB(0.22, 0.21, 0.20);
+  const bronze = new THREE.MeshStandardMaterial({ color: 0x2e2a22, roughness: 0.45, metalness: 0.75 });
   if (extFillMats) for (const m of [white, leaf]) { m.userData._fillBase = m.color.clone(); extFillMats.add(m); }
   const g = new THREE.Group(); parent.add(g);
   const box = (cx, cy, cz, sx, sy, sz, mat) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat);
     m.position.set(cx, cy, cz); m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; g.add(m);
+    return m;
   };
   const eX = 38 * FT;                                   // east wall face
-  const W = 16.0, H = 8.0, CZ = -0.9167;                // width, height, wall centre (pz)
-  const wM = W * FT, hM = H * FT, zc = -CZ * FT, yc = H / 2 * FT;
-  box(eX + 0.02, yc, zc, 0.06, hM + 0.5 * FT, wM + 0.5 * FT, white);   // casing surround
-  box(eX + 0.05, yc, zc, 0.04, hM, wM, reveal);                        // recessed reveal
-  box(eX + 0.09, yc, zc, 0.05, hM - 0.08, wM - 0.08, leaf);            // door leaf
-  // four sectional panel joints across the leaf
-  for (let i = 1; i < 4; i++)
-    box(eX + 0.12, i * hM / 4, zc, 0.03, 0.035, wM - 0.14, reveal);
-  // divided lites in the top section: four square panes with muntins between
-  const ty = 3.5 * hM / 4, lh = 0.62 * (hM / 4), lw = wM * 0.86;
-  box(eX + 0.12, ty, zc, 0.04, lh, lw, glass);
-  for (let i = 1; i < 4; i++)                                           // 3 vertical muntins -> 4 lites
-    box(eX + 0.14, ty, zc - lw / 2 + i * lw / 4, 0.05, lh, 0.035, white);
-  box(eX + 0.14, ty + lh / 2, zc, 0.05, 0.045, lw, white);             // lite head
-  box(eX + 0.14, ty - lh / 2, zc, 0.05, 0.045, lw, white);             // lite sill
+  const W = 16.0, H = 8.0, CZ = -0.9167;                // opening: width, height, wall centre (pz)
+  const wM = W * FT, hM = H * FT, zc = -CZ * FT;
+
+  // --- opening + door leaf -------------------------------------------------
+  box(eX + 0.05, hM / 2, zc, 0.04, hM, wM, reveal);                     // recessed reveal
+  box(eX + 0.09, hM / 2, zc, 0.05, hM - 0.06, wM - 0.06, leaf);         // leaf blank
+  // Stile-and-rail grid: 4 columns x 4 rows. The top row is glazed, the three below
+  // carry raised panels — formal colonial, not carriage (no strap hinges).
+  const COLS = 4, ROWS = 4, st = 0.42 * FT;             // stile / rail width
+  const cw = (wM - st) / COLS, rh = (hM - st) / ROWS;   // cell pitch
+  const cX = (i) => zc - wM / 2 + st / 2 + cw * (i + 0.5);   // cell centre along the wall
+  const cY = (j) => st / 2 + rh * (j + 0.5);                 // cell centre up the door (j=0 bottom)
+  for (let i = 0; i <= COLS; i++)                       // vertical stiles
+    box(eX + 0.12, hM / 2, zc - wM / 2 + st / 2 + cw * i, 0.04, hM - 0.06, st, white);
+  for (let j = 0; j <= ROWS; j++)                       // horizontal rails
+    box(eX + 0.12, st / 2 + rh * j, zc, 0.04, st, wM - 0.06, white);
+  for (let i = 0; i < COLS; i++) {
+    for (let j = 0; j < ROWS - 1; j++) {                // rows 0..2 = raised panels
+      const pw = cw - st * 0.9, ph = rh - st * 0.9;
+      box(eX + 0.115, cY(j), cX(i), 0.035, ph, pw, reveal);             // sunk field
+      box(eX + 0.145, cY(j), cX(i), 0.03, ph - 0.08, pw - 0.08, leaf);  // raised centre
+    }
+    // top row glazed: two lites per column, so eight divided lites across
+    const gw = cw - st * 0.9, gh = rh - st * 0.9, gy = cY(ROWS - 1);
+    box(eX + 0.115, gy, cX(i), 0.035, gh, gw, glass);
+    box(eX + 0.15, gy, cX(i), 0.04, gh, 0.03, white);                   // centre muntin
+    for (const t of [-1, 1]) {                                          // lite frame
+      box(eX + 0.15, gy + t * gh / 2, cX(i), 0.04, 0.035, gw, white);
+      box(eX + 0.15, gy, cX(i) + t * gw / 2, 0.04, gh, 0.035, white);
+    }
+  }
+
+  // --- colonial trim surround ----------------------------------------------
+  // Flat casing legs, a deeper header board, and a projecting drip cap over it —
+  // the same flat-board-plus-crown language as the entry surround and the parapet.
+  const CW = 0.75 * FT, HB = 0.95 * FT, CAP = 0.28 * FT;
+  for (const t of [-1, 1])                                              // side casings
+    box(eX + 0.10, hM / 2, zc + t * (wM / 2 + CW / 2), 0.10, hM + HB, CW, white);
+  box(eX + 0.10, hM + HB / 2, zc, 0.10, HB, wM + 2 * CW, white);        // header board
+  box(eX + 0.16, hM + HB + CAP / 2, zc, 0.22, CAP, wM + 2 * CW + 0.34, white);  // drip cap
+
+  // --- two large wall sconces, one centred on each masonry pier -------------
+  // Same lantern vocabulary as the entry lanterns (bronze cage, glazed panels,
+  // peaked cap, finial, warm bulb) but wall-mounted rather than gooseneck-hung.
+  const sconce = (pz) => {
+    const z = -pz * FT, y = 7.0 * FT, CGW = 1.4 * FT, CGH = 2.0 * FT, out = 0.9 * FT;
+    box(eX + 0.05, y, z, 0.10, 1.5 * FT, 0.8 * FT, bronze);             // backplate
+    box(eX + 0.16, y + CGH * 0.55, z, 0.32, 0.10, 0.10, bronze);        // top arm
+    const cx = eX + out;
+    box(cx, y, z, CGW, CGH, CGW, glass);                                // glazed cage
+    for (const a of [-1, 1]) for (const b of [-1, 1])                   // corner posts
+      box(cx + a * CGW / 2, y, z + b * CGW / 2, 0.05, CGH, 0.05, bronze);
+    for (const t of [-1, 1])                                            // top + bottom rails
+      box(cx, y + t * CGH / 2, z, CGW + 0.06, 0.08, CGW + 0.06, bronze);
+    const cap2 = box(cx, y + CGH / 2 + 0.16, z, 1, 1, 1, bronze);       // peaked roof
+    cap2.geometry.dispose(); cap2.geometry = new THREE.ConeGeometry(CGW * 0.8, 0.32, 4);
+    cap2.rotation.y = Math.PI / 4;
+    const fin = box(cx, y + CGH / 2 + 0.40, z, 1, 1, 1, bronze);        // finial
+    fin.geometry.dispose(); fin.geometry = new THREE.SphereGeometry(0.06, 12, 10);
+    const bulbMat = new THREE.MeshStandardMaterial({ color: 0xfff4d0, emissive: 0xffdd99, emissiveIntensity: 0.22, roughness: 1 });
+    const bulb = box(cx, y, z, 1, 1, 1, bulbMat);
+    bulb.geometry.dispose(); bulb.geometry = new THREE.SphereGeometry(0.13, 14, 12);
+    // Real, scene-switched light: registered as an exterior fixture so the Night
+    // scene turns it on with the rest of the landscape lighting.
+    const light = new THREE.PointLight(0xffe0b0, 5, 11, 2);
+    light.position.set(cx, y, z); g.add(light);
+    onFixture && onFixture(light, bulbMat);
+  };
+  sconce(-10.4167);                                     // south pier centre
+  sconce(8.5833);                                       // north pier centre
 }
 
 // Six-lite divided windows on the garage's SOUTH and NORTH walls, white-trimmed.
@@ -979,7 +1044,8 @@ async function main() {
       // Build the NEW east extension (one story + roof deck) on the alt lot.
       addAltExtension(alt.object, extFillMats);
       addAltExtensionWindows(alt.object, extFillMats);   // 6-lite windows on the N + S walls
-      addAltGarageDoor(alt.object, extFillMats);         // 16' double door on the east wall
+      addAltGarageDoor(alt.object, extFillMats,          // 16' door, trim + lit sconces
+        (light, emiss) => registerFixture(light, "exterior", emiss));
       // Deck access: hide the whole 2nd-floor east window ("Upper - East" @ pz
       // 10.0417 on the east wall px-12 — glass AND its frame/muntins are separate
       // items, so hide everything in a tight box around it) and re-draw it 4' south
