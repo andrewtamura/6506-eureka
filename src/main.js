@@ -239,9 +239,17 @@ function addAltExtension(parent, extFillMats) {
     const m = new THREE.MeshStandardMaterial({ roughness: rough, metalness: 0 });
     m.color.setRGB(r, g, b); m.side = THREE.DoubleSide; return m;
   };
-  const wallMat = mat(0.87, 0.86, 0.83), foundMat = mat(0.55, 0.54, 0.52), trimMat = mat(0.93, 0.92, 0.88);
+  // CARRIAGE HOUSE, not a miniature of the house. The wing used to be painted in the
+  // primary's exact stucco cream (0.87, 0.86, 0.83) with its exact white trim, which is
+  // why it read as a shrunken copy; the body is now a painted sage so it stands apart as
+  // an outbuilding while the white trim keeps the two related. Blue must stay <= red
+  // (+0.05): the viewer treats a bluish exterior material as window glass and would make
+  // the whole wall glow at night.
+  const wallMat = mat(0.45, 0.48, 0.40), foundMat = mat(0.55, 0.54, 0.52), trimMat = mat(0.93, 0.92, 0.88);
+  const battenMat = mat(0.39, 0.42, 0.34);       // battens a half-tone darker than the boards, so the
+                                                  // relief reads even in flat midday light
   const roofMat = mat(0.19, 0.19, 0.21, 0.9);    // dark flat-roof membrane (mostly hidden behind the parapet)
-  for (const m of [wallMat, foundMat, trimMat]) { m.userData._fillBase = m.color.clone(); extFillMats.add(m); }
+  for (const m of [wallMat, foundMat, trimMat, battenMat]) { m.userData._fillBase = m.color.clone(); extFillMats.add(m); }
   // (roofMat is kept OUT of the day sky-fill so the low membrane reads dark, not pale.)
   const g = new THREE.Group(); parent.add(g);
   const box = (x0, x1, z0, z1, y0, y1, m) => {
@@ -258,11 +266,10 @@ function addAltExtension(parent, extFillMats) {
   // exactly where it was.
   box(PX0, PX1, PZ0, PZ1, 0, 0.4, foundMat);                                            // garage slab at grade
   box(PX0, PX1, PZ0, PZ1, 0, ROOF, wallMat);                                            // single-story walls
-  // FLAT roof behind a decorated PARAPET — matching the primary's flat-roof
-  // treatment (a raised parapet capped with a projecting coping, a cornice band,
-  // and a dentil course, all in the same white trim), with a partial roof DECK on
-  // top (see below). The single-story parapet stays well below the primary's ~25'
-  // eave so the wing reads as a low, subordinate echo of its classical detailing.
+  // FLAT roof behind a PARAPET, with a partial roof DECK on top (see below). The
+  // parapet used to copy the primary's classical crown (projecting coping + cornice
+  // band + dentil course); it is now plain, finished with a broad frieze board under a
+  // simple flat cap — the crown of a painted outbuilding, not of the main façade.
   const PARA = ROOF + 2.5, pt = 0.5;                    // parapet top (15'); parapet-wall thickness (ft)
   box(PX0, PX1, PZ0, PZ1, ROOF, ROOF + 0.2, roofMat);   // flat roof membrane
   box(PX0, PX0 + pt, PZ0, PZ1, ROOF, PARA, wallMat);    // parapet — east
@@ -270,30 +277,50 @@ function addAltExtension(parent, extFillMats) {
   box(PX0, PX1, PZ1 - pt, PZ1, ROOF, PARA, wallMat);    // parapet — north
   // (No west parapet: the primary's tall east wall bounds the deck on that side and
   //  keeps the 2nd-floor egress door clear onto the deck.)
-  // Decorate the 3 exterior parapet faces (E/S/N; the west abuts the primary).
-  // `band` runs a continuous horizontal trim member (coping / cornice) along a face,
-  // projecting `pr` ft proud; `dentils` studs a face with evenly spaced small blocks.
+  // Trim the 3 exterior faces (E/S/N; the west abuts the primary). `band` runs a
+  // continuous horizontal trim member (cap / frieze / skirt) along a face, projecting
+  // `pr` ft proud.
   const band = (face, y0, y1, pr) => {
     if (face === "E") box(PX0 - pr, PX0 + 0.12, PZ0 - pr, PZ1 + pr, y0, y1, trimMat);
     if (face === "S") box(PX0 - pr, PX1, PZ0 - pr, PZ0 + 0.12, y0, y1, trimMat);
     if (face === "N") box(PX0 - pr, PX1, PZ1 - 0.12, PZ1 + pr, y0, y1, trimMat);
   };
-  const dentils = (face, y0, y1, pr) => {
-    const step = 0.85, bw = 0.4;
+  // The parapet is simply the wall carried up, so the body treatment runs unbroken from
+  // the skirt board to the frieze: skirt 0.4-1.5, boarding + battens 1.5-WTOP, frieze
+  // board, flat cap.
+  const WTOP = PARA - 1.45, CBW = 0.75;          // top of the boarded body; corner-board width
+  for (const f of ["E", "S", "N"]) {
+    band(f, PARA - 0.35, PARA, 0.45);            // flat cap
+    band(f, WTOP, PARA - 0.35, 0.30);            // broad plain frieze board
+    band(f, 0.4, 1.5, 0.15);                     // skirt board the battens die into
+  }
+  // Wide corner boards at the two exposed corners — an L of two boards each, so the
+  // corner reads as trimmed from both the driveway and the yard. The west ends abut the
+  // primary and need none.
+  const cbpr = 0.10;
+  box(PX0 - cbpr, PX0 + 0.05, PZ0 - cbpr, PZ0 + CBW, 0.4, WTOP, trimMat);   // SE, on the east face
+  box(PX0 - cbpr, PX0 + CBW, PZ0 - cbpr, PZ0 + 0.05, 0.4, WTOP, trimMat);   // SE, on the south face
+  box(PX0 - cbpr, PX0 + 0.05, PZ1 - CBW, PZ1 + cbpr, 0.4, WTOP, trimMat);   // NE, on the east face
+  box(PX0 - cbpr, PX0 + CBW, PZ1 - 0.05, PZ1 + cbpr, 0.4, WTOP, trimMat);   // NE, on the north face
+  // Vertical battens over the body, 16" on centre, between the corner boards. They run
+  // the full height and simply pass BEHIND the casings, window frames and sconce
+  // backplates — every applied element on these walls projects further than the 0.09'
+  // batten does, which is exactly how real board-and-batten siding meets its trim, so no
+  // batten pokes through an opening and none needs to be skipped.
+  const BSP = 4 / 3, BBW = 0.25, bpr = 0.09;
+  const battens = (face) => {
     if (face === "E") {
-      const lo = Math.min(PZ0, PZ1), n = Math.floor(Math.abs(PZ1 - PZ0) / step);
-      for (let i = 0; i < n; i++) { const c = lo + (i + 0.5) * step; box(PX0 - pr, PX0 + 0.06, c - bw / 2, c + bw / 2, y0, y1, trimMat); }
+      const lo = Math.min(PZ0, PZ1) + CBW, hi = Math.max(PZ0, PZ1) - CBW;
+      for (let c = lo + BSP / 2; c < hi; c += BSP)
+        box(PX0 - bpr, PX0 + 0.05, c - BBW / 2, c + BBW / 2, 1.5, WTOP, battenMat);
     } else {
-      const outer = face === "S" ? PZ0 - pr : PZ1 + pr, inner = face === "S" ? PZ0 + 0.06 : PZ1 - 0.06;
-      const lo = Math.min(PX0, PX1), hi = Math.max(PX0, PX1), n = Math.floor((hi - lo - 1.0) / step);
-      for (let i = 0; i < n; i++) { const c = lo + 0.5 + (i + 0.5) * step; box(c - bw / 2, c + bw / 2, outer, inner, y0, y1, trimMat); }
+      const outer = face === "S" ? PZ0 - bpr : PZ1 + bpr, inner = face === "S" ? PZ0 + 0.05 : PZ1 - 0.05;
+      const lo = Math.min(PX0, PX1) + CBW, hi = Math.max(PX0, PX1);
+      for (let c = lo + BSP / 2; c < hi; c += BSP)
+        box(c - BBW / 2, c + BBW / 2, outer, inner, 1.5, WTOP, battenMat);
     }
   };
-  for (const f of ["E", "S", "N"]) {
-    band(f, PARA - 0.25, PARA + 0.3, 0.55);      // projecting coping cap
-    band(f, PARA - 1.0, PARA - 0.55, 0.35);      // cornice band
-    dentils(f, PARA - 1.7, PARA - 1.15, 0.22);   // dentil course beneath the cornice
-  }
+  for (const f of ["E", "S", "N"]) battens(f);
   // Roof DECK on the private SOUTH half (~50% coverage), kept away from the north
   // wall. It's bounded by the parapet on the east + south and by the primary's wall
   // on the west; a guard railing along its north edge separates it from the plain
@@ -387,7 +414,7 @@ function addAltDriveway(parent) {
 // either side — real returns with comfortable header bearing, rather than the ~16" slivers
 // two 9' singles would leave. 8' tall on the 12.5' wall: better proportioned than 7' and
 // useful for a tall vehicle, with 4.5' of wall left above for the header. Divided lites
-// across the top echo the six-lite windows on the other two walls. Local x=-px·FT,
+// across the top echo the barn sash on the other two walls. Local x=-px·FT,
 // z=-pz·FT, grade y=0; the wall face is +x (east) and outward is +x.
 function addAltGarageDoor(parent, extFillMats, onFixture) {
   const FT = 0.3048;
@@ -420,7 +447,8 @@ function addAltGarageDoor(parent, extFillMats, onFixture) {
   box(eX + 0.05, hM / 2, zc, 0.04, hM, wM, reveal);                     // recessed reveal
   box(eX + 0.09, hM / 2, zc, 0.05, hM - 0.06, wM - 0.06, leaf);         // leaf blank
   // Stile-and-rail grid: 4 columns x 4 rows. The top row is glazed, the three below
-  // carry raised panels — formal colonial, not carriage (no strap hinges).
+  // carry raised panels. The colonial leaf is kept, but it now wears carriage
+  // ironwork (see below) so the single 16' leaf reads as a pair of swinging doors.
   const COLS = 4, ROWS = 4, st = 0.42 * FT;             // stile / rail width
   const cw = (wM - st) / COLS, rh = (hM - st) / ROWS;   // cell pitch
   const cX = (i) => zc - wM / 2 + st / 2 + cw * (i + 0.5);   // cell centre along the wall
@@ -477,6 +505,39 @@ function addAltGarageDoor(parent, extFillMats, onFixture) {
     br.castShadow = true; br.receiveShadow = true; br.frustumCulled = false; g.add(br);
   }
 
+  // --- louvered oculus over the bay ----------------------------------------
+  // The hayloft vent is the one unmistakably carriage-house move still open to us: the
+  // roof deck at 12.5' rules out a pitched roof or a cupola, so the character has to sit
+  // in the wall. Centred on the door, 2.66' across the ring at 11.45' — bottom at 10.12',
+  // clear of the trellis ledger (top ~9.9') and of the frieze, which starts at 13.55'.
+  const OY = 11.45 * FT, OR = 1.2 * FT, LR = 1.02 * FT;     // centre height; ring radius; louver radius
+  const disc = box(eX + 0.06, OY, zc, 1, 1, 1, reveal);      // dark recessed field behind the louvers
+  disc.geometry.dispose(); disc.geometry = new THREE.CylinderGeometry(LR + 0.02, LR + 0.02, 0.05, 28);
+  disc.rotation.z = Math.PI / 2;                             // stand the cylinder on its side, facing east
+  for (const dy of [-0.66, -0.22, 0.22, 0.66]) {             // four horizontal louver slats
+    const d = dy * FT, hc = Math.sqrt(Math.max(0, LR * LR - d * d));
+    box(eX + 0.10, OY + d, zc, 0.06, 0.16 * FT, hc * 2, white);
+  }
+  const ring = box(eX + 0.11, OY, zc, 1, 1, 1, white);       // moulded surround
+  ring.geometry.dispose(); ring.geometry = new THREE.TorusGeometry(OR, 0.13 * FT, 10, 30);
+  ring.rotation.y = Math.PI / 2;                             // torus axis onto local x (east)
+
+  // --- carriage ironwork on the leaf ---------------------------------------
+  // Applied hardware only — the leaf itself is untouched. Long strap hinges reaching in
+  // from each jamb at two heights, and a pair of ring pulls at the centre, so the one
+  // wide leaf reads as two doors that swing.
+  const SL = 2.8 * FT, SIN = 0.20 * FT;                      // strap length; inset from the jamb
+  for (const t of [-1, 1]) for (const sy of [1.7, 6.3]) {
+    box(eX + 0.17, sy * FT, zc + t * (wM / 2 - SIN - SL / 2), 0.05, 0.22 * FT, SL, bronze);   // strap
+    box(eX + 0.17, sy * FT, zc + t * (wM / 2 - SIN * 0.6), 0.07, 0.42 * FT, 0.30 * FT, bronze); // pintle plate at the jamb
+  }
+  for (const t of [-1, 1]) {                                 // ring pulls either side of the meeting stiles
+    const pull = box(eX + 0.20, 3.6 * FT, zc + t * 0.34 * FT, 1, 1, 1, bronze);
+    pull.geometry.dispose(); pull.geometry = new THREE.TorusGeometry(0.26 * FT, 0.045 * FT, 8, 20);
+    pull.rotation.y = Math.PI / 2;
+    box(eX + 0.17, 3.95 * FT, zc + t * 0.34 * FT, 0.06, 0.20 * FT, 0.14 * FT, bronze);        // backplate
+  }
+
   // --- two wall sconces, one on each masonry pier --------------------------
   // Sized to the CLEAR masonry, not the full 3' return: the casing takes 0.75' of
   // it, leaving 2.25'. Every dimension is driven off the cage width so the
@@ -521,10 +582,10 @@ function addAltGarageDoor(parent, extFillMats, onFixture) {
   sconce(8.9583);                                       // centre of the north clear masonry
 }
 
-// Six-lite divided windows on the garage's SOUTH and NORTH walls, white-trimmed.
-// (The east wall is the door.) Modest and secondary next to the primary's
-// tall formal windows. Footprint px ∈ [-38,-11.5], pz ∈ [-11.9167,10.0833]; one
-// story (floor 2.5' → roof 12.5'), one quiet row of six-lite windows. Local coords:
+// Four-lite barn sash on the garage's SOUTH and NORTH walls, white-trimmed. (The east
+// wall is the door.) Modest and secondary next to the primary's tall formal windows.
+// Footprint px ∈ [-38,-11.5], pz ∈ [-11.9167,10.0833]; one story (floor 2.5' → roof
+// 12.5'), one quiet row of four-lite sash. Local coords:
 // x=-px·FT, z=-pz·FT, grade y=0.
 function addAltExtensionWindows(parent, extFillMats) {
   const FT = 0.3048;
@@ -536,32 +597,95 @@ function addAltExtensionWindows(parent, extFillMats) {
     const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat);
     m.position.set(cx, cy, cz); m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; g.add(m);
   };
-  const W = 3.2, wM = W * FT, fb = 0.35 * FT;
-  // one six-lite window at sill height `sill` (ft): `axis` = wall-normal ('x' east,
+  const W = 2.8, wM = W * FT, fb = 0.35 * FT;
+  // one four-lite BARN SASH at sill height `sill` (ft): `axis` = wall-normal ('x' east,
   // 'z' south/north); face at `wall`; `along` = position along the wall (local z for
-  // east, local x for s/n). Head is `hgt` above the sill.
+  // east, local x for s/n). Head is `hgt` above the sill. Taller and narrower than the
+  // six-lite sash it replaces, with a single cross of muntins — an outbuilding window,
+  // not one of the primary's formal openings.
   const win = (axis, wall, along, out, sill, hgt) => {
     const yc = (sill + sill + hgt) / 2 * FT, hM = hgt * FT;
     if (axis === "x") {   // east wall: thin in x; width along z, height along y
       box(wall + out * 0.02, yc, along, 0.05, hM + fb, wM + fb, white);   // frame
       box(wall + out * 0.05, yc, along, 0.04, hM, wM, glass);             // glazing
       box(wall + out * 0.07, yc, along, 0.05, hM, 0.04, white);           // vertical muntin (2 cols)
-      for (const t of [-1, 1]) box(wall + out * 0.07, yc + t * hM / 6, along, 0.05, 0.04, wM, white); // 2 horiz (3 rows)
+      box(wall + out * 0.07, yc, along, 0.05, 0.04, wM, white);           // horizontal muntin (2 rows)
     } else {              // south/north wall: thin in z; width along x, height along y
       box(along, yc, wall + out * 0.02, wM + fb, hM + fb, 0.05, white);
       box(along, yc, wall + out * 0.05, wM, hM, 0.04, glass);
       box(along, yc, wall + out * 0.07, 0.04, hM, 0.05, white);
-      for (const t of [-1, 1]) box(along, yc + t * hM / 6, wall + out * 0.07, wM, 0.04, 0.05, white);
+      box(along, yc, wall + out * 0.07, wM, 0.04, 0.05, white);
     }
   };
   const eX = 38 * FT, sZ = 11.9167 * FT, nZ = -10.0833 * FT;
-  // Single story: sill 5.0' → head 8.4', comfortably below the 12.5' roof.
-  const rows = [{ sill: 5.0, hgt: 3.4 }];
+  // Single story: sill 4.5' → head 8.7', comfortably below the 12.5' roof.
+  const rows = [{ sill: 4.5, hgt: 4.2 }];
+  // Shifted WEST from the old [-32, -24.75, -17.5] to clear the pedestrian door, which
+  // takes the east end of the south wall beside the bay (see addAltPedestrianDoor). The
+  // north wall keeps the same spacing so the two long elevations still agree.
   for (const { sill, hgt } of rows) {
     // no EAST windows: that wall is the garage door (see addAltGarageDoor)
-    for (const px of [-32, -24.75, -17.5]) win("z", sZ, -px * FT, +1, sill, hgt); // SOUTH (3)
-    for (const px of [-32, -24.75, -17.5]) win("z", nZ, -px * FT, -1, sill, hgt); // NORTH (3)
+    for (const px of [-27, -21, -15]) win("z", sZ, -px * FT, +1, sill, hgt); // SOUTH (3)
+    for (const px of [-27, -21, -15]) win("z", nZ, -px * FT, -1, sill, hgt); // NORTH (3)
   }
+}
+
+// Pedestrian "man door" on the garage's SOUTH wall — the door you actually use when
+// you are not driving in, and a fixture of any real carriage house. It sits at the east
+// end of the south wall (px -34.5), right beside the bay and on the driveway's west leg,
+// so it is reached off the paving rather than across grass. Half-glazed plank door with
+// carriage ironwork, 3.0' x 6.83'; the assembly spans px -36.66..-32.34, clear of the
+// corner board (ends -37.25) and of the westward barn sash (starts -28.575). Local
+// x=-px·FT, z=-pz·FT, grade y=0; the wall face is +z (south) and outward is +z.
+function addAltPedestrianDoor(parent, extFillMats) {
+  const FT = 0.3048;
+  const glass = new THREE.MeshStandardMaterial({ roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.5 });
+  glass.color.setRGB(0.42, 0.52, 0.60);
+  const white = new THREE.MeshStandardMaterial({ roughness: 0.7 }); white.color.setRGB(0.93, 0.92, 0.88);
+  const plank = new THREE.MeshStandardMaterial({ roughness: 0.78 }); plank.color.setRGB(0.88, 0.86, 0.81);
+  const reveal = new THREE.MeshStandardMaterial({ roughness: 0.9 }); reveal.color.setRGB(0.22, 0.21, 0.20);
+  const bronze = new THREE.MeshStandardMaterial({ color: 0x2e2a22, roughness: 0.45, metalness: 0.75 });
+  if (extFillMats) for (const m of [white, plank]) { m.userData._fillBase = m.color.clone(); extFillMats.add(m); }
+  const g = new THREE.Group(); parent.add(g);
+  const box = (cx, cy, cz, sx, sy, sz, mat) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(sx, sy, sz), mat);
+    m.position.set(cx, cy, cz); m.castShadow = true; m.receiveShadow = true; m.frustumCulled = false; g.add(m);
+    return m;
+  };
+  const sZ = 11.9167 * FT;                              // south wall face (outward is +z)
+  const CX = 34.5 * FT;                                 // px -34.5 -> local x
+  const W = 3.0, H = 6.83, wM = W * FT, hM = H * FT;
+  // Everything is set out at least 0.07 m proud so the skirt board (0.15' = 0.046 m)
+  // passes behind the door rather than running across it.
+  box(CX, hM / 2, sZ + 0.05, wM, hM, 0.04, reveal);                     // recessed reveal
+  box(CX, hM / 2, sZ + 0.09, wM - 0.05, hM - 0.05, 0.05, plank);        // plank slab
+  for (let i = 1; i < 5; i++)                                           // vertical plank joints
+    box(CX - wM / 2 + wM * i / 5, hM / 2, sZ + 0.12, 0.025, hM - 0.09, 0.02, reveal);
+  // upper lite (4.35'-6.35') over a lock rail, with a muntin cross
+  const gy0 = 4.35 * FT, gy1 = 6.35 * FT, gyc = (gy0 + gy1) / 2, gh = gy1 - gy0, gw = wM - 0.5 * FT;
+  box(CX, gyc, sZ + 0.115, gw, gh, 0.035, glass);
+  box(CX, gyc, sZ + 0.15, 0.035, gh, 0.04, white);                      // vertical muntin
+  box(CX, gyc, sZ + 0.15, gw, 0.035, 0.04, white);                      // horizontal muntin
+  for (const t of [-1, 1]) {                                            // lite frame
+    box(CX, gyc + t * gh / 2, sZ + 0.15, gw + 0.06, 0.05, 0.04, white);
+    box(CX + t * gw / 2, gyc, sZ + 0.15, 0.05, gh, 0.04, white);
+  }
+  box(CX, gy0 - 0.16 * FT, sZ + 0.14, wM - 0.09, 0.30 * FT, 0.03, plank);   // lock rail
+  // casing: flat legs, a header board and a projecting drip cap — the same language as
+  // the garage-door surround, scaled down.
+  const CW = 0.40 * FT, HB = 0.55 * FT, CAP = 0.22 * FT;
+  for (const t of [-1, 1])
+    box(CX + t * (wM / 2 + CW / 2), hM / 2, sZ + 0.10, CW, hM + HB, 0.10, white);
+  box(CX, hM + HB / 2, sZ + 0.10, wM + 2 * CW, HB, 0.10, white);        // header board
+  box(CX, hM + HB + CAP / 2, sZ + 0.16, wM + 2 * CW + 0.16, CAP, 0.22, white);  // drip cap
+  // carriage ironwork: two long strap hinges off the east jamb, plus a thumb-latch.
+  for (const sy of [1.5, 5.6]) {
+    box(CX - wM / 2 + 1.15 * FT, sy * FT, sZ + 0.16, 2.1 * FT, 0.19 * FT, 0.045, bronze);   // strap
+    box(CX - wM / 2 + 0.16 * FT, sy * FT, sZ + 0.16, 0.24 * FT, 0.34 * FT, 0.06, bronze);   // pintle plate
+  }
+  box(CX + wM / 2 - 0.38 * FT, 3.2 * FT, sZ + 0.16, 0.20 * FT, 0.85 * FT, 0.05, bronze);    // latch plate
+  const knob = box(CX + wM / 2 - 0.38 * FT, 3.2 * FT, sZ + 0.20, 1, 1, 1, bronze);
+  knob.geometry.dispose(); knob.geometry = new THREE.SphereGeometry(0.10 * FT, 12, 10);
 }
 
 // Re-draw the 2nd-floor east window (moved 4' south of "Upper - East" at pz 10.0417
@@ -1101,9 +1225,10 @@ async function main() {
       } catch (e) { console.warn("alt: could not hide extension", e); }
       // Build the NEW east extension (one story + roof deck) on the alt lot.
       addAltExtension(alt.object, extFillMats);
-      addAltExtensionWindows(alt.object, extFillMats);   // 6-lite windows on the N + S walls
+      addAltExtensionWindows(alt.object, extFillMats);   // barn sash on the N + S walls
       addAltGarageDoor(alt.object, extFillMats,          // 16' door, trim + lit sconces
         (light, emiss) => registerFixture(light, "exterior", emiss));
+      addAltPedestrianDoor(alt.object, extFillMats);     // man door on the south wall
       // Deck access: hide the whole 2nd-floor east window ("Upper - East" @ pz
       // 10.0417 on the east wall px-12 — glass AND its frame/muntins are separate
       // items, so hide everything in a tight box around it) and re-draw it 4' south
