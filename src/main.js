@@ -878,8 +878,25 @@ async function main() {
   const extFillMats = new Set();                        // exterior massing materials: get a day-tracked emissive sky fill
   const extWindowMats = new Set();                      // exterior window glass: warm "interior-on" glow for the night scene
   const fixtures = [];                                  // interior light fixtures for scenes: { light, level, base, emiss, emBase }
-  const registerFixture = (light, level, emiss) => fixtures.push(
-    { light, level, base: light.intensity, emiss, emBase: emiss ? emiss.emissiveIntensity : 0 });
+  // What the scenes have set, so a fixture registered LATER can adopt it. Models
+  // stream in asynchronously — the alt lot registers its landscape lighting long
+  // after the daytime "exterior off" default runs — so without this those fixtures
+  // keep their authored brightness and burn in broad daylight.
+  let fixtureAll;                                       // factor last applied to every level
+  const fixtureLevel = new Map();                       // level -> factor, overriding fixtureAll
+  const fixtureFactor = (level) => (fixtureLevel.has(level) ? fixtureLevel.get(level) : fixtureAll);
+  const applyFixture = (f, factor) => {
+    f.light.intensity = f.base * factor;
+    f.light.visible = factor > 0;                       // fully drop dark fixtures (skip them in the shader)
+    if (f.emiss) f.emiss.emissiveIntensity = f.emBase * factor;
+  };
+  const registerFixture = (light, level, emiss) => {
+    const f = { light, level, base: light.intensity, emiss, emBase: emiss ? emiss.emissiveIntensity : 0 };
+    fixtures.push(f);
+    const cur = fixtureFactor(level);                   // undefined = no scene has spoken for it yet
+    if (cur !== undefined) applyFixture(f, cur);
+    return f;
+  };
   const exhibitCeilingMats = [];                        // second-floor flat ceilings: same opaque-POV / translucent-overview toggle
   const furnitureDoorMeshes = [];                       // procedural door leaves (e.g. attic bathroom): double-tap to toggle
   const modelViews = [{ id: groundLevel.id, label: groundLevel.label || groundLevel.storey, box: buildingBox(model.object) }];
@@ -1680,11 +1697,14 @@ async function main() {
   // Set every fixture on `level` ("all" = every level) to `factor`x its nominal
   // brightness (0 = off, 1 = full, ~0.5 = dimmed); the glowing shade tracks it too.
   const setFixtures = (level, factor) => {
+    // Remember the setting as well as applying it, so fixtures that arrive later
+    // land in the right state (see registerFixture). "all" speaks for every level,
+    // so it clears the per-level overrides a scene may have layered on top.
+    if (level === "all") { fixtureAll = factor; fixtureLevel.clear(); }
+    else fixtureLevel.set(level, factor);
     for (const f of fixtures) {
       if (level !== "all" && f.level !== level) continue;
-      f.light.intensity = f.base * factor;
-      f.light.visible = factor > 0;                 // fully drop dark fixtures (skip them in the shader)
-      if (f.emiss) f.emiss.emissiveIntensity = f.emBase * factor;
+      applyFixture(f, factor);
     }
   };
   // Landscape lights (street lamp, side-yard string lights, facade uplights) live on
