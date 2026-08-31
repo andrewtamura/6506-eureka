@@ -239,16 +239,19 @@ function addAltExtension(parent, extFillMats) {
     const m = new THREE.MeshStandardMaterial({ roughness: rough, metalness: 0 });
     m.color.setRGB(r, g, b); m.side = THREE.DoubleSide; return m;
   };
-  // GARDEN HOUSE, not a miniature of the house. The wing used to be painted in the
-  // primary's exact stucco cream (0.87, 0.86, 0.83) with its exact white trim, which is
-  // why it read as a shrunken copy; the body is now a sage stucco so it stands apart as
-  // an outbuilding while the white trim keeps the two related. Blue must stay <= red
-  // (+0.05): the viewer treats a bluish exterior material as window glass and would make
-  // the whole wall glow at night.
-  const wallMat = mat(0.45, 0.48, 0.40), foundMat = mat(0.55, 0.54, 0.52), trimMat = mat(0.93, 0.92, 0.88);
-  const stoneMat = mat(0.86, 0.84, 0.79);        // cast stone: water table + quoins. Warmer and heavier
-                                                  // than the white trim it sits beside, so the masonry
-                                                  // members read as masonry rather than as carpentry.
+  // GARDEN HOUSE. The body matches the primary's stucco exactly (0.87, 0.86, 0.83), so
+  // the two buildings share a palette and the wing reads as a matched outbuilding rather
+  // than as a colour statement. That puts the ENTIRE burden of distinguishing it on the
+  // fenestration and the trim — two tall arched openings per wall instead of an even
+  // march of formal ones, and masonry trim (water table, quoins, bullnose cap) in place
+  // of the primary's classical crown. Blue must stay <= red (+0.05): the viewer treats a
+  // bluish exterior material as window glass and would make the whole wall glow at night.
+  const wallMat = mat(0.87, 0.86, 0.83), foundMat = mat(0.55, 0.54, 0.52), trimMat = mat(0.93, 0.92, 0.88);
+  // Cast stone for the water table and quoins. It has to be a WARM LIMESTONE, not the
+  // near-cream it was against the sage body: at (0.86, 0.84, 0.79) it was within 0.01 of
+  // the stucco it now sits on and the masonry would have disappeared entirely, taking the
+  // trim half of the distinction with it.
+  const stoneMat = mat(0.75, 0.72, 0.66);
   const roofMat = mat(0.19, 0.19, 0.21, 0.9);    // dark flat-roof membrane (mostly hidden behind the parapet)
   for (const m of [wallMat, foundMat, trimMat, stoneMat]) { m.userData._fillBase = m.color.clone(); extFillMats.add(m); }
   // (roofMat is kept OUT of the day sky-fill so the low membrane reads dark, not pale.)
@@ -615,8 +618,8 @@ function addAltExtensionWindows(parent, extFillMats) {
   const glass = new THREE.MeshStandardMaterial({ roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.5 }); glass.color.setRGB(0.42, 0.52, 0.60);
   const white = new THREE.MeshStandardMaterial({ roughness: 0.7 }); white.color.setRGB(0.93, 0.92, 0.88);
   // Cast stone matching addAltExtension's water table, so the window sills read as part
-  // of the same masonry rather than as more white joinery.
-  const stone = new THREE.MeshStandardMaterial({ roughness: 0.9 }); stone.color.setRGB(0.86, 0.84, 0.79);
+  // of the same masonry rather than as more white joinery. Keep the two in step.
+  const stone = new THREE.MeshStandardMaterial({ roughness: 0.9 }); stone.color.setRGB(0.75, 0.72, 0.66);
   if (extFillMats) for (const m of [white, stone]) { m.userData._fillBase = m.color.clone(); extFillMats.add(m); }  // join the day sky-fill
   const g = new THREE.Group(); parent.add(g);
   const box = (cx, cy, cz, sx, sy, sz, mat) => {
