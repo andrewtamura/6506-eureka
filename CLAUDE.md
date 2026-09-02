@@ -38,8 +38,28 @@ openings. The viewer also renders the hardwood floor as an instanced mesh for
 performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
 
 ## Workflow
-- Develop on a fresh branch cut from `main`; commit → push → PR → squash-merge;
-  delete the branch after merge (avoids squash-rebase conflicts).
+- Work on the branch the session is assigned — Claude Code pins one (`claude/<slug>`) and it
+  is REUSED across merges, not cut fresh per change. commit → push → PR → squash-merge.
+- **After a squash-merge, re-point the branch at the squash commit.** Commits left on it hold
+  content that is already in `main` under a different SHA, so a later merge double-applies
+  them — that hazard is why this step exists:
+  ```
+  git fetch origin
+  git checkout -B <branch> origin/main
+  git push -u origin <branch> --force-with-lease=<branch>:$(git rev-parse origin/<branch>)
+  ```
+  `checkout -B` moves only the LOCAL branch, so after the fetch `origin/<branch>` still points
+  at the pre-merge commit — exactly the right lease value. Derive it like this rather than
+  typing a SHA, or the lease is only as good as your memory of it.
+- **Don't run `git push origin --delete <branch>`.** GitHub refuses it for the credential
+  these sessions use:
+  ```
+  error: RPC failed; HTTP 403 curl 22 The requested URL returned error: 403
+  fatal: the remote end hung up unexpectedly
+  ```
+  It is GitHub, not the agent proxy: `recentRelayFailures` stays empty and ordinary pushes to
+  the same host succeed. The GitHub MCP server exposes no delete-branch tool either, so merged
+  branches stay on the remote — clearing them is a manual step outside these sessions.
 - Regenerate IFC after `ifc/` changes: `/tmp/ifcvenv/bin/python ifc/generate_ifc.py`
   (IfcOpenShell venv). Then `npm run build`.
 - **Regenerating is destructive — restore what you didn't mean to change.** Some
