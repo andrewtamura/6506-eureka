@@ -51,18 +51,14 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   `checkout -B` moves only the LOCAL branch, so after the fetch `origin/<branch>` still points
   at the pre-merge commit — exactly the right lease value. Derive it like this rather than
   typing a SHA, or the lease is only as good as your memory of it.
-- **Don't run `git push origin --delete <branch>`.** GitHub refuses it for the credential
-  these sessions use:
-  ```
-  error: RPC failed; HTTP 403 curl 22 The requested URL returned error: 403
-  fatal: the remote end hung up unexpectedly
-  ```
-  Both delete syntaxes fail the same way (`--delete <branch>` and `:<branch>`), and it is
-  DELETION that is blocked, not the branch: pushing a brand-new ref with the same credential
-  seconds earlier succeeds, then deleting that same throwaway 403s. It is GitHub, not the
-  agent proxy — `recentRelayFailures` stays empty. `gh`/`hub` are not installed, and the
-  GitHub MCP server exposes no delete-branch tool, so there is no route to it from a session.
-  Merged branches stay on the remote; clearing them is a manual step done elsewhere.
+- **Leave merged branches on the remote.** They are expected to pile up — that is fine and
+  needs no cleanup, so don't treat it as outstanding work.
+- **Don't run `git push origin --delete <branch>`** — GitHub blocks ref deletion for the
+  credential these sessions use, returning `HTTP 403`. Both syntaxes fail (`--delete` and the
+  `:<branch>` refspec); it is deletion specifically and not the branch (creating a ref with
+  the same credential succeeds); and it is GitHub, not the agent proxy (`recentRelayFailures`
+  stays empty, so don't go looking for an egress problem). `gh`/`hub` are not installed and
+  the GitHub MCP server has no delete-branch tool. There is no route to it, and none needed.
 - Regenerate IFC after `ifc/` changes: `/tmp/ifcvenv/bin/python ifc/generate_ifc.py`
   (IfcOpenShell venv). Then `npm run build`.
 - **Regenerating is destructive — restore what you didn't mean to change.** Some
