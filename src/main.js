@@ -1009,6 +1009,15 @@ async function main() {
   // skipping flat ground planes (the lot) — so framing centres on the house,
   // not the lot it sits on.
   const buildingBox = (obj) => {
+    // Refresh the WHOLE subtree first. The per-mesh setFromObject below only refreshes
+    // each node from its parent's matrixWorld — it never walks up or down — so a mesh
+    // with a stale matrix gets measured in the wrong space. Models here stream in
+    // asynchronously and the alt lot is MOVED after loading, so fragments added by a
+    // later fragments.core.update() carry pre-move matrices; without this line their
+    // boxes landed back at the origin and the union spanned both lots, which is what
+    // mis-framed the Alt view. (Box3.setFromObject on a whole object is immune: its
+    // expandByObject refreshes every node as it recurses.)
+    obj.updateMatrixWorld(true);
     const bb = new THREE.Box3();
     obj.traverse((o) => {
       if (!o.isMesh) return;
@@ -1017,6 +1026,10 @@ async function main() {
     });
     return bb.isEmpty() ? new THREE.Box3().setFromObject(obj) : bb;
   };
+  // Frame from a LIVE box where we can. A box cached at load time is fragile in a
+  // viewer whose models stream in and get repositioned, so camera framing recomputes
+  // from the source object; `box` stays on each view for the render harness.
+  const liveBox = (v) => (v && v.obj ? buildingBox(v.obj) : v && v.box);
   // Glide to a 3/4 view of a model: from the front (North = world -Z), a little
   // to the East and elevated, so the model reads as a building with sky around.
   const frameModel = (box, transition) => {
@@ -1068,7 +1081,7 @@ async function main() {
   };
   const exhibitCeilingMats = [];                        // second-floor flat ceilings: same opaque-POV / translucent-overview toggle
   const furnitureDoorMeshes = [];                       // procedural door leaves (e.g. attic bathroom): double-tap to toggle
-  const modelViews = [{ id: groundLevel.id, label: groundLevel.label || groundLevel.storey, box: buildingBox(model.object) }];
+  const modelViews = [{ id: groundLevel.id, label: groundLevel.label || groundLevel.storey, box: buildingBox(model.object), obj: model.object }];
   const labelViews = [{ label: groundLevel.label || groundLevel.storey, box: modelBox }];
   const placeExhibit = async (lvl, toEast) => {
     const m = await loadIfc(lvl.ifc, lvl.storey);
@@ -1135,7 +1148,7 @@ async function main() {
         mat.needsUpdate = true;
       }
     });
-    modelViews.push({ id: lvl.id, label: lvl.label || lvl.storey, box: buildingBox(m.object) });
+    modelViews.push({ id: lvl.id, label: lvl.label || lvl.storey, box: buildingBox(m.object), obj: m.object });
     labelViews.push({ label: lvl.label || lvl.storey, box: new THREE.Box3().setFromObject(m.object) });
     viewBox.expandByObject(m.object);
     // Procedural furniture for this exhibit level (parented so it inherits the
@@ -1294,7 +1307,7 @@ async function main() {
       addAltDeckAccess(alt.object, extFillMats);
       addAltDeckFurniture(alt.object);   // patio lounge set + outdoor rug on the roof deck
       addAltDriveway(alt.object);        // concrete driveway in the east setback + curb cut
-      modelViews.push({ id: "exterior-alt", label: "Alternative Lot", box: buildingBox(alt.object) });
+      modelViews.push({ id: "exterior-alt", label: "Alternative Lot", box: buildingBox(alt.object), obj: alt.object });
       labelViews.push({ label: "Alternative Lot", box: new THREE.Box3().setFromObject(alt.object) });
       addLandscapeLighting(alt.object, (light, emiss) => registerFixture(light, "exterior", emiss));
       window.__altPos = { x: alt.object.position.x, y: alt.object.position.y, z: alt.object.position.z }; // render-harness handle
@@ -1453,11 +1466,11 @@ async function main() {
     const cam = world.camera.three.position;
     let best = null, bd = Infinity;       // the model the camera is currently over
     for (const v of modelViews) {
-      const c = v.box.getCenter(_tmp);
+      const c = liveBox(v).getCenter(_tmp);
       const d = (c.x - cam.x) ** 2 + (c.z - cam.z) ** 2;
       if (d < bd) { bd = d; best = v; }
     }
-    frameModel(best ? best.box : viewBox, true);
+    frameModel(best ? liveBox(best) : viewBox, true);
     setActiveLevel(best ? best.id : null);   // keep the switcher in sync with the backed-out view
   }
   let pinch0 = 0;
@@ -1800,7 +1813,7 @@ async function main() {
     if (!mv) return;
     await clearSelection();
     overviewControls();
-    frameModel(mv.box, transition);
+    frameModel(liveBox(mv), transition);
     setActiveLevel(id);
   };
 
