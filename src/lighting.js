@@ -44,9 +44,12 @@ export function setupLighting(scene) {
   // exterior-only "sky fill" via emissive on the massing materials — ambient and
   // hemisphere lights are global (gated by the camera's layers, not per-object) so
   // they can't be isolated to the outdoors; a per-material emissive floor can.
+  // Listeners also get a `night` factor: the dusk-to-dawn ramp, which `day` cannot
+  // supply because it is clamped to 0 the moment the sun is below the horizon and so
+  // reads the same at sunset as at midnight.
   const timeListeners = [];
-  let lastDay = 0;
-  const onTime = (cb) => { timeListeners.push(cb); cb(lastDay); };
+  let lastDay = 0, lastNight = 0;
+  const onTime = (cb) => { timeListeners.push(cb); cb(lastDay, lastNight); };
 
   const focus = new THREE.Vector3();   // sun + shadow frustum aim point
   let dist = 40, hour = 14;
@@ -62,6 +65,11 @@ export function setupLighting(scene) {
 
     const day = clamp(altSin * 1.8, 0, 1);               // 0 below horizon, 1 when well up
     const warm = clamp(1 - Math.max(altSin, 0) * 3.2, 0, 1); // warm/orange near the horizon
+    // Photocell ramp for dusk-to-dawn fixtures: still 0 at sunset, full by the time the
+    // sun is ~4.8 deg below the horizon (civil twilight), which near the horizon is
+    // roughly 25 minutes later — when a real photocell trips. Driven by the sun's
+    // altitude rather than the clock, so it stays correct across the season dial.
+    const night = clamp(-altSin * 12, 0, 1);
 
     // Keep the sun a few degrees up for sane shadows even at sunrise/sunset.
     const altDir = Math.max(alt, 5 * DEG);
@@ -83,8 +91,8 @@ export function setupLighting(scene) {
       ? mix(0x0b1020, 0xf0c39a, clamp(altSin * 9 + 1, 0, 1))  // night -> dawn/dusk glow at the horizon
       : mix(0xf3c79a, 0xaed2f0, day);                         // warm horizon -> daytime blue
     sun.shadow.needsUpdate = true;
-    lastDay = day;
-    timeListeners.forEach((cb) => cb(day));
+    lastDay = day; lastNight = night;
+    timeListeners.forEach((cb) => cb(day, night));
   };
 
   // Aim the sun + size its (orthographic) shadow camera to cover the model.
