@@ -57,9 +57,12 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   error: RPC failed; HTTP 403 curl 22 The requested URL returned error: 403
   fatal: the remote end hung up unexpectedly
   ```
-  It is GitHub, not the agent proxy: `recentRelayFailures` stays empty and ordinary pushes to
-  the same host succeed. The GitHub MCP server exposes no delete-branch tool either, so merged
-  branches stay on the remote — clearing them is a manual step outside these sessions.
+  Both delete syntaxes fail the same way (`--delete <branch>` and `:<branch>`), and it is
+  DELETION that is blocked, not the branch: pushing a brand-new ref with the same credential
+  seconds earlier succeeds, then deleting that same throwaway 403s. It is GitHub, not the
+  agent proxy — `recentRelayFailures` stays empty. `gh`/`hub` are not installed, and the
+  GitHub MCP server exposes no delete-branch tool, so there is no route to it from a session.
+  Merged branches stay on the remote; clearing them is a manual step done elsewhere.
 - Regenerate IFC after `ifc/` changes: `/tmp/ifcvenv/bin/python ifc/generate_ifc.py`
   (IfcOpenShell venv). Then `npm run build`.
 - **Regenerating is destructive — restore what you didn't mean to change.** Some
