@@ -25,6 +25,28 @@
     "flooring": {
       "material": "tile",
       "pattern": "hexagon"
-    }
+    },
+    "furniture": [
+      {
+        "type": "shower",
+        "at": [
+          -20.188,
+          2.15
+        ],
+        "opens": "S",
+        "widthFt": 4.7,
+        "depthFt": 2.8
+      },
+      {
+        "type": "vanity",
+        "at": [
+          -18.587,
+          -1.5
+        ],
+        "faces": "E",
+        "widthFt": 3.5,
+        "depthFt": 1.8
+      }
+    ]
   }
 }

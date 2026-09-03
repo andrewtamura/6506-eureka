@@ -44,7 +44,11 @@ DEFAULT_FLOOR = MATERIALS["hardwood"]
 
 # Furniture types rendered as smooth meshes in the viewer (see src/furniture.js),
 # recorded to furniture.json rather than built as IFC box/cylinder proxies.
-VIEWER_TYPES = {"round_pedestal_table", "upholstered_dining_chair", "highback_chair", "rug", "builtin_hutch", "staircase"}
+VIEWER_TYPES = {"round_pedestal_table", "upholstered_dining_chair", "highback_chair", "rug",
+                "builtin_hutch", "staircase",
+                # fitted cabinetry + fixtures: CLAUDE.md requires these as procedural
+                # three.js meshes, never IFC box/cylinder proxies.
+                "cabinet_run", "island", "appliance", "vanity", "shower", "toilet"}
 
 
 def material_color(name, fallback):
