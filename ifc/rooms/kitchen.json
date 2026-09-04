@@ -68,36 +68,35 @@
           -0.2623
         ],
         "faces": "S",
-        "widthFt": 6.62,
+        "widthFt": 3.2067,
         "openWFt": 3.04,
         "depthFt": 1.4,
         "openHFt": 5.6,
         "lintelHFt": 0.9,
-        "jambTFt": 0.08333333333333333
+        "jambTFt": 0.08333333333333333,
+        "ceilFt": 9.0
       },
       {
         "type": "cabinet_run",
         "at": [
           20.583333333333332,
-          -0.2623
+          -0.5623
         ],
-        "kind": "tall",
+        "kind": "base",
         "faces": "S",
         "lenFt": 1.7067,
-        "depthFt": 1.4,
-        "topFt": 5.6
+        "depthFt": 2.0
       },
       {
         "type": "cabinet_run",
         "at": [
           25.496666666666666,
-          -0.2623
+          -0.5623
         ],
-        "kind": "tall",
+        "kind": "base",
         "faces": "S",
         "lenFt": 1.7067,
-        "depthFt": 1.4,
-        "topFt": 5.6
+        "depthFt": 2.0
       },
       {
         "type": "appliance",

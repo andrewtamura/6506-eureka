@@ -1398,10 +1398,17 @@ function buildRangeSurround(p) {
     q = pl(BACK + 0.17, side * (OW / 2 - 0.25), 0.34, 0.07); box(q[0], q[1], 4.6, q[2], q[3], 0.07, brass);
   }
   // --- lintel, concealed hood liner, mantel shelf -------------------------
-  q = pl(0, 0, D, W); box(q[0], q[1], OH + LH / 2, q[2], q[3], LH, wood, 0.01);
+  q = pl(0, 0, D, W); box(q[0], q[1], OH + LH / 2, q[2], q[3], LH, wood, 0.01);                       // lintel band
   q = pl(FRONT + 0.03, 0, 0.06, W - 0.1); box(q[0], q[1], OH + 0.1, q[2], q[3], 0.2, wood, 0.02);      // moulding at the head
   q = pl(BACK + 0.65, 0, 1.3, OW - 0.7); box(q[0], q[1], OH - 0.15, q[2], q[3], 0.3, steel, 0.02);     // hood liner
   q = pl(0.06, 0, D + 0.12, W + 0.12); box(q[0], q[1], OH + LH + 0.08, q[2], q[3], 0.16, stone, 0.02); // mantel shelf
+  // The breast carries on above the mantel to the ceiling, so the flue reads as a
+  // chimney rather than stopping in mid-air, and finishes against it with a cornice.
+  const CEIL = p.ceilFt ?? 9.0, b0 = OH + LH + 0.16;
+  if (CEIL > b0 + 0.3) {
+    q = pl(0, 0, D, W); box(q[0], q[1], (b0 + CEIL) / 2, q[2], q[3], CEIL - b0, wood, 0.01);
+    q = pl(0.05, 0, D + 0.1, W + 0.1); box(q[0], q[1], CEIL - 0.16, q[2], q[3], 0.32, wood, 0.02);     // cornice
+  }
   return g;
 }
 
