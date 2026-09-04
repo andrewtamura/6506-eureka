@@ -1380,34 +1380,46 @@ function buildRangeSurround(p) {
   const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
   const W = p.widthFt ?? 6.62, OW = p.openWFt ?? 3.04, D = p.depthFt ?? 1.4;
   const OH = p.openHFt ?? 5.6, LH = p.lintelHFt ?? 0.9, T = p.jambTFt ?? 1 / 12;
+  // `backDepthFt` carries the breast BEHIND the recess back, out to the real wall. The
+  // recess backs onto the hutch bump-out, but the breast can be wider than the bump-out,
+  // and without this its ends would float in front of the wall either side of it.
+  const SD = p.backDepthFt ?? 0;
   const BACK = -D / 2, FRONT = D / 2;
+  const MD = D + SD, MDA = -SD / 2;      // mass depth, and the da that lands its back on the wall
   let q;
-  // --- 1" reveal panels forming the cubby cheeks --------------------------
+  // --- reveal panels forming the recess cheeks ----------------------------
   for (const side of [-1, 1]) {
-    q = pl(0, side * (OW / 2 + T / 2), D, T); box(q[0], q[1], OH / 2, q[2], q[3], OH, wood);
+    q = pl(MDA, side * (OW / 2 + T / 2), MD, T); box(q[0], q[1], OH / 2, q[2], q[3], OH, wood);
     q = pl(FRONT + 0.01, side * (OW / 2 + T / 2), 0.02, T + 0.02);        // eased front edge
     box(q[0], q[1], OH / 2, q[2], q[3], OH, wood);
   }
-  // --- tiled back + brass pot rail inside the recess ----------------------
-  q = pl(BACK + 0.02, 0, 0.04, OW); box(q[0], q[1], OH / 2, q[2], q[3], OH, tile);
-  const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.045 * ft, 0.045 * ft, (OW - 0.5) * ft, 14), brass);
+  // --- recess back: solid out to the wall, faced in tile ------------------
+  if (SD > 0) { q = pl(BACK - SD / 2, 0, SD, OW); box(q[0], q[1], OH / 2, q[2], q[3], OH, wood); }
+  q = pl(BACK + 0.03, 0, 0.04, OW); box(q[0], q[1], OH / 2, q[2], q[3], OH, tile);   // face sits proud of the bump-out, so no coplanar z-fight
+  // Rail and hood are sized to the RANGE, not the opening: a wide alcove would
+  // otherwise stretch them across the flanking cabinets too.
+  const railW = p.railWFt ?? Math.min(OW - 0.5, 3.4);
+  const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.045 * ft, 0.045 * ft, railW * ft, 14), brass);
   q = pl(BACK + 0.34, 0, 0, 0);
   rail.position.copy(V(q[0], q[1], 4.6)); rail.rotation.z = Math.PI / 2;
   rail.castShadow = true; g.add(rail);
   for (const side of [-1, 1]) {
-    q = pl(BACK + 0.17, side * (OW / 2 - 0.25), 0.34, 0.07); box(q[0], q[1], 4.6, q[2], q[3], 0.07, brass);
+    q = pl(BACK + 0.17, side * (railW / 2 - 0.12), 0.34, 0.07); box(q[0], q[1], 4.6, q[2], q[3], 0.07, brass);
   }
   // --- lintel, concealed hood liner, mantel shelf -------------------------
-  q = pl(0, 0, D, W); box(q[0], q[1], OH + LH / 2, q[2], q[3], LH, wood, 0.01);                       // lintel band
+  q = pl(MDA, 0, MD, W); box(q[0], q[1], OH + LH / 2, q[2], q[3], LH, wood, 0.01);                     // lintel band
   q = pl(FRONT + 0.03, 0, 0.06, W - 0.1); box(q[0], q[1], OH + 0.1, q[2], q[3], 0.2, wood, 0.02);      // moulding at the head
-  q = pl(BACK + 0.65, 0, 1.3, OW - 0.7); box(q[0], q[1], OH - 0.15, q[2], q[3], 0.3, steel, 0.02);     // hood liner
-  q = pl(0.06, 0, D + 0.12, W + 0.12); box(q[0], q[1], OH + LH + 0.08, q[2], q[3], 0.16, stone, 0.02); // mantel shelf
+  const hoodW = p.hoodWFt ?? Math.min(OW - 0.7, 2.4);
+  q = pl(BACK + 0.65, 0, 1.3, hoodW); box(q[0], q[1], OH - 0.15, q[2], q[3], 0.3, steel, 0.02);        // hood liner
+  // Mantel projects FORWARD only — no side overhang. At W + 0.12 its ends reached past
+  // the breast into the dining openings, below their 7' heads, clipping the casings.
+  q = pl(0.06, 0, D + 0.12, W); box(q[0], q[1], OH + LH + 0.08, q[2], q[3], 0.16, stone, 0.02);        // mantel shelf
   // The breast carries on above the mantel to the ceiling, so the flue reads as a
   // chimney rather than stopping in mid-air, and finishes against it with a cornice.
   const CEIL = p.ceilFt ?? 9.0, b0 = OH + LH + 0.16;
   if (CEIL > b0 + 0.3) {
-    q = pl(0, 0, D, W); box(q[0], q[1], (b0 + CEIL) / 2, q[2], q[3], CEIL - b0, wood, 0.01);
-    q = pl(0.05, 0, D + 0.1, W + 0.1); box(q[0], q[1], CEIL - 0.16, q[2], q[3], 0.32, wood, 0.02);     // cornice
+    q = pl(MDA, 0, MD, W); box(q[0], q[1], (b0 + CEIL) / 2, q[2], q[3], CEIL - b0, wood, 0.01);
+    q = pl(MDA + 0.05, 0, MD + 0.1, W + 0.1); box(q[0], q[1], CEIL - 0.16, q[2], q[3], 0.32, wood, 0.02); // cornice
   }
   return g;
 }
