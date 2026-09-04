@@ -48,7 +48,8 @@ VIEWER_TYPES = {"round_pedestal_table", "upholstered_dining_chair", "highback_ch
                 "builtin_hutch", "staircase",
                 # fitted cabinetry + fixtures: CLAUDE.md requires these as procedural
                 # three.js meshes, never IFC box/cylinder proxies.
-                "cabinet_run", "island", "appliance", "vanity", "shower", "toilet"}
+                "cabinet_run", "island", "appliance", "range_surround",
+                "vanity", "shower", "toilet"}
 
 
 def material_color(name, fallback):

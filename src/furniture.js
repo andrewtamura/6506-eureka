@@ -1356,6 +1356,68 @@ function buildIsland(p) {
   return g;
 }
 
+// Chimney-breast RANGE SURROUND: a cubby for a freestanding range, formed by a tall
+// cabinet either side acting as the jambs and a moulded lintel spanning above, with
+// the hood liner concealed in the lintel's underside. Reeded pilaster strips dress the
+// outer corners, and the recess gets a tiled back and a brass pot rail.
+// Anchor (px,pz) = footprint centre of the whole surround; `faces` = the room side.
+// `widthFt` is the overall width, `openWFt` the clear opening the range stands in, so
+// each flanking cabinet is (widthFt - openWFt)/2.
+function buildRangeSurround(p) {
+  const ft = FT, g = new THREE.Group();
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const box = (opx, opz, yc, sx, sz, hy, mat, rad = 0) => {
+    const geo = rad > 0 ? new RoundedBoxGeometry(sx * ft, hy * ft, sz * ft, 3, rad * ft) : new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft);
+    const m = new THREE.Mesh(geo, mat); m.position.copy(V(opx, opz, yc)); m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  const wood = woodMat(col(p.cabinet || "cabinet", 0xeae7df));
+  const stone = new THREE.MeshStandardMaterial({ color: 0xdad7cf, roughness: 0.3 });
+  const tile = new THREE.MeshStandardMaterial({ color: 0xe8e4da, roughness: 0.25 });
+  const brass = new THREE.MeshStandardMaterial({ color: 0xb08d3f, roughness: 0.3, metalness: 0.8 });
+  const steel = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.35, metalness: 0.7 });
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.25, metalness: 0.8 });
+  const A = DIR[p.faces || "S"], P = [-A[1], A[0]];
+  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
+  const W = p.widthFt ?? 6.62, OW = p.openWFt ?? 3.04, D = p.depthFt ?? 1.4;
+  const OH = p.openHFt ?? 5.6, LH = p.lintelHFt ?? 0.9;
+  const pw = (W - OW) / 2;                     // each flanking cabinet
+  const TOE = 0.3, BACK = -D / 2, FRONT = D / 2;
+  let q;
+  // --- the two cabinets that ARE the jambs -------------------------------
+  for (const side of [-1, 1]) {
+    const c = side * (OW / 2 + pw / 2);
+    q = pl(-0.06, c, D - 0.12, pw - 0.04); box(q[0], q[1], TOE / 2, q[2], q[3], TOE, wood);          // toe kick
+    q = pl(0, c, D, pw); box(q[0], q[1], (TOE + OH) / 2, q[2], q[3], OH - TOE, wood, 0.01);           // carcass
+    // two shaker doors stacked, each with a recessed panel and a pull
+    for (const [a, b] of [[TOE, 2.95], [2.95, OH]]) {
+      const yc = (a + b) / 2, h = b - a - 0.06;
+      q = pl(FRONT + 0.02, c, 0.04, pw - 0.1); box(q[0], q[1], yc, q[2], q[3], h, wood, 0.015);
+      q = pl(FRONT + 0.045, c, 0.02, pw - 0.36); box(q[0], q[1], yc, q[2], q[3], h - 0.3, stone, 0.01);
+      q = pl(FRONT + 0.07, c, 0.05, 0.05); box(q[0], q[1], b - 0.3, q[2], q[3], 0.05, chrome);
+    }
+    // reeded pilaster strip on the OUTER corner: four thin fillets, the reference's fluting
+    for (let i = 0; i < 4; i++) {
+      const ds = side * (W / 2 - 0.06 - i * 0.09);
+      q = pl(FRONT + 0.06, ds, 0.07, 0.055); box(q[0], q[1], (TOE + OH) / 2, q[2], q[3], OH - TOE, wood, 0.02);
+    }
+  }
+  // --- tiled back + brass pot rail inside the recess ----------------------
+  q = pl(BACK + 0.02, 0, 0.04, OW); box(q[0], q[1], OH / 2, q[2], q[3], OH, tile);
+  const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.045 * ft, 0.045 * ft, (OW - 0.5) * ft, 14), brass);
+  q = pl(BACK + 0.34, 0, 0, 0);
+  rail.position.copy(V(q[0], q[1], 4.6)); rail.rotation.z = Math.PI / 2;
+  rail.castShadow = true; g.add(rail);
+  for (const side of [-1, 1]) {                                    // rail brackets
+    q = pl(BACK + 0.17, side * (OW / 2 - 0.25), 0.34, 0.07); box(q[0], q[1], 4.6, q[2], q[3], 0.07, brass);
+  }
+  // --- lintel, concealed hood liner, mantel shelf -------------------------
+  q = pl(0, 0, D, W); box(q[0], q[1], OH + LH / 2, q[2], q[3], LH, wood, 0.01);                       // lintel mass
+  q = pl(FRONT + 0.03, 0, 0.06, W - 0.1); box(q[0], q[1], OH + 0.1, q[2], q[3], 0.2, wood, 0.02);     // moulding at the head
+  q = pl(BACK + 0.65, 0, 1.3, OW - 0.7); box(q[0], q[1], OH - 0.15, q[2], q[3], 0.3, steel, 0.02);    // hood liner, tucked under the lintel
+  q = pl(0.06, 0, D + 0.12, W + 0.12); box(q[0], q[1], OH + LH + 0.08, q[2], q[3], 0.16, stone, 0.02); // mantel shelf
+  return g;
+}
+
 // A single appliance. `kind`: range | fridge | dishwasher | hood | washer | dryer.
 // Anchor (px,pz) = footprint centre; `faces` = the side you stand on.
 function buildAppliance(p) {
@@ -1437,7 +1499,7 @@ function buildAppliance(p) {
   return g;
 }
 
-const BUILDERS = { cabinet_run: buildCabinetRun, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
+const BUILDERS = { range_surround: buildRangeSurround, cabinet_run: buildCabinetRun, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 // Re-export a few individual builders so the viewer can drop single procedural
 // pieces (e.g. patio furniture on the alt roof deck) without going through the
 // furniture.json manifest.
