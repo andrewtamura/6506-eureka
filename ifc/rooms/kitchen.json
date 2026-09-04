@@ -72,7 +72,32 @@
         "openWFt": 3.04,
         "depthFt": 1.4,
         "openHFt": 5.6,
-        "lintelHFt": 0.9
+        "lintelHFt": 0.9,
+        "jambTFt": 0.08333333333333333
+      },
+      {
+        "type": "cabinet_run",
+        "at": [
+          20.583333333333332,
+          -0.2623
+        ],
+        "kind": "tall",
+        "faces": "S",
+        "lenFt": 1.7067,
+        "depthFt": 1.4,
+        "topFt": 5.6
+      },
+      {
+        "type": "cabinet_run",
+        "at": [
+          25.496666666666666,
+          -0.2623
+        ],
+        "kind": "tall",
+        "faces": "S",
+        "lenFt": 1.7067,
+        "depthFt": 1.4,
+        "topFt": 5.6
       },
       {
         "type": "appliance",
