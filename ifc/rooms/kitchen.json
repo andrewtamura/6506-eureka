@@ -59,6 +59,21 @@
     "flooring": {
       "material": "tile",
       "pattern": "checkerboard"
-    }
+    },
+    "furniture": [
+      {
+        "type": "appliance",
+        "kind": "range",
+        "style": "freestanding",
+        "burners": 6,
+        "at": [
+          23.04,
+          -0.6123000000000001
+        ],
+        "faces": "S",
+        "widthFt": 3.0,
+        "depthFt": 2.1
+      }
+    ]
   }
 }

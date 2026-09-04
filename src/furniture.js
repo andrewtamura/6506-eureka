@@ -1381,8 +1381,25 @@ function buildAppliance(p) {
     const W = p.widthFt ?? 2.5, D = p.depthFt ?? 2.1, H = 2.95;
     q = pl(0, 0, D, W); box(q[0], q[1], H / 2, q[2], q[3], H, steel, 0.02);                   // body
     q = pl(0.05, 0, D + 0.1, W + 0.04); box(q[0], q[1], H + 0.04, q[2], q[3], 0.08, dark, 0.02); // cooktop
-    for (const s of [-1, 1]) for (const t of [-1, 1])                                          // burner grates
-      { q = pl(t * D * 0.2, s * W * 0.24, 0.62, 0.62); box(q[0], q[1], H + 0.11, q[2], q[3], 0.05, dark, 0.02); }
+    // Burner grates: `burners`/2 across the width in two rows front-to-back, so 4
+    // gives the usual 2x2 and 6 gives 3x2. Grates shrink to fit a narrow top.
+    const cols = Math.max(1, Math.round((p.burners ?? 4) / 2));
+    const gr = Math.min(0.62, (W - 0.3) / cols);
+    for (const t of [-1, 1]) for (let i = 0; i < cols; i++) {
+      const ds = -W / 2 + (W / cols) * (i + 0.5);
+      q = pl(t * D * 0.2, ds, gr, gr); box(q[0], q[1], H + 0.11, q[2], q[3], 0.05, dark, 0.02);
+    }
+    // A FREESTANDING range (as opposed to a slide-in) is defined visually by its
+    // raised backguard carrying the controls; it sits within the body footprint, so
+    // the range can still stand flush against the wall behind it.
+    if (p.style === "freestanding") {
+      q = pl(-D / 2 + 0.06, 0, 0.12, W); box(q[0], q[1], H + 0.42, q[2], q[3], 0.72, steel, 0.02);
+      // Panel + knobs face the COOK, on the backguard's room side (its front plane is
+      // at da = -D/2 + 0.12). Putting them at -D/2 would bury them in the wall behind.
+      q = pl(-D / 2 + 0.125, 0, 0.03, W - 0.3); box(q[0], q[1], H + 0.5, q[2], q[3], 0.34, dark, 0.02);
+      for (const i of [-1, 1]) { q = pl(-D / 2 + 0.14, i * (W / 2 - 0.22), 0.05, 0.12);
+        box(q[0], q[1], H + 0.5, q[2], q[3], 0.12, chrome); }
+    }
     q = pl(D / 2 + 0.02, 0, 0.04, W - 0.12); box(q[0], q[1], H * 0.42, q[2], q[3], H * 0.5, glass, 0.02); // oven window
     q = pl(D / 2 + 0.07, 0, 0.06, W - 0.2); box(q[0], q[1], H * 0.72, q[2], q[3], 0.09, chrome);          // handle
     return g;

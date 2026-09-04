@@ -4,6 +4,18 @@
   "zs": 1,
   "items": [
     {
+      "type": "appliance",
+      "px": 23.04,
+      "pz": -0.6123000000000001,
+      "rot": 0.0,
+      "kind": "range",
+      "style": "freestanding",
+      "burners": 6,
+      "faces": "S",
+      "widthFt": 3.0,
+      "depthFt": 2.1
+    },
+    {
       "type": "builtin_hutch",
       "px": 23.04,
       "pz": 1.627,
