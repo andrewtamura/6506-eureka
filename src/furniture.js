@@ -1292,6 +1292,25 @@ function buildCabinetRun(p) {
     if (w < 0.3) continue;
     if (kind !== "wall") { q = pl(-0.12, c, D - 0.24, w); box(q[0], q[1], TOE / 2, q[2], q[3], TOE, toeM); }   // toe kick
     q = pl(0, c, D, w); box(q[0], q[1], (y0 + y1) / 2, q[2], q[3], y1 - y0, wood, 0.01);                       // carcass
+    if (p.drawers) {
+      // DRAWER STACK: fronts stacked up the segment instead of a door across it.
+      // `drawers` is a count (3 -> the conventional small/small/large pull-out base)
+      // or explicit relative shares, given TOP DOWN.
+      const sh = Array.isArray(p.drawers) ? p.drawers
+        : p.drawers === 3 ? [0.19, 0.19, 0.62]
+        : Array(p.drawers).fill(1 / p.drawers);
+      const tot = sh.reduce((u, v) => u + v, 0), REV = 0.02;
+      let top = y1;
+      for (const share of sh) {
+        const h = (y1 - y0) * share / tot, yc = top - h / 2, fh = h - REV;
+        q = pl(D / 2 + 0.02, c, 0.04, w - 0.08); box(q[0], q[1], yc, q[2], q[3], fh, wood, 0.015);
+        // A shallow front has no room for a frame around a panel — leave it a slab.
+        if (fh > 0.45) { q = pl(D / 2 + 0.045, c, 0.02, w - 0.34); box(q[0], q[1], yc, q[2], q[3], fh - 0.22, stone, 0.01); }
+        q = pl(D / 2 + 0.07, c, 0.05, Math.min(w * 0.5, 0.9));            // horizontal bar pull
+        box(q[0], q[1], yc, q[2], q[3], 0.05, chrome);
+        top -= h;
+      }
+    } else {
     // shaker fronts: a door per ~1.4 ft of run, each with a pull
     const n = Math.max(1, Math.round(w / 1.4)), fh = (y1 - y0) - 0.06;
     for (let i = 0; i < n; i++) {
@@ -1299,6 +1318,7 @@ function buildCabinetRun(p) {
       q = pl(D / 2 + 0.02, ds, 0.04, w / n - 0.08); box(q[0], q[1], (y0 + y1) / 2, q[2], q[3], fh, wood, 0.015);
       q = pl(D / 2 + 0.045, ds, 0.02, w / n - 0.34); box(q[0], q[1], (y0 + y1) / 2, q[2], q[3], fh - 0.28, stone, 0.01);  // recessed shaker panel
       q = pl(D / 2 + 0.07, ds, 0.05, 0.05); box(q[0], q[1], kind === "wall" ? y0 + 0.3 : y1 - 0.25, q[2], q[3], 0.05, chrome);
+    }
     }
   }
   if (kind === "base") {

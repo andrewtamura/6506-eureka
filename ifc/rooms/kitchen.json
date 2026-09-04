@@ -86,7 +86,8 @@
         "kind": "base",
         "faces": "S",
         "lenFt": 1.7967,
-        "depthFt": 2.0
+        "depthFt": 2.0,
+        "drawers": 3
       },
       {
         "type": "cabinet_run",
@@ -97,7 +98,8 @@
         "kind": "base",
         "faces": "S",
         "lenFt": 1.7967,
-        "depthFt": 2.0
+        "depthFt": 2.0,
+        "drawers": 3
       },
       {
         "type": "appliance",
