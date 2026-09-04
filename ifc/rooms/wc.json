@@ -25,16 +25,6 @@
     "flooring": {
       "material": "tile",
       "pattern": "hexagon"
-    },
-    "furniture": [
-      {
-        "type": "toilet",
-        "at": [
-          -21.488,
-          -9.688
-        ],
-        "faces": "W"
-      }
-    ]
+    }
   }
 }
