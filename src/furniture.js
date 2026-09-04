@@ -1396,6 +1396,7 @@ function buildRangeSurround(p) {
   const tile = new THREE.MeshStandardMaterial({ color: 0xe8e4da, roughness: 0.25 });
   const brass = new THREE.MeshStandardMaterial({ color: 0xb08d3f, roughness: 0.3, metalness: 0.8 });
   const steel = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.35, metalness: 0.7 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x26262a, roughness: 0.5 });
   const A = DIR[p.faces || "S"], P = [-A[1], A[0]];
   const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
   const W = p.widthFt ?? 6.62, OW = p.openWFt ?? 3.04, D = p.depthFt ?? 1.4;
@@ -1416,21 +1417,42 @@ function buildRangeSurround(p) {
   // --- recess back: solid out to the wall, faced in tile ------------------
   if (SD > 0) { q = pl(BACK - SD / 2, 0, SD, OW); box(q[0], q[1], OH / 2, q[2], q[3], OH, wood); }
   q = pl(BACK + 0.03, 0, 0.04, OW); box(q[0], q[1], OH / 2, q[2], q[3], OH, tile);   // face sits proud of the bump-out, so no coplanar z-fight
-  // Rail and hood are sized to the RANGE, not the opening: a wide alcove would
-  // otherwise stretch them across the flanking cabinets too.
-  const railW = p.railWFt ?? Math.min(OW - 0.5, 3.4);
+  // Pot rail runs the FULL backsplash, end to end across the alcove.
+  const railW = p.railWFt ?? (OW - 0.4), railY = p.railYFt ?? 4.6;
   const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.045 * ft, 0.045 * ft, railW * ft, 14), brass);
   q = pl(BACK + 0.34, 0, 0, 0);
-  rail.position.copy(V(q[0], q[1], 4.6)); rail.rotation.z = Math.PI / 2;
+  rail.position.copy(V(q[0], q[1], railY)); rail.rotation.z = Math.PI / 2;
   rail.castShadow = true; g.add(rail);
-  for (const side of [-1, 1]) {
-    q = pl(BACK + 0.17, side * (railW / 2 - 0.12), 0.34, 0.07); box(q[0], q[1], 4.6, q[2], q[3], 0.07, brass);
+  // Brackets at the ends plus enough between to keep any unsupported span <= 3 ft.
+  const nBr = Math.max(2, Math.ceil(railW / 3) + 1);
+  for (let i = 0; i < nBr; i++) {
+    const ds = -railW / 2 + 0.12 + (railW - 0.24) * i / (nBr - 1);
+    q = pl(BACK + 0.17, ds, 0.34, 0.07); box(q[0], q[1], railY, q[2], q[3], 0.07, brass);
   }
   // --- lintel, concealed hood liner, mantel shelf -------------------------
   q = pl(MDA, 0, MD, W); box(q[0], q[1], OH + LH / 2, q[2], q[3], LH, wood, 0.01);                     // lintel band
   q = pl(FRONT + 0.03, 0, 0.06, W - 0.1); box(q[0], q[1], OH + 0.1, q[2], q[3], 0.2, wood, 0.02);      // moulding at the head
+  // VENT: recessed UP into the lintel, not hung below it. A dark pocket inside the
+  // lintel band (which runs OH..OH+LH) with a slim grille flush at the recess ceiling,
+  // so from the room it reads as a slot in the soffit rather than a visible box.
   const hoodW = p.hoodWFt ?? Math.min(OW - 0.7, 2.4);
-  q = pl(BACK + 0.65, 0, 1.3, hoodW); box(q[0], q[1], OH - 0.15, q[2], q[3], 0.3, steel, 0.02);        // hood liner
+  q = pl(BACK + 0.65, 0, 1.3, hoodW); box(q[0], q[1], OH + 0.19, q[2], q[3], 0.34, dark, 0.01);        // pocket, inside the lintel
+  q = pl(BACK + 0.65, 0, 1.24, hoodW - 0.06); box(q[0], q[1], OH + 0.025, q[2], q[3], 0.05, steel);    // grille, flush with the head
+  // POT FILLER: wall-mounted articulating filler on the backsplash, centred on the
+  // opening (which is the range centre). Set ABOVE the pot rail so the two do not
+  // collide on the same backsplash — see the note in the plan.
+  if (p.potFiller) {
+    const py = p.potFillerYFt ?? 4.95, reach = 1.3;
+    q = pl(BACK + 0.06, 0, 0.12, 0.42); box(q[0], q[1], py, q[2], q[3], 0.42, brass, 0.05);            // escutcheon
+    const arm = (da, len) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * ft, 0.05 * ft, len * ft, 12), brass);
+      const w = pl(da, 0, 0, 0); m.position.copy(V(w[0], w[1], py)); m.rotation.x = Math.PI / 2; m.castShadow = true; g.add(m); return m; };
+    arm(BACK + 0.12 + reach / 2, reach);                                                               // swing arm out over the burners
+    q = pl(BACK + 0.12 + reach, 0, 0.13, 0.13); box(q[0], q[1], py, q[2], q[3], 0.13, brass, 0.03);     // elbow
+    const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.045 * ft, 0.045 * ft, 0.42 * ft, 12), brass);
+    q = pl(BACK + 0.12 + reach, 0, 0, 0); spout.position.copy(V(q[0], q[1], py - 0.21));
+    spout.castShadow = true; g.add(spout);                                                             // down-spout
+    q = pl(BACK + 0.2, 0.26, 0.1, 0.1); box(q[0], q[1], py + 0.16, q[2], q[3], 0.28, brass, 0.03);      // valve handle
+  }
   // Mantel projects FORWARD only — no side overhang. At W + 0.12 its ends reached past
   // the breast into the dining openings, below their 7' heads, clipping the casings.
   q = pl(0.06, 0, D + 0.12, W); box(q[0], q[1], OH + LH + 0.08, q[2], q[3], 0.16, stone, 0.02);        // mantel shelf
@@ -1471,12 +1493,14 @@ function buildAppliance(p) {
     q = pl(0, 0, D, W); box(q[0], q[1], H / 2, q[2], q[3], H, steel, 0.02);                   // body
     q = pl(0.05, 0, D + 0.1, W + 0.04); box(q[0], q[1], H + 0.04, q[2], q[3], 0.08, dark, 0.02); // cooktop
     // Burner grates: `burners`/2 across the width in two rows front-to-back, so 4
-    // gives the usual 2x2 and 6 gives 3x2. Grates shrink to fit a narrow top.
+    // gives the usual 2x2 and 6 gives 3x2. Width and depth are set INDEPENDENTLY —
+    // one shared size capped at 0.62 left six burners covering barely 62% of a 36"
+    // top, reading as small pads. Widths now butt edge to edge like a pro range.
     const cols = Math.max(1, Math.round((p.burners ?? 4) / 2));
-    const gr = Math.min(0.62, (W - 0.3) / cols);
+    const gw = (W - 0.04) / cols, gd = 0.8;
     for (const t of [-1, 1]) for (let i = 0; i < cols; i++) {
-      const ds = -W / 2 + (W / cols) * (i + 0.5);
-      q = pl(t * D * 0.2, ds, gr, gr); box(q[0], q[1], H + 0.11, q[2], q[3], 0.05, dark, 0.02);
+      const ds = -W / 2 + 0.02 + gw * (i + 0.5);
+      q = pl(t * 0.45, ds, gd, gw - 0.02); box(q[0], q[1], H + 0.11, q[2], q[3], 0.05, dark, 0.02);
     }
     // A FREESTANDING range (as opposed to a slide-in) is defined visually by its
     // raised backguard carrying the controls; it sits within the body footprint, so
