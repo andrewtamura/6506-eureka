@@ -56,6 +56,8 @@ def compute_paneling(ctx, rooms):
                         # cornice rather than seating it on the head line.
                         (tall.append(span + [d["headFt"]]) if d.get("headFt") else doors.append(span))
                 for wd in r.get("windows", []):
+                    if wd.get("blind"):
+                        continue   # no opening inside, so no interior casing/stool/apron
                     if wd["orient"] == orient and abs(wd["fixed"] - fixed) < 0.3:
                         w = abs(wd["width"])
                         wins.append([round(wd["pos"] - w / 2, 3), round(wd["pos"] + w / 2, 3), wd["sill"]])

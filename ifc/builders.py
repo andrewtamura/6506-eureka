@@ -2062,8 +2062,7 @@ def second_floor_windows(rooms):
     """(front_z, specs) for the second-floor windows. NORTH (front/street) is
     locked: one upper over each ground-floor front opening (the even 5-bay
     rhythm). The other three faces are the flexible ones:
-      - WEST wall: a three-bay layout, aligned to the ground floor (one upper over
-        each outer ground window, one on the facade centre).
+      - WEST wall: one upper over each ground-floor west bay (three, blind bay included).
       - SOUTH wall: 2 uppers, 1 per wing (one per rear bedroom), skipping the
         central stair/landing bay.
       - EAST: one upper on the primary east wall (the stretch exposed north of the
@@ -2084,21 +2083,16 @@ def second_floor_windows(rooms):
         for o in r.get("windows", []) + r.get("doors", []):
             if not o.get("opening") and o["orient"] == "H" and abs(o["fixed"] - front_z) < 1e-3:
                 add(f"Upper - {o['name']}", "H", front_z, o["pos"])
-    # WEST: three-bay, ALIGNED to the ground floor rather than evenly spaced —
-    # one upper over each of the two OUTER ground windows and one on the facade
-    # centre (over the pier carrying the kitchen/dining party wall). Anchoring to
-    # the openings below is the same idiom the locked NORTH face uses, so the row
-    # follows if the ground bays ever move. It stays THREE and not one-per-window:
-    # the second floor's west partitions split that wall into three rooms, and a
-    # four-bay row would straddle one of them and leave the west bath windowless.
+    # WEST: one upper over each ground-floor west bay (the blind one included, so the
+    # elevation reads three over three). Anchoring to the openings below is the same
+    # idiom the locked NORTH face uses, so the row follows if the bays ever move.
+    # NOTE the ceiling on this: the second floor's west partitions split that wall into
+    # THREE rooms, so a ground row with more than three bays would straddle a partition
+    # and leave one of them windowless. Three below is the constraint, not a preference.
     west_rooms = [r for r in rooms if abs(r["bounds"]["x2"] - west_x) < 1e-3]
-    if west_rooms:
-        below = sorted(w["pos"] for r in west_rooms for w in r.get("windows", [])
-                       if w["orient"] == "V" and abs(w["fixed"] - west_x) < 1e-3)
-        zc = (min(r["bounds"]["z1"] for r in west_rooms)
-              + max(r["bounds"]["z2"] for r in west_rooms)) / 2
-        for i, pos in enumerate((below[0], zc, below[-1]) if below else ()):
-            add(f"Upper - West {i + 1}", "V", west_x, pos)
+    for i, pos in enumerate(sorted(w["pos"] for r in west_rooms for w in r.get("windows", [])
+                                   if w["orient"] == "V" and abs(w["fixed"] - west_x) < 1e-3)):
+        add(f"Upper - West {i + 1}", "V", west_x, pos)
     # Split the rooms into the primary block vs. the extension (which juts to the
     # east, i.e. lower x). The extension carries the second-floor bathroom.
     ext_rooms  = [r for r in rooms if r["bounds"]["x1"] < -12 - 1e-3]
@@ -2162,6 +2156,10 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
     GLASS = (0.42, 0.52, 0.60)   # muted blue-grey glazing
     DOOR = (0.18, 0.16, 0.15)    # dark opening
     TRIM = (0.93, 0.92, 0.88)    # white window trim (casing / sill / muntins)
+    # Blind-bay panel: a shade darker than GLASS, so it reads as a window in shadow
+    # rather than a black hole. At (0.22, 0.23, 0.25) it was far darker than the
+    # glazed bays either side and broke the three-bay rhythm it exists to complete.
+    BLIND = (0.32, 0.37, 0.42)
     DEPTH = 0.08                  # panel thickness (m)
     EPS = 0.35                    # plan feet just past the wall face
     CW = 0.5                      # casing board width (ft)
@@ -2282,7 +2280,8 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
                         dbox(cc - (mw - lip) / 2, lip, pz0, pz1, DMUN, moldc)   # left
                         dbox(cc + (mw - lip) / 2, lip, pz0, pz1, DMUN, moldc)   # right
 
-    def window(name, orient, fixed, pos, w, sill_m, head_m, trim="full", muntins=True):
+    def window(name, orient, fixed, pos, w, sill_m, head_m, trim="full", muntins=True,
+               blind=False):
         """A glass panel with a classical surround + divided-light muntins. Trim
         styles distinguish the floors / facades:
           - "full" (side/rear ground): casing, a projecting sill + apron, and a
@@ -2292,8 +2291,13 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
           - "upper": casing + a projecting sill (nothing below it) + a small
             cornice — lighter than the ground floor.
         A board/box runs along the wall axis (X for an H wall, Z for a V) and is
-        centred on the wall face."""
-        panel("IfcWindow", name, orient, fixed, pos, w, sill_m, head_m, GLASS)
+        centred on the wall face.
+        `blind` makes a BLIND BAY: the same trim and sashes over a dark recessed panel
+        instead of glass, and no opening in the wall (add_windows skips it). The classic
+        device for a bay the elevation needs but the plan cannot give — here the
+        kitchen/dining party wall lands on the west facade's centre line."""
+        panel("IfcBuildingElementProxy" if blind else "IfcWindow", name,
+              orient, fixed, pos, w, sill_m, head_m, BLIND if blind else GLASS)
         h = head_m - sill_m
 
         def tbox(nm, apos, alen, zlo, zhi, dep, color=TRIM):
@@ -2361,7 +2365,8 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
                 front = g is prim and o == "H" and front_z is not None and abs(f - front_z) < 1e-3
                 window(win["name"], o, f, p, win["width"],
                        base + win["sill"] * FT, base + win["head"] * FT,
-                       trim="lintel" if front else "full", muntins=win.get("muntins", True))
+                       trim="lintel" if front else "full", muntins=win.get("muntins", True),
+                       blind=win.get("blind", False))
             for d in r.get("doors", []):
                 if d.get("opening"):          # interior cased opening, skip
                     continue
@@ -2707,6 +2712,8 @@ def add_doors(ctx, r):
 
 def add_windows(ctx, r):
     for w in r.get("windows", []):
+        if w.get("blind"):
+            continue          # blind bay: exterior trim only, the wall stays solid
         # Uniform head for every window (sills stay as authored).
         cut_opening(ctx, "IfcWindow", w["name"], w["orient"], w["fixed"], w["pos"],
                     w["width"], w["sill"], ctx.head_ft)

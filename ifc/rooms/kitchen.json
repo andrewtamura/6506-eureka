@@ -45,19 +45,10 @@
   ],
   "windows": [
     {
-      "name": "Window - Kitchen W1",
+      "name": "Window - Kitchen W",
       "orient": "V",
       "fixed": 31.0,
-      "pos": -7.9167,
-      "width": 3.0,
-      "sill": 3.33,
-      "head": 7.0
-    },
-    {
-      "name": "Window - Kitchen W2",
-      "orient": "V",
-      "fixed": 31.0,
-      "pos": -2.9167,
+      "pos": -5.5521,
       "width": 3.0,
       "sill": 3.33,
       "head": 7.0
