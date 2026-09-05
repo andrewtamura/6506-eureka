@@ -5,6 +5,10 @@ src/furniture.js) sits in a wide cased opening in the shared dining/kitchen wall
 and is 18" deep, so it passes through the wall and protrudes into the kitchen.
 On the kitchen side that protrusion reads as a full-height, finished bump-out.
 
+Also builds the west BAY WINDOW on this level. The exterior massing raises its own
+copy from add_fenestration; both go through builders.add_bay_window, so the two are
+the same object drawn at two levels of the model.
+
 Build that bump-out here as a finished box on the kitchen face of the z=2 wall:
 16" deep, full wall height, spanning the cabinet width. (The hutch's own back
 sits inside this box, so the kitchen only sees a clean plastered bump-out.)
@@ -29,3 +33,9 @@ def build(ctx, room):
         ctx.X(CABINET_CX_FT), ctx.Y(cz_ft), 0.0,
         color=(0.93, 0.92, 0.90))
     run("spatial.assign_container", ctx.model, products=[box], relating_structure=ctx.storey)
+
+    # West bay window — same builder the exterior massing uses, at floor level with no
+    # crawlspace band (this level starts at the finished floor).
+    for w in room.get("windows", []):
+        if w.get("bay"):
+            B.add_bay_window(ctx, room, w, base=0.0, crawl=0.0)
