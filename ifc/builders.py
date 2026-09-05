@@ -2235,12 +2235,18 @@ def add_bay_window(ctx, room, win, base=0.0, crawl=0.0):
         band(p0, p1, WT, Z(0), Z(sill), WALL, f"Bay apron {i + 1}", cls="IfcWall")
         band(p0, p1, WT + 0.10, Z(0), Z(0.45), TRIM, f"Bay plinth {i + 1}")
         band(p0, p1, WT + 0.10, Z(sill - 0.30), Z(sill - 0.18), TRIM, f"Bay water table {i + 1}")
-    # --- glazing + divided lights, same grid rule as the house's windows ------
+    # --- glazing: clear sheets, NOT divided ----------------------------------
+    # The bay is the one place in the house without muntins — a grid across three
+    # canted faces fights the form and cuts the light the bay exists to bring in.
+    # `muntins: true` on the window spec puts the house grid back if ever wanted;
+    # everywhere else in add_fenestration the default runs the other way.
     h = head - sill
     for i, (p0, p1) in enumerate(FACES):
-        Lft = math.hypot(p1[0] - p0[0], p1[1] - p0[1])
         band(p0, p1, 0.08, Z(sill), Z(head), GLASS, f"Bay glazing {i + 1}",
              cls="IfcWindow", inset=0.04, shrink=0.36, transparency=0.6)
+        if not win.get("muntins", False):
+            continue
+        Lft = math.hypot(p1[0] - p0[0], p1[1] - p0[1])
         cols, rows = max(2, round(Lft / 1.3)), max(2, round(h / 1.4))
         for k in range(1, cols):
             stud(p0, p1, k / cols, 0.10, 0.06, Z(sill), Z(head), TRIM, f"Bay muntin {i + 1}")
