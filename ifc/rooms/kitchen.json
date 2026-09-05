@@ -45,18 +45,13 @@
   ],
   "windows": [
     {
-      "name": "Window - Kitchen Bay",
+      "name": "Window - Kitchen W",
       "orient": "V",
       "fixed": 31.0,
       "pos": -5.5521,
-      "width": 9.0,
+      "width": 3.0,
       "sill": 3.33,
-      "head": 7.0,
-      "bay": {
-        "projFt": 3.0,
-        "angleDeg": 60,
-        "roof": "copper"
-      }
+      "head": 7.0
     }
   ],
   "interior": {
