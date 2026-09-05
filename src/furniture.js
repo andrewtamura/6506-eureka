@@ -1251,7 +1251,332 @@ function buildKitchenette(p) {
   return g;
 }
 
-const BUILDERS = { upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
+// A run of cabinetry — the one builder behind every fitted run in the house.
+// `kind`: "base" (toe kick + body + stone counter), "wall" (uppers hung at 4.5')
+// or "tall" (full-height pantry/broom). Anchor (px,pz) = footprint centre;
+// `faces` = the front (access) direction, so the run backs onto the opposite wall.
+// `gaps` are spans along the run left open for an appliance, given in feet from
+// the run's centre as {a, b, counter}: `counter: true` keeps the countertop
+// running over the gap (a dishwasher slides under it), false breaks it (a
+// slide-in range brings its own top).
+function buildCabinetRun(p) {
+  const ft = FT, g = new THREE.Group();
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const box = (opx, opz, yc, sx, sz, hy, mat, rad = 0) => {
+    const geo = rad > 0 ? new RoundedBoxGeometry(sx * ft, hy * ft, sz * ft, 3, rad * ft) : new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft);
+    const m = new THREE.Mesh(geo, mat); m.position.copy(V(opx, opz, yc)); m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  const cyl = (opx, opz, yc, r, h, mat) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r * ft, r * ft, h * ft, 16), mat); m.position.copy(V(opx, opz, yc)); g.add(m); return m; };
+  const wood = woodMat(col(p.cabinet || "cabinet", 0xeae7df));
+  const stone = new THREE.MeshStandardMaterial({ color: 0xdad7cf, roughness: 0.3 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x26262a, roughness: 0.5 });
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.25, metalness: 0.8 });
+  const toeM = new THREE.MeshStandardMaterial({ color: 0x241b13, roughness: 0.8 });
+  const A = DIR[p.faces || "N"], P = [-A[1], A[0]];
+  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
+  const kind = p.kind || "base";
+  const D = p.depthFt ?? (kind === "wall" ? 1.1 : kind === "tall" ? 2.1 : 2.0);
+  const L = p.lenFt ?? 6.0;
+  const TOE = 0.3, CT = 3.0, baseTop = 2.9;
+  // vertical envelope of the cabinet BODY for this kind
+  const y0 = kind === "wall" ? (p.bottomFt ?? 4.5) : kind === "tall" ? TOE : TOE;
+  const y1 = kind === "wall" ? (p.topFt ?? 7.0) : kind === "tall" ? (p.topFt ?? 7.0) : baseTop;
+  // Solid segments = the run minus its gaps, walked along ds from one end.
+  const gaps = (p.gaps || []).slice().sort((u, v) => u.a - v.a);
+  const segs = []; let cur = -L / 2;
+  for (const gp of gaps) { if (gp.a > cur) segs.push([cur, gp.a]); cur = Math.max(cur, gp.b); }
+  if (cur < L / 2) segs.push([cur, L / 2]);
+  let q;
+  for (const [a, b] of segs) {
+    const w = b - a, c = (a + b) / 2;
+    if (w < 0.3) continue;
+    if (kind !== "wall") { q = pl(-0.12, c, D - 0.24, w); box(q[0], q[1], TOE / 2, q[2], q[3], TOE, toeM); }   // toe kick
+    q = pl(0, c, D, w); box(q[0], q[1], (y0 + y1) / 2, q[2], q[3], y1 - y0, wood, 0.01);                       // carcass
+    if (p.drawers) {
+      // DRAWER STACK: fronts stacked up the segment instead of a door across it.
+      // `drawers` is a count (3 -> the conventional small/small/large pull-out base)
+      // or explicit relative shares, given TOP DOWN.
+      const sh = Array.isArray(p.drawers) ? p.drawers
+        : p.drawers === 3 ? [0.19, 0.19, 0.62]
+        : Array(p.drawers).fill(1 / p.drawers);
+      const tot = sh.reduce((u, v) => u + v, 0), REV = 0.02;
+      let top = y1;
+      for (const share of sh) {
+        const h = (y1 - y0) * share / tot, yc = top - h / 2, fh = h - REV;
+        q = pl(D / 2 + 0.02, c, 0.04, w - 0.08); box(q[0], q[1], yc, q[2], q[3], fh, wood, 0.015);
+        // A shallow front has no room for a frame around a panel — leave it a slab.
+        if (fh > 0.45) { q = pl(D / 2 + 0.045, c, 0.02, w - 0.34); box(q[0], q[1], yc, q[2], q[3], fh - 0.22, stone, 0.01); }
+        q = pl(D / 2 + 0.07, c, 0.05, Math.min(w * 0.5, 0.9));            // horizontal bar pull
+        box(q[0], q[1], yc, q[2], q[3], 0.05, chrome);
+        top -= h;
+      }
+    } else {
+    // shaker fronts: a door per ~1.4 ft of run, each with a pull
+    const n = Math.max(1, Math.round(w / 1.4)), fh = (y1 - y0) - 0.06;
+    for (let i = 0; i < n; i++) {
+      const ds = a + (i + 0.5) * w / n;
+      q = pl(D / 2 + 0.02, ds, 0.04, w / n - 0.08); box(q[0], q[1], (y0 + y1) / 2, q[2], q[3], fh, wood, 0.015);
+      q = pl(D / 2 + 0.045, ds, 0.02, w / n - 0.34); box(q[0], q[1], (y0 + y1) / 2, q[2], q[3], fh - 0.28, stone, 0.01);  // recessed shaker panel
+      q = pl(D / 2 + 0.07, ds, 0.05, 0.05); box(q[0], q[1], kind === "wall" ? y0 + 0.3 : y1 - 0.25, q[2], q[3], 0.05, chrome);
+    }
+    }
+  }
+  if (kind === "base") {
+    // Countertop: full length, minus any gap that breaks it (a slide-in range).
+    const brk = gaps.filter((x) => x.counter === false).sort((u, v) => u.a - v.a);
+    const tops = []; let t = -L / 2;
+    for (const gp of brk) { if (gp.a > t) tops.push([t, gp.a]); t = Math.max(t, gp.b); }
+    if (t < L / 2) tops.push([t, L / 2]);
+    for (const [a, b] of tops) {
+      if (b - a < 0.2) continue;
+      q = pl(0.05, (a + b) / 2, D + 0.12, (b - a) + 0.06); box(q[0], q[1], CT, q[2], q[3], 0.16, stone, 0.02);
+    }
+    if (p.sinkAt !== undefined) {                     // undermount basin + faucet
+      q = pl(0.05, p.sinkAt, 1.5, 1.9); box(q[0], q[1], CT + 0.02, q[2], q[3], 0.05, dark, 0.03);
+      q = pl(-0.2, p.sinkAt, 0, 0); cyl(q[0], q[1], CT + 0.35, 0.04, 0.7, chrome);
+      q = pl(-0.2, p.sinkAt, 0, 0); box(q[0], q[1], CT + 0.68, 0.5, 0.07, 0.07, chrome);
+    }
+  }
+  return g;
+}
+
+// Kitchen island: cabinetry on the working side, a stone top with a seating
+// overhang on `faces`. Anchor (px,pz) = footprint centre; `lenFt` runs across
+// the front, `depthFt` front-to-back.
+function buildIsland(p) {
+  const ft = FT, g = new THREE.Group();
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const box = (opx, opz, yc, sx, sz, hy, mat, rad = 0) => {
+    const geo = rad > 0 ? new RoundedBoxGeometry(sx * ft, hy * ft, sz * ft, 3, rad * ft) : new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft);
+    const m = new THREE.Mesh(geo, mat); m.position.copy(V(opx, opz, yc)); m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  const wood = woodMat(col(p.cabinet || "cabinet", 0xeae7df));
+  const stone = new THREE.MeshStandardMaterial({ color: 0xdad7cf, roughness: 0.3 });
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.25, metalness: 0.8 });
+  const toeM = new THREE.MeshStandardMaterial({ color: 0x241b13, roughness: 0.8 });
+  const A = DIR[p.faces || "N"], P = [-A[1], A[0]];
+  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
+  const L = p.lenFt ?? 5.0, D = p.depthFt ?? 3.0, OVER = p.overhangFt ?? 0.9;
+  const TOE = 0.3, CT = 3.0, baseTop = 2.9;
+  // The carcass is set BACK from the seating face by the overhang, so knees fit.
+  const bodyD = D - OVER;
+  let q;
+  q = pl(-OVER / 2 - 0.12, 0, bodyD - 0.24, L - 0.04); box(q[0], q[1], TOE / 2, q[2], q[3], TOE, toeM);
+  q = pl(-OVER / 2, 0, bodyD, L); box(q[0], q[1], TOE + (baseTop - TOE) / 2, q[2], q[3], baseTop - TOE, wood, 0.01);
+  q = pl(0, 0, D + 0.12, L + 0.12); box(q[0], q[1], CT, q[2], q[3], 0.16, stone, 0.02);       // top, incl. overhang
+  // Drawer fronts on the BACK (working) side.
+  const n = Math.max(2, Math.round(L / 1.4));
+  for (let i = 0; i < n; i++) {
+    const ds = -L / 2 + (i + 0.5) * L / n;
+    q = pl(-OVER / 2 - bodyD / 2 - 0.02, ds, 0.04, L / n - 0.08);
+    box(q[0], q[1], TOE + (baseTop - TOE) / 2, q[2], q[3], baseTop - TOE - 0.06, wood, 0.015);
+    q = pl(-OVER / 2 - bodyD / 2 - 0.06, ds, 0.05, L / n - 0.4);
+    box(q[0], q[1], baseTop - 0.3, q[2], q[3], 0.05, chrome);
+  }
+  return g;
+}
+
+// Chimney-breast RANGE SURROUND, purely decorative: 1" reveal panels either side of
+// the range and a moulded lintel over, with the hood liner concealed in the lintel's
+// underside, a tiled back and a brass pot rail. It carries nothing, so the jambs are
+// sheet stock rather than piers — which leaves the full flanking width to real
+// cabinets, placed separately as their own cabinet_run entries.
+// Anchor (px,pz) = footprint centre; `faces` = the room side. `widthFt` is how far the
+// LINTEL spans (the whole composition, cabinets included); `openWFt` is the clear
+// opening the range stands in; `jambTFt` is the reveal thickness.
+function buildRangeSurround(p) {
+  const ft = FT, g = new THREE.Group();
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const box = (opx, opz, yc, sx, sz, hy, mat, rad = 0) => {
+    const geo = rad > 0 ? new RoundedBoxGeometry(sx * ft, hy * ft, sz * ft, 3, rad * ft) : new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft);
+    const m = new THREE.Mesh(geo, mat); m.position.copy(V(opx, opz, yc)); m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  const wood = woodMat(col(p.cabinet || "cabinet", 0xeae7df));
+  const stone = new THREE.MeshStandardMaterial({ color: 0xdad7cf, roughness: 0.3 });
+  const tile = new THREE.MeshStandardMaterial({ color: 0xe8e4da, roughness: 0.25 });
+  const brass = new THREE.MeshStandardMaterial({ color: 0xb08d3f, roughness: 0.3, metalness: 0.8 });
+  const steel = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.35, metalness: 0.7 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x26262a, roughness: 0.5 });
+  const A = DIR[p.faces || "S"], P = [-A[1], A[0]];
+  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
+  const W = p.widthFt ?? 6.62, OW = p.openWFt ?? 3.04, D = p.depthFt ?? 1.4;
+  const OH = p.openHFt ?? 5.6, LH = p.lintelHFt ?? 0.9, T = p.jambTFt ?? 1 / 12;
+  // `backDepthFt` carries the breast BEHIND the recess back, out to the real wall. The
+  // recess backs onto the hutch bump-out, but the breast can be wider than the bump-out,
+  // and without this its ends would float in front of the wall either side of it.
+  const SD = p.backDepthFt ?? 0;
+  const BACK = -D / 2, FRONT = D / 2;
+  const MD = D + SD, MDA = -SD / 2;      // mass depth, and the da that lands its back on the wall
+  let q;
+  // --- reveal panels forming the recess cheeks ----------------------------
+  for (const side of [-1, 1]) {
+    q = pl(MDA, side * (OW / 2 + T / 2), MD, T); box(q[0], q[1], OH / 2, q[2], q[3], OH, wood);
+    q = pl(FRONT + 0.01, side * (OW / 2 + T / 2), 0.02, T + 0.02);        // eased front edge
+    box(q[0], q[1], OH / 2, q[2], q[3], OH, wood);
+  }
+  // --- recess back: solid out to the wall, faced in tile ------------------
+  if (SD > 0) { q = pl(BACK - SD / 2, 0, SD, OW); box(q[0], q[1], OH / 2, q[2], q[3], OH, wood); }
+  q = pl(BACK + 0.03, 0, 0.04, OW); box(q[0], q[1], OH / 2, q[2], q[3], OH, tile);   // face sits proud of the bump-out, so no coplanar z-fight
+  // Pot rail runs the FULL backsplash, end to end across the alcove.
+  const railW = p.railWFt ?? (OW - 0.4), railY = p.railYFt ?? 3.9;
+  const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.045 * ft, 0.045 * ft, railW * ft, 14), brass);
+  q = pl(BACK + 0.34, 0, 0, 0);
+  rail.position.copy(V(q[0], q[1], railY)); rail.rotation.z = Math.PI / 2;
+  rail.castShadow = true; g.add(rail);
+  // Brackets at the ends plus enough between to keep any unsupported span <= 3 ft.
+  const nBr = Math.max(2, Math.ceil(railW / 3) + 1);
+  for (let i = 0; i < nBr; i++) {
+    const ds = -railW / 2 + 0.12 + (railW - 0.24) * i / (nBr - 1);
+    q = pl(BACK + 0.17, ds, 0.34, 0.07); box(q[0], q[1], railY, q[2], q[3], 0.07, brass);
+  }
+  // --- lintel, concealed hood liner, mantel shelf -------------------------
+  q = pl(MDA, 0, MD, W); box(q[0], q[1], OH + LH / 2, q[2], q[3], LH, wood, 0.01);                     // lintel band
+  q = pl(FRONT + 0.03, 0, 0.06, W - 0.1); box(q[0], q[1], OH + 0.1, q[2], q[3], 0.2, wood, 0.02);      // moulding at the head
+  // VENT: recessed UP into the lintel, not hung below it. A dark pocket inside the
+  // lintel band (which runs OH..OH+LH) with a slim grille flush at the recess ceiling,
+  // so from the room it reads as a slot in the soffit rather than a visible box.
+  const hoodW = p.hoodWFt ?? Math.min(OW - 0.7, 2.4);
+  q = pl(BACK + 0.65, 0, 1.3, hoodW); box(q[0], q[1], OH + 0.19, q[2], q[3], 0.34, dark, 0.01);        // pocket, inside the lintel
+  q = pl(BACK + 0.65, 0, 1.24, hoodW - 0.06); box(q[0], q[1], OH + 0.025, q[2], q[3], 0.05, steel);    // grille, flush with the head
+  // POT FILLER: wall-mounted articulating filler on the backsplash, centred on the
+  // opening (which is the range centre). Set ABOVE the pot rail so the two do not
+  // collide on the same backsplash — see the note in the plan.
+  if (p.potFiller) {
+    // FOLDED (parked): both segments lie ALONG the backsplash rather than reaching out
+    // over the burners, so the whole thing projects ~0.3' instead of ~1.5'.
+    const py = p.potFillerYFt ?? 4.6, A1 = 1.05, A2 = 0.95;
+    const along = (ds, len, da) => {                                    // a run parallel to the wall
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * ft, 0.05 * ft, len * ft, 12), brass);
+      const w = pl(da, ds, 0, 0); m.position.copy(V(w[0], w[1], py));
+      m.rotation.z = Math.PI / 2; m.castShadow = true; g.add(m); return m;
+    };
+    q = pl(BACK + 0.06, 0, 0.12, 0.42); box(q[0], q[1], py, q[2], q[3], 0.42, brass, 0.05);            // escutcheon
+    along(A1 / 2, A1, BACK + 0.14);                                                                    // first segment, out along the wall
+    q = pl(BACK + 0.20, A1, 0.14, 0.14); box(q[0], q[1], py, q[2], q[3], 0.14, brass, 0.03);            // elbow
+    along(A1 - A2 / 2, A2, BACK + 0.27);                                                               // second segment, folded back
+    const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.045 * ft, 0.045 * ft, 0.4 * ft, 12), brass);
+    q = pl(BACK + 0.27, A1 - A2, 0, 0); spout.position.copy(V(q[0], q[1], py - 0.2));
+    spout.castShadow = true; g.add(spout);                                                             // down-spout at the folded end
+    q = pl(BACK + 0.14, -0.24, 0.1, 0.1); box(q[0], q[1], py + 0.14, q[2], q[3], 0.26, brass, 0.03);    // valve handle
+  }
+  // Mantel projects FORWARD only — no side overhang. At W + 0.12 its ends reached past
+  // the breast into the dining openings, below their 7' heads, clipping the casings.
+  q = pl(0.06, 0, D + 0.12, W); box(q[0], q[1], OH + LH + 0.08, q[2], q[3], 0.16, stone, 0.02);        // mantel shelf
+  // The breast carries on above the mantel to the ceiling, so the flue reads as a
+  // chimney rather than stopping in mid-air, and finishes against it with a cornice.
+  const CEIL = p.ceilFt ?? 9.0, b0 = OH + LH + 0.16;
+  if (CEIL > b0 + 0.3) {
+    q = pl(MDA, 0, MD, W); box(q[0], q[1], (b0 + CEIL) / 2, q[2], q[3], CEIL - b0, wood, 0.01);
+    q = pl(MDA + 0.05, 0, MD + 0.1, W + 0.1); box(q[0], q[1], CEIL - 0.16, q[2], q[3], 0.32, wood, 0.02); // cornice
+  }
+  return g;
+}
+
+
+// A single appliance. `kind`: range | fridge | dishwasher | hood | washer | dryer.
+// Anchor (px,pz) = footprint centre; `faces` = the side you stand on.
+function buildAppliance(p) {
+  const ft = FT, g = new THREE.Group();
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const box = (opx, opz, yc, sx, sz, hy, mat, rad = 0) => {
+    const geo = rad > 0 ? new RoundedBoxGeometry(sx * ft, hy * ft, sz * ft, 3, rad * ft) : new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft);
+    const m = new THREE.Mesh(geo, mat); m.position.copy(V(opx, opz, yc)); m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  const cylX = (opx, opz, yc, r, h, mat, axis) => {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r * ft, r * ft, h * ft, 20), mat);
+    m.position.copy(V(opx, opz, yc)); if (axis) m.rotation.x = Math.PI / 2; g.add(m); return m;
+  };
+  const steel = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.35, metalness: 0.7 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x26262a, roughness: 0.5 });
+  const glass = new THREE.MeshStandardMaterial({ color: 0x2a3138, roughness: 0.1, metalness: 0.2 });
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.25, metalness: 0.8 });
+  const A = DIR[p.faces || "N"], P = [-A[1], A[0]];
+  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
+  const kind = p.kind || "range";
+  let q;
+  if (kind === "range") {
+    // `topFt` is where the COOKTOP lands; the body is derived from it, so an
+    // integrated range can sit flush with the counters either side of it (3.08)
+    // instead of the 0.6" step a hardcoded body height left.
+    const W = p.widthFt ?? 2.5, D = p.depthFt ?? 2.1, H = (p.topFt ?? 3.03) - 0.08;
+    q = pl(0, 0, D, W); box(q[0], q[1], H / 2, q[2], q[3], H, steel, 0.02);                   // body
+    q = pl(0.05, 0, D + 0.1, W + 0.04); box(q[0], q[1], H + 0.04, q[2], q[3], 0.08, dark, 0.02); // cooktop
+    // Burner grates: `burners`/2 across the width in two rows front-to-back, so 4
+    // gives the usual 2x2 and 6 gives 3x2. Width and depth are set INDEPENDENTLY —
+    // one shared size capped at 0.62 left six burners covering barely 62% of a 36"
+    // top, reading as small pads. Widths now butt edge to edge like a pro range.
+    const cols = Math.max(1, Math.round((p.burners ?? 4) / 2));
+    const gw = (W - 0.04) / cols, gd = 0.8;
+    for (const t of [-1, 1]) for (let i = 0; i < cols; i++) {
+      const ds = -W / 2 + 0.02 + gw * (i + 0.5);
+      q = pl(t * 0.45, ds, gd, gw - 0.02); box(q[0], q[1], H + 0.11, q[2], q[3], 0.05, dark, 0.02);
+    }
+    // An INTEGRATED range has no backguard at all — nothing rises above the cooktop —
+    // and carries its controls on a strip across the FRONT, one knob per burner.
+    if (p.style === "integrated") {
+      const nk = p.knobs ?? p.burners ?? 4;
+      const sy = H - 0.30;                                                   // control strip centre
+      q = pl(D / 2 + 0.02, 0, 0.04, W - 0.08); box(q[0], q[1], sy, q[2], q[3], 0.46, dark, 0.02);
+      for (let i = 0; i < nk; i++) {
+        const ds = -W / 2 + (W / nk) * (i + 0.5);
+        const k = new THREE.Mesh(new THREE.CylinderGeometry(0.062 * ft, 0.072 * ft, 0.12 * ft, 14), chrome);
+        const w2 = pl(D / 2 + 0.10, ds, 0, 0);
+        k.position.copy(V(w2[0], w2[1], sy)); k.rotation.x = Math.PI / 2;
+        k.castShadow = true; g.add(k);
+      }
+      q = pl(D / 2 + 0.02, 0, 0.04, W - 0.12); box(q[0], q[1], (H - 0.55) / 2 + 0.18, q[2], q[3], H - 0.9, glass, 0.02); // oven window
+      q = pl(D / 2 + 0.07, 0, 0.06, W - 0.2); box(q[0], q[1], H - 0.68, q[2], q[3], 0.09, chrome);                       // handle
+      return g;
+    }
+    // A FREESTANDING range (as opposed to a slide-in) is defined visually by its
+    // raised backguard carrying the controls; it sits within the body footprint, so
+    // the range can still stand flush against the wall behind it.
+    if (p.style === "freestanding") {
+      q = pl(-D / 2 + 0.06, 0, 0.12, W); box(q[0], q[1], H + 0.42, q[2], q[3], 0.72, steel, 0.02);
+      // Panel + knobs face the COOK, on the backguard's room side (its front plane is
+      // at da = -D/2 + 0.12). Putting them at -D/2 would bury them in the wall behind.
+      q = pl(-D / 2 + 0.125, 0, 0.03, W - 0.3); box(q[0], q[1], H + 0.5, q[2], q[3], 0.34, dark, 0.02);
+      for (const i of [-1, 1]) { q = pl(-D / 2 + 0.14, i * (W / 2 - 0.22), 0.05, 0.12);
+        box(q[0], q[1], H + 0.5, q[2], q[3], 0.12, chrome); }
+    }
+    q = pl(D / 2 + 0.02, 0, 0.04, W - 0.12); box(q[0], q[1], H * 0.42, q[2], q[3], H * 0.5, glass, 0.02); // oven window
+    q = pl(D / 2 + 0.07, 0, 0.06, W - 0.2); box(q[0], q[1], H * 0.72, q[2], q[3], 0.09, chrome);          // handle
+    return g;
+  }
+  if (kind === "hood") {
+    const W = p.widthFt ?? 2.8, D = p.depthFt ?? 1.9, y0 = p.bottomFt ?? 4.9, ceil = p.ceilFt ?? 9.0;
+    q = pl(0, 0, D, W); box(q[0], q[1], y0 + 0.28, q[2], q[3], 0.56, steel, 0.03);            // canopy
+    q = pl(0, 0, D * 0.55, W * 0.42); box(q[0], q[1], (y0 + 0.56 + ceil) / 2, q[2], q[3], ceil - y0 - 0.56, steel, 0.02); // chimney
+    return g;
+  }
+  if (kind === "fridge") {
+    const W = p.widthFt ?? 3.0, D = p.depthFt ?? 2.5, H = p.heightFt ?? 6.0;
+    q = pl(0, 0, D, W); box(q[0], q[1], H / 2, q[2], q[3], H, steel, 0.03);
+    for (const s of [-1, 1]) {                                                                 // French doors + handles
+      q = pl(D / 2 + 0.03, s * W / 4, 0.05, W / 2 - 0.06); box(q[0], q[1], H * 0.66, q[2], q[3], H * 0.62, steel, 0.02);
+      q = pl(D / 2 + 0.09, s * 0.12, 0.06, 0.07); box(q[0], q[1], H * 0.66, q[2], q[3], 1.5, chrome);
+    }
+    q = pl(D / 2 + 0.03, 0, 0.05, W - 0.06); box(q[0], q[1], H * 0.17, q[2], q[3], H * 0.3, steel, 0.02);  // freezer drawer
+    q = pl(D / 2 + 0.09, 0, 0.06, W - 0.5); box(q[0], q[1], H * 0.27, q[2], q[3], 0.07, chrome);
+    return g;
+  }
+  if (kind === "dishwasher") {
+    const W = p.widthFt ?? 2.0, D = p.depthFt ?? 2.0, H = 2.85;
+    q = pl(0, 0, D, W); box(q[0], q[1], H / 2, q[2], q[3], H, steel, 0.02);
+    q = pl(D / 2 + 0.06, 0, 0.06, W - 0.16); box(q[0], q[1], H - 0.28, q[2], q[3], 0.09, chrome);
+    return g;
+  }
+  // washer / dryer: front-load pair with a round door
+  const W = p.widthFt ?? 2.3, D = p.depthFt ?? 2.4, H = 3.0;
+  q = pl(0, 0, D, W); box(q[0], q[1], H / 2, q[2], q[3], H, steel, 0.03);
+  q = pl(D / 2 + 0.04, 0, 0.08, W - 0.3); box(q[0], q[1], H * 0.52, q[2], q[3], W - 0.3, dark, 0.06);   // door surround
+  const dq = pl(D / 2 + 0.1, 0, 0.05, W - 0.6);
+  box(dq[0], dq[1], H * 0.52, dq[2], dq[3], W - 0.6, glass, 0.08);                                        // porthole
+  q = pl(D / 2 + 0.03, 0, 0.05, W - 0.2); box(q[0], q[1], H - 0.18, q[2], q[3], 0.22, dark, 0.02);       // control panel
+  return g;
+}
+
+const BUILDERS = { range_surround: buildRangeSurround, cabinet_run: buildCabinetRun, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 // Re-export a few individual builders so the viewer can drop single procedural
 // pieces (e.g. patio furniture on the alt roof deck) without going through the
 // furniture.json manifest.
@@ -1277,6 +1602,7 @@ export async function buildFurniture({ scene, parent = scene, floorY, baseUrl, m
     const [x, z] = world(it.px, it.pz);
     const obj = BUILDERS[it.type](it);
     obj.position.set(x, it.y != null ? it.y : floorY, z);   // per-item height (e.g. a hung pendant)
+    obj.userData.item = it;                                 // debug handle: the manifest entry behind this group
     if (it.rot) obj.rotation.y = (it.rot * Math.PI) / 180;  // e.g. a built-in facing into the room
     parent.add(obj);
     if (obj.userData.doors) for (const d of obj.userData.doors) {  // collect hinged leaves (e.g. bathroom)

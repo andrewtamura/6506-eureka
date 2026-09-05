@@ -1066,6 +1066,8 @@ async function main() {
   // keep their authored brightness and burn in broad daylight.
   let fixtureAll;                                       // factor last applied to every level
   const fixtureLevel = new Map();                       // level -> factor, overriding fixtureAll
+  let extAuto = true;                                   // landscape lights on a photocell (dusk to dawn)
+  let nightFactor = 0;                                  // latest dusk-to-dawn ramp from the sun
   const fixtureFactor = (level) => (fixtureLevel.has(level) ? fixtureLevel.get(level) : fixtureAll);
   const applyFixture = (f, factor) => {
     f.light.intensity = f.base * factor;
@@ -1879,7 +1881,10 @@ async function main() {
   };
   // Set every fixture on `level` ("all" = every level) to `factor`x its nominal
   // brightness (0 = off, 1 = full, ~0.5 = dimmed); the glowing shade tracks it too.
-  const setFixtures = (level, factor) => {
+  // `auto` marks a call made BY the photocell rather than by a person, so a manual
+  // Landscape On/Off pins the lights and the sun stops driving them.
+  const setFixtures = (level, factor, auto = false) => {
+    if (level === "exterior" && !auto) extAuto = false;
     // Remember the setting as well as applying it, so fixtures that arrive later
     // land in the right state (see registerFixture). "all" speaks for every level,
     // so it clears the per-level overrides a scene may have layered on top.
@@ -1889,10 +1894,13 @@ async function main() {
       if (level !== "all" && f.level !== level) continue;
       applyFixture(f, factor);
     }
+    // That "all" sweep just wiped the per-level overrides, so re-assert the
+    // photocell if it still owns the landscape lights.
+    if (level === "all" && extAuto) setFixtures("exterior", nightFactor, true);
   };
-  // Landscape lights (street lamp, side-yard string lights, facade uplights) live on
-  // the exterior massing, tagged "exterior"; a warm window glow fakes "interior lights
-  // on" from outside. Both start OFF for the daytime landing view.
+  // Landscape lights (street lamp, side-yard string lights, facade uplights, garage
+  // sconces) live on the exterior massing, tagged "exterior"; a warm window glow fakes
+  // "interior lights on" from outside.
   const setWindowGlow = (on) => {
     for (const m of extWindowMats) {
       m.emissive.setRGB(on ? 0.95 : 0, on ? 0.7 : 0, on ? 0.34 : 0);
@@ -1900,21 +1908,39 @@ async function main() {
     }
   };
   if (exteriorModel) addLandscapeLighting(exteriorModel.object, (light, emiss) => registerFixture(light, "exterior", emiss));
-  setFixtures("exterior", 0);
+  // PHOTOCELL: the landscape lights follow the sun — on from dusk to dawn, off in
+  // daylight — instead of being switched by hand. `night` ramps up once the sun is
+  // below the horizon (see lighting.js), so this tracks the time dial AND the season
+  // dial. onTime fires the callback immediately on registration, which sets the
+  // correct opening state for whatever hour the page loaded at; it replaces the old
+  // unconditional "exterior off", which was wrong whenever the page loaded after dark.
+  onTime((day, night) => {
+    nightFactor = night;
+    if (extAuto) setFixtures("exterior", night, true);
+  });
 
   // Morning: early sun, fixtures off (daylight). Evening: low sun, fixtures on but
   // dimmed for a warm glow. Night: sun down, landscape lights on + windows aglow.
   scenesEl.appendChild(caption("Time of day"));
-  addScene("🌅 Morning", () => { apply(7.5); setFixtures("all", 0); setWindowGlow(false); });
-  addScene("🌆 Evening", () => { apply(19.3); setFixtures("all", 0.6); setWindowGlow(false); });
-  addScene("🌙 Night", () => { apply(21); setFixtures("all", 0.75); setFixtures("exterior", 1); setWindowGlow(true); });
+  // Each scene hands the landscape back to the photocell rather than setting it by
+  // hand: at 7.5h the sun is well up (off), and at 19.3h / 21h it is down (on), so the
+  // sun already gives the right answer and one rule governs instead of two.
+  const timeScene = (h, interior, glow) => () => {
+    extAuto = true; apply(h); setFixtures("all", interior); setWindowGlow(glow);
+  };
+  addScene("🌅 Morning", timeScene(7.5, 0, false));
+  addScene("🌆 Evening", timeScene(19.3, 0.6, false));
+  addScene("🌙 Night", timeScene(21, 0.75, true));
   // Per-level fixture toggles (sun unchanged).
   for (const [label, id] of [["Ground floor", "ground"], ["Second floor", "level2"], ["Attic", "attic"]]) {
     scenesEl.appendChild(caption(label));
     addScene("On", () => setFixtures(id, 1));
     addScene("Off", () => setFixtures(id, 0));
   }
+  // Auto is the default; On/Off pin the lights and take them off the photocell until
+  // Auto (or any time-of-day scene) hands them back.
   scenesEl.appendChild(caption("Landscape"));
+  addScene("Auto", () => { extAuto = true; setFixtures("exterior", nightFactor, true); });
   addScene("On", () => { setFixtures("exterior", 1); setWindowGlow(true); });
   addScene("Off", () => { setFixtures("exterior", 0); setWindowGlow(false); });
 
