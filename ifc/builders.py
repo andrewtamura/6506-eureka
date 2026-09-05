@@ -2062,7 +2062,8 @@ def second_floor_windows(rooms):
     """(front_z, specs) for the second-floor windows. NORTH (front/street) is
     locked: one upper over each ground-floor front opening (the even 5-bay
     rhythm). The other three faces are the flexible ones:
-      - WEST wall: a three-bay layout (3 equally-spaced uppers).
+      - WEST wall: a three-bay layout, aligned to the ground floor (one upper over
+        each outer ground window, one on the facade centre).
       - SOUTH wall: 2 uppers, 1 per wing (one per rear bedroom), skipping the
         central stair/landing bay.
       - EAST: one upper on the primary east wall (the stretch exposed north of the
@@ -2083,14 +2084,21 @@ def second_floor_windows(rooms):
         for o in r.get("windows", []) + r.get("doors", []):
             if not o.get("opening") and o["orient"] == "H" and abs(o["fixed"] - front_z) < 1e-3:
                 add(f"Upper - {o['name']}", "H", front_z, o["pos"])
-    # WEST: three-bay — 3 equally-spaced uppers, inset from the corners
+    # WEST: three-bay, ALIGNED to the ground floor rather than evenly spaced —
+    # one upper over each of the two OUTER ground windows and one on the facade
+    # centre (over the pier carrying the kitchen/dining party wall). Anchoring to
+    # the openings below is the same idiom the locked NORTH face uses, so the row
+    # follows if the ground bays ever move. It stays THREE and not one-per-window:
+    # the second floor's west partitions split that wall into three rooms, and a
+    # four-bay row would straddle one of them and leave the west bath windowless.
     west_rooms = [r for r in rooms if abs(r["bounds"]["x2"] - west_x) < 1e-3]
     if west_rooms:
-        m = 1.0
-        z1 = min(r["bounds"]["z1"] for r in west_rooms) + m
-        z2 = max(r["bounds"]["z2"] for r in west_rooms) - m
-        for i in range(3):
-            add(f"Upper - West {i + 1}", "V", west_x, z1 + (i + 0.5) * (z2 - z1) / 3)
+        below = sorted(w["pos"] for r in west_rooms for w in r.get("windows", [])
+                       if w["orient"] == "V" and abs(w["fixed"] - west_x) < 1e-3)
+        zc = (min(r["bounds"]["z1"] for r in west_rooms)
+              + max(r["bounds"]["z2"] for r in west_rooms)) / 2
+        for i, pos in enumerate((below[0], zc, below[-1]) if below else ()):
+            add(f"Upper - West {i + 1}", "V", west_x, pos)
     # Split the rooms into the primary block vs. the extension (which juts to the
     # east, i.e. lower x). The extension carries the second-floor bathroom.
     ext_rooms  = [r for r in rooms if r["bounds"]["x1"] < -12 - 1e-3]
