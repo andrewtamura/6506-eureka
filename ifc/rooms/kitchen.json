@@ -68,8 +68,8 @@
           -0.2623
         ],
         "faces": "S",
-        "widthFt": 6.92,
-        "openWFt": 6.7533,
+        "widthFt": 5.9,
+        "openWFt": 5.7333,
         "depthFt": 1.4,
         "openHFt": 5.6,
         "lintelHFt": 0.9,
@@ -81,24 +81,24 @@
       {
         "type": "cabinet_run",
         "at": [
-          20.591666666666665,
+          20.8467,
           -0.5623
         ],
         "kind": "base",
         "faces": "S",
-        "lenFt": 1.7967,
+        "lenFt": 1.2867,
         "depthFt": 2.0,
         "drawers": 3
       },
       {
         "type": "cabinet_run",
         "at": [
-          25.488333333333333,
+          25.2333,
           -0.5623
         ],
         "kind": "base",
         "faces": "S",
-        "lenFt": 1.7967,
+        "lenFt": 1.2867,
         "depthFt": 2.0,
         "drawers": 3
       },
@@ -107,14 +107,14 @@
         "kind": "range",
         "style": "integrated",
         "burners": 6,
+        "topFt": 3.08,
         "at": [
           23.04,
           -0.6123000000000001
         ],
         "faces": "S",
         "widthFt": 3.0,
-        "depthFt": 2.1,
-        "topFt": 3.08
+        "depthFt": 2.1
       }
     ]
   }
