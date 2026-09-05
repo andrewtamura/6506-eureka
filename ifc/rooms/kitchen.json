@@ -14,16 +14,16 @@
       "name": "Kitchen -> Dining (W)",
       "orient": "H",
       "fixed": 2.0,
-      "pos": 17.58,
-      "width": 3.0,
+      "pos": 17.19625,
+      "width": 3.7675,
       "opening": true
     },
     {
       "name": "Kitchen -> Dining (E)",
       "orient": "H",
       "fixed": 2.0,
-      "pos": 28.5,
-      "width": 3.0,
+      "pos": 28.88542,
+      "width": 3.77083,
       "opening": true
     },
     {
@@ -45,14 +45,13 @@
   ],
   "windows": [
     {
-      "name": "Window - Kitchen W (picture)",
+      "name": "Window - Kitchen W",
       "orient": "V",
       "fixed": 31.0,
-      "pos": -4.92,
-      "width": 8.0,
+      "pos": -5.5521,
+      "width": 3.0,
       "sill": 3.33,
-      "head": 7.0,
-      "muntins": false
+      "head": 7.0
     }
   ],
   "interior": {
@@ -120,30 +119,30 @@
         "type": "cased_portal",
         "at": [
           17.51625,
-          0.4143
+          1.21213
         ],
         "faces": "S",
         "widthFt": 4.4075,
-        "depthFt": 2.7532,
-        "revealDFt": 3.1915,
-        "openWFt": 3.0,
+        "depthFt": 1.15745,
+        "revealDFt": 1.59575,
+        "openWFt": 3.7675,
         "openHFt": 7.0,
-        "openOffFt": 0.06375,
+        "openOffFt": -0.32,
         "ceilFt": 9.0
       },
       {
         "type": "cased_portal",
         "at": [
           28.56543,
-          0.4143
+          1.21213
         ],
         "faces": "S",
         "widthFt": 4.4108,
-        "depthFt": 2.7532,
-        "revealDFt": 3.1915,
-        "openWFt": 3.0,
+        "depthFt": 1.15745,
+        "revealDFt": 1.59575,
+        "openWFt": 3.77083,
         "openHFt": 7.0,
-        "openOffFt": -0.06543,
+        "openOffFt": 0.31999,
         "ceilFt": 9.0
       }
     ]

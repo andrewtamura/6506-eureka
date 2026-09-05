@@ -2062,7 +2062,8 @@ def second_floor_windows(rooms):
     """(front_z, specs) for the second-floor windows. NORTH (front/street) is
     locked: one upper over each ground-floor front opening (the even 5-bay
     rhythm). The other three faces are the flexible ones:
-      - WEST wall: a three-bay layout (3 equally-spaced uppers).
+      - WEST wall: three bays — over each outer ground opening, plus one on the
+        facade centre (the ground floor there is solid).
       - SOUTH wall: 2 uppers, 1 per wing (one per rear bedroom), skipping the
         central stair/landing bay.
       - EAST: one upper on the primary east wall (the stretch exposed north of the
@@ -2083,14 +2084,22 @@ def second_floor_windows(rooms):
         for o in r.get("windows", []) + r.get("doors", []):
             if not o.get("opening") and o["orient"] == "H" and abs(o["fixed"] - front_z) < 1e-3:
                 add(f"Upper - {o['name']}", "H", front_z, o["pos"])
-    # WEST: three-bay — 3 equally-spaced uppers, inset from the corners
+    # WEST: three bays. The outer two sit over the ground-floor west openings — the
+    # kitchen bay and the dining window — and the middle one on the facade centre, over
+    # the solid pier where the party wall meets this wall. That is what keeps an
+    # ASYMMETRIC ground floor reading as classical: every ground opening has a window
+    # above it, and the one upper with nothing below stands over solid wall.
+    # It stays THREE whatever the ground floor does — the second floor's west partitions
+    # split that wall into three rooms, so a fourth bay would straddle a partition and
+    # leave one of them windowless.
     west_rooms = [r for r in rooms if abs(r["bounds"]["x2"] - west_x) < 1e-3]
     if west_rooms:
-        m = 1.0
-        z1 = min(r["bounds"]["z1"] for r in west_rooms) + m
-        z2 = max(r["bounds"]["z2"] for r in west_rooms) - m
-        for i in range(3):
-            add(f"Upper - West {i + 1}", "V", west_x, z1 + (i + 0.5) * (z2 - z1) / 3)
+        below = sorted(w["pos"] for r in west_rooms for w in r.get("windows", [])
+                       if w["orient"] == "V" and abs(w["fixed"] - west_x) < 1e-3)
+        zc = (min(r["bounds"]["z1"] for r in west_rooms)
+              + max(r["bounds"]["z2"] for r in west_rooms)) / 2
+        for i, pos in enumerate((below[0], zc, below[-1]) if below else ()):
+            add(f"Upper - West {i + 1}", "V", west_x, pos)
     # Split the rooms into the primary block vs. the extension (which juts to the
     # east, i.e. lower x). The extension carries the second-floor bathroom.
     ext_rooms  = [r for r in rooms if r["bounds"]["x1"] < -12 - 1e-3]
@@ -2143,6 +2152,144 @@ def add_shell_windows(ctx, rooms):
                     w["width"], w["sill"], w["head"], leaf=True)
 
 
+def add_bay_window(ctx, room, win, base=0.0, crawl=0.0):
+    """A CANTED BAY projecting from an exterior wall: a solid apron below the sill,
+    glazing on all three faces, corner boards, a frieze + cornice, and a
+    standing-seam copper hip roof.
+
+    Shared by the ground level (rooms/kitchen.py) and the exterior massing
+    (add_fenestration), so the two read identically. `win["bay"]` carries:
+      projFt    projection measured from the FINISHED EXTERIOR FACE, not the wall line
+      angleDeg  splay of the returns off the wall face (90 would be a square box bay).
+                A true 45 deg bay is arithmetically out at a 3 ft projection: its
+                returns would eat 6 ft of a 7 ft opening and leave a 1 ft front light.
+      roof      "copper" — a standing-seam hip, the scullery's shed-with-hips language.
+    Only V walls (running along Z) are handled; that is all this house needs.
+    """
+    spec = win.get("bay") or {}
+    P = spec.get("projFt", 3.0)
+    ang = math.radians(spec.get("angleDeg", 60))
+    fixed, pos, W = win["fixed"], win["pos"], abs(win["width"])
+    sill, head = win["sill"], ctx.head_ft
+    COPPER, GLASS = (0.69, 0.43, 0.24), (0.42, 0.52, 0.60)
+    WALL, TRIM, FOUND = (0.90, 0.89, 0.86), (0.93, 0.92, 0.88), (0.55, 0.54, 0.52)
+
+    b = room["bounds"]
+    bx1, bx2 = sorted((b["x1"], b["x2"]))
+    out = 1.0 if abs(fixed - bx2) < 1e-6 else -1.0     # outward, in plan px
+    Tft = ctx.T / FT                                   # wall thickness, plan ft
+    face = fixed + out * Tft / 2                       # finished exterior face
+    front = face + out * P                             # bay front face
+    r = P / math.tan(ang)                              # run along the wall, per return
+    a_s, a_n = pos - W / 2, pos + W / 2                # opening jambs
+    f_s, f_n = a_s + r, a_n - r                        # front-face corners
+    FACES = [((face, a_s), (front, f_s)),              # south return
+             ((front, f_s), (front, f_n)),             # front
+             ((front, f_n), (face, a_n))]              # north return
+    Cx, Cy = ctx.X((face + front) / 2), ctx.Y(pos)     # bay centroid, for outward normals
+    Z = lambda ft: base + ft * FT
+
+    def _frame(p0, p1):
+        ax, ay = ctx.X(p0[0]), ctx.Y(p0[1])
+        bx, by = ctx.X(p1[0]), ctx.Y(p1[1])
+        dx, dy = bx - ax, by - ay
+        L = math.hypot(dx, dy)
+        nx, ny = (dy / L, -dx / L) if L else (0.0, 0.0)
+        mx, my = (ax + bx) / 2, (ay + by) / 2
+        if (mx + nx - Cx) ** 2 + (my + ny - Cy) ** 2 < (mx - nx - Cx) ** 2 + (my - ny - Cy) ** 2:
+            nx, ny = -nx, -ny                          # make the normal point AWAY from the bay
+        return (ax, ay, dx, dy, L, math.atan2(dy, dx), nx, ny)
+
+    def band(p0, p1, t, z0, z1, color, name, cls="IfcBuildingElementProxy",
+             inset=0.0, shrink=0.0, transparency=0.0):
+        """A box along p0->p1 (plan ft), `t` thick, z0..z1 (metres). Its OUTER surface
+        lands on the segment; `inset` pushes it further in, `shrink` trims its ends."""
+        ax, ay, dx, dy, L, th, nx, ny = _frame(p0, p1)
+        if L < 1e-6 or z1 - z0 <= 1e-9 or L - shrink <= 0:
+            return
+        d = t / 2 + inset
+        p = make_box(ctx, cls, name, L - shrink, t, z1 - z0,
+                     ax + dx / 2 - nx * d, ay + dy / 2 - ny * d, z0,
+                     color=color, rot=th, transparency=transparency)
+        run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
+
+    def stud(p0, p1, u, t, wd, z0, z1, color, name):
+        """A narrow upright at fraction `u` along the segment: corner boards, muntins."""
+        ax, ay, dx, dy, L, th, nx, ny = _frame(p0, p1)
+        if L < 1e-6:
+            return
+        p = make_box(ctx, "IfcBuildingElementProxy", name, wd, t, z1 - z0,
+                     ax + dx * u - nx * t / 2, ay + dy * u - ny * t / 2, z0, color=color, rot=th)
+        run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
+
+    WT = ctx.T
+    # --- foundation: carry the bay down through the crawlspace to grade -------
+    if crawl > 0:
+        for i, (p0, p1) in enumerate(FACES):
+            band(p0, p1, WT, base - crawl, base, FOUND, f"Bay foundation {i + 1}", cls="IfcSlab")
+    # --- apron below the sill: plinth, panelled field, water-table cap --------
+    # The plinth matters: without it the apron is a blank 3'4" face from grade to sill
+    # and the whole bay reads as a turret. Bounded by the corner boards either side and
+    # these two bands top and bottom, the field between them reads as a recessed panel.
+    for i, (p0, p1) in enumerate(FACES):
+        band(p0, p1, WT, Z(0), Z(sill), WALL, f"Bay apron {i + 1}", cls="IfcWall")
+        band(p0, p1, WT + 0.10, Z(0), Z(0.45), TRIM, f"Bay plinth {i + 1}")
+        band(p0, p1, WT + 0.10, Z(sill - 0.30), Z(sill - 0.18), TRIM, f"Bay water table {i + 1}")
+    # --- glazing: clear sheets, NOT divided ----------------------------------
+    # The bay is the one place in the house without muntins — a grid across three
+    # canted faces fights the form and cuts the light the bay exists to bring in.
+    # `muntins: true` on the window spec puts the house grid back if ever wanted;
+    # everywhere else in add_fenestration the default runs the other way.
+    h = head - sill
+    for i, (p0, p1) in enumerate(FACES):
+        band(p0, p1, 0.08, Z(sill), Z(head), GLASS, f"Bay glazing {i + 1}",
+             cls="IfcWindow", inset=0.04, shrink=0.36, transparency=0.6)
+        if not win.get("muntins", False):
+            continue
+        Lft = math.hypot(p1[0] - p0[0], p1[1] - p0[1])
+        cols, rows = max(2, round(Lft / 1.3)), max(2, round(h / 1.4))
+        for k in range(1, cols):
+            stud(p0, p1, k / cols, 0.10, 0.06, Z(sill), Z(head), TRIM, f"Bay muntin {i + 1}")
+        for j in range(1, rows):
+            zc = Z(sill + h * j / rows)
+            band(p0, p1, 0.10, zc - 0.025, zc + 0.025, TRIM, f"Bay muntin {i + 1}", shrink=0.36)
+    # --- corner boards at the four plan corners -------------------------------
+    for i, (p0, p1) in enumerate(FACES):
+        if i == 0:
+            stud(p0, p1, 0.0, 0.14, 0.25, Z(0), Z(head), TRIM, "Bay corner board 1")
+        stud(p0, p1, 1.0, 0.14, 0.25, Z(0), Z(head), TRIM, f"Bay corner board {i + 2}")
+    # --- entablature: frieze, then a projecting cornice -----------------------
+    for i, (p0, p1) in enumerate(FACES):
+        band(p0, p1, 0.14, Z(head), Z(head + 0.55), TRIM, f"Bay frieze {i + 1}")
+        band(p0, p1, 0.30, Z(head + 0.55), Z(head + 0.85), TRIM, f"Bay cornice {i + 1}")
+    # --- standing-seam copper hip ---------------------------------------------
+    # Six-vertex topology carried over from the copper hood this replaces: two front
+    # eave points, two jamb points at the wall, and a ridge at the wall directly
+    # behind the front corners. On a canted plan that IS the hip — the main slope is
+    # a parallelogram and the two returns become triangles.
+    OH, PITCH, TH = 0.5, 8 / 12, 0.06
+    z_lo = Z(head + 0.85)
+    z_hi = z_lo + (P + Tft / 2 + OH) * PITCH * FT
+    fx, xf = ctx.X(face), ctx.X(front + out * OH)
+    ylo, yhi = ctx.Y(a_s - OH), ctx.Y(a_n + OH)
+    yrs, yrn = ctx.Y(f_s), ctx.Y(f_n)
+    top = [(xf, yrs, z_lo), (xf, yrn, z_lo),      # 0,1 front eave
+           (fx, ylo, z_lo), (fx, yhi, z_lo),      # 2,3 wall, low
+           (fx, yrs, z_hi), (fx, yrn, z_hi)]      # 4,5 ridge
+    verts = top + [(x, y, z - TH) for x, y, z in top]
+    faces = [[4, 5, 1, 0], [2, 0, 4], [1, 3, 5], [2, 4, 5, 3],
+             [10, 11, 7, 6], [8, 6, 10], [7, 9, 11], [8, 10, 11, 9],
+             [0, 1, 7, 6], [1, 3, 9, 7], [3, 2, 8, 9], [2, 0, 6, 8]]
+    add_brep(ctx, "Bay roof", verts, faces, COPPER, ifc_class="IfcBuildingElementProxy")
+    rw, rh = 0.015, 0.04                          # raised seams down the main slope
+    for k in range(6):
+        y = yrs + (yrn - yrs) * (k + 0.5) / 6
+        fv = [(fx, y - rw, z_hi), (fx, y + rw, z_hi), (xf, y - rw, z_lo), (xf, y + rw, z_lo)]
+        fv += [(x, yy, z + rh) for x, yy, z in fv]
+        ff = [[0, 1, 3, 2], [4, 5, 7, 6], [0, 2, 6, 4], [1, 5, 7, 3], [0, 4, 5, 1], [2, 3, 7, 6]]
+        add_brep(ctx, "Bay roof seam", fv, ff, COPPER, ifc_class="IfcBuildingElementProxy")
+
+
 def add_fenestration(ctx, groups, rooms_cache, base=0.0):
     """Low-fidelity windows + exterior door openings on the massing faces. The
     per-room windows/doors are reused: an opening is exterior when one side of
@@ -2154,6 +2301,10 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
     GLASS = (0.42, 0.52, 0.60)   # muted blue-grey glazing
     DOOR = (0.18, 0.16, 0.15)    # dark opening
     TRIM = (0.93, 0.92, 0.88)    # white window trim (casing / sill / muntins)
+    # Blind-bay panel: a shade darker than GLASS, so it reads as a window in shadow
+    # rather than a black hole. At (0.22, 0.23, 0.25) it was far darker than the
+    # glazed bays either side and broke the three-bay rhythm it exists to complete.
+    BLIND = (0.32, 0.37, 0.42)
     DEPTH = 0.08                  # panel thickness (m)
     EPS = 0.35                    # plan feet just past the wall face
     CW = 0.5                      # casing board width (ft)
@@ -2274,7 +2425,8 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
                         dbox(cc - (mw - lip) / 2, lip, pz0, pz1, DMUN, moldc)   # left
                         dbox(cc + (mw - lip) / 2, lip, pz0, pz1, DMUN, moldc)   # right
 
-    def window(name, orient, fixed, pos, w, sill_m, head_m, trim="full", muntins=True):
+    def window(name, orient, fixed, pos, w, sill_m, head_m, trim="full", muntins=True,
+               blind=False):
         """A glass panel with a classical surround + divided-light muntins. Trim
         styles distinguish the floors / facades:
           - "full" (side/rear ground): casing, a projecting sill + apron, and a
@@ -2284,8 +2436,13 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
           - "upper": casing + a projecting sill (nothing below it) + a small
             cornice — lighter than the ground floor.
         A board/box runs along the wall axis (X for an H wall, Z for a V) and is
-        centred on the wall face."""
-        panel("IfcWindow", name, orient, fixed, pos, w, sill_m, head_m, GLASS)
+        centred on the wall face.
+        `blind` makes a BLIND BAY: the same trim and sashes over a dark recessed panel
+        instead of glass, and no opening in the wall (add_windows skips it). The classic
+        device for a bay the elevation needs but the plan cannot give — here the
+        kitchen/dining party wall lands on the west facade's centre line."""
+        panel("IfcBuildingElementProxy" if blind else "IfcWindow", name,
+              orient, fixed, pos, w, sill_m, head_m, BLIND if blind else GLASS)
         h = head_m - sill_m
 
         def tbox(nm, apos, alen, zlo, zhi, dep, color=TRIM):
@@ -2351,9 +2508,13 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
                     continue
                 # front ground-floor windows get a flat lintel + keystone head
                 front = g is prim and o == "H" and front_z is not None and abs(f - front_z) < 1e-3
+                if win.get("bay"):
+                    add_bay_window(ctx, r, win, base=base, crawl=base)
+                    continue
                 window(win["name"], o, f, p, win["width"],
                        base + win["sill"] * FT, base + win["head"] * FT,
-                       trim="lintel" if front else "full", muntins=win.get("muntins", True))
+                       trim="lintel" if front else "full", muntins=win.get("muntins", True),
+                       blind=win.get("blind", False))
             for d in r.get("doors", []):
                 if d.get("opening"):          # interior cased opening, skip
                     continue
@@ -2395,70 +2556,6 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
         if door:
             add_entry(ctx, door["pos"], front_z, door["width"], base)
 
-    add_kitchen_feature(ctx, rooms_cache, base)
-
-
-def add_kitchen_feature(ctx, rooms_cache, base):
-    """Make the kitchen picture window special: a standing-seam copper hood —
-    shaped like the scullery's shed-with-hips, with 45° hipped ends — above the
-    window cornice, and a white planter box (greenery on top) hung on the wall
-    below, its top 6" beneath the glass."""
-    kw = next((w for r in rooms_cache.values() for w in r.get("windows", [])
-               if "Kitchen W (picture)" in w.get("name", "")), None)
-    if kw is None:
-        return
-    COPPER, GREEN, BOX = (0.69, 0.43, 0.24), (0.30, 0.45, 0.26), (0.93, 0.92, 0.88)
-    fx = ctx.X(kw["fixed"])
-    out_x = -1.0 if ctx.X(kw["fixed"] + 1) < fx else 1.0   # outward (away from the wall)
-    cy = ctx.Y(kw["pos"])
-    sill_m = base + kw["sill"] * FT
-    head_m = base + kw["head"] * FT
-
-    # standing-seam copper hood shaped like the scullery's shed-with-hips: high at
-    # the wall, sloping down to a front eave, the two ends hipped in (not gabled).
-    proj, th = 2.0 * FT, 0.06                    # 24" projection
-    drop = proj * (10 / 12)                      # 10/12 pitch (rise/run)
-    hip = proj                                   # hip inset == projection -> 45° hip in plan
-    z_lo = head_m + 1.1 * FT                      # eave kept above the window cornice top...
-    z_hi = z_lo + drop                            # ...so the whole hood clears + covers the cornice
-    hw = (kw["width"] / 2 + 1.5) * FT             # wide enough to cover the window + side trim
-    ylo, yhi = cy - hw, cy + hw
-    xf = fx + out_x * proj                   # front eave (projected out)
-    top = [(xf, ylo, z_lo), (xf, yhi, z_lo),            # 0,1 front eave
-           (fx, ylo, z_lo), (fx, yhi, z_lo),            # 2,3 wall, low (ends)
-           (fx, ylo + hip, z_hi), (fx, yhi - hip, z_hi)]  # 4,5 ridge (inset)
-    verts = top + [(x, y, z - th) for x, y, z in top]   # 6..11 soffit
-    faces = [[4, 5, 1, 0], [2, 0, 4], [1, 3, 5], [2, 4, 5, 3],          # top: main slope, 2 hips, wall gable
-             [10, 11, 7, 6], [8, 6, 10], [7, 9, 11], [8, 10, 11, 9],     # soffit
-             [0, 1, 7, 6], [1, 3, 9, 7], [3, 2, 8, 9], [2, 0, 6, 8]]     # edges (front, sides, wall)
-    add_brep(ctx, "Kitchen awning", verts, faces, COPPER, ifc_class="IfcBuildingElementProxy")
-    # standing seams: raised ribs down the main slope (ridge -> front eave)
-    rw, rh = 0.015, 0.04
-    nseam = 6
-    for k in range(nseam):
-        u = (k + 0.5) / nseam
-        ry = (ylo + hip) + u * (yhi - ylo - 2 * hip)
-        ey = ylo + u * (yhi - ylo)
-        fv = [(fx, ry - rw, z_hi), (fx, ry + rw, z_hi), (xf, ey - rw, z_lo), (xf, ey + rw, z_lo)]
-        fv += [(x, y, z + rh) for x, y, z in fv]
-        ff = [[0, 1, 3, 2], [4, 5, 7, 6], [0, 2, 6, 4], [1, 5, 7, 3], [0, 4, 5, 1], [2, 3, 7, 6]]
-        add_brep(ctx, "Kitchen awning seam", fv, ff, COPPER, ifc_class="IfcBuildingElementProxy")
-
-    # planter box on the wall below the sill: its top sits 6" below the glass,
-    # with greenery filling the gap up to the glass.
-    dining_sill = next((w["sill"] for r in rooms_cache.values() for w in r.get("windows", [])
-                        if "Dining W" in w.get("name", "")), 2.5)
-    box_top = sill_m - 0.5 * FT                  # 6" below the kitchen glass
-    # bottom level with the dining windows' apron (sill 0.12 + apron 0.22 below
-    # their glass), so the kitchen window assembly starts at the same height
-    box_bot = base + dining_sill * FT - 0.34
-    pdepth = 1.0 * FT
-    pw = (kw["width"] / 2 - 0.25) * FT
-    pcx = fx + out_x * pdepth / 2
-    for nm, z0, hgt, col in (("Kitchen planter box", box_bot, box_top - box_bot, BOX),
-                             ("Kitchen planter greenery", box_top, sill_m - box_top, GREEN)):
-        b = make_box(ctx, "IfcBuildingElementProxy", nm, pdepth, 2 * pw, hgt, pcx, cy, z0, color=col)
-        run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
 
 def add_slab(ctx, r, opening=None):
@@ -2699,6 +2796,12 @@ def add_doors(ctx, r):
 
 def add_windows(ctx, r):
     for w in r.get("windows", []):
+        if w.get("blind"):
+            continue          # blind bay: exterior trim only, the wall stays solid
+        if w.get("bay"):      # bay window: cut the hole, the glazing is in the bay itself
+            cut_opening(ctx, "IfcWindow", w["name"], w["orient"], w["fixed"], w["pos"],
+                        w["width"], w["sill"], ctx.head_ft, leaf=False)
+            continue
         # Uniform head for every window (sills stay as authored).
         cut_opening(ctx, "IfcWindow", w["name"], w["orient"], w["fixed"], w["pos"],
                     w["width"], w["sill"], ctx.head_ft)
