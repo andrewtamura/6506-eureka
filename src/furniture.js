@@ -1473,6 +1473,91 @@ function buildRangeSurround(p) {
 }
 
 
+// A cased opening turned into a deep, panelled PORTAL. The wall THICKENS across the
+// whole bay (floor to ceiling), the opening gets full-depth jamb + head linings with a
+// recessed panel worked into each, and an architrave stands proud on the room face.
+// Anchor (px,pz) = centre of the PROJECTING mass footprint; `faces` = the room the
+// portal presents to. `depthFt` is that projecting mass alone; `revealDFt` is the FULL
+// lining depth (front-aligned), running back THROUGH the existing wall to its far face,
+// so the reveal reads as one continuous passage rather than two stacked thicknesses.
+// `openOffFt` shifts the opening off the bay centre (the bays here are not symmetric).
+function buildCasedPortal(p) {
+  const ft = FT, g = new THREE.Group();
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const box = (opx, opz, yc, sx, sz, hy, mat, rad = 0) => {
+    const geo = rad > 0 ? new RoundedBoxGeometry(sx * ft, hy * ft, sz * ft, 3, rad * ft) : new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft);
+    const m = new THREE.Mesh(geo, mat); m.position.copy(V(opx, opz, yc)); m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  // Same palette as the wall-finish trim program (src/wall-finish.js), so the portal
+  // reads as part of the same millwork rather than a bolted-on object.
+  const mill = new THREE.MeshStandardMaterial({ color: 0xefece4, roughness: 0.8 });
+  const field = new THREE.MeshStandardMaterial({ color: 0xdcd7cb, roughness: 0.85 });
+  const A = DIR[p.faces || "S"], P = [-A[1], A[0]];
+  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
+  const W = p.widthFt ?? 4.4, D = p.depthFt ?? 2.75;
+  const RD = p.revealDFt ?? (D + 0.4583);         // full lining depth, front-aligned
+  const OW = p.openWFt ?? 3.0, OH = p.openHFt ?? 7.0, OFF = p.openOffFt ?? 0;
+  const CEIL = p.ceilFt ?? 9.0;
+  const CW = p.caseWFt ?? 0.33, CT = p.caseTFt ?? 0.15;      // architrave width / projection
+  const BB = p.baseFt ?? 10 / 12, BT = p.baseTFt ?? 0.09;    // baseboard height / projection
+  // A slimmer projection than the 1.9" wall base (src/wall-finish.js): at full depth the
+  // two returns pinched the 3' opening to 2'8" at the floor. 0.09' keeps 2'10" clear.
+  const SW = p.stileFt ?? 0.25, PR = p.proudFt ?? 0.035;     // reveal panel frame
+  const FRONT = D / 2, RBACK = FRONT - RD;        // reveal spans da [RBACK .. FRONT]
+  const RDA = FRONT - RD / 2;                     // reveal centre along da
+  const a0 = -W / 2, a1 = W / 2;                  // bay extent across (ds)
+  const o0 = OFF - OW / 2, o1 = OFF + OW / 2;     // opening edges (ds)
+  let q;
+  // --- 1) piers flanking the opening, floor to ceiling --------------------
+  for (const [s0, s1] of [[a0, o0], [o1, a1]]) {
+    const w = s1 - s0; if (w < 1e-4) continue;
+    q = pl(0, (s0 + s1) / 2, D, w); box(q[0], q[1], CEIL / 2, q[2], q[3], CEIL, mill);
+  }
+  // --- 2) mass over the opening, head to ceiling --------------------------
+  q = pl(0, OFF, D, OW); box(q[0], q[1], (OH + CEIL) / 2, q[2], q[3], CEIL - OH, mill);
+  // --- 3) panelled jamb reveals ------------------------------------------
+  // A proud stile at each end of the reveal and a rail top and bottom, so the field
+  // between them reads as a recessed panel. Frame projects PR into the opening; the
+  // panel field sits just behind it in the slightly deeper field tone.
+  for (const s of [-1, 1]) {
+    const face = OFF + s * OW / 2;
+    const at = (proud) => face - s * proud / 2;          // centre of a band `proud` thick
+    q = pl(RDA, at(BT), RD, BT); box(q[0], q[1], BB / 2, q[2], q[3], BB, mill);            // baseboard through the reveal
+    const y0 = BB, y1 = OH, dsF = at(PR);
+    q = pl(FRONT - SW / 2, dsF, SW, PR); box(q[0], q[1], (y0 + y1) / 2, q[2], q[3], y1 - y0, mill);  // stile at the room face
+    q = pl(RBACK + SW / 2, dsF, SW, PR); box(q[0], q[1], (y0 + y1) / 2, q[2], q[3], y1 - y0, mill);  // stile at the far face
+    const rl = RD - 2 * SW;
+    q = pl(RDA, dsF, rl, PR); box(q[0], q[1], y0 + SW / 2, q[2], q[3], SW, mill);          // bottom rail
+    q = pl(RDA, dsF, rl, PR); box(q[0], q[1], y1 - SW / 2, q[2], q[3], SW, mill);          // top rail
+    q = pl(RDA, at(PR * 0.25), rl, PR * 0.25);
+    box(q[0], q[1], (y0 + y1) / 2, q[2], q[3], y1 - y0 - 2 * SW, field);                   // recessed panel field
+  }
+  // --- 4) panelled soffit (head lining), same frame turned on its side -----
+  {
+    const at = (proud) => OH - proud / 2;
+    q = pl(FRONT - SW / 2, OFF, SW, OW); box(q[0], q[1], at(PR), q[2], q[3], PR, mill);    // rail at the room face
+    q = pl(RBACK + SW / 2, OFF, SW, OW); box(q[0], q[1], at(PR), q[2], q[3], PR, mill);    // rail at the far face
+    const rl = RD - 2 * SW;
+    for (const s of [-1, 1]) { q = pl(RDA, OFF + s * (OW / 2 - SW / 2), rl, SW);
+      box(q[0], q[1], at(PR), q[2], q[3], PR, mill); }                                     // stiles down the sides
+    q = pl(RDA, OFF, rl, OW - 2 * SW);
+    box(q[0], q[1], at(PR * 0.25), q[2], q[3], PR * 0.25, field);                          // recessed panel field
+  }
+  // --- 5) architrave on the room face -------------------------------------
+  const legH = OH + CW;
+  for (const s of [-1, 1]) { q = pl(FRONT + CT / 2, OFF + s * (OW / 2 + CW / 2), CT, CW);
+    box(q[0], q[1], legH / 2, q[2], q[3], legH, mill, 0.01); }                             // legs
+  q = pl(FRONT + CT / 2, OFF, CT, OW); box(q[0], q[1], OH + CW / 2, q[2], q[3], CW, mill, 0.01);  // head band
+  q = pl(FRONT + (CT + 0.05) / 2, OFF, CT + 0.05, OW + 2 * CW + 0.1);
+  box(q[0], q[1], legH + 0.05, q[2], q[3], 0.1, mill, 0.02);                               // cap mould over the head
+  // --- 6) cornice, matching buildRangeSurround's so the two run continuously.
+  // Its band is CEIL-0.16 +/- 0.16 and it oversails the breast front by 0.1' (`MDA + 0.05`
+  // over a mass `MD + 0.1` deep) -- same numbers here, or the two cornices step at the
+  // joint where the portal meets the breast.
+  q = pl(0.05, 0, D + 0.1, W); box(q[0], q[1], CEIL - 0.16, q[2], q[3], 0.32, mill, 0.02);
+  return g;
+}
+
 // A single appliance. `kind`: range | fridge | dishwasher | hood | washer | dryer.
 // Anchor (px,pz) = footprint centre; `faces` = the side you stand on.
 function buildAppliance(p) {
@@ -1576,7 +1661,7 @@ function buildAppliance(p) {
   return g;
 }
 
-const BUILDERS = { range_surround: buildRangeSurround, cabinet_run: buildCabinetRun, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
+const BUILDERS = { range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 // Re-export a few individual builders so the viewer can drop single procedural
 // pieces (e.g. patio furniture on the alt roof deck) without going through the
 // furniture.json manifest.
