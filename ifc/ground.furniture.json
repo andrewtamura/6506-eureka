@@ -63,9 +63,9 @@
       "widthFt": 4.4075,
       "depthFt": 1.15745,
       "revealDFt": 1.59575,
-      "openWFt": 3.7675,
+      "openWFt": 3.0,
       "openHFt": 7.0,
-      "openOffFt": -0.32,
+      "openOffFt": 0.06375,
       "ceilFt": 9.0
     },
     {
@@ -77,9 +77,9 @@
       "widthFt": 4.4108,
       "depthFt": 1.15745,
       "revealDFt": 1.59575,
-      "openWFt": 3.77083,
+      "openWFt": 3.0,
       "openHFt": 7.0,
-      "openOffFt": 0.31999,
+      "openOffFt": -0.06543,
       "ceilFt": 9.0
     },
     {

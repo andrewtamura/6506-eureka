@@ -12,19 +12,19 @@
   "doors": [],
   "windows": [
     {
-      "name": "Window - Dining W (middle)",
+      "name": "Window - Dining W1",
       "orient": "V",
       "fixed": 31.0,
-      "pos": 2.0833,
+      "pos": 6.32635,
       "width": 3.0,
       "sill": 3.33,
       "head": 7.0
     },
     {
-      "name": "Window - Dining W",
+      "name": "Window - Dining W2",
       "orient": "V",
       "fixed": 31.0,
-      "pos": 9.7187,
+      "pos": 11.84025,
       "width": 3.0,
       "sill": 3.33,
       "head": 7.0
