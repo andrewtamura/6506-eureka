@@ -15,8 +15,8 @@
       "name": "Window - Dining W1",
       "orient": "V",
       "fixed": 31.0,
-      "pos": 6.32635,
-      "width": 3.0,
+      "pos": 6.38191,
+      "width": 2.66667,
       "sill": 3.33,
       "head": 7.0
     },
@@ -24,8 +24,8 @@
       "name": "Window - Dining W2",
       "orient": "V",
       "fixed": 31.0,
-      "pos": 11.84025,
-      "width": 3.0,
+      "pos": 11.78469,
+      "width": 2.66667,
       "sill": 3.33,
       "head": 7.0
     },

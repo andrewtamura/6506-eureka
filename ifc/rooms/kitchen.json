@@ -48,8 +48,8 @@
       "name": "Window - Kitchen W1",
       "orient": "V",
       "fixed": 31.0,
-      "pos": -7.67365,
-      "width": 3.0,
+      "pos": -7.61809,
+      "width": 2.66667,
       "sill": 3.33,
       "head": 7.0
     },
@@ -57,8 +57,8 @@
       "name": "Window - Kitchen W2",
       "orient": "V",
       "fixed": 31.0,
-      "pos": -2.15975,
-      "width": 3.0,
+      "pos": -2.21531,
+      "width": 2.66667,
       "sill": 3.33,
       "head": 7.0
     }
