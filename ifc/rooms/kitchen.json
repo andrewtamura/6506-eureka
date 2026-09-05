@@ -105,7 +105,7 @@
       {
         "type": "appliance",
         "kind": "range",
-        "style": "freestanding",
+        "style": "integrated",
         "burners": 6,
         "at": [
           23.04,
@@ -113,7 +113,8 @@
         ],
         "faces": "S",
         "widthFt": 3.0,
-        "depthFt": 2.1
+        "depthFt": 2.1,
+        "topFt": 3.08
       }
     ]
   }

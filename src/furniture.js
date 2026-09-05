@@ -1418,7 +1418,7 @@ function buildRangeSurround(p) {
   if (SD > 0) { q = pl(BACK - SD / 2, 0, SD, OW); box(q[0], q[1], OH / 2, q[2], q[3], OH, wood); }
   q = pl(BACK + 0.03, 0, 0.04, OW); box(q[0], q[1], OH / 2, q[2], q[3], OH, tile);   // face sits proud of the bump-out, so no coplanar z-fight
   // Pot rail runs the FULL backsplash, end to end across the alcove.
-  const railW = p.railWFt ?? (OW - 0.4), railY = p.railYFt ?? 4.6;
+  const railW = p.railWFt ?? (OW - 0.4), railY = p.railYFt ?? 3.9;
   const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.045 * ft, 0.045 * ft, railW * ft, 14), brass);
   q = pl(BACK + 0.34, 0, 0, 0);
   rail.position.copy(V(q[0], q[1], railY)); rail.rotation.z = Math.PI / 2;
@@ -1442,16 +1442,22 @@ function buildRangeSurround(p) {
   // opening (which is the range centre). Set ABOVE the pot rail so the two do not
   // collide on the same backsplash — see the note in the plan.
   if (p.potFiller) {
-    const py = p.potFillerYFt ?? 4.95, reach = 1.3;
+    // FOLDED (parked): both segments lie ALONG the backsplash rather than reaching out
+    // over the burners, so the whole thing projects ~0.3' instead of ~1.5'.
+    const py = p.potFillerYFt ?? 4.6, A1 = 1.05, A2 = 0.95;
+    const along = (ds, len, da) => {                                    // a run parallel to the wall
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * ft, 0.05 * ft, len * ft, 12), brass);
+      const w = pl(da, ds, 0, 0); m.position.copy(V(w[0], w[1], py));
+      m.rotation.z = Math.PI / 2; m.castShadow = true; g.add(m); return m;
+    };
     q = pl(BACK + 0.06, 0, 0.12, 0.42); box(q[0], q[1], py, q[2], q[3], 0.42, brass, 0.05);            // escutcheon
-    const arm = (da, len) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * ft, 0.05 * ft, len * ft, 12), brass);
-      const w = pl(da, 0, 0, 0); m.position.copy(V(w[0], w[1], py)); m.rotation.x = Math.PI / 2; m.castShadow = true; g.add(m); return m; };
-    arm(BACK + 0.12 + reach / 2, reach);                                                               // swing arm out over the burners
-    q = pl(BACK + 0.12 + reach, 0, 0.13, 0.13); box(q[0], q[1], py, q[2], q[3], 0.13, brass, 0.03);     // elbow
-    const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.045 * ft, 0.045 * ft, 0.42 * ft, 12), brass);
-    q = pl(BACK + 0.12 + reach, 0, 0, 0); spout.position.copy(V(q[0], q[1], py - 0.21));
-    spout.castShadow = true; g.add(spout);                                                             // down-spout
-    q = pl(BACK + 0.2, 0.26, 0.1, 0.1); box(q[0], q[1], py + 0.16, q[2], q[3], 0.28, brass, 0.03);      // valve handle
+    along(A1 / 2, A1, BACK + 0.14);                                                                    // first segment, out along the wall
+    q = pl(BACK + 0.20, A1, 0.14, 0.14); box(q[0], q[1], py, q[2], q[3], 0.14, brass, 0.03);            // elbow
+    along(A1 - A2 / 2, A2, BACK + 0.27);                                                               // second segment, folded back
+    const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.045 * ft, 0.045 * ft, 0.4 * ft, 12), brass);
+    q = pl(BACK + 0.27, A1 - A2, 0, 0); spout.position.copy(V(q[0], q[1], py - 0.2));
+    spout.castShadow = true; g.add(spout);                                                             // down-spout at the folded end
+    q = pl(BACK + 0.14, -0.24, 0.1, 0.1); box(q[0], q[1], py + 0.14, q[2], q[3], 0.26, brass, 0.03);    // valve handle
   }
   // Mantel projects FORWARD only — no side overhang. At W + 0.12 its ends reached past
   // the breast into the dining openings, below their 7' heads, clipping the casings.
@@ -1489,7 +1495,10 @@ function buildAppliance(p) {
   const kind = p.kind || "range";
   let q;
   if (kind === "range") {
-    const W = p.widthFt ?? 2.5, D = p.depthFt ?? 2.1, H = 2.95;
+    // `topFt` is where the COOKTOP lands; the body is derived from it, so an
+    // integrated range can sit flush with the counters either side of it (3.08)
+    // instead of the 0.6" step a hardcoded body height left.
+    const W = p.widthFt ?? 2.5, D = p.depthFt ?? 2.1, H = (p.topFt ?? 3.03) - 0.08;
     q = pl(0, 0, D, W); box(q[0], q[1], H / 2, q[2], q[3], H, steel, 0.02);                   // body
     q = pl(0.05, 0, D + 0.1, W + 0.04); box(q[0], q[1], H + 0.04, q[2], q[3], 0.08, dark, 0.02); // cooktop
     // Burner grates: `burners`/2 across the width in two rows front-to-back, so 4
@@ -1501,6 +1510,23 @@ function buildAppliance(p) {
     for (const t of [-1, 1]) for (let i = 0; i < cols; i++) {
       const ds = -W / 2 + 0.02 + gw * (i + 0.5);
       q = pl(t * 0.45, ds, gd, gw - 0.02); box(q[0], q[1], H + 0.11, q[2], q[3], 0.05, dark, 0.02);
+    }
+    // An INTEGRATED range has no backguard at all — nothing rises above the cooktop —
+    // and carries its controls on a strip across the FRONT, one knob per burner.
+    if (p.style === "integrated") {
+      const nk = p.knobs ?? p.burners ?? 4;
+      const sy = H - 0.30;                                                   // control strip centre
+      q = pl(D / 2 + 0.02, 0, 0.04, W - 0.08); box(q[0], q[1], sy, q[2], q[3], 0.46, dark, 0.02);
+      for (let i = 0; i < nk; i++) {
+        const ds = -W / 2 + (W / nk) * (i + 0.5);
+        const k = new THREE.Mesh(new THREE.CylinderGeometry(0.062 * ft, 0.072 * ft, 0.12 * ft, 14), chrome);
+        const w2 = pl(D / 2 + 0.10, ds, 0, 0);
+        k.position.copy(V(w2[0], w2[1], sy)); k.rotation.x = Math.PI / 2;
+        k.castShadow = true; g.add(k);
+      }
+      q = pl(D / 2 + 0.02, 0, 0.04, W - 0.12); box(q[0], q[1], (H - 0.55) / 2 + 0.18, q[2], q[3], H - 0.9, glass, 0.02); // oven window
+      q = pl(D / 2 + 0.07, 0, 0.06, W - 0.2); box(q[0], q[1], H - 0.68, q[2], q[3], 0.09, chrome);                       // handle
+      return g;
     }
     // A FREESTANDING range (as opposed to a slide-in) is defined visually by its
     // raised backguard carrying the controls; it sits within the body footprint, so
