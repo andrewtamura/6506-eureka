@@ -115,6 +115,36 @@
         "faces": "S",
         "widthFt": 3.0,
         "depthFt": 2.1
+      },
+      {
+        "type": "cased_portal",
+        "at": [
+          17.51625,
+          0.4143
+        ],
+        "faces": "S",
+        "widthFt": 4.4075,
+        "depthFt": 2.7532,
+        "revealDFt": 3.1915,
+        "openWFt": 3.0,
+        "openHFt": 7.0,
+        "openOffFt": 0.06375,
+        "ceilFt": 9.0
+      },
+      {
+        "type": "cased_portal",
+        "at": [
+          28.56543,
+          0.4143
+        ],
+        "faces": "S",
+        "widthFt": 4.4108,
+        "depthFt": 2.7532,
+        "revealDFt": 3.1915,
+        "openWFt": 3.0,
+        "openHFt": 7.0,
+        "openOffFt": -0.06543,
+        "ceilFt": 9.0
       }
     ]
   }
