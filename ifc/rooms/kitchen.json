@@ -48,7 +48,7 @@
       "name": "Window - Kitchen W1",
       "orient": "V",
       "fixed": 31.0,
-      "pos": -7.61809,
+      "pos": -6.97921,
       "width": 2.66667,
       "sill": 3.33,
       "head": 7.0
@@ -57,7 +57,7 @@
       "name": "Window - Kitchen W2",
       "orient": "V",
       "fixed": 31.0,
-      "pos": -2.21531,
+      "pos": -0.93754,
       "width": 2.66667,
       "sill": 3.33,
       "head": 7.0
@@ -128,12 +128,12 @@
         "type": "cased_portal",
         "at": [
           17.51625,
-          1.21213
+          1.42667
         ],
         "faces": "S",
         "widthFt": 4.4075,
-        "depthFt": 1.15745,
-        "revealDFt": 1.59575,
+        "depthFt": 0.72835,
+        "revealDFt": 1.16665,
         "openWFt": 3.0,
         "openHFt": 7.0,
         "openOffFt": 0.06375,
@@ -143,12 +143,12 @@
         "type": "cased_portal",
         "at": [
           28.56543,
-          1.21213
+          1.42667
         ],
         "faces": "S",
         "widthFt": 4.4108,
-        "depthFt": 1.15745,
-        "revealDFt": 1.59575,
+        "depthFt": 0.72835,
+        "revealDFt": 1.16665,
         "openWFt": 3.0,
         "openHFt": 7.0,
         "openOffFt": -0.06543,
