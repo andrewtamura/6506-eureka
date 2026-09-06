@@ -153,6 +153,80 @@
         "openHFt": 7.0,
         "openOffFt": -0.06543,
         "ceilFt": 9.0
+      },
+      {
+        "type": "cabinet_run",
+        "at": [
+          29.7708,
+          -5.3275
+        ],
+        "kind": "base",
+        "faces": "E",
+        "lenFt": 12.72,
+        "depthFt": 2.0,
+        "sinkAt": 1.6517,
+        "gaps": [
+          {
+            "a": 2.6025,
+            "b": 4.6025,
+            "counter": true
+          }
+        ]
+      },
+      {
+        "type": "appliance",
+        "kind": "dishwasher",
+        "at": [
+          29.7708,
+          -8.93
+        ],
+        "faces": "E",
+        "widthFt": 2.0,
+        "depthFt": 2.0
+      },
+      {
+        "type": "appliance",
+        "kind": "fridge",
+        "at": [
+          16.5625,
+          -0.4375
+        ],
+        "faces": "W",
+        "widthFt": 3.0,
+        "depthFt": 2.5
+      },
+      {
+        "type": "cabinet_run",
+        "at": [
+          16.3625,
+          -3.4375
+        ],
+        "kind": "tall",
+        "faces": "W",
+        "lenFt": 3.0,
+        "depthFt": 2.1
+      },
+      {
+        "type": "cabinet_run",
+        "at": [
+          16.3125,
+          -8.3125
+        ],
+        "kind": "base",
+        "faces": "W",
+        "lenFt": 6.75,
+        "depthFt": 2.0
+      },
+      {
+        "type": "island",
+        "at": [
+          23.0417,
+          -6.4623
+        ],
+        "faces": "S",
+        "lenFt": 4.5,
+        "depthFt": 3.0,
+        "overhangFt": 0
       }
     ]
   }
