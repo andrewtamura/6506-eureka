@@ -2062,8 +2062,7 @@ def second_floor_windows(rooms):
     """(front_z, specs) for the second-floor windows. NORTH (front/street) is
     locked: one upper over each ground-floor front opening (the even 5-bay
     rhythm). The other three faces are the flexible ones:
-      - WEST wall: three bays — over each outer ground opening, plus one on the
-        facade centre (the ground floor there is solid).
+      - WEST wall: one upper over every ground-floor west opening.
       - SOUTH wall: 2 uppers, 1 per wing (one per rear bedroom), skipping the
         central stair/landing bay.
       - EAST: one upper on the primary east wall (the stretch exposed north of the
@@ -2084,22 +2083,17 @@ def second_floor_windows(rooms):
         for o in r.get("windows", []) + r.get("doors", []):
             if not o.get("opening") and o["orient"] == "H" and abs(o["fixed"] - front_z) < 1e-3:
                 add(f"Upper - {o['name']}", "H", front_z, o["pos"])
-    # WEST: three bays. The outer two sit over the ground-floor west openings — the
-    # kitchen bay and the dining window — and the middle one on the facade centre, over
-    # the solid pier where the party wall meets this wall. That is what keeps an
-    # ASYMMETRIC ground floor reading as classical: every ground opening has a window
-    # above it, and the one upper with nothing below stands over solid wall.
-    # It stays THREE whatever the ground floor does — the second floor's west partitions
-    # split that wall into three rooms, so a fourth bay would straddle a partition and
-    # leave one of them windowless.
+    # WEST: one upper over EVERY ground-floor west opening — four now, so the elevation
+    # reads four over four with both rows symmetric about the facade centre. This used to
+    # be capped at three because the second floor's west partitions (pz -1 and 6) split
+    # that wall into three rooms and a fourth bay would have straddled one; the owner is
+    # re-planning those partitions around the openings instead, so the openings lead and
+    # the plan follows. Anchoring to the ground floor is the same idiom the locked NORTH
+    # face uses, so the row keeps up if the bays move again.
     west_rooms = [r for r in rooms if abs(r["bounds"]["x2"] - west_x) < 1e-3]
-    if west_rooms:
-        below = sorted(w["pos"] for r in west_rooms for w in r.get("windows", [])
-                       if w["orient"] == "V" and abs(w["fixed"] - west_x) < 1e-3)
-        zc = (min(r["bounds"]["z1"] for r in west_rooms)
-              + max(r["bounds"]["z2"] for r in west_rooms)) / 2
-        for i, pos in enumerate((below[0], zc, below[-1]) if below else ()):
-            add(f"Upper - West {i + 1}", "V", west_x, pos)
+    for i, pos in enumerate(sorted(w["pos"] for r in west_rooms for w in r.get("windows", [])
+                                   if w["orient"] == "V" and abs(w["fixed"] - west_x) < 1e-3)):
+        add(f"Upper - West {i + 1}", "V", west_x, pos)
     # Split the rooms into the primary block vs. the extension (which juts to the
     # east, i.e. lower x). The extension carries the second-floor bathroom.
     ext_rooms  = [r for r in rooms if r["bounds"]["x1"] < -12 - 1e-3]
