@@ -46,12 +46,21 @@ def compute_paneling(ctx, rooms):
         x1, x2 = sorted([b["x1"], b["x2"]])
         z1, z2 = sorted([b["z1"], b["z2"]])
 
-        def gather(orient, fixed):
+        def gather(orient, fixed, lo, hi):
+            # Openings are collected from EVERY room sharing this wall line, then clipped
+            # to THIS segment. Without the clip a long wall split between two rooms gives
+            # both records the full opening list, so the viewer draws every casing, stool
+            # and apron twice, co-located, and subtract() emits field spans running past
+            # the end of the wall into the neighbour.
+            def inside(a, b):
+                return min(b, hi) - max(a, lo) > 0.05
             doors, wins, tall = [], [], []
             for r in rooms:
                 for d in r.get("doors", []):
                     if d["orient"] == orient and abs(d["fixed"] - fixed) < 0.3:
                         w = abs(d["width"]); span = [round(d["pos"] - w / 2, 3), round(d["pos"] + w / 2, 3)]
+                        if not inside(*span):
+                            continue
                         # full-height built-in openings (a taller head) break the
                         # cornice rather than seating it on the head line.
                         (tall.append(span + [d["headFt"]]) if d.get("headFt") else doors.append(span))
@@ -60,7 +69,14 @@ def compute_paneling(ctx, rooms):
                         continue   # no opening inside, so no interior casing/stool/apron
                     if wd["orient"] == orient and abs(wd["fixed"] - fixed) < 0.3:
                         w = abs(wd["width"])
-                        wins.append([round(wd["pos"] - w / 2, 3), round(wd["pos"] + w / 2, 3), wd["sill"]])
+                        span = [round(wd["pos"] - w / 2, 3), round(wd["pos"] + w / 2, 3)]
+                        if not inside(*span):
+                            continue
+                        # `plainBelow` drops the apron under this window, leaving plain
+                        # board-and-batten wall below the stool. Wanted where a window
+                        # sits over open floor rather than over a counter, since a 2 ft 8 in
+                        # board floating 25 in off the floor reads as a stray panel.
+                        wins.append(span + [wd["sill"], bool(wd.get("plainBelow"))])
             return doors, wins, tall
 
         for orient, fixed, lo, hi, face, normal in [
@@ -69,7 +85,7 @@ def compute_paneling(ctx, rooms):
             ("V", x1, z1, z2, x1 + half, [1, 0]),
             ("V", x2, z1, z2, x2 - half, [-1, 0]),
         ]:
-            doors, wins, tall = gather(orient, fixed)
+            doors, wins, tall = gather(orient, fixed, lo, hi)
             ctx.paneling.append({
                 "along": "x" if orient == "H" else "z",
                 "at": round(face, 4), "normal": normal,

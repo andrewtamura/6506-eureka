@@ -146,11 +146,15 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     for (const [a, b, th] of tall) band(a, b, th * ft, wallTop, 0.012, field);
 
     // 4) window casing: jambs (sill..head) + sill stool + apron
-    for (const [a, b, sill] of wins) {
+    for (const [a, b, sill, plainBelow] of wins) {
       const sy = sill * ft;
       post(a, sy, headY, caseW, 0.045); post(b, sy, headY, caseW, 0.045);
       band(a - caseW / ft, b + caseW / ft, sy, sy + 0.04, 0.07);          // stool
-      band(a, b, sy - 0.12, sy, 0.05);                                     // apron
+      // The apron is a 2" proud board the exact width of the window. Where the wall
+      // below is open floor rather than a counter it hangs 25" up with nothing under
+      // it and reads as a stray panel, so `plainBelow` drops it and the field and
+      // battens simply carry on to the stool.
+      if (!plainBelow) band(a, b, sy - 0.12, sy, 0.05);                    // apron
     }
     // 5) door casing: jambs (floor..head)
     for (const [a, b] of doors) { post(a, 0, headY, caseW, 0.045); post(b, 0, headY, caseW, 0.045); }

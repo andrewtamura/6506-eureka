@@ -1272,6 +1272,10 @@ function buildCabinetRun(p) {
   const dark = new THREE.MeshStandardMaterial({ color: 0x26262a, roughness: 0.5 });
   const chrome = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.25, metalness: 0.8 });
   const toeM = new THREE.MeshStandardMaterial({ color: 0x241b13, roughness: 0.8 });
+  // Same glass as the dining hutch's uppers, so a glazed door reads the same wherever
+  // it appears. depthWrite off, or the pane hides the shelves behind it.
+  const glassM = new THREE.MeshStandardMaterial({ color: 0xc6d7da, roughness: 0.1, metalness: 0,
+                                                  transparent: true, opacity: 0.25, depthWrite: false });
   const A = DIR[p.faces || "N"], P = [-A[1], A[0]];
   const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
   const kind = p.kind || "base";
@@ -1287,13 +1291,32 @@ function buildCabinetRun(p) {
   for (const gp of gaps) { if (gp.a > cur) segs.push([cur, gp.a]); cur = Math.max(cur, gp.b); }
   if (cur < L / 2) segs.push([cur, L / 2]);
   let q;
+  // `divideAt` splits a solid segment into door MODULES without cutting a gap in it.
+  // Stacked runs given the same array divide on the same lines, which is what makes a
+  // bank of drawers, glazed doors and over-cabinets read as one grid of vertical joints
+  // instead of three independently-spaced bands. Values outside a segment are no-ops,
+  // so every band can be handed the identical array.
+  const cuts = (p.divideAt || []).slice().sort((u, v) => u - v);
+  const modules = [];
+  for (const [a, b] of segs) {
+    let m = a;
+    for (const d of cuts) if (d > a + 1e-4 && d < b - 1e-4) { modules.push([m, d, a, b]); m = d; }
+    modules.push([m, b, a, b]);
+  }
   for (const [a, b] of segs) {
     const w = b - a, c = (a + b) / 2;
     if (w < 0.3) continue;
     if (kind !== "wall") { q = pl(-0.12, c, D - 0.24, w); box(q[0], q[1], TOE / 2, q[2], q[3], TOE, toeM); }   // toe kick
     q = pl(0, c, D, w); box(q[0], q[1], (y0 + y1) / 2, q[2], q[3], y1 - y0, wood, 0.01);                       // carcass
+  }
+  // Fronts are drawn per MODULE, so `divideAt` subdivides a segment without breaking
+  // its carcass. With no `divideAt` a module IS the whole segment and this is exactly
+  // the previous behaviour.
+  for (const [a, b, segA, segB] of modules) {
+    const w = b - a, c = (a + b) / 2;
+    if (w < 0.3 || segB - segA < 0.3) continue;
     if (p.drawers) {
-      // DRAWER STACK: fronts stacked up the segment instead of a door across it.
+      // DRAWER STACK: fronts stacked up the module instead of a door across it.
       // `drawers` is a count (3 -> the conventional small/small/large pull-out base)
       // or explicit relative shares, given TOP DOWN.
       const sh = Array.isArray(p.drawers) ? p.drawers
@@ -1311,14 +1334,45 @@ function buildCabinetRun(p) {
         top -= h;
       }
     } else {
-    // shaker fronts: a door per ~1.4 ft of run, each with a pull
-    const n = Math.max(1, Math.round(w / 1.4)), fh = (y1 - y0) - 0.06;
-    for (let i = 0; i < n; i++) {
-      const ds = a + (i + 0.5) * w / n;
-      q = pl(D / 2 + 0.02, ds, 0.04, w / n - 0.08); box(q[0], q[1], (y0 + y1) / 2, q[2], q[3], fh, wood, 0.015);
-      q = pl(D / 2 + 0.045, ds, 0.02, w / n - 0.34); box(q[0], q[1], (y0 + y1) / 2, q[2], q[3], fh - 0.28, stone, 0.01);  // recessed shaker panel
-      q = pl(D / 2 + 0.07, ds, 0.05, 0.05); box(q[0], q[1], kind === "wall" ? y0 + 0.3 : y1 - 0.25, q[2], q[3], 0.05, chrome);
+      // Shaker fronts: a door per ~1.4 ft, so an undivided module still splits itself.
+      const n = Math.max(1, Math.round(w / 1.4)), fh = (y1 - y0) - 0.06;
+      for (let i = 0; i < n; i++) {
+        const ds = a + (i + 0.5) * w / n, dw = w / n, yc = (y0 + y1) / 2, fw = dw - 0.08;
+        if (p.glass) {
+          // A GLAZED door is a FRAME, not a slab with a pane laid over it — a solid door
+          // behind the glass just reads as a solid door. Two stiles and two rails, with
+          // the opening between them left to the pane, so the shelves show through.
+          const SW = p.glassStileFt ?? 0.17;
+          for (const t of [-1, 1]) {                                              // stiles
+            q = pl(D / 2 + 0.02, ds + t * (fw / 2 - SW / 2), 0.04, SW);
+            box(q[0], q[1], yc, q[2], q[3], fh, wood, 0.01);
+          }
+          for (const t of [-1, 1]) {                                              // rails
+            q = pl(D / 2 + 0.02, ds, 0.04, fw - 2 * SW);
+            box(q[0], q[1], yc + t * (fh / 2 - SW / 2), q[2], q[3], SW, wood, 0.01);
+          }
+          q = pl(D / 2 + 0.02, ds, 0.018, fw - 2 * SW);
+          box(q[0], q[1], yc, q[2], q[3], fh - 2 * SW, glassM);                   // the pane
+        } else {
+          q = pl(D / 2 + 0.02, ds, 0.04, fw); box(q[0], q[1], yc, q[2], q[3], fh, wood, 0.015);
+          q = pl(D / 2 + 0.045, ds, 0.02, dw - 0.34);
+          box(q[0], q[1], yc, q[2], q[3], fh - 0.28, stone, 0.01);                // recessed shaker panel
+        }
+        q = pl(D / 2 + 0.07, ds, 0.05, 0.05); box(q[0], q[1], kind === "wall" ? y0 + 0.3 : y1 - 0.25, q[2], q[3], 0.05, chrome);
+      }
     }
+  }
+  // Interior shelves, visible through glazed doors. `shelvesN` divides the carcass
+  // height evenly; they run the whole segment behind the module divisions.
+  if (p.glass) {
+    const ns = p.shelvesN ?? 3;
+    for (const [a, b] of segs) {
+      const w = b - a, c = (a + b) / 2;
+      if (w < 0.3) continue;
+      for (let i = 1; i <= ns; i++) {
+        const y = y0 + (y1 - y0) * i / (ns + 1);
+        q = pl(-0.03, c, D - 0.16, w - 0.08); box(q[0], q[1], y, q[2], q[3], 0.05, wood, 0.008);
+      }
     }
   }
   if (kind === "base") {
@@ -1340,64 +1394,69 @@ function buildCabinetRun(p) {
   return g;
 }
 
-// OPEN SHELVES on shaped brackets — the "no upper cabinets" answer for a blank
-// bay above a counter. A stack of plain shelves with a moulded PLATE RAIL as the
-// top member (a shelf with a groove worked into it, so plates stand on edge and
-// lean back), each carried on a pair of scroll-cut brackets. Anchor (px,pz) = the
-// wall face at the run's centre; `faces` = the direction the shelves look into the
-// room. `shelvesFt` are the TOP surfaces, bottom-up; `railFt` is the plate rail.
+// OPEN SHELVES on slim brass brackets — the "no upper cabinets" answer for a blank bay
+// above a counter. Thin painted shelves, a small brass gallery rail on each to stop
+// plates and books sliding, and brass angle brackets under the ends. Anchor (px,pz) =
+// the WALL FACE at the run's centre (not the depth centre cabinet_run uses), and
+// `faces` = the direction the shelves look into the room. `shelvesFt` are the TOP
+// surfaces, bottom-up.
+//
+// An earlier version used 1-3/8" stock on four-course stepped corbels with a moulded
+// plate rail over. It read chunky and farmhouse, so the stock is now 5/8", the corbels
+// are gone, and the brass is what carries the detail.
 function buildOpenShelves(p) {
   const ft = FT, g = new THREE.Group();
   const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  // Millwork white for the boards; the same brass as the range surround's pot rail and
+  // pot filler, so the metal reads as one material through the room.
+  const mill = new THREE.MeshStandardMaterial({ color: 0xefece4, roughness: 0.8 });
+  const brass = new THREE.MeshStandardMaterial({ color: 0xb08d57, roughness: 0.35, metalness: 0.6 });
+  const A = DIR[p.faces || "N"], P = [-A[1], A[0]];
+  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
   const box = (opx, opz, yc, sx, sz, hy, mat, rad = 0) => {
     const geo = rad > 0 ? new RoundedBoxGeometry(sx * ft, hy * ft, sz * ft, 3, rad * ft) : new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft);
     const m = new THREE.Mesh(geo, mat); m.position.copy(V(opx, opz, yc)); m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
   };
-  // Same millwork palette as buildCasedPortal / src/wall-finish.js, so the shelving
-  // reads as part of the room's trim rather than as furniture standing against it.
-  const mill = new THREE.MeshStandardMaterial({ color: 0xefece4, roughness: 0.8 });
-  const A = DIR[p.faces || "N"], P = [-A[1], A[0]];
-  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
-  // `da` runs from the WALL (0) out into the room, so both the deep shelves and the
-  // shallower plate rail sit on the same wall plane without a per-piece anchor.
-  const L = p.lenFt ?? 2.6, D = p.depthFt ?? 0.83;
-  const T = p.shelfTFt ?? 0.115;                       // 1-3/8" shelf stock
-  const RD = p.railDepthFt ?? 0.45, RT = p.railTFt ?? 0.14;
-  const shelves = p.shelvesFt ?? [4.58, 5.83];         // TOP surfaces, bottom up
-  const rail = p.railFt;
-  const BE = p.bracketInsetFt ?? 0.17;                 // bracket centre in from each end
+  // World directions of the two plan axes, derived from `faces` rather than assumed:
+  // V() maps plan (dx,dz) to world (-dx, ., -dz), and pl() puts da along A, ds along P.
+  const UP = new THREE.Vector3(0, 1, 0);
+  const dirDa = new THREE.Vector3(-A[0], 0, -A[1]).normalize();
+  const dirDs = new THREE.Vector3(-P[0], 0, -P[1]).normalize();
+  // A brass rod of length `len` centred at (da,ds,y), lying along one of those axes.
+  const rod = (da, ds, y, len, r, dir) => {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r * ft, r * ft, len * ft, 12), brass);
+    const c = pl(da, ds, 0, 0);
+    m.position.copy(V(c[0], c[1], y));
+    m.quaternion.setFromUnitVectors(UP, dir);
+    g.add(m); return m;
+  };
+
+  const L = p.lenFt ?? 2.6, D = p.depthFt ?? 0.70;
+  const T = p.shelfTFt ?? 0.055;                        // 5/8" stock
+  const shelves = p.shelvesFt ?? [4.45, 5.5, 6.55];
+  const BE = p.bracketInsetFt ?? 0.16;                  // bracket centre in from each end
+  const RH = p.railHFt ?? 0.21, RR = p.railRFt ?? 0.011; // gallery rail height / rod radius
   let q;
 
-  // A stepped CORBEL under each shelf end: courses of decreasing depth stacked
-  // downward, so the silhouette steps back to the wall the way a cut bracket does.
-  // Drawn tight under the shelf and only ~5 in deep at the bottom — an earlier
-  // version hung a full-length leg down the wall and read as pipe racking.
-  const bracket = (ds, y, dep) => {
-    const W = 0.12, N = 4, drop = Math.min(0.44, dep * 0.55), h = drop / N, top = y - T;
-    for (let i = 0; i < N; i++) {
-      const d = dep * (1 - 0.72 * (i / (N - 1)));                 // full depth -> 28% at the toe
-      q = pl(d / 2, ds, d, W); box(q[0], q[1], top - h * (i + 0.5), q[2], q[3], h, mill);
-    }
+  // A slim brass angle bracket: a short leg flat against the wall, an arm under the
+  // shelf. Square brass stock, ~5/8" — no corbel, nothing stepped.
+  const bracket = (ds, y) => {
+    const B = 0.05, W = 0.055, leg = 0.30, arm = D - 0.10, top = y - T;
+    q = pl(B / 2, ds, B, W); box(q[0], q[1], top - leg / 2, q[2], q[3], leg, brass);          // wall leg
+    q = pl(arm / 2 + 0.02, ds, arm, W); box(q[0], q[1], top - B / 2, q[2], q[3], B, brass);   // arm under the shelf
   };
 
   for (const y of shelves) {
-    q = pl(D / 2, 0, D, L); box(q[0], q[1], y - T / 2, q[2], q[3], T, mill, 0.012);
-    for (const s of [-1, 1]) bracket(s * (L / 2 - BE), y, D);
-  }
-
-  // PLATE RAIL as the top member: a ledge against the wall, a groove, then a raised
-  // front board plates lean back against. Drawn as two boards with a dropped floor
-  // between them rather than as a subtraction from one.
-  if (rail != null) {
-    const G = p.grooveFt ?? 0.075, f = p.stopFt ?? 0.12, b = RD - G - f;
-    q = pl(b / 2, 0, b, L); box(q[0], q[1], rail - RT / 2, q[2], q[3], RT, mill, 0.012);        // ledge, at the wall
-    q = pl(RD - f / 2, 0, f, L); box(q[0], q[1], rail - RT / 2, q[2], q[3], RT, mill, 0.012);   // front stop
-    q = pl(b + G / 2, 0, G, L);
-    box(q[0], q[1], rail - RT + 0.03, q[2], q[3], 0.06, mill);                                 // groove floor, dropped
-    q = pl(RD * 0.45, 0, RD * 0.9, L);
-    box(q[0], q[1], rail - RT - 0.05, q[2], q[3], 0.1, mill, 0.022);                           // bed mould under the rail
-    // brackets tuck under the bed mould: pass a y whose `top = y - T` lands on it
-    for (const s of [-1, 1]) bracket(s * (L / 2 - BE), rail - RT - 0.1 + T, RD);
+    q = pl(D / 2, 0, D, L); box(q[0], q[1], y - T / 2, q[2], q[3], T, mill, 0.008);            // the shelf
+    for (const s of [-1, 1]) bracket(s * (L / 2 - BE), y);
+    // GALLERY RAIL: a brass rod along the front edge on two short posts, with a stub
+    // return at each end so it reads as a gallery rather than a floating bar.
+    for (const s of [-1, 1]) {
+      const ds = s * (L / 2 - 0.06);
+      rod(D - 0.05, ds, y + RH / 2, RH, RR, UP);                       // post
+      rod(D - 0.10, ds, y + RH - RR, 0.12, RR, dirDa);                 // return, back toward the wall
+    }
+    rod(D - 0.05, 0, y + RH - RR, L - 0.12, RR, dirDs);                // the front rail
   }
   return g;
 }
