@@ -40,6 +40,27 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
 ## Workflow
 - Work on the branch the session is assigned — Claude Code pins one (`claude/<slug>`) and it
   is REUSED across merges, not cut fresh per change. commit → push → PR → squash-merge.
+- **"PR and merge" is a standing instruction — just do it.** Do not plan it, propose it, or
+  ask for approval first; the owner says this several times a session and the confirmation
+  step is pure friction. The whole run is: open the PR against `main` (body from the commits
+  already on the branch), squash-merge it with `expectedHeadSha` set to the FULL 40-char SHA
+  from `git rev-parse HEAD` (never pad a short SHA — GitHub answers `409 Head branch was
+  modified`, which looks like a race but is a fabricated SHA), re-point the branch per the
+  next bullet, then clean up and reset per the bullet after it. Report the result, not the
+  plan. Verify before merging only if the tree is dirty or checks have not been run on this
+  exact commit — otherwise the work was already verified when it was committed.
+- **Don't watch the deploy.** GitHub Pages fires on push to `main` and is rock solid; the
+  owner will raise it if something breaks. Polling the workflow after a merge is noise —
+  merge, clean up, and stop. (It also can't be confirmed properly from here anyway: the
+  agent proxy blocks `github.io` with a 403 on the CONNECT tunnel, so the most a poll ever
+  proves is that the workflow reported success.)
+- **After a merge, reset for new work starting from `main`.** Delete the session's scratch
+  artifacts — render PNGs, logs, one-off check harnesses, any `.scratch/` in the repo — and
+  stop background dev servers, then re-point the branch at `origin/main` per the bullet
+  below and confirm `git status` is clean. The next task starts from `main` with nothing
+  left over. Note that this discards the scratchpad harnesses: they die with the container
+  regardless, so anything worth keeping (e.g. a clearance check that took several passes to
+  get right) has to be committed into the repo, not left in the scratchpad.
 - **After a squash-merge, re-point the branch at the squash commit.** Commits left on it hold
   content that is already in `main` under a different SHA, so a later merge double-applies
   them — that hazard is why this step exists:
