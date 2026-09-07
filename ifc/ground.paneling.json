@@ -25,7 +25,8 @@
       ],
       "windows": [],
       "tall": [],
-      "noCornice": true
+      "noCornice": true,
+      "noBattens": true
     },
     {
       "along": "x",
@@ -53,7 +54,8 @@
       ],
       "windows": [],
       "tall": [],
-      "noCornice": false
+      "noCornice": false,
+      "noBattens": true
     },
     {
       "along": "z",
@@ -68,7 +70,8 @@
       "doors": [],
       "windows": [],
       "tall": [],
-      "noCornice": true
+      "noCornice": true,
+      "noBattens": true
     },
     {
       "along": "z",
@@ -96,7 +99,8 @@
         ]
       ],
       "tall": [],
-      "noCornice": false
+      "noCornice": false,
+      "noBattens": true
     },
     {
       "along": "x",
@@ -124,7 +128,8 @@
       ],
       "windows": [],
       "tall": [],
-      "noCornice": false
+      "noCornice": false,
+      "noBattens": false
     },
     {
       "along": "x",
@@ -152,7 +157,8 @@
         ]
       ],
       "tall": [],
-      "noCornice": false
+      "noCornice": false,
+      "noBattens": false
     },
     {
       "along": "z",
@@ -172,7 +178,8 @@
       ],
       "windows": [],
       "tall": [],
-      "noCornice": false
+      "noCornice": false,
+      "noBattens": false
     },
     {
       "along": "z",
@@ -200,7 +207,8 @@
         ]
       ],
       "tall": [],
-      "noCornice": false
+      "noCornice": false,
+      "noBattens": false
     }
   ]
 }

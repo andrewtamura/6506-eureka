@@ -74,7 +74,8 @@
       "noCornice": [
         "E",
         "S"
-      ]
+      ],
+      "battens": false
     },
     "furniture": [
       {

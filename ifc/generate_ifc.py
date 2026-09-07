@@ -83,7 +83,9 @@ def compute_paneling(ctx, rooms):
         # z1 the SOUTH one. `noCornice` names the sides where the entablature is
         # suppressed — a room can carry the trim program without carrying the crown
         # on every wall.
-        no_cornice = {sd.upper() for sd in (room["interior"]["paneling"].get("noCornice") or [])}
+        pan = room["interior"]["paneling"]
+        no_cornice = {sd.upper() for sd in (pan.get("noCornice") or [])}
+        no_battens = pan.get("battens") is False
         for orient, fixed, lo, hi, face, normal, side in [
             ("H", z1, x1, x2, z1 + half, [0, 1], "S"),
             ("H", z2, x1, x2, z2 - half, [0, -1], "N"),
@@ -97,6 +99,7 @@ def compute_paneling(ctx, rooms):
                 "lo": round(lo, 3), "hi": round(hi, 3),
                 "doors": doors, "windows": wins, "tall": tall,
                 "noCornice": side in no_cornice,
+                "noBattens": no_battens,
             })
 
 

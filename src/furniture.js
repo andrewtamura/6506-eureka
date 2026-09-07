@@ -1288,6 +1288,10 @@ function buildCabinetRun(p) {
     const m = new THREE.Mesh(new THREE.SphereGeometry(0.055 * ft, 14, 10), brass);
     m.position.copy(V(k[0], k[1], y)); g.add(m);                             // turned knob
   };
+  const hinge = (ds, y) => {                                                  // brass butt hinge
+    const k = pl(D / 2 - 0.012, ds, 0.05, 0.10);
+    box(k[0], k[1], y, k[2], k[3], 0.26, brass, 0.012);
+  };
   const binPull = (ds, y, len) => {
     let k = pl(D / 2 + 0.008, ds, 0.016, len + 0.07);
     box(k[0], k[1], y, k[2], k[3], 0.17, brass, 0.02);                       // backplate
@@ -1327,8 +1331,14 @@ function buildCabinetRun(p) {
   // and each front fills its opening less a hairline reveal.
   const FR = p.frameFt ?? 0.17;          // face-frame stock, ~2"
   const FT_ = 0.04;                      // frame / front thickness
-  const REV = p.revealFt ?? 0.012;       // reveal round each inset front
-  const FACE = D / 2 - FT_ / 2;          // centre plane of frame and fronts
+  // Frame and front were dead flush and the same paint, so the joint rendered as
+  // nothing. The front now sits back a shade and carries a wider reveal, which puts
+  // it in its own shadow and lets the frame read as a grid. Still inset — the front
+  // is WITHIN its opening, not lapped over the frame.
+  const REV = p.revealFt ?? 0.03;        // reveal round each inset front
+  const SET = p.setbackFt ?? 0.02;       // front face behind the frame face
+  const FACE = D / 2 - FT_ / 2;          // centre plane of the FRAME
+  const DFACE = FACE - SET;              // centre plane of the FRONTS
   const rows = p.drawers ? (Array.isArray(p.drawers) ? p.drawers
       : p.drawers === 3 ? [0.19, 0.19, 0.62]
       : Array(p.drawers).fill(1 / p.drawers)) : null;
@@ -1340,8 +1350,20 @@ function buildCabinetRun(p) {
     q = pl(0, c, D, w); box(q[0], q[1], (y0 + y1) / 2, q[2], q[3], y1 - y0, wood, 0.01);                       // carcass
 
     // --- face frame -------------------------------------------------------
+    // `divideAt` gives the explicit module lines; within each of those a DOOR run
+    // subdivides again to a sensible leaf width. The inset rewrite dropped that split
+    // and left the west run with one 5'7-1/2" door, since it carries no `divideAt`.
+    // A drawer run takes its module as given — the east bank's banks are deliberately
+    // double width and must not split back into six.
     const divs = cuts.filter((d) => d > a + 1e-4 && d < b - 1e-4);
-    const lines = [a, ...divs, b];
+    const base = [a, ...divs, b], lines = [];
+    for (let k = 0; k < base.length - 1; k++) {
+      lines.push(base[k]);
+      if (rows) continue;
+      const sp = base[k + 1] - base[k], nd = Math.max(1, Math.round(sp / (p.doorWFt ?? 1.4)));
+      for (let j = 1; j < nd; j++) lines.push(base[k] + sp * j / nd);
+    }
+    lines.push(b);
     for (const t of [0, 1]) {                                                    // top and bottom rails
       q = pl(FACE, c, FT_, w); box(q[0], q[1], t ? y1 - FR / 2 : y0 + FR / 2, q[2], q[3], FR, wood, 0.006);
     }
@@ -1366,10 +1388,10 @@ function buildCabinetRun(p) {
         let top = vy1;
         for (let r = 0; r < rows.length; r++) {
           const h = H * rows[r] / tot, yc = top - h / 2;
-          q = pl(FACE, oc, FT_, ow - 2 * REV);
+          q = pl(DFACE, oc, FT_, ow - 2 * REV);
           box(q[0], q[1], yc, q[2], q[3], h - 2 * REV, wood, 0.01);              // drawer front
           if (h - 2 * REV > 0.5) {                                               // a shallow front stays a slab
-            q = pl(FACE - 0.012, oc, 0.02, ow - 0.30);
+            q = pl(DFACE - 0.012, oc, 0.02, ow - 0.30);
             box(q[0], q[1], yc, q[2], q[3], h - 0.28, stone, 0.008);             // recessed panel
           }
           binPull(oc, yc, Math.min(0.5, ow * 0.42));
@@ -1379,13 +1401,18 @@ function buildCabinetRun(p) {
           }
         }
       } else {
-        q = pl(FACE, oc, FT_, ow - 2 * REV);
+        q = pl(DFACE, oc, FT_, ow - 2 * REV);
         box(q[0], q[1], (vy0 + vy1) / 2, q[2], q[3], (vy1 - vy0) - 2 * REV, wood, 0.01);   // door
-        q = pl(FACE - 0.012, oc, 0.02, ow - 0.30);
+        q = pl(DFACE - 0.012, oc, 0.02, ow - 0.30);
         box(q[0], q[1], (vy0 + vy1) / 2, q[2], q[3], (vy1 - vy0) - 0.30, stone, 0.008);    // raised panel field
-        // Knob at the leading edge, on the latch side; a cupboard turn beside it.
+        // Doors hang in PAIRS: alternate the latch side by module index so consecutive
+        // doors are hinged outboard and their knobs meet at the shared stile, rather
+        // than every door in the run swinging the same way.
+        const right = i % 2 === 0;
         const ky = kind === "wall" ? Math.min(vy0 + 1.1, (vy0 + vy1) / 2) : vy1 - 0.35;
-        knob(ob - 0.16, ky);
+        knob(right ? ob - 0.16 : oa + 0.16, ky);
+        const hds = right ? oa + 0.04 : ob - 0.04;
+        for (const f of [0.17, 0.83]) hinge(hds, vy0 + (vy1 - vy0) * f);
       }
     }
   }
@@ -1504,8 +1531,11 @@ function buildIsland(p) {
   // Drawer fronts on the BACK (working) side, INSET in a face frame like the wall runs:
   // frame and fronts share one plane at the carcass face, with a brass bin pull on each.
   const n = Math.max(2, Math.round(L / 1.4));
-  const FR = p.frameFt ?? 0.17, FTK = 0.04, REV = 0.012;
-  const FACE = -OVER / 2 - bodyD / 2 + FTK / 2;          // centre plane of frame and fronts
+  const FR = p.frameFt ?? 0.17, FTK = 0.04;
+  const REV = p.revealFt ?? 0.03, SET = p.setbackFt ?? 0.02;
+  const FACE = -OVER / 2 - bodyD / 2 + FTK / 2;          // centre plane of the FRAME
+  // The island's fronts look the OTHER way along da, so the setback is +SET here.
+  const DFACE = FACE + SET;                              // centre plane of the FRONTS
   const fy0 = TOE, fy1 = baseTop;
   for (const t of [0, 1]) {                                                    // rails
     q = pl(FACE, 0, FTK, L); box(q[0], q[1], t ? fy1 - FR / 2 : fy0 + FR / 2, q[2], q[3], FR, wood, 0.006);
@@ -1519,9 +1549,9 @@ function buildIsland(p) {
     const a = -L / 2 + i * L / n, b = a + L / n;
     const oa = a + (i === 0 ? FR : FR / 2), ob = b - (i === n - 1 ? FR : FR / 2);
     const oc = (oa + ob) / 2, ow = ob - oa, oy = (fy0 + FR + fy1 - FR) / 2, oh = (fy1 - FR) - (fy0 + FR);
-    q = pl(FACE, oc, FTK, ow - 2 * REV);
+    q = pl(DFACE, oc, FTK, ow - 2 * REV);
     box(q[0], q[1], oy, q[2], q[3], oh - 2 * REV, wood, 0.01);                 // drawer front
-    q = pl(FACE + 0.012, oc, 0.02, ow - 0.30);
+    q = pl(DFACE + 0.012, oc, 0.02, ow - 0.30);
     box(q[0], q[1], oy, q[2], q[3], oh - 0.28, stone, 0.008);                  // recessed panel
     const len = Math.min(0.5, ow * 0.42);
     q = pl(FACE - 0.028, oc, 0.016, len + 0.07);

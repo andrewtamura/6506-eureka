@@ -92,7 +92,9 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     // would physically overlap a casing jamb (so it never doubles up on the trim),
     // which keeps the spacing uniform right through the openings.
     const battenClear = caseW / ft / 2 + 0.02; // half the casing width — overlap only
-    for (let g = w.lo + BATTEN_SPACING_FT; g < w.hi - 0.05; g += BATTEN_SPACING_FT) {
+    // A room can keep the recessed field, baseboard and casings but drop the vertical
+    // strapping over them (`battens: false`).
+    for (let g = w.noBattens ? w.hi : w.lo + BATTEN_SPACING_FT; g < w.hi - 0.05; g += BATTEN_SPACING_FT) {
       if ([...doors, ...tallX].some(([a, b]) => g > Math.min(a, b) && g < Math.max(a, b))) continue; // in a doorway / built-in
       if (openings.some(([oa, ob]) => Math.abs(g - oa) < battenClear || Math.abs(g - ob) < battenClear)) continue; // would touch a jamb
       let yTop = headY; // under a window the batten stops at the sill
