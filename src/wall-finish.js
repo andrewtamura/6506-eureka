@@ -101,49 +101,60 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       post(g, bbH, yTop, BATTEN_W, 0.03);
     }
 
-    // 3) cornice: an entablature that sits DIRECTLY on top of the 7' opening
-    //    heads (door-head line) — frieze, small bed mold, then a cove crown with
-    //    a straight topper — with plain wall above it up to the ceiling. The cove
-    //    height equals the frieze height. The crown runs on all four walls and
-    //    miters at the corners, but BREAKS around full-height built-ins (`tall`),
-    //    which run past the cornice; plain wall fills above each built-in instead.
-    const topperH = 0.03, bedH = 0.04, P5 = 0.127;   // topper / bed-mold / 5" projection (m)
-    const friezeH = 0.16, coveH = friezeH;   // frieze height == cove height (per spec)
-    const Hc = coveH + topperH;             // total crown height
-    const friezeTop = headY + friezeH;      // frieze bottom sits on the opening head
-    const crownB = friezeTop + bedH;        // crown springline (bottom of crown)
-    const crownTop = crownB + Hc;           // top of the crown
-    // cove crown: a single concave COVE (quarter-hollow, height coveH) with a
-    // STRAIGHT TOPPER (height topperH) — together they read as the S-curve in the
-    // photo. Profile is (X = projection into room, Y = up); extruded along a
-    // RIGHT-HANDED basis (X->interior normal, Y->up, Z->normal x up) so the
-    // rotation is valid on all four walls; the extrusion starts from whichever
-    // span end lies in the +Z direction.
-    for (const [s0, s1] of subtract(w.lo, w.hi, tallX, 0, 0.05)) {
-      band(s0, s1, headY, friezeTop, 0.024);             // FRIEZE — sits on the opening head
-      band(s0, s1, friezeTop, friezeTop + 0.018, 0.05);  // bed mold: lower bead
-      band(s0, s1, friezeTop + 0.018, crownB, 0.058);    // bed mold: upper step
-      band(s0, s1, crownTop, wallTop, 0.012, field);     // plain wall above the cornice, up to the ceiling
-      const A = P(s0), B = P(s1), L = A.distanceTo(B);
-      const up = new THREE.Vector3(0, 1, 0);
-      const zAxis = new THREE.Vector3().crossVectors(Nw, up).normalize(); // right-handed third axis
-      const start = zAxis.dot(B.clone().sub(A)) >= 0 ? A : B;             // so the span runs s0..s1
-      const shape = new THREE.Shape();
-      shape.moveTo(0, 0);
-      shape.lineTo(0, 0.016);                                  // bottom fillet (fascia) at wall
-      shape.quadraticCurveTo(0, coveH, 0.08, coveH);           // concave cove (up wall, sweep out)
-      shape.lineTo(P5, Hc - 0.012);                            // straight topper (flat slope outward)
-      shape.lineTo(P5, Hc);                                    // top fillet
-      shape.lineTo(0, Hc);                                     // top face back to wall
-      shape.lineTo(0, 0);                                      // down the wall (back face)
-      const geo = new THREE.ExtrudeGeometry(shape, { depth: L, bevelEnabled: false });
-      const crown = new THREE.Mesh(geo, crownMat);
-      crown.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(Nw, up, zAxis));
-      crown.position.set(start.x, floorY + crownB, start.z);
-      scene.add(crown);
+    // A wall can opt out of the entablature (`noCornice`) while keeping the rest of
+    // the trim program — the crown, its frieze and bed mould, and the plain field
+    // above them all belong to this block.
+    if (!w.noCornice) {
+      // 3) cornice: an entablature that sits DIRECTLY on top of the 7' opening
+      //    heads (door-head line) — frieze, small bed mold, then a cove crown with
+      //    a straight topper — with plain wall above it up to the ceiling. The cove
+      //    height equals the frieze height. The crown runs on all four walls and
+      //    miters at the corners, but BREAKS around full-height built-ins (`tall`),
+      //    which run past the cornice; plain wall fills above each built-in instead.
+      const topperH = 0.03, bedH = 0.04, P5 = 0.127;   // topper / bed-mold / 5" projection (m)
+      const friezeH = 0.16, coveH = friezeH;   // frieze height == cove height (per spec)
+      const Hc = coveH + topperH;             // total crown height
+      const friezeTop = headY + friezeH;      // frieze bottom sits on the opening head
+      const crownB = friezeTop + bedH;        // crown springline (bottom of crown)
+      const crownTop = crownB + Hc;           // top of the crown
+      // cove crown: a single concave COVE (quarter-hollow, height coveH) with a
+      // STRAIGHT TOPPER (height topperH) — together they read as the S-curve in the
+      // photo. Profile is (X = projection into room, Y = up); extruded along a
+      // RIGHT-HANDED basis (X->interior normal, Y->up, Z->normal x up) so the
+      // rotation is valid on all four walls; the extrusion starts from whichever
+      // span end lies in the +Z direction.
+      for (const [s0, s1] of subtract(w.lo, w.hi, tallX, 0, 0.05)) {
+        band(s0, s1, headY, friezeTop, 0.024);             // FRIEZE — sits on the opening head
+        band(s0, s1, friezeTop, friezeTop + 0.018, 0.05);  // bed mold: lower bead
+        band(s0, s1, friezeTop + 0.018, crownB, 0.058);    // bed mold: upper step
+        band(s0, s1, crownTop, wallTop, 0.012, field);     // plain wall above the cornice, up to the ceiling
+        const A = P(s0), B = P(s1), L = A.distanceTo(B);
+        const up = new THREE.Vector3(0, 1, 0);
+        const zAxis = new THREE.Vector3().crossVectors(Nw, up).normalize(); // right-handed third axis
+        const start = zAxis.dot(B.clone().sub(A)) >= 0 ? A : B;             // so the span runs s0..s1
+        const shape = new THREE.Shape();
+        shape.moveTo(0, 0);
+        shape.lineTo(0, 0.016);                                  // bottom fillet (fascia) at wall
+        shape.quadraticCurveTo(0, coveH, 0.08, coveH);           // concave cove (up wall, sweep out)
+        shape.lineTo(P5, Hc - 0.012);                            // straight topper (flat slope outward)
+        shape.lineTo(P5, Hc);                                    // top fillet
+        shape.lineTo(0, Hc);                                     // top face back to wall
+        shape.lineTo(0, 0);                                      // down the wall (back face)
+        const geo = new THREE.ExtrudeGeometry(shape, { depth: L, bevelEnabled: false });
+        const crown = new THREE.Mesh(geo, crownMat);
+        crown.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(Nw, up, zAxis));
+        crown.position.set(start.x, floorY + crownB, start.z);
+        scene.add(crown);
+      }
+      // plain wall above each full-height built-in (from its head up to the ceiling)
+      for (const [a, b, th] of tall) band(a, b, th * ft, wallTop, 0.012, field);
+    } else {
+      // With no entablature the field has to carry on from the head line to the
+      // ceiling itself — the band that normally fills above the crown lives inside
+      // the block above, so without this the wall is bare from 7'0" up.
+      for (const [s0, s1] of subtract(w.lo, w.hi, tallX, 0, 0.05)) band(s0, s1, headY, wallTop, 0.012, field);
+      for (const [a, b, th] of tall) band(a, b, th * ft, wallTop, 0.012, field);
     }
-    // plain wall above each full-height built-in (from its head up to the ceiling)
-    for (const [a, b, th] of tall) band(a, b, th * ft, wallTop, 0.012, field);
 
     // 4) window casing: jambs (sill..head) + sill stool + apron
     for (const [a, b, sill, plainBelow] of wins) {

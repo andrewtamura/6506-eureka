@@ -1272,13 +1272,30 @@ function buildCabinetRun(p) {
   const dark = new THREE.MeshStandardMaterial({ color: 0x26262a, roughness: 0.5 });
   const chrome = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.25, metalness: 0.8 });
   const toeM = new THREE.MeshStandardMaterial({ color: 0x241b13, roughness: 0.8 });
-  // Same glass as the dining hutch's uppers, so a glazed door reads the same wherever
-  // it appears. depthWrite off, or the pane hides the shelves behind it.
-  const glassM = new THREE.MeshStandardMaterial({ color: 0xc6d7da, roughness: 0.1, metalness: 0,
-                                                  transparent: true, opacity: 0.25, depthWrite: false });
+  const brass = new THREE.MeshStandardMaterial({ color: 0xb08d57, roughness: 0.35, metalness: 0.6 });
   const A = DIR[p.faces || "N"], P = [-A[1], A[0]];
   const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
   const kind = p.kind || "base";
+  // PERIOD HARDWARE, unlacquered brass: a turned knob on doors and a bin pull on
+  // drawers, in place of the chrome bar pulls these runs carried before. The bar is
+  // half-sunk into the front, which is the bin pull's silhouette at this scale.
+  const UP = new THREE.Vector3(0, 1, 0);
+  const dirDs = new THREE.Vector3(-P[0], 0, -P[1]).normalize();
+  const knob = (ds, y) => {
+    let k = pl(D / 2 + 0.015, ds, 0.03, 0.11);
+    box(k[0], k[1], y, k[2], k[3], 0.11, brass, 0.02);                       // rose
+    k = pl(D / 2 + 0.075, ds, 0, 0);
+    const m = new THREE.Mesh(new THREE.SphereGeometry(0.055 * ft, 14, 10), brass);
+    m.position.copy(V(k[0], k[1], y)); g.add(m);                             // turned knob
+  };
+  const binPull = (ds, y, len) => {
+    let k = pl(D / 2 + 0.008, ds, 0.016, len + 0.07);
+    box(k[0], k[1], y, k[2], k[3], 0.17, brass, 0.02);                       // backplate
+    const c = pl(D / 2 + 0.005, ds, 0, 0);
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.075 * ft, 0.075 * ft, len * ft, 16), brass);
+    m.position.copy(V(c[0], c[1], y - 0.01));
+    m.quaternion.setFromUnitVectors(UP, dirDs); g.add(m);                    // the cup, half sunk
+  };
   const D = p.depthFt ?? (kind === "wall" ? 1.1 : kind === "tall" ? 2.1 : 2.0);
   const L = p.lenFt ?? 6.0;
   const TOE = 0.3, CT = 3.0, baseTop = 2.9;
@@ -1303,75 +1320,72 @@ function buildCabinetRun(p) {
     for (const d of cuts) if (d > a + 1e-4 && d < b - 1e-4) { modules.push([m, d, a, b]); m = d; }
     modules.push([m, b, a, b]);
   }
+  // INSET construction. The face frame and the fronts share one plane at the carcass
+  // face, so nothing stands proud of anything else — that is what makes it read as
+  // inset rather than overlay, where the doors sit ON the frame. Openings are framed
+  // by stiles at every module line and rails top and bottom (and between drawers),
+  // and each front fills its opening less a hairline reveal.
+  const FR = p.frameFt ?? 0.17;          // face-frame stock, ~2"
+  const FT_ = 0.04;                      // frame / front thickness
+  const REV = p.revealFt ?? 0.012;       // reveal round each inset front
+  const FACE = D / 2 - FT_ / 2;          // centre plane of frame and fronts
+  const rows = p.drawers ? (Array.isArray(p.drawers) ? p.drawers
+      : p.drawers === 3 ? [0.19, 0.19, 0.62]
+      : Array(p.drawers).fill(1 / p.drawers)) : null;
+
   for (const [a, b] of segs) {
     const w = b - a, c = (a + b) / 2;
     if (w < 0.3) continue;
     if (kind !== "wall") { q = pl(-0.12, c, D - 0.24, w); box(q[0], q[1], TOE / 2, q[2], q[3], TOE, toeM); }   // toe kick
     q = pl(0, c, D, w); box(q[0], q[1], (y0 + y1) / 2, q[2], q[3], y1 - y0, wood, 0.01);                       // carcass
-  }
-  // Fronts are drawn per MODULE, so `divideAt` subdivides a segment without breaking
-  // its carcass. With no `divideAt` a module IS the whole segment and this is exactly
-  // the previous behaviour.
-  for (const [a, b, segA, segB] of modules) {
-    const w = b - a, c = (a + b) / 2;
-    if (w < 0.3 || segB - segA < 0.3) continue;
-    if (p.drawers) {
-      // DRAWER STACK: fronts stacked up the module instead of a door across it.
-      // `drawers` is a count (3 -> the conventional small/small/large pull-out base)
-      // or explicit relative shares, given TOP DOWN.
-      const sh = Array.isArray(p.drawers) ? p.drawers
-        : p.drawers === 3 ? [0.19, 0.19, 0.62]
-        : Array(p.drawers).fill(1 / p.drawers);
-      const tot = sh.reduce((u, v) => u + v, 0), REV = 0.02;
-      let top = y1;
-      for (const share of sh) {
-        const h = (y1 - y0) * share / tot, yc = top - h / 2, fh = h - REV;
-        q = pl(D / 2 + 0.02, c, 0.04, w - 0.08); box(q[0], q[1], yc, q[2], q[3], fh, wood, 0.015);
-        // A shallow front has no room for a frame around a panel — leave it a slab.
-        if (fh > 0.45) { q = pl(D / 2 + 0.045, c, 0.02, w - 0.34); box(q[0], q[1], yc, q[2], q[3], fh - 0.22, stone, 0.01); }
-        q = pl(D / 2 + 0.07, c, 0.05, Math.min(w * 0.5, 0.9));            // horizontal bar pull
-        box(q[0], q[1], yc, q[2], q[3], 0.05, chrome);
-        top -= h;
-      }
-    } else {
-      // Shaker fronts: a door per ~1.4 ft, so an undivided module still splits itself.
-      const n = Math.max(1, Math.round(w / 1.4)), fh = (y1 - y0) - 0.06;
-      for (let i = 0; i < n; i++) {
-        const ds = a + (i + 0.5) * w / n, dw = w / n, yc = (y0 + y1) / 2, fw = dw - 0.08;
-        if (p.glass) {
-          // A GLAZED door is a FRAME, not a slab with a pane laid over it — a solid door
-          // behind the glass just reads as a solid door. Two stiles and two rails, with
-          // the opening between them left to the pane, so the shelves show through.
-          const SW = p.glassStileFt ?? 0.17;
-          for (const t of [-1, 1]) {                                              // stiles
-            q = pl(D / 2 + 0.02, ds + t * (fw / 2 - SW / 2), 0.04, SW);
-            box(q[0], q[1], yc, q[2], q[3], fh, wood, 0.01);
-          }
-          for (const t of [-1, 1]) {                                              // rails
-            q = pl(D / 2 + 0.02, ds, 0.04, fw - 2 * SW);
-            box(q[0], q[1], yc + t * (fh / 2 - SW / 2), q[2], q[3], SW, wood, 0.01);
-          }
-          q = pl(D / 2 + 0.02, ds, 0.018, fw - 2 * SW);
-          box(q[0], q[1], yc, q[2], q[3], fh - 2 * SW, glassM);                   // the pane
-        } else {
-          q = pl(D / 2 + 0.02, ds, 0.04, fw); box(q[0], q[1], yc, q[2], q[3], fh, wood, 0.015);
-          q = pl(D / 2 + 0.045, ds, 0.02, dw - 0.34);
-          box(q[0], q[1], yc, q[2], q[3], fh - 0.28, stone, 0.01);                // recessed shaker panel
-        }
-        q = pl(D / 2 + 0.07, ds, 0.05, 0.05); box(q[0], q[1], kind === "wall" ? y0 + 0.3 : y1 - 0.25, q[2], q[3], 0.05, chrome);
-      }
+
+    // --- face frame -------------------------------------------------------
+    const divs = cuts.filter((d) => d > a + 1e-4 && d < b - 1e-4);
+    const lines = [a, ...divs, b];
+    for (const t of [0, 1]) {                                                    // top and bottom rails
+      q = pl(FACE, c, FT_, w); box(q[0], q[1], t ? y1 - FR / 2 : y0 + FR / 2, q[2], q[3], FR, wood, 0.006);
     }
-  }
-  // Interior shelves, visible through glazed doors. `shelvesN` divides the carcass
-  // height evenly; they run the whole segment behind the module divisions.
-  if (p.glass) {
-    const ns = p.shelvesN ?? 3;
-    for (const [a, b] of segs) {
-      const w = b - a, c = (a + b) / 2;
-      if (w < 0.3) continue;
-      for (let i = 1; i <= ns; i++) {
-        const y = y0 + (y1 - y0) * i / (ns + 1);
-        q = pl(-0.03, c, D - 0.16, w - 0.08); box(q[0], q[1], y, q[2], q[3], 0.05, wood, 0.008);
+    for (const ln of lines) {                                                    // stiles, ends pulled inboard
+      const sc = ln === a ? a + FR / 2 : ln === b ? b - FR / 2 : ln;
+      q = pl(FACE, sc, FT_, FR); box(q[0], q[1], (y0 + y1) / 2, q[2], q[3], y1 - y0, wood, 0.006);
+    }
+
+    // --- openings between consecutive stiles -------------------------------
+    for (let i = 0; i < lines.length - 1; i++) {
+      const oa = lines[i] + (lines[i] === a ? FR : FR / 2);
+      const ob = lines[i + 1] - (lines[i + 1] === b ? FR : FR / 2);
+      const ow = ob - oa, oc = (oa + ob) / 2;
+      if (ow < 0.2) continue;
+      const vy0 = y0 + FR, vy1 = y1 - FR;
+
+      if (rows) {
+        // A drawer stack: intermediate rails between the fronts, so each drawer sits
+        // in its own framed opening.
+        const tot = rows.reduce((u, v) => u + v, 0);
+        const H = (vy1 - vy0) - (rows.length - 1) * FR;
+        let top = vy1;
+        for (let r = 0; r < rows.length; r++) {
+          const h = H * rows[r] / tot, yc = top - h / 2;
+          q = pl(FACE, oc, FT_, ow - 2 * REV);
+          box(q[0], q[1], yc, q[2], q[3], h - 2 * REV, wood, 0.01);              // drawer front
+          if (h - 2 * REV > 0.5) {                                               // a shallow front stays a slab
+            q = pl(FACE - 0.012, oc, 0.02, ow - 0.30);
+            box(q[0], q[1], yc, q[2], q[3], h - 0.28, stone, 0.008);             // recessed panel
+          }
+          binPull(oc, yc, Math.min(0.5, ow * 0.42));
+          top -= h;
+          if (r < rows.length - 1) {                                             // rail under this drawer
+            q = pl(FACE, oc, FT_, ow); box(q[0], q[1], top - FR / 2, q[2], q[3], FR, wood, 0.006);
+          }
+        }
+      } else {
+        q = pl(FACE, oc, FT_, ow - 2 * REV);
+        box(q[0], q[1], (vy0 + vy1) / 2, q[2], q[3], (vy1 - vy0) - 2 * REV, wood, 0.01);   // door
+        q = pl(FACE - 0.012, oc, 0.02, ow - 0.30);
+        box(q[0], q[1], (vy0 + vy1) / 2, q[2], q[3], (vy1 - vy0) - 0.30, stone, 0.008);    // raised panel field
+        // Knob at the leading edge, on the latch side; a cupboard turn beside it.
+        const ky = kind === "wall" ? Math.min(vy0 + 1.1, (vy0 + vy1) / 2) : vy1 - 0.35;
+        knob(ob - 0.16, ky);
       }
     }
   }
@@ -1473,10 +1487,12 @@ function buildIsland(p) {
   };
   const wood = woodMat(col(p.cabinet || "cabinet", 0xeae7df));
   const stone = new THREE.MeshStandardMaterial({ color: 0xdad7cf, roughness: 0.3 });
-  const chrome = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.25, metalness: 0.8 });
+  const brass = new THREE.MeshStandardMaterial({ color: 0xb08d57, roughness: 0.35, metalness: 0.6 });
   const toeM = new THREE.MeshStandardMaterial({ color: 0x241b13, roughness: 0.8 });
   const A = DIR[p.faces || "N"], P = [-A[1], A[0]];
   const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
+  const UP = new THREE.Vector3(0, 1, 0);
+  const dirDs = new THREE.Vector3(-P[0], 0, -P[1]).normalize();
   const L = p.lenFt ?? 5.0, D = p.depthFt ?? 3.0, OVER = p.overhangFt ?? 0.9;
   const TOE = 0.3, CT = 3.0, baseTop = 2.9;
   // The carcass is set BACK from the seating face by the overhang, so knees fit.
@@ -1485,14 +1501,35 @@ function buildIsland(p) {
   q = pl(-OVER / 2 - 0.12, 0, bodyD - 0.24, L - 0.04); box(q[0], q[1], TOE / 2, q[2], q[3], TOE, toeM);
   q = pl(-OVER / 2, 0, bodyD, L); box(q[0], q[1], TOE + (baseTop - TOE) / 2, q[2], q[3], baseTop - TOE, wood, 0.01);
   q = pl(0, 0, D + 0.12, L + 0.12); box(q[0], q[1], CT, q[2], q[3], 0.16, stone, 0.02);       // top, incl. overhang
-  // Drawer fronts on the BACK (working) side.
+  // Drawer fronts on the BACK (working) side, INSET in a face frame like the wall runs:
+  // frame and fronts share one plane at the carcass face, with a brass bin pull on each.
   const n = Math.max(2, Math.round(L / 1.4));
+  const FR = p.frameFt ?? 0.17, FTK = 0.04, REV = 0.012;
+  const FACE = -OVER / 2 - bodyD / 2 + FTK / 2;          // centre plane of frame and fronts
+  const fy0 = TOE, fy1 = baseTop;
+  for (const t of [0, 1]) {                                                    // rails
+    q = pl(FACE, 0, FTK, L); box(q[0], q[1], t ? fy1 - FR / 2 : fy0 + FR / 2, q[2], q[3], FR, wood, 0.006);
+  }
+  for (let i = 0; i <= n; i++) {                                               // stiles
+    const raw = -L / 2 + i * L / n;
+    const sc = i === 0 ? raw + FR / 2 : i === n ? raw - FR / 2 : raw;
+    q = pl(FACE, sc, FTK, FR); box(q[0], q[1], (fy0 + fy1) / 2, q[2], q[3], fy1 - fy0, wood, 0.006);
+  }
   for (let i = 0; i < n; i++) {
-    const ds = -L / 2 + (i + 0.5) * L / n;
-    q = pl(-OVER / 2 - bodyD / 2 - 0.02, ds, 0.04, L / n - 0.08);
-    box(q[0], q[1], TOE + (baseTop - TOE) / 2, q[2], q[3], baseTop - TOE - 0.06, wood, 0.015);
-    q = pl(-OVER / 2 - bodyD / 2 - 0.06, ds, 0.05, L / n - 0.4);
-    box(q[0], q[1], baseTop - 0.3, q[2], q[3], 0.05, chrome);
+    const a = -L / 2 + i * L / n, b = a + L / n;
+    const oa = a + (i === 0 ? FR : FR / 2), ob = b - (i === n - 1 ? FR : FR / 2);
+    const oc = (oa + ob) / 2, ow = ob - oa, oy = (fy0 + FR + fy1 - FR) / 2, oh = (fy1 - FR) - (fy0 + FR);
+    q = pl(FACE, oc, FTK, ow - 2 * REV);
+    box(q[0], q[1], oy, q[2], q[3], oh - 2 * REV, wood, 0.01);                 // drawer front
+    q = pl(FACE + 0.012, oc, 0.02, ow - 0.30);
+    box(q[0], q[1], oy, q[2], q[3], oh - 0.28, stone, 0.008);                  // recessed panel
+    const len = Math.min(0.5, ow * 0.42);
+    q = pl(FACE - 0.028, oc, 0.016, len + 0.07);
+    box(q[0], q[1], oy, q[2], q[3], 0.17, brass, 0.02);                        // bin pull backplate
+    const c2 = pl(FACE - 0.025, oc, 0, 0);
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.075 * ft, 0.075 * ft, len * ft, 16), brass);
+    m.position.copy(V(c2[0], c2[1], oy - 0.01));
+    m.quaternion.setFromUnitVectors(UP, dirDs); g.add(m);
   }
   return g;
 }

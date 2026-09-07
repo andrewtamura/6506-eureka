@@ -79,18 +79,24 @@ def compute_paneling(ctx, rooms):
                         wins.append(span + [wd["sill"], bool(wd.get("plainBelow"))])
             return doors, wins, tall
 
-        for orient, fixed, lo, hi, face, normal in [
-            ("H", z1, x1, x2, z1 + half, [0, 1]),
-            ("H", z2, x1, x2, z2 - half, [0, -1]),
-            ("V", x1, z1, z2, x1 + half, [1, 0]),
-            ("V", x2, z1, z2, x2 - half, [-1, 0]),
+        # plan px increases WEST and pz increases NORTH, so x1 is the EAST wall and
+        # z1 the SOUTH one. `noCornice` names the sides where the entablature is
+        # suppressed — a room can carry the trim program without carrying the crown
+        # on every wall.
+        no_cornice = {sd.upper() for sd in (room["interior"]["paneling"].get("noCornice") or [])}
+        for orient, fixed, lo, hi, face, normal, side in [
+            ("H", z1, x1, x2, z1 + half, [0, 1], "S"),
+            ("H", z2, x1, x2, z2 - half, [0, -1], "N"),
+            ("V", x1, z1, z2, x1 + half, [1, 0], "E"),
+            ("V", x2, z1, z2, x2 - half, [-1, 0], "W"),
         ]:
             doors, wins, tall = gather(orient, fixed, lo, hi)
             ctx.paneling.append({
                 "along": "x" if orient == "H" else "z",
-                "at": round(face, 4), "normal": normal,
+                "at": round(face, 4), "normal": normal, "side": side,
                 "lo": round(lo, 3), "hi": round(hi, 3),
                 "doors": doors, "windows": wins, "tall": tall,
+                "noCornice": side in no_cornice,
             })
 
 
