@@ -54,7 +54,7 @@
       ],
       "windows": [],
       "tall": [],
-      "noCornice": false,
+      "noCornice": true,
       "noBattens": true
     },
     {
@@ -99,7 +99,7 @@
         ]
       ],
       "tall": [],
-      "noCornice": false,
+      "noCornice": true,
       "noBattens": true
     },
     {

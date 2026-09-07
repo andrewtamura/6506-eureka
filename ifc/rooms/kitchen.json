@@ -71,10 +71,7 @@
     },
     "paneling": {
       "baseboard": 10,
-      "noCornice": [
-        "E",
-        "S"
-      ],
+      "noCornice": true,
       "battens": false
     },
     "furniture": [

@@ -158,11 +158,18 @@ A(mm.length === 4 && mu.length === 6, `middle 4 doors, upper 6 (${mm.length}/${m
 A(md.length === 2, `lower drawers 3 left + 3 right (${md.length} banks)`);
 A(![...mm, ...mu].flatMap(m => [m.lo, m.hi]).some(e => !LINES.some(l => Math.abs(e - l) < 0.22)),
   'middle and upper modules on the six lines');
-const atHead = L.filter(m => m.yLo > 6.9 && m.yLo < 8.7);
-A(!atHead.some(m => (m.pzHi - m.pzLo) < 0.6 && (m.pxHi - m.pxLo) > 2 && m.pzLo < -11.6 && m.pzHi > -11.45),
-  'no entablature on the south wall');
-A(atHead.some(m => (m.pxHi - m.pxLo) < 0.6 && (m.pzHi - m.pzLo) > 2 && m.pxHi > 30.7 && m.pxLo < 30.45),
-  'west wall keeps its entablature');
+// The cove crown is the only trim member that stands ~0.417 ft off the wall (P5 in
+// src/wall-finish.js) — the field band projects 0.039 and the bed mould 0.19 — so a
+// cornice mesh is the one that is thick in BOTH horizontal directions.
+const cornice = L.filter(m => m.yLo > 6.9 && m.yLo < 8.7
+  && Math.min(m.pxHi - m.pxLo, m.pzHi - m.pzLo) > 0.3
+  && Math.max(m.pxHi - m.pxLo, m.pzHi - m.pzLo) > 1.0);
+A(!cornice.filter(m => m.pzHi < 2.05 && m.pxLo > 15.0 && m.pxHi < 31.2).length,
+  `no cornice on any kitchen wall (${cornice.filter(m => m.pzHi < 2.05 && m.pxLo > 15.0 && m.pxHi < 31.2).length})`);
+// Positive control: without this the check above is purely negative and would pass just
+// as happily if the detector stopped finding cornices at all.
+A(cornice.filter(m => m.pzLo > 1.95).length > 0,
+  `dining room still has its cornice — the detector works (${cornice.filter(m => m.pzLo > 1.95).length})`);
 A(Math.abs((west.top - FY) / FT - 3.08) < 0.03, `west worktop at ${R((west.top - FY) / FT, 3)} ft`);
 const isl = pick('island', null, -5.9249);
 { const face = Math.max(...meshes(isl).filter(m => (m.pxHi - m.pxLo) > 0.4 && (m.yHi - m.yLo) > 0.3).map(m => m.pzHi));

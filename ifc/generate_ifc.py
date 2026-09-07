@@ -84,7 +84,10 @@ def compute_paneling(ctx, rooms):
         # suppressed — a room can carry the trim program without carrying the crown
         # on every wall.
         pan = room["interior"]["paneling"]
-        no_cornice = {sd.upper() for sd in (pan.get("noCornice") or [])}
+        # `noCornice` is either True for the whole room or a list of sides.
+        nc = pan.get("noCornice")
+        all_sides = nc is True
+        no_cornice = set() if all_sides else {sd.upper() for sd in (nc or [])}
         no_battens = pan.get("battens") is False
         for orient, fixed, lo, hi, face, normal, side in [
             ("H", z1, x1, x2, z1 + half, [0, 1], "S"),
@@ -98,7 +101,7 @@ def compute_paneling(ctx, rooms):
                 "at": round(face, 4), "normal": normal, "side": side,
                 "lo": round(lo, 3), "hi": round(hi, 3),
                 "doors": doors, "windows": wins, "tall": tall,
-                "noCornice": side in no_cornice,
+                "noCornice": all_sides or side in no_cornice,
                 "noBattens": no_battens,
             })
 
