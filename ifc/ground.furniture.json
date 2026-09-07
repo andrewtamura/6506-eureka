@@ -83,6 +83,83 @@
       "ceilFt": 9.0
     },
     {
+      "type": "cabinet_run",
+      "px": 29.7708,
+      "pz": -6.9942,
+      "rot": 0.0,
+      "kind": "base",
+      "faces": "E",
+      "lenFt": 9.3866,
+      "depthFt": 2.0,
+      "sinkAt": -0.015,
+      "gaps": [
+        {
+          "a": 0.9358,
+          "b": 2.9358,
+          "counter": true
+        }
+      ]
+    },
+    {
+      "type": "appliance",
+      "px": 29.7708,
+      "pz": -8.93,
+      "rot": 0.0,
+      "kind": "dishwasher",
+      "faces": "E",
+      "widthFt": 2.0,
+      "depthFt": 2.0
+    },
+    {
+      "type": "cabinet_run",
+      "px": 16.3625,
+      "pz": -6.9792,
+      "rot": 0.0,
+      "kind": "tall",
+      "faces": "W",
+      "lenFt": 9.4166,
+      "depthFt": 2.1,
+      "gaps": [
+        {
+          "a": -1.2917,
+          "b": 1.7083
+        }
+      ]
+    },
+    {
+      "type": "cabinet_run",
+      "px": 16.3625,
+      "pz": -6.9792,
+      "rot": 0.0,
+      "kind": "wall",
+      "faces": "W",
+      "lenFt": 9.4166,
+      "depthFt": 2.1,
+      "bottomFt": 7.0,
+      "topFt": 9.0
+    },
+    {
+      "type": "appliance",
+      "px": 16.3625,
+      "pz": -6.7709,
+      "rot": 0.0,
+      "kind": "fridge",
+      "faces": "W",
+      "widthFt": 3.0,
+      "depthFt": 2.1,
+      "heightFt": 7.0
+    },
+    {
+      "type": "island",
+      "px": 23.0417,
+      "pz": -6.3249,
+      "rot": 0.0,
+      "faces": "S",
+      "lenFt": 4.0,
+      "depthFt": 3.0,
+      "overhangFt": 0
+    },
+    {
       "type": "builtin_hutch",
       "px": 23.04,
       "pz": 1.627,
