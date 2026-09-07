@@ -152,12 +152,78 @@
     {
       "type": "island",
       "px": 23.0417,
-      "pz": -6.3249,
+      "pz": -5.9249,
       "rot": 0.0,
       "faces": "S",
       "lenFt": 4.0,
       "depthFt": 3.0,
       "overhangFt": 0
+    },
+    {
+      "type": "cased_portal",
+      "px": 23.0417,
+      "pz": -11.4375,
+      "rot": 0.0,
+      "faces": "N",
+      "widthFt": 6.66,
+      "depthFt": 0.5,
+      "revealDFt": 0.9583,
+      "openWFt": 6.0,
+      "openHFt": 7.0,
+      "openOffFt": 0,
+      "ceilFt": 9.0
+    },
+    {
+      "type": "cabinet_run",
+      "px": 18.6096,
+      "pz": -10.6375,
+      "rot": 0.0,
+      "kind": "tall",
+      "faces": "N",
+      "lenFt": 2.2042,
+      "depthFt": 2.1,
+      "topFt": 7.0
+    },
+    {
+      "type": "cabinet_run",
+      "px": 27.5109,
+      "pz": -10.6375,
+      "rot": 0.0,
+      "kind": "tall",
+      "faces": "N",
+      "lenFt": 2.2783,
+      "depthFt": 2.1,
+      "topFt": 7.0
+    },
+    {
+      "type": "open_shelves",
+      "px": 30.7708,
+      "pz": -10.0,
+      "rot": 0.0,
+      "faces": "E",
+      "lenFt": 2.6,
+      "depthFt": 0.83,
+      "shelvesFt": [
+        4.45,
+        5.5
+      ],
+      "railFt": 6.55,
+      "railDepthFt": 0.45
+    },
+    {
+      "type": "open_shelves",
+      "px": 30.7708,
+      "pz": -3.9584,
+      "rot": 0.0,
+      "faces": "E",
+      "lenFt": 2.6,
+      "depthFt": 0.83,
+      "shelvesFt": [
+        4.45,
+        5.5
+      ],
+      "railFt": 6.55,
+      "railDepthFt": 0.45
     },
     {
       "type": "builtin_hutch",

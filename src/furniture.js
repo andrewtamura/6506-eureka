@@ -1340,6 +1340,68 @@ function buildCabinetRun(p) {
   return g;
 }
 
+// OPEN SHELVES on shaped brackets — the "no upper cabinets" answer for a blank
+// bay above a counter. A stack of plain shelves with a moulded PLATE RAIL as the
+// top member (a shelf with a groove worked into it, so plates stand on edge and
+// lean back), each carried on a pair of scroll-cut brackets. Anchor (px,pz) = the
+// wall face at the run's centre; `faces` = the direction the shelves look into the
+// room. `shelvesFt` are the TOP surfaces, bottom-up; `railFt` is the plate rail.
+function buildOpenShelves(p) {
+  const ft = FT, g = new THREE.Group();
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const box = (opx, opz, yc, sx, sz, hy, mat, rad = 0) => {
+    const geo = rad > 0 ? new RoundedBoxGeometry(sx * ft, hy * ft, sz * ft, 3, rad * ft) : new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft);
+    const m = new THREE.Mesh(geo, mat); m.position.copy(V(opx, opz, yc)); m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  // Same millwork palette as buildCasedPortal / src/wall-finish.js, so the shelving
+  // reads as part of the room's trim rather than as furniture standing against it.
+  const mill = new THREE.MeshStandardMaterial({ color: 0xefece4, roughness: 0.8 });
+  const A = DIR[p.faces || "N"], P = [-A[1], A[0]];
+  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
+  // `da` runs from the WALL (0) out into the room, so both the deep shelves and the
+  // shallower plate rail sit on the same wall plane without a per-piece anchor.
+  const L = p.lenFt ?? 2.6, D = p.depthFt ?? 0.83;
+  const T = p.shelfTFt ?? 0.115;                       // 1-3/8" shelf stock
+  const RD = p.railDepthFt ?? 0.45, RT = p.railTFt ?? 0.14;
+  const shelves = p.shelvesFt ?? [4.58, 5.83];         // TOP surfaces, bottom up
+  const rail = p.railFt;
+  const BE = p.bracketInsetFt ?? 0.17;                 // bracket centre in from each end
+  let q;
+
+  // A stepped CORBEL under each shelf end: courses of decreasing depth stacked
+  // downward, so the silhouette steps back to the wall the way a cut bracket does.
+  // Drawn tight under the shelf and only ~5 in deep at the bottom — an earlier
+  // version hung a full-length leg down the wall and read as pipe racking.
+  const bracket = (ds, y, dep) => {
+    const W = 0.12, N = 4, drop = Math.min(0.44, dep * 0.55), h = drop / N, top = y - T;
+    for (let i = 0; i < N; i++) {
+      const d = dep * (1 - 0.72 * (i / (N - 1)));                 // full depth -> 28% at the toe
+      q = pl(d / 2, ds, d, W); box(q[0], q[1], top - h * (i + 0.5), q[2], q[3], h, mill);
+    }
+  };
+
+  for (const y of shelves) {
+    q = pl(D / 2, 0, D, L); box(q[0], q[1], y - T / 2, q[2], q[3], T, mill, 0.012);
+    for (const s of [-1, 1]) bracket(s * (L / 2 - BE), y, D);
+  }
+
+  // PLATE RAIL as the top member: a ledge against the wall, a groove, then a raised
+  // front board plates lean back against. Drawn as two boards with a dropped floor
+  // between them rather than as a subtraction from one.
+  if (rail != null) {
+    const G = p.grooveFt ?? 0.075, f = p.stopFt ?? 0.12, b = RD - G - f;
+    q = pl(b / 2, 0, b, L); box(q[0], q[1], rail - RT / 2, q[2], q[3], RT, mill, 0.012);        // ledge, at the wall
+    q = pl(RD - f / 2, 0, f, L); box(q[0], q[1], rail - RT / 2, q[2], q[3], RT, mill, 0.012);   // front stop
+    q = pl(b + G / 2, 0, G, L);
+    box(q[0], q[1], rail - RT + 0.03, q[2], q[3], 0.06, mill);                                 // groove floor, dropped
+    q = pl(RD * 0.45, 0, RD * 0.9, L);
+    box(q[0], q[1], rail - RT - 0.05, q[2], q[3], 0.1, mill, 0.022);                           // bed mould under the rail
+    // brackets tuck under the bed mould: pass a y whose `top = y - T` lands on it
+    for (const s of [-1, 1]) bracket(s * (L / 2 - BE), rail - RT - 0.1 + T, RD);
+  }
+  return g;
+}
+
 // Kitchen island: cabinetry on the working side, a stone top with a seating
 // overhang on `faces`. Anchor (px,pz) = footprint centre; `lenFt` runs across
 // the front, `depthFt` front-to-back.
@@ -1661,7 +1723,7 @@ function buildAppliance(p) {
   return g;
 }
 
-const BUILDERS = { range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
+const BUILDERS = { range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, open_shelves: buildOpenShelves, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 // Re-export a few individual builders so the viewer can drop single procedural
 // pieces (e.g. patio furniture on the alt roof deck) without going through the
 // furniture.json manifest.
