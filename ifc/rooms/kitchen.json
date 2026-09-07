@@ -30,8 +30,8 @@
       "name": "Kitchen -> Scullery",
       "orient": "H",
       "fixed": -11.9167,
-      "pos": 21.58,
-      "width": 3.0,
+      "pos": 23.0417,
+      "width": 6.0,
       "opening": true
     },
     {
@@ -189,22 +189,11 @@
         "kind": "fridge",
         "at": [
           16.5625,
-          -3.7709
+          -6.7709
         ],
         "faces": "W",
         "widthFt": 3.0,
         "depthFt": 2.5
-      },
-      {
-        "type": "cabinet_run",
-        "at": [
-          16.3125,
-          -6.7709
-        ],
-        "kind": "tall",
-        "faces": "W",
-        "lenFt": 3.0,
-        "depthFt": 2.0
       },
       {
         "type": "cabinet_run",
@@ -220,13 +209,24 @@
       {
         "type": "island",
         "at": [
-          23.0417,
-          -6.9
+          23.2968,
+          -6.3249
         ],
         "faces": "S",
-        "lenFt": 4.5,
+        "lenFt": 4.0,
         "depthFt": 3.0,
         "overhangFt": 0
+      },
+      {
+        "type": "cabinet_run",
+        "at": [
+          16.3125,
+          -3.7859
+        ],
+        "kind": "base",
+        "faces": "W",
+        "lenFt": 2.97,
+        "depthFt": 2.0
       }
     ]
   }

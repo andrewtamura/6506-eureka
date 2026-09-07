@@ -113,22 +113,12 @@
     {
       "type": "appliance",
       "px": 16.5625,
-      "pz": -3.7709,
+      "pz": -6.7709,
       "rot": 0.0,
       "kind": "fridge",
       "faces": "W",
       "widthFt": 3.0,
       "depthFt": 2.5
-    },
-    {
-      "type": "cabinet_run",
-      "px": 16.3125,
-      "pz": -6.7709,
-      "rot": 0.0,
-      "kind": "tall",
-      "faces": "W",
-      "lenFt": 3.0,
-      "depthFt": 2.0
     },
     {
       "type": "cabinet_run",
@@ -142,13 +132,23 @@
     },
     {
       "type": "island",
-      "px": 23.0417,
-      "pz": -6.9,
+      "px": 23.2968,
+      "pz": -6.3249,
       "rot": 0.0,
       "faces": "S",
-      "lenFt": 4.5,
+      "lenFt": 4.0,
       "depthFt": 3.0,
       "overhangFt": 0
+    },
+    {
+      "type": "cabinet_run",
+      "px": 16.3125,
+      "pz": -3.7859,
+      "rot": 0.0,
+      "kind": "base",
+      "faces": "W",
+      "lenFt": 2.97,
+      "depthFt": 2.0
     },
     {
       "type": "builtin_hutch",
