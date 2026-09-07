@@ -14,24 +14,19 @@
         0,
         1
       ],
+      "side": "S",
       "lo": 15.083,
       "hi": 31,
       "doors": [
-        [
-          0.42,
-          3.42
-        ],
-        [
-          -8.255,
-          -1.585
-        ],
         [
           20.042,
           26.042
         ]
       ],
       "windows": [],
-      "tall": []
+      "tall": [],
+      "noCornice": true,
+      "noBattens": true
     },
     {
       "along": "x",
@@ -40,6 +35,7 @@
         0,
         -1
       ],
+      "side": "N",
       "lo": 15.083,
       "hi": 31,
       "doors": [
@@ -57,7 +53,9 @@
         ]
       ],
       "windows": [],
-      "tall": []
+      "tall": [],
+      "noCornice": false,
+      "noBattens": true
     },
     {
       "along": "z",
@@ -66,16 +64,14 @@
         1,
         0
       ],
+      "side": "E",
       "lo": -11.917,
       "hi": 2,
-      "doors": [
-        [
-          2.67,
-          9.67
-        ]
-      ],
+      "doors": [],
       "windows": [],
-      "tall": []
+      "tall": [],
+      "noCornice": true,
+      "noBattens": true
     },
     {
       "along": "z",
@@ -84,6 +80,7 @@
         -1,
         0
       ],
+      "side": "W",
       "lo": -11.917,
       "hi": 2,
       "doors": [],
@@ -91,25 +88,19 @@
         [
           -8.313,
           -5.646,
-          3.33
+          3.33,
+          false
         ],
         [
           -2.271,
           0.396,
-          3.33
-        ],
-        [
-          3.771,
-          6.437,
-          3.33
-        ],
-        [
-          9.812,
-          12.479,
-          3.33
+          3.33,
+          true
         ]
       ],
-      "tall": []
+      "tall": [],
+      "noCornice": false,
+      "noBattens": true
     },
     {
       "along": "x",
@@ -118,6 +109,7 @@
         0,
         1
       ],
+      "side": "S",
       "lo": 15.083,
       "hi": 31,
       "doors": [
@@ -135,7 +127,9 @@
         ]
       ],
       "windows": [],
-      "tall": []
+      "tall": [],
+      "noCornice": false,
+      "noBattens": false
     },
     {
       "along": "x",
@@ -144,37 +138,27 @@
         0,
         -1
       ],
+      "side": "N",
       "lo": 15.083,
       "hi": 31,
-      "doors": [
-        [
-          8.0,
-          11.0
-        ]
-      ],
+      "doors": [],
       "windows": [
-        [
-          -9.0,
-          -5.5,
-          2.5
-        ],
-        [
-          -0.625,
-          2.875,
-          2.5
-        ],
         [
           16.125,
           19.625,
-          2.5
+          2.5,
+          false
         ],
         [
           24.5,
           28.0,
-          2.5
+          2.5,
+          false
         ]
       ],
-      "tall": []
+      "tall": [],
+      "noCornice": false,
+      "noBattens": false
     },
     {
       "along": "z",
@@ -183,6 +167,7 @@
         1,
         0
       ],
+      "side": "E",
       "lo": 2,
       "hi": 16.083,
       "doors": [
@@ -192,7 +177,9 @@
         ]
       ],
       "windows": [],
-      "tall": []
+      "tall": [],
+      "noCornice": false,
+      "noBattens": false
     },
     {
       "along": "z",
@@ -201,32 +188,27 @@
         -1,
         0
       ],
+      "side": "W",
       "lo": 2,
       "hi": 16.083,
       "doors": [],
       "windows": [
         [
-          -8.313,
-          -5.646,
-          3.33
-        ],
-        [
-          -2.271,
-          0.396,
-          3.33
-        ],
-        [
           3.771,
           6.437,
-          3.33
+          3.33,
+          false
         ],
         [
           9.812,
           12.479,
-          3.33
+          3.33,
+          false
         ]
       ],
-      "tall": []
+      "tall": [],
+      "noCornice": false,
+      "noBattens": false
     }
   ]
 }
