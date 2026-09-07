@@ -1288,10 +1288,6 @@ function buildCabinetRun(p) {
     const m = new THREE.Mesh(new THREE.SphereGeometry(0.055 * ft, 14, 10), brass);
     m.position.copy(V(k[0], k[1], y)); g.add(m);                             // turned knob
   };
-  const hinge = (ds, y) => {                                                  // brass butt hinge
-    const k = pl(D / 2 - 0.012, ds, 0.05, 0.10);
-    box(k[0], k[1], y, k[2], k[3], 0.26, brass, 0.012);
-  };
   const binPull = (ds, y, len) => {
     let k = pl(D / 2 + 0.008, ds, 0.016, len + 0.07);
     box(k[0], k[1], y, k[2], k[3], 0.17, brass, 0.02);                       // backplate
@@ -1408,11 +1404,12 @@ function buildCabinetRun(p) {
         // Doors hang in PAIRS: alternate the latch side by module index so consecutive
         // doors are hinged outboard and their knobs meet at the shared stile, rather
         // than every door in the run swinging the same way.
+        // No hinges are drawn: on inset work the knuckle sits in the reveal on the
+        // door's edge, not as a plate on its face, so a face-mounted leaf was simply
+        // wrong. The knob position is what shows the swing.
         const right = i % 2 === 0;
         const ky = kind === "wall" ? Math.min(vy0 + 1.1, (vy0 + vy1) / 2) : vy1 - 0.35;
         knob(right ? ob - 0.16 : oa + 0.16, ky);
-        const hds = right ? oa + 0.04 : ob - 0.04;
-        for (const f of [0.17, 0.83]) hinge(hds, vy0 + (vy1 - vy0) * f);
       }
     }
   }

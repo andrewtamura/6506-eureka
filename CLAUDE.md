@@ -94,4 +94,9 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   git checkout -- ifc/attic.ifc ifc/ground.ifc ifc/level2.ifc ifc/level2.furniture.json
   ```
   Always check `git status` after a regen and confirm the diff is only what you intended.
-- Verify changes headless (puppeteer with swiftshader) before merging.
+- Verify changes headless (puppeteer with swiftshader) before merging. The kitchen has a
+  committed harness — `node tools/kitchen-check.mjs` against a dev server on :5173 — which
+  measures the BUILT MESHES rather than the manifest, and asserts the things that have
+  actually gone wrong before: doorway approach zones, island aisles, cabinet module
+  alignment, inset reveals, door widths. Extend it rather than starting a new one in the
+  scratchpad, which is where it lived while being rebuilt from scratch three times.
