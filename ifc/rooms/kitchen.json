@@ -68,6 +68,9 @@
       "material": "tile",
       "pattern": "checkerboard"
     },
+    "paneling": {
+      "baseboard": 10
+    },
     "furniture": [
       {
         "type": "range_surround",
@@ -230,12 +233,75 @@
         "type": "island",
         "at": [
           23.0417,
-          -6.3249
+          -5.9249
         ],
         "faces": "S",
         "lenFt": 4.0,
         "depthFt": 3.0,
-        "overhangFt": 0
+        "overhangFt": 1.0
+      },
+      {
+        "type": "counter_stool",
+        "at": [
+          22.0417,
+          -7.71
+        ],
+        "rot": 180
+      },
+      {
+        "type": "counter_stool",
+        "at": [
+          24.0417,
+          -7.71
+        ],
+        "rot": 180
+      },
+      {
+        "type": "cased_portal",
+        "at": [
+          23.0417,
+          -11.4375
+        ],
+        "faces": "N",
+        "widthFt": 6.66,
+        "depthFt": 0.5,
+        "revealDFt": 0.9583,
+        "openWFt": 6.0,
+        "openHFt": 7.0,
+        "openOffFt": 0,
+        "ceilFt": 9.0
+      },
+      {
+        "type": "open_shelves",
+        "at": [
+          30.7708,
+          -10.0
+        ],
+        "faces": "E",
+        "lenFt": 2.6,
+        "depthFt": 0.83,
+        "shelvesFt": [
+          4.45,
+          5.5
+        ],
+        "railFt": 6.55,
+        "railDepthFt": 0.45
+      },
+      {
+        "type": "open_shelves",
+        "at": [
+          30.7708,
+          -3.9584
+        ],
+        "faces": "E",
+        "lenFt": 2.6,
+        "depthFt": 0.83,
+        "shelvesFt": [
+          4.45,
+          5.5
+        ],
+        "railFt": 6.55,
+        "railDepthFt": 0.45
       }
     ]
   }
