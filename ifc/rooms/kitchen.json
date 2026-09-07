@@ -256,30 +256,6 @@
         "ceilFt": 9.0
       },
       {
-        "type": "cabinet_run",
-        "at": [
-          18.6096,
-          -10.6375
-        ],
-        "kind": "tall",
-        "faces": "N",
-        "lenFt": 2.2042,
-        "depthFt": 2.1,
-        "topFt": 7.0
-      },
-      {
-        "type": "cabinet_run",
-        "at": [
-          27.5109,
-          -10.6375
-        ],
-        "kind": "tall",
-        "faces": "N",
-        "lenFt": 2.2783,
-        "depthFt": 2.1,
-        "topFt": 7.0
-      },
-      {
         "type": "open_shelves",
         "at": [
           30.7708,

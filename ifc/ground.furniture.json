@@ -174,28 +174,6 @@
       "ceilFt": 9.0
     },
     {
-      "type": "cabinet_run",
-      "px": 18.6096,
-      "pz": -10.6375,
-      "rot": 0.0,
-      "kind": "tall",
-      "faces": "N",
-      "lenFt": 2.2042,
-      "depthFt": 2.1,
-      "topFt": 7.0
-    },
-    {
-      "type": "cabinet_run",
-      "px": 27.5109,
-      "pz": -10.6375,
-      "rot": 0.0,
-      "kind": "tall",
-      "faces": "N",
-      "lenFt": 2.2783,
-      "depthFt": 2.1,
-      "topFt": 7.0
-    },
-    {
       "type": "open_shelves",
       "px": 30.7708,
       "pz": -10.0,
