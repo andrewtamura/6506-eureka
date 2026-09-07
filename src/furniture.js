@@ -1438,6 +1438,64 @@ function buildIsland(p) {
   return g;
 }
 
+// A COUNTER STOOL for island seating. buildChair is a dining chair with its seat
+// hardcoded at 0.47 m (18-1/2"), which against a 37" worktop leaves 19" of thigh
+// room — unusable. This is the counter-height cousin: `seatFt` (25" by default,
+// the standard rise for a 36-37" top) drives everything, so the same builder
+// serves a bar-height top by changing one number.
+// Front = +Z, matching buildChair — which in plan is SOUTH, so a stool facing
+// into an island from the south side wants `rot: 180`.
+function buildCounterStool(p) {
+  const fab = fabricMat(col(p.material, 0xd9d2c4));
+  const oak = woodMat(col(p.legMaterial || "lightoak", 0xb38f63));
+  const g = new THREE.Group();
+  const seatTop = (p.seatFt ?? 2.083) * FT;                 // 25" to the cushion top
+  const sw = (p.seatWFt ?? 1.35) * FT, sd = (p.seatDFt ?? 1.25) * FT;
+  const cush = 0.10, apronY = seatTop - cush - 0.05;
+  // Apron: the rail the legs frame into, just under the cushion.
+  const apron = new THREE.Mesh(new THREE.BoxGeometry(sw - 0.06, 0.07, sd - 0.06), oak);
+  apron.position.set(0, apronY, 0); g.add(apron);
+  // Legs: square stock tapering to the floor, splayed out at the foot. A stool this
+  // tall needs the splay for stability, and more of it than a dining chair has.
+  const legH = apronY - 0.035;
+  const legGeo = new THREE.CylinderGeometry(0.028, 0.017, legH, 4);
+  const corner = [];
+  for (const ix of [-1, 1]) for (const iz of [-1, 1]) {
+    const pivot = new THREE.Group();
+    pivot.position.set(ix * (sw / 2 - 0.05), apronY - 0.035, iz * (sd / 2 - 0.05));
+    const leg = new THREE.Mesh(legGeo, oak);
+    leg.position.y = -legH / 2; leg.rotation.y = Math.PI / 4;
+    pivot.add(leg);
+    pivot.rotation.z = -ix * 0.085; pivot.rotation.x = iz * 0.085;
+    g.add(pivot); corner.push(pivot);
+  }
+  // Stretchers: a rail between each pair of legs at footrest height, which is what
+  // makes a tall stool read as a stool rather than as a chair on stilts.
+  const strY = seatTop * 0.42, inset = 0.055;
+  for (const iz of [-1, 1]) {
+    const r = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, sw - 2 * inset, 8), oak);
+    r.rotation.z = Math.PI / 2; r.position.set(0, strY, iz * (sd / 2 - inset)); g.add(r);
+  }
+  for (const ix of [-1, 1]) {
+    const r = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, sd - 2 * inset, 8), oak);
+    r.rotation.x = Math.PI / 2; r.position.set(ix * (sw / 2 - inset), strY, 0); g.add(r);
+  }
+  const seat = new THREE.Mesh(new RoundedBoxGeometry(sw, cush, sd, 3, 0.035), fab);
+  seat.position.set(0, seatTop - cush / 2, 0); g.add(seat);
+  // A LOW back — enough to lean on without standing above the worktop line, so the
+  // stools do not read as a pair of chairbacks blocking the island.
+  const backH = (p.backFt ?? 0.95) * FT;
+  for (const ix of [-1, 1]) {
+    const st = new THREE.Mesh(new THREE.BoxGeometry(0.045, backH, 0.045), oak);
+    st.position.set(ix * (sw / 2 - 0.05), seatTop + backH / 2 - 0.02, -(sd / 2 - 0.055));
+    st.rotation.x = 0.07; g.add(st);                        // slight rake
+  }
+  const rail = new THREE.Mesh(new RoundedBoxGeometry(sw - 0.04, 0.17, 0.075, 4, 0.03), fab);
+  rail.position.set(0, seatTop + backH - 0.09, -(sd / 2 - 0.02));
+  rail.rotation.x = 0.07; g.add(rail);
+  return g;
+}
+
 // Chimney-breast RANGE SURROUND, purely decorative: 1" reveal panels either side of
 // the range and a moulded lintel over, with the hood liner concealed in the lintel's
 // underside, a tiled back and a brass pot rail. It carries nothing, so the jambs are
@@ -1723,7 +1781,7 @@ function buildAppliance(p) {
   return g;
 }
 
-const BUILDERS = { range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, open_shelves: buildOpenShelves, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
+const BUILDERS = { range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, open_shelves: buildOpenShelves, counter_stool: buildCounterStool, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 // Re-export a few individual builders so the viewer can drop single procedural
 // pieces (e.g. patio furniture on the alt roof deck) without going through the
 // furniture.json manifest.

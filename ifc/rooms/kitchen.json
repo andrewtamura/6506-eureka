@@ -238,7 +238,23 @@
         "faces": "S",
         "lenFt": 4.0,
         "depthFt": 3.0,
-        "overhangFt": 0
+        "overhangFt": 1.0
+      },
+      {
+        "type": "counter_stool",
+        "at": [
+          22.0417,
+          -7.71
+        ],
+        "rot": 180
+      },
+      {
+        "type": "counter_stool",
+        "at": [
+          24.0417,
+          -7.71
+        ],
+        "rot": 180
       },
       {
         "type": "cased_portal",

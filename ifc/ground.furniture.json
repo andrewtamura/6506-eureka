@@ -157,7 +157,19 @@
       "faces": "S",
       "lenFt": 4.0,
       "depthFt": 3.0,
-      "overhangFt": 0
+      "overhangFt": 1.0
+    },
+    {
+      "type": "counter_stool",
+      "px": 22.0417,
+      "pz": -7.71,
+      "rot": 180.0
+    },
+    {
+      "type": "counter_stool",
+      "px": 24.0417,
+      "pz": -7.71,
+      "rot": 180.0
     },
     {
       "type": "cased_portal",
