@@ -85,17 +85,17 @@
     {
       "type": "cabinet_run",
       "px": 29.7708,
-      "pz": -5.3275,
+      "pz": -6.9942,
       "rot": 0.0,
       "kind": "base",
       "faces": "E",
-      "lenFt": 12.72,
+      "lenFt": 9.3866,
       "depthFt": 2.0,
-      "sinkAt": 1.6517,
+      "sinkAt": -0.015,
       "gaps": [
         {
-          "a": 2.6025,
-          "b": 4.6025,
+          "a": 0.9358,
+          "b": 2.9358,
           "counter": true
         }
       ]
@@ -113,7 +113,7 @@
     {
       "type": "appliance",
       "px": 16.5625,
-      "pz": -0.4375,
+      "pz": -3.7709,
       "rot": 0.0,
       "kind": "fridge",
       "faces": "W",
@@ -122,28 +122,28 @@
     },
     {
       "type": "cabinet_run",
-      "px": 16.3625,
-      "pz": -3.4375,
+      "px": 16.3125,
+      "pz": -6.7709,
       "rot": 0.0,
       "kind": "tall",
       "faces": "W",
       "lenFt": 3.0,
-      "depthFt": 2.1
+      "depthFt": 2.0
     },
     {
       "type": "cabinet_run",
       "px": 16.3125,
-      "pz": -8.3125,
+      "pz": -9.9792,
       "rot": 0.0,
       "kind": "base",
       "faces": "W",
-      "lenFt": 6.75,
+      "lenFt": 3.4166,
       "depthFt": 2.0
     },
     {
       "type": "island",
       "px": 23.0417,
-      "pz": -6.4623,
+      "pz": -6.9,
       "rot": 0.0,
       "faces": "S",
       "lenFt": 4.5,
