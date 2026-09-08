@@ -352,6 +352,136 @@
         "z1": -7.317,
         "z2": -0.33
       }
+    },
+    {
+      "type": "cabinet_run",
+      "px": 7.82292,
+      "pz": -17.6458,
+      "rot": 0.0,
+      "kind": "base",
+      "faces": "N",
+      "lenFt": 15.3542,
+      "depthFt": 2.0,
+      "sinkAt": -6.1771,
+      "sinkWFt": 3.0,
+      "sinkStyle": "dropin",
+      "drawers": [
+        0.22,
+        0.35,
+        0.43
+      ],
+      "divideAt": [
+        -6.1771,
+        1.2864,
+        2.7499,
+        4.2134
+      ],
+      "gaps": [
+        {
+          "a": 5.6769,
+          "b": 7.6771,
+          "counter": true
+        },
+        {
+          "a": -2.6771,
+          "b": -0.1771,
+          "counter": false
+        },
+        {
+          "a": -4.6771,
+          "b": -2.6771,
+          "counter": true
+        }
+      ]
+    },
+    {
+      "type": "appliance",
+      "px": 1.146,
+      "pz": -17.6458,
+      "rot": 0.0,
+      "kind": "microwave",
+      "faces": "N",
+      "widthFt": 2.0,
+      "depthFt": 2.0
+    },
+    {
+      "type": "appliance",
+      "px": 9.25,
+      "pz": -17.6458,
+      "rot": 0.0,
+      "kind": "range",
+      "faces": "N",
+      "widthFt": 2.5,
+      "depthFt": 2.1,
+      "topFt": 3.08,
+      "burners": 4
+    },
+    {
+      "type": "appliance",
+      "px": 11.5,
+      "pz": -17.6458,
+      "rot": 0.0,
+      "kind": "dishwasher",
+      "faces": "N",
+      "widthFt": 2.0,
+      "depthFt": 2.0
+    },
+    {
+      "type": "appliance",
+      "px": 9.25,
+      "pz": -17.5958,
+      "rot": 0.0,
+      "kind": "hood",
+      "faces": "N",
+      "widthFt": 3.0,
+      "depthFt": 2.1,
+      "bottomFt": 5.58,
+      "ceilFt": 9.0,
+      "boxed": true
+    },
+    {
+      "type": "cabinet_run",
+      "px": 7.82292,
+      "pz": -18.0958,
+      "rot": 0.0,
+      "kind": "wall",
+      "faces": "N",
+      "lenFt": 15.3542,
+      "depthFt": 1.1,
+      "bottomFt": 4.5,
+      "topFt": 7.0,
+      "gaps": [
+        {
+          "a": -7.6771,
+          "b": -4.6971
+        },
+        {
+          "a": -3.1271,
+          "b": 3.9729
+        }
+      ]
+    },
+    {
+      "type": "cabinet_run",
+      "px": 7.82292,
+      "pz": -18.0958,
+      "rot": 0.0,
+      "kind": "wall",
+      "faces": "N",
+      "lenFt": 15.3542,
+      "depthFt": 1.1,
+      "bottomFt": 7.0,
+      "topFt": 9.0,
+      "gaps": [
+        {
+          "a": -7.6771,
+          "b": -4.6971
+        },
+        {
+          "a": -3.1271,
+          "b": 3.9729
+        }
+      ]
     }
   ]
 }

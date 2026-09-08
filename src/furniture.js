@@ -1292,8 +1292,27 @@ function buildCabinetRun(p) {
   // into the run behind it and the rim making the worktop over its own width.
   const fire = new THREE.MeshStandardMaterial({ color: 0xf2f0ea, roughness: 0.25 });
   const farmhouseSink = (ds, w) => {
+    const top = CT + 0.08;
+    if ((p.sinkStyle ?? "farmhouse") === "dropin") {
+      // A rimmed bowl set INTO the worktop: no apron, the cabinet front runs on below
+      // it. Wanted on a secondary run, where an apron sink would compete with the one
+      // in the main kitchen.
+      const bd = D - 0.5, bl = w - 0.5, fl = top - 0.80;
+      let k = pl(0.02, ds, bd + 0.16, bl + 0.16);
+      box(k[0], k[1], top - 0.03, k[2], k[3], 0.07, dark, 0.015);            // rim on the stone
+      for (const t of [-1, 1]) {
+        k = pl(0.02 + t * (bd / 2 + 0.03), ds, 0.06, bl + 0.12);
+        box(k[0], k[1], (fl + top - 0.06) / 2, k[2], k[3], top - 0.06 - fl, dark);
+        k = pl(0.02, ds + t * (bl / 2 + 0.03), bd, 0.06);
+        box(k[0], k[1], (fl + top - 0.06) / 2, k[2], k[3], top - 0.06 - fl, dark);
+      }
+      k = pl(0.02, ds, bd, bl); box(k[0], k[1], fl, k[2], k[3], 0.06, dark); // floor
+      k = pl(-D / 2 + 0.18, ds, 0, 0); cyl(k[0], k[1], top + 0.5, 0.042, 1.0, brass);
+      k = pl(-D / 2 + 0.18, ds, 0, 0); box(k[0], k[1], top + 0.98, 0.55, 0.07, 0.07, brass);
+      return;
+    }
     const APR = p.apronFt ?? 0.88;                 // apron height, ~10-1/2"
-    const top = CT + 0.08, bot = top - APR;        // rim level with the worktop
+    const bot = top - APR;                         // rim level with the worktop
     const BD = D - 0.14, RW = 0.10;              // bowl footprint, rim width
     let k = pl(D / 2 + 0.03, ds, 0.06, w);
     box(k[0], k[1], (bot + top) / 2, k[2], k[3], APR, fire, 0.03);          // apron, 3/4" proud
@@ -1365,8 +1384,16 @@ function buildCabinetRun(p) {
   // A FARMHOUSE sink occupies a module of its own: the face frame breaks around it and
   // the apron takes the place of a front, so its edges join the module lines.
   const SKW = p.sinkWFt ?? 3.0;
-  const sinkLo = p.sinkAt === undefined ? null : p.sinkAt - SKW / 2;
-  const sinkHi = p.sinkAt === undefined ? null : p.sinkAt + SKW / 2;
+  // Only an APRON sink takes over its module — it replaces the front and opens the bay.
+  // A drop-in bowl sits in the worktop with ordinary cabinetry carrying on beneath it,
+  // so it must not disturb the frame at all.
+  const FARM = p.sinkAt !== undefined && (p.sinkStyle ?? "farmhouse") === "farmhouse";
+  const sinkLo = FARM ? p.sinkAt - SKW / 2 : null;
+  const sinkHi = FARM ? p.sinkAt + SKW / 2 : null;
+  // The bowl's footprint whichever style it is — a DRAWER run still has to give the
+  // sink base doors, because the bowl occupies exactly where the top drawer would go.
+  const bowlLo = p.sinkAt === undefined ? null : p.sinkAt - SKW / 2;
+  const bowlHi = p.sinkAt === undefined ? null : p.sinkAt + SKW / 2;
   const inSink = (c) => sinkLo !== null && c > sinkLo + 1e-4 && c < sinkHi - 1e-4;
   const cuts = [...(p.divideAt || []), ...(sinkLo === null ? [] : [sinkLo, sinkHi])]
     .slice().sort((u, v) => u - v);
@@ -1445,7 +1472,8 @@ function buildCabinetRun(p) {
       const vy0 = y0 + FR, vy1 = y1 - FR;
 
       if (inSink(oc)) { farmhouseSink(p.sinkAt, (sinkHi - sinkLo) - FR); continue; }
-      if (rows) {
+      const overBowl = bowlLo !== null && Math.min(ob, bowlHi) - Math.max(oa, bowlLo) > 0.05;
+      if (rows && !overBowl) {
         // A drawer stack: intermediate rails between the fronts, so each drawer sits
         // in its own framed opening.
         const tot = rows.reduce((u, v) => u + v, 0);
@@ -1499,6 +1527,7 @@ function buildCabinetRun(p) {
       for (const [u, v] of pieces)
         { q = pl(0.05, (u + v) / 2, D + 0.12, (v - u) + 0.06); box(q[0], q[1], CT, q[2], q[3], 0.16, stone, 0.02); }
     }
+    if (p.sinkAt !== undefined && !FARM) farmhouseSink(p.sinkAt, SKW);   // drop-in, set into the stone
   }
   return g;
 }
@@ -1944,8 +1973,29 @@ function buildAppliance(p) {
   }
   if (kind === "hood") {
     const W = p.widthFt ?? 2.8, D = p.depthFt ?? 1.9, y0 = p.bottomFt ?? 4.9, ceil = p.ceilFt ?? 9.0;
-    q = pl(0, 0, D, W); box(q[0], q[1], y0 + 0.28, q[2], q[3], 0.56, steel, 0.03);            // canopy
-    q = pl(0, 0, D * 0.55, W * 0.42); box(q[0], q[1], (y0 + 0.56 + ceil) / 2, q[2], q[3], ceil - y0 - 0.56, steel, 0.02); // chimney
+    if (!p.boxed) {
+      q = pl(0, 0, D, W); box(q[0], q[1], y0 + 0.28, q[2], q[3], 0.56, steel, 0.03);          // canopy
+      q = pl(0, 0, D * 0.55, W * 0.42); box(q[0], q[1], (y0 + 0.56 + ceil) / 2, q[2], q[3], ceil - y0 - 0.56, steel, 0.02); // chimney
+      return g;
+    }
+    // BOXED hood: the working liner is stainless and everything above it is millwork —
+    // a moulded shelf reading as a mantel, a plain box carried to the ceiling, a crown
+    // where it meets it, and a corbel at each side of the liner.
+    const mill = new THREE.MeshStandardMaterial({ color: 0xefece4, roughness: 0.8 });
+    const LIN = p.linerFt ?? 0.34;                       // stainless canopy depth
+    q = pl(0, 0, D, W); box(q[0], q[1], y0 + LIN / 2, q[2], q[3], LIN, steel, 0.02);   // capture area
+    const shY = y0 + LIN;                                 // moulded shelf on the liner
+    q = pl(0.03, 0, D + 0.14, W + 0.14); box(q[0], q[1], shY + 0.10, q[2], q[3], 0.20, mill, 0.03);
+    q = pl(0.01, 0, D + 0.06, W + 0.06); box(q[0], q[1], shY + 0.24, q[2], q[3], 0.08, mill, 0.02);
+    const bx0 = shY + 0.28, bx1 = ceil - 0.30;            // the box itself
+    q = pl(-0.05, 0, D - 0.22, W - 0.14); box(q[0], q[1], (bx0 + bx1) / 2, q[2], q[3], bx1 - bx0, mill, 0.015);
+    q = pl(-0.02, 0, D - 0.10, W - 0.02);                 // crown at the ceiling
+    box(q[0], q[1], ceil - 0.19, q[2], q[3], 0.22, mill, 0.025);
+    q = pl(-0.03, 0, D - 0.04, W + 0.04); box(q[0], q[1], ceil - 0.04, q[2], q[3], 0.08, mill, 0.02);
+    for (const t of [-1, 1]) {                            // corbels flanking the liner
+      q = pl(D / 2 - 0.18, t * (W / 2 - 0.08), 0.30, 0.14);
+      box(q[0], q[1], shY - 0.13, q[2], q[3], 0.26, mill, 0.03);
+    }
     return g;
   }
   if (kind === "fridge") {
@@ -1957,6 +2007,21 @@ function buildAppliance(p) {
     }
     q = pl(D / 2 + 0.03, 0, 0.05, W - 0.06); box(q[0], q[1], H * 0.17, q[2], q[3], H * 0.3, steel, 0.02);  // freezer drawer
     q = pl(D / 2 + 0.09, 0, 0.06, W - 0.5); box(q[0], q[1], H * 0.27, q[2], q[3], 0.07, chrome);
+    return g;
+  }
+  if (kind === "microwave") {
+    // A microwave DRAWER unit filling a base bay: the drawer itself is the top ~11",
+    // with a plain panel below it, since a bay left part-empty reads as a hole.
+    const W = p.widthFt ?? 2.0, D = p.depthFt ?? 2.0;
+    const y0 = p.baseFt ?? 0.3, y1 = p.topFt ?? 2.73, MH = p.drawerHFt ?? 0.95;
+    q = pl(0, 0, D, W); box(q[0], q[1], (y0 + y1) / 2, q[2], q[3], y1 - y0, steel, 0.02);
+    const mc = y1 - MH / 2;
+    q = pl(D / 2 + 0.03, 0, 0.05, W - 0.06); box(q[0], q[1], mc, q[2], q[3], MH - 0.06, dark, 0.02);   // drawer face
+    q = pl(D / 2 + 0.08, 0, 0.06, W - 0.5); box(q[0], q[1], y1 - 0.14, q[2], q[3], 0.07, chrome);      // bar handle
+    q = pl(D / 2 + 0.06, W / 2 - 0.22, 0.04, 0.3);
+    box(q[0], q[1], mc - 0.1, q[2], q[3], 0.3, steel, 0.01);                                           // controls
+    q = pl(D / 2 + 0.03, 0, 0.05, W - 0.06);
+    box(q[0], q[1], (y0 + y1 - MH) / 2, q[2], q[3], y1 - MH - y0 - 0.05, steel, 0.02);                 // panel below
     return g;
   }
   if (kind === "dishwasher") {

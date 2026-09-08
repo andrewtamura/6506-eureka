@@ -209,6 +209,118 @@
       "tall": [],
       "noCornice": false,
       "noBattens": false
+    },
+    {
+      "along": "x",
+      "at": -18.6458,
+      "normal": [
+        0,
+        1
+      ],
+      "side": "S",
+      "lo": -0.083,
+      "hi": 28.083,
+      "doors": [],
+      "windows": [
+        [
+          4.33,
+          6.33,
+          4.0,
+          false
+        ],
+        [
+          13.0,
+          15.0,
+          4.0,
+          false
+        ],
+        [
+          20.083,
+          22.083,
+          4.0,
+          false
+        ]
+      ],
+      "tall": [
+        [
+          16.17,
+          19.17,
+          7.0
+        ]
+      ],
+      "noCornice": true,
+      "noBattens": true
+    },
+    {
+      "along": "x",
+      "at": -12.1459,
+      "normal": [
+        0,
+        -1
+      ],
+      "side": "N",
+      "lo": -0.083,
+      "hi": 28.083,
+      "doors": [
+        [
+          0.42,
+          3.42
+        ],
+        [
+          20.042,
+          26.042
+        ]
+      ],
+      "windows": [],
+      "tall": [],
+      "noCornice": true,
+      "noBattens": true
+    },
+    {
+      "along": "z",
+      "at": 0.1459,
+      "normal": [
+        1,
+        0
+      ],
+      "side": "E",
+      "lo": -18.875,
+      "hi": -11.917,
+      "doors": [],
+      "windows": [
+        [
+          -15.65,
+          -13.15,
+          3.5,
+          false
+        ]
+      ],
+      "tall": [],
+      "noCornice": true,
+      "noBattens": true
+    },
+    {
+      "along": "z",
+      "at": 27.8542,
+      "normal": [
+        -1,
+        0
+      ],
+      "side": "W",
+      "lo": -18.875,
+      "hi": -11.917,
+      "doors": [],
+      "windows": [
+        [
+          -16.42,
+          -13.92,
+          3.5,
+          false
+        ]
+      ],
+      "tall": [],
+      "noCornice": true,
+      "noBattens": true
     }
   ]
 }

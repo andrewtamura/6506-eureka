@@ -23,8 +23,9 @@
       "fixed": -11.9167,
       "pos": 1.92,
       "width": 3.0,
-      "hinge": "max",
-      "swing": "pos"
+      "hinge": "min",
+      "swing": "pos",
+      "doorStyle": "8lite"
     },
     {
       "name": "Family <-> Sitting (opening)",

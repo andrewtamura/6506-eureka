@@ -2,46 +2,55 @@
   {
     "name": "Family -> Ext Laundry",
     "hingeMax": false,
-    "swingSign": 1
+    "swingSign": 1,
+    "style": "panel"
   },
   {
     "name": "Family -> Scullery",
-    "hingeMax": true,
-    "swingSign": 1
+    "hingeMax": false,
+    "swingSign": 1,
+    "style": "8lite"
   },
   {
     "name": "Family -> Patio",
     "hingeMax": false,
-    "swingSign": 1
+    "swingSign": 1,
+    "style": "patio"
   },
   {
     "name": "Foyer -> Vestibule (french)",
     "hingeMax": false,
-    "swingSign": 1
+    "swingSign": 1,
+    "style": "panel"
   },
   {
     "name": "Front Door",
     "hingeMax": false,
-    "swingSign": -1
+    "swingSign": -1,
+    "style": "front"
   },
   {
     "name": "Bath -> WC",
     "hingeMax": true,
-    "swingSign": 1
+    "swingSign": 1,
+    "style": "panel"
   },
   {
     "name": "Sitting -> Ext Vestibule",
     "hingeMax": true,
-    "swingSign": 1
+    "swingSign": 1,
+    "style": "panel"
   },
   {
     "name": "Ext Vestibule -> Outside",
     "hingeMax": true,
-    "swingSign": 1
+    "swingSign": 1,
+    "style": "panel"
   },
   {
     "name": "Back Door",
     "hingeMax": true,
-    "swingSign": -1
+    "swingSign": 1,
+    "style": "8lite"
   }
 ]

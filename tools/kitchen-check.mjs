@@ -1,4 +1,4 @@
-// Kitchen verification harness.
+// Kitchen + scullery verification harness.
 //
 // Measures the BUILT MESHES in a headless viewer rather than trusting the manifest —
 // every piece is found through `obj.userData.item`, and cabinet fronts are measured
@@ -23,6 +23,14 @@ for (let i = 0; i < 180; i++) {
   await new Promise(r => setTimeout(r, 2000));
 }
 await page.evaluate(() => window.__eureka.setHour(12));
+// The swinging-leaf overlay is built when the ground level is selected, so the door
+// checks find nothing without this.
+await page.evaluate(() => document.querySelector('#level-switcher [data-id="ground"]').click());
+for (let i = 0; i < 60; i++) {
+  const n = await page.evaluate(() => (window.__eureka.doors || []).length).catch(() => 0);
+  if (n > 0) break;
+  await new Promise(r => setTimeout(r, 2000));
+}
 const raw = await page.evaluate(() => {
   const B3 = window.__eureka.modelViews[0].box.constructor;
   const items = [], loose = [];
@@ -49,9 +57,22 @@ const raw = await page.evaluate(() => {
     const mb = new B3().setFromObject(o); if (mb.isEmpty()) return;
     loose.push([mb.min.x, mb.min.y, mb.min.z, mb.max.x, mb.max.y, mb.max.z]);
   });
-  return { items, loose };
+  const doorLeaves = [];
+  for (const d of window.__eureka.doors || []) {
+    d.pivot.updateMatrixWorld(true);
+    let zmin = 1e9, zmax = -1e9, xmin = 1e9, xmax = -1e9, n = 0;
+    d.pivot.traverse(o => { if (!o.isMesh) return; n++;
+      const gg = o.geometry; gg.computeBoundingBox();
+      const bb = gg.boundingBox.clone(); bb.applyMatrix4(o.matrixWorld);
+      zmin = Math.min(zmin, bb.min.z); zmax = Math.max(zmax, bb.max.z);
+      xmin = Math.min(xmin, bb.min.x); xmax = Math.max(xmax, bb.max.x); });
+    doorLeaves.push({ name: d.name, parts: n, zmin, zmax, xmin, xmax });
+  }
+  return { items, loose, doorLeaves };
 });
 await b.close();
+raw.doorLeaves = (raw.doorLeaves || []).map(d => ({ name: d.name, parts: d.parts,
+  pzLo: -d.zmax / FT, pzHi: -d.zmin / FT, pxLo: -d.xmax / FT, pxHi: -d.xmin / FT }));
 
 const R = (v, n = 4) => +v.toFixed(n);
 let fail = 0; const A = (ok, m) => { if (!ok) fail++; console.log((ok ? '  PASS  ' : '  FAIL  ') + m); };
@@ -166,6 +187,8 @@ const battens = L.filter(m => m.yLo > 0.7 && m.yLo < 0.95 && (m.yHi - m.yLo) > 1
   && (m.pxHi - m.pxLo) < 0.25 && (m.pzHi - m.pzLo) < 0.25);
 A(!battens.filter(m => m.pzLo > -12 && m.pzHi < 2.1 && m.pxLo > 15.2 && m.pxHi < 31.1).length,
   'no battens on the kitchen walls');
+{ const sb = battens.filter(m => m.pzHi < -11.9 && m.pzLo > -18.7);   // inside the room
+  A(!sb.length, `no battens in the scullery either (${sb.length})`); }
 A(battens.filter(m => m.pzLo > 2.0).length > 0, 'dining room keeps its battens');
 
 console.log('PAIRED SWINGS');
@@ -236,5 +259,152 @@ A(!fixed.some(r => r.pzLo < -9.1 && r.px > 17.0 && r.px < 29.0 && !(r.type === '
   'south wall carries no cabinetry');
 A(P.filter(r => r.type === 'counter_stool').length === 2, 'two counter stools');
 A(P.filter(r => r.type === 'open_shelves').length === 2, 'two open-shelf bays');
+// ============================================================ SCULLERY
+console.log('SCULLERY');
+const SWALL = -18.6458, NWALL = -12.1459;
+const sc = P.filter(r => r.pz < -12);
+const gBase = sc.find(r => r.type === 'cabinet_run' && r.kind === 'base');
+const gUps  = sc.filter(r => r.type === 'cabinet_run' && r.kind === 'wall');
+const app = k => sc.find(r => r.type === 'appliance' && r.kind === k);
+const WINS = [[4.33, 6.33, 'S1'], [13.0, 15.0, 'S2'], [20.0833, 22.0833, 'S3']];
+A(!!gBase, 'galley base run built');
+if (gBase) {
+  console.log(`  base px ${R(gBase.pxLo,3)}..${R(gBase.pxHi,3)}  pz ${R(gBase.pzLo,3)}..${R(gBase.pzHi,3)}`);
+  A(Math.abs(gBase.pzLo - SWALL) < 0.02, `back on the SOUTH wall (${R(gBase.pzLo,4)})`);
+  A(NWALL - gBase.pzHi > 4.2, `${R(NWALL - gBase.pzHi, 3)} ft of walkway north of the counter`);
+  A(16.17 - gBase.pxHi > 0.5, `${R((16.17 - gBase.pxHi) * 12, 1)} in clear of the back door`);
+  // The whole point of this wall: the worktop passes UNDER the windows, whose sills are
+  // at 4.0 against a 3.08 top. Assert both the height and the continuity.
+  const slab = meshes(gBase).filter(m => (m.pxHi - m.pxLo) > 0.5 && (m.pzHi - m.pzLo) > 2.05);
+  const topY = slab.length ? Math.max(...slab.map(m => m.yHi)) : 0;
+  A(Math.abs(topY - 3.08) < 0.03, `worktop at ${R(topY,3)} ft — clears the 4.0 ft sills by ${R((4.0-topY)*12,1)} in`);
+  for (const [a, b, nm] of WINS.slice(0, 2))
+    A(slab.some(m => m.pxLo < a + 0.05 && m.pxHi > b - 0.05), `worktop runs under window ${nm}`);
+  // sink under the middle window
+  const bowl = meshes(gBase).filter(m => m.yHi < 3.06 && m.yHi > 2.2 && (m.pzHi - m.pzLo) > 1.2
+    && m.pxLo > 12.3 && m.pxHi < 15.7);
+  A(bowl.length > 0, `sink set into the counter under window S2 (${bowl.length} members)`);
+  // LOW CABINETS ARE DRAWERS — except the sink base, where the bowl sits exactly where
+  // a top drawer would go, so that bay keeps doors.
+  const face = SWALL + 2.0;
+  const fronts = meshes(gBase).filter(m => (m.pxHi - m.pxLo) > 0.3 && (m.yHi - m.yLo) > 0.25
+    && (m.pzHi - m.pzLo) > 0.03 && (m.pzHi - m.pzLo) < 0.06 && Math.abs(m.pzHi - (face - 0.04)) < 0.012)
+    .sort((u, v) => u.pxLo - v.pxLo);
+  const mods = [];
+  for (const f of fronts) { const last = mods[mods.length - 1];
+    if (last && f.pxLo <= last.hi + 0.02) { last.hi = Math.max(last.hi, f.pxHi); last.ys.push((f.yLo + f.yHi) / 2); }
+    else mods.push({ lo: f.pxLo, hi: f.pxHi, ys: [(f.yLo + f.yHi) / 2] }); }
+  const rowsOf = m => m.ys.filter((y, i) => m.ys.findIndex(z => Math.abs(z - y) < 0.15) === i).length;
+  const stacks = mods.filter(m => rowsOf(m) === 3), singles = mods.filter(m => rowsOf(m) === 1);
+  console.log(`  base modules: ${mods.map(m => `${R(m.lo,2)}-${R(m.hi,2)}x${rowsOf(m)}`).join(' ')}`);
+  A(stacks.length === 4, `four banks of three drawers (${stacks.length})`);
+  A(singles.length === 2 && singles.every(m => m.lo > 12.3 && m.hi < 15.7),
+    `the sink base keeps a pair of doors (${singles.length})`);
+  A(stacks.every(m => (m.hi - m.lo) > 1.0),
+    `narrowest drawer front ${R(Math.min(...stacks.map(m => m.hi - m.lo)) * 12, 1)} in — the 8-1/2 in one is gone`);
+}
+for (const k of ['microwave', 'range', 'dishwasher', 'hood']) A(!!app(k), `${k} present`);
+if (app('range') && app('hood')) {
+  const rg = app('range'), hd = app('hood');
+  A(Math.abs(rg.px - hd.px) < 0.02, 'hood centred over the range');
+  A(WINS.every(([a, b]) => rg.pxHi < a || rg.pxLo > b),
+    'range sits clear of every window, so its hood has wall to hang on');
+  // CLEARANCE, measured off the cooktop slab rather than assumed from topFt.
+  const ctop = meshes(rg).filter(m => m.yHi > 3.0 && m.yHi < 3.12 && (m.pxHi - m.pxLo) > 2.0)
+    .sort((u, v) => (v.pxHi - v.pxLo) * (v.pzHi - v.pzLo) - (u.pxHi - u.pxLo) * (u.pzHi - u.pzLo))[0];
+  A(!!ctop, 'cooktop surface found');
+  if (ctop) {
+    const clr = hd.yLo - ctop.yHi;
+    A(clr >= 2.45, `hood bottom ${R(clr * 12, 1)} in above the cooking surface (24 in is the minimum)`);
+    // CAPTURE AREA: the stainless liner, not the millwork box around it.
+    const lin = meshes(hd).filter(m => m.yLo < hd.yLo + 0.05 && (m.pxHi - m.pxLo) > 2.0)
+      .sort((u, v) => (v.pxHi - v.pxLo) * (v.pzHi - v.pzLo) - (u.pxHi - u.pxLo) * (u.pzHi - u.pzLo))[0];
+    const ca = lin ? (lin.pxHi - lin.pxLo) * (lin.pzHi - lin.pzLo) : 0;
+    const cta = (ctop.pxHi - ctop.pxLo) * (ctop.pzHi - ctop.pzLo);
+    A(ca >= cta, `capture area ${R(ca,2)} sq ft vs a ${R(cta,2)} sq ft cooktop (+${R((ca/cta-1)*100,0)}%)`);
+    A(lin && lin.pxHi - lin.pxLo >= rg.pxHi - rg.pxLo && lin.pzHi - lin.pzLo >= 2.05,
+      'liner covers the cooktop in both width and depth');
+  }
+  // BOXED: millwork carried from the liner to the ceiling.
+  A(hd.yHi > 8.9, `hood box runs to the ceiling (${R(hd.yHi,2)} ft)`);
+  const boxParts = meshes(hd).filter(m => m.yLo > hd.yLo + 0.3 && (m.pxHi - m.pxLo) > 1.5);
+  A(boxParts.length >= 3, `boxed and trimmed — ${boxParts.length} millwork members above the liner`);
+}
+// ONE band of uppers, stopping on the 7 ft head line — NOT run to the ceiling.
+gUps.sort((u, v) => u.yLo - v.yLo);
+A(gUps.length === 2, `two upper bands, run to the ceiling (${gUps.length})`);
+if (gUps.length === 2) {
+  A(Math.abs(gUps[0].yLo - 4.5) < 0.03 && Math.abs(gUps[1].yHi - 9.0) < 0.03,
+    `uppers run ${R(gUps[0].yLo,2)} to ${R(gUps[1].yHi,2)} ft — to the ceiling`);
+  A(Math.abs(gUps[0].yHi - gUps[1].yLo) < 0.03, 'the two bands meet with no void between them');
+  const u = gUps[0];
+  const fr = meshes(u).filter(m => (m.pzHi - m.pzLo) < 0.09 && (m.pxHi - m.pxLo) > 0.3);
+  // The stool and casing run 4 in past each opening edge, so clearing the OPENING is
+  // not enough — the uppers were landing on the trim.
+  const CASE = 0.33;
+  for (const [a, b, nm] of WINS)
+    A(!fr.some(m => m.pxHi > a - CASE && m.pxLo < b + CASE), `uppers clear window ${nm} and its casing`);
+  for (const [a, b, nm] of WINS) {
+    const gap = fr.filter(m => m.pxHi <= a).map(m => a - m.pxHi).concat(fr.filter(m => m.pxLo >= b).map(m => m.pxLo - b));
+    if (gap.length) A(Math.min(...gap) > CASE + 0.05,
+      `nearest upper to ${nm} stands ${R(Math.min(...gap) * 12, 1)} in off the opening`);
+  }
+  if (app('hood')) for (const u2 of gUps) {
+    const f2 = meshes(u2).filter(m => (m.pzHi - m.pzLo) < 0.09 && (m.pxHi - m.pxLo) > 0.3);
+    A(!f2.some(m => m.pxHi > app('hood').pxLo + 0.05 && m.pxLo < app('hood').pxHi - 0.05),
+      `uppers break over the hood (${R(u2.yLo,1)} ft band)`);
+  }
+}
+// WINDOWS TRIMMED: casing posts, a stool and an apron at each opening
+{ const sy = 4.0 - 0.066;                       // the wall finish sits 0.02 m below the furniture datum
+  const trim = L.filter(m => m.pzLo < SWALL + 0.35 && m.pxLo > 0 && m.pxHi < 28
+    && m.yHi > sy - 0.1 && m.yHi < sy + 0.2 && (m.pxHi - m.pxLo) > 2.4 && (m.pxHi - m.pxLo) < 3.2);
+  A(trim.length === 3, `a stool at each of the three south windows (${trim.length})`);
+  // A casing post is 4 in wide and runs SILL to HEAD. Battens are 1 in wide and start at
+  // the baseboard, so width alone let 180 of them through — the check verified nothing.
+  const posts = L.filter(m => m.pzLo < SWALL + 0.35
+    && Math.abs(m.yLo - sy) < 0.12 && m.yHi > 6.7 && m.yHi < 7.1
+    && (m.pxHi - m.pxLo) > 0.25 && (m.pxHi - m.pxLo) < 0.45);
+  A(posts.length === 6, `two casing posts at each of the three windows (${posts.length})`);
+  const aprons = L.filter(m => m.pzLo < SWALL + 0.35 && Math.abs(m.yHi - sy) < 0.05
+    && (m.yHi - m.yLo) > 0.3 && (m.yHi - m.yLo) < 0.5
+    && (m.pxHi - m.pxLo) > 1.8 && (m.pxHi - m.pxLo) < 2.3);
+  A(aprons.length === 3, `an apron under each window (${aprons.length})`); }
+
+// EAST WINDOW. Its casing runs 4 in past the opening, and a wall-centred window would
+// have put that on top of the countertop's east return — which is why it sits north.
+{ const EW = 0.1458, sy = 3.5 - 0.066, cf = SWALL + 2.0;
+  const cased = L.filter(m => m.pxHi > EW - 0.05 && m.pxLo < EW + 0.35
+    && m.yHi > sy - 0.1 && m.yHi < sy + 0.25 && (m.pzHi - m.pzLo) > 2.9 && (m.pzHi - m.pzLo) < 3.4);
+  A(cased.length === 1, `east window has a stool (${cased.length})`);
+  if (cased.length) A(cased[0].pzLo > cf + 0.05,
+    `its casing clears the countertop's east return by ${R((cased[0].pzLo - cf) * 12, 1)} in`);
+  const posts = L.filter(m => m.pxHi > EW - 0.05 && m.pxLo < EW + 0.35
+    && Math.abs(m.yLo - sy) < 0.14 && m.yHi > 6.7 && m.yHi < 7.1
+    && (m.pzHi - m.pzLo) > 0.25 && (m.pzHi - m.pzLo) < 0.45);
+  A(posts.length === 2, `two casing posts on the east window (${posts.length})`); }
+
+// FAMILY -> SCULLERY door. Both facts are measured: this is the third swing set from a
+// sign convention in this model and the first two were wrong until someone looked.
+{ const d = (raw.doorLeaves || []).find(x => /Family -> Scullery/i.test(x.name));
+  A(!!d, 'family-room door leaf found');
+  if (d) {
+    A(d.pzLo > -11.95, `swings INTO the family room — leaf at pz ${R(d.pzLo,3)}..${R(d.pzHi,3)}, wall -11.9167`);
+    const c = (d.pxLo + d.pxHi) / 2;
+    A(Math.abs(c - 3.42) < 0.2, `hinged on the WEST jamb — leaf at px ${R(c,3)}, jambs 0.42 (E) and 3.42 (W)`);
+    // 2 stiles + 2 rails + 1 pane + 1 vertical muntin + 3 horizontal = 9 members,
+    // dividing the glazing 2 columns by 4 rows — the same count as the back door.
+    A(d.parts === 9, `8-lite leaf: ${d.parts} members (2 stiles, 2 rails, pane, 4 muntins)`);
+  } }
+
+// BACK DOOR: outswing, and glazed from the inside too
+{ const d = (raw.doorLeaves || []).find(x => /back/i.test(x.name));
+  A(!!d, 'back door leaf found');
+  if (d) {
+    A(d.pzHi <= -18.875 + 0.02, `swings OUT — leaf at pz ${R(d.pzLo,3)}..${R(d.pzHi,3)}, wall -18.875`);
+    // 2 stiles + 2 rails + 1 pane + 1 vertical muntin + 3 horizontal = 9 members.
+    A(d.parts === 9, `8-lite leaf: ${d.parts} members (2 stiles, 2 rails, pane, 4 muntins)`);
+  } }
+
 console.log(fail ? `\n${fail} FAILURES` : '\nALL CHECKS PASSED');
 process.exit(fail ? 1 : 0);
