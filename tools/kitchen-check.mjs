@@ -281,6 +281,24 @@ if (gBase) {
   const bowl = meshes(gBase).filter(m => m.yHi < 3.06 && m.yHi > 2.2 && (m.pzHi - m.pzLo) > 1.2
     && m.pxLo > 12.3 && m.pxHi < 15.7);
   A(bowl.length > 0, `sink set into the counter under window S2 (${bowl.length} members)`);
+  // LOW CABINETS ARE DRAWERS — except the sink base, where the bowl sits exactly where
+  // a top drawer would go, so that bay keeps doors.
+  const face = SWALL + 2.0;
+  const fronts = meshes(gBase).filter(m => (m.pxHi - m.pxLo) > 0.3 && (m.yHi - m.yLo) > 0.25
+    && (m.pzHi - m.pzLo) > 0.03 && (m.pzHi - m.pzLo) < 0.06 && Math.abs(m.pzHi - (face - 0.04)) < 0.012)
+    .sort((u, v) => u.pxLo - v.pxLo);
+  const mods = [];
+  for (const f of fronts) { const last = mods[mods.length - 1];
+    if (last && f.pxLo <= last.hi + 0.02) { last.hi = Math.max(last.hi, f.pxHi); last.ys.push((f.yLo + f.yHi) / 2); }
+    else mods.push({ lo: f.pxLo, hi: f.pxHi, ys: [(f.yLo + f.yHi) / 2] }); }
+  const rowsOf = m => m.ys.filter((y, i) => m.ys.findIndex(z => Math.abs(z - y) < 0.15) === i).length;
+  const stacks = mods.filter(m => rowsOf(m) === 3), singles = mods.filter(m => rowsOf(m) === 1);
+  console.log(`  base modules: ${mods.map(m => `${R(m.lo,2)}-${R(m.hi,2)}x${rowsOf(m)}`).join(' ')}`);
+  A(stacks.length === 4, `four banks of three drawers (${stacks.length})`);
+  A(singles.length === 2 && singles.every(m => m.lo > 12.3 && m.hi < 15.7),
+    `the sink base keeps a pair of doors (${singles.length})`);
+  A(stacks.every(m => (m.hi - m.lo) > 0.65),
+    `narrowest drawer front ${R(Math.min(...stacks.map(m => m.hi - m.lo)) * 12, 1)} in — a 13-3/4 in base after frame and reveals`);
 }
 for (const k of ['microwave', 'range', 'dishwasher', 'hood']) A(!!app(k), `${k} present`);
 if (app('range') && app('hood')) {
@@ -296,11 +314,35 @@ if (gUps.length === 1) {
     `uppers run ${R(u.yLo,2)} to ${R(u.yHi,2)} ft — level with the window heads`);
   A(u.yHi < 8.0, `${R(9.0 - u.yHi, 2)} ft of open wall above them`);
   const fr = meshes(u).filter(m => (m.pzHi - m.pzLo) < 0.09 && (m.pxHi - m.pxLo) > 0.3);
+  // The stool and casing run 4 in past each opening edge, so clearing the OPENING is
+  // not enough — the uppers were landing on the trim.
+  const CASE = 0.33;
   for (const [a, b, nm] of WINS)
-    A(!fr.some(m => m.pxHi > a + 0.05 && m.pxLo < b - 0.05), `uppers break at window ${nm}`);
+    A(!fr.some(m => m.pxHi > a - CASE && m.pxLo < b + CASE), `uppers clear window ${nm} and its casing`);
+  for (const [a, b, nm] of WINS) {
+    const gap = fr.filter(m => m.pxHi <= a).map(m => a - m.pxHi).concat(fr.filter(m => m.pxLo >= b).map(m => m.pxLo - b));
+    if (gap.length) A(Math.min(...gap) > CASE + 0.05,
+      `nearest upper to ${nm} stands ${R(Math.min(...gap) * 12, 1)} in off the opening`);
+  }
   if (app('hood')) A(!fr.some(m => m.pxHi > app('hood').pxLo + 0.05 && m.pxLo < app('hood').pxHi - 0.05),
     'uppers break over the hood');
 }
+// WINDOWS TRIMMED: casing posts, a stool and an apron at each opening
+{ const sy = 4.0 - 0.066;                       // the wall finish sits 0.02 m below the furniture datum
+  const trim = L.filter(m => m.pzLo < SWALL + 0.35 && m.pxLo > 0 && m.pxHi < 28
+    && m.yHi > sy - 0.1 && m.yHi < sy + 0.2 && (m.pxHi - m.pxLo) > 2.4 && (m.pxHi - m.pxLo) < 3.2);
+  A(trim.length === 3, `a stool at each of the three south windows (${trim.length})`);
+  // A casing post is 4 in wide and runs SILL to HEAD. Battens are 1 in wide and start at
+  // the baseboard, so width alone let 180 of them through — the check verified nothing.
+  const posts = L.filter(m => m.pzLo < SWALL + 0.35
+    && Math.abs(m.yLo - sy) < 0.12 && m.yHi > 6.7 && m.yHi < 7.1
+    && (m.pxHi - m.pxLo) > 0.25 && (m.pxHi - m.pxLo) < 0.45);
+  A(posts.length === 6, `two casing posts at each of the three windows (${posts.length})`);
+  const aprons = L.filter(m => m.pzLo < SWALL + 0.35 && Math.abs(m.yHi - sy) < 0.05
+    && (m.yHi - m.yLo) > 0.3 && (m.yHi - m.yLo) < 0.5
+    && (m.pxHi - m.pxLo) > 1.8 && (m.pxHi - m.pxLo) < 2.3);
+  A(aprons.length === 3, `an apron under each window (${aprons.length})`); }
+
 // BACK DOOR: outswing, and glazed from the inside too
 { const d = (raw.doorLeaves || []).find(x => /back/i.test(x.name));
   A(!!d, 'back door leaf found');

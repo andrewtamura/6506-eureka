@@ -1390,6 +1390,10 @@ function buildCabinetRun(p) {
   const FARM = p.sinkAt !== undefined && (p.sinkStyle ?? "farmhouse") === "farmhouse";
   const sinkLo = FARM ? p.sinkAt - SKW / 2 : null;
   const sinkHi = FARM ? p.sinkAt + SKW / 2 : null;
+  // The bowl's footprint whichever style it is — a DRAWER run still has to give the
+  // sink base doors, because the bowl occupies exactly where the top drawer would go.
+  const bowlLo = p.sinkAt === undefined ? null : p.sinkAt - SKW / 2;
+  const bowlHi = p.sinkAt === undefined ? null : p.sinkAt + SKW / 2;
   const inSink = (c) => sinkLo !== null && c > sinkLo + 1e-4 && c < sinkHi - 1e-4;
   const cuts = [...(p.divideAt || []), ...(sinkLo === null ? [] : [sinkLo, sinkHi])]
     .slice().sort((u, v) => u - v);
@@ -1468,7 +1472,8 @@ function buildCabinetRun(p) {
       const vy0 = y0 + FR, vy1 = y1 - FR;
 
       if (inSink(oc)) { farmhouseSink(p.sinkAt, (sinkHi - sinkLo) - FR); continue; }
-      if (rows) {
+      const overBowl = bowlLo !== null && Math.min(ob, bowlHi) - Math.max(oa, bowlLo) > 0.05;
+      if (rows && !overBowl) {
         // A drawer stack: intermediate rails between the fronts, so each drawer sits
         // in its own framed opening.
         const tot = rows.reduce((u, v) => u + v, 0);
