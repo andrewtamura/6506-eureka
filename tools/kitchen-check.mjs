@@ -60,18 +60,19 @@ const raw = await page.evaluate(() => {
   const doorLeaves = [];
   for (const d of window.__eureka.doors || []) {
     d.pivot.updateMatrixWorld(true);
-    let zmin = 1e9, zmax = -1e9, n = 0;
+    let zmin = 1e9, zmax = -1e9, xmin = 1e9, xmax = -1e9, n = 0;
     d.pivot.traverse(o => { if (!o.isMesh) return; n++;
       const gg = o.geometry; gg.computeBoundingBox();
       const bb = gg.boundingBox.clone(); bb.applyMatrix4(o.matrixWorld);
-      zmin = Math.min(zmin, bb.min.z); zmax = Math.max(zmax, bb.max.z); });
-    doorLeaves.push({ name: d.name, parts: n, zmin, zmax });
+      zmin = Math.min(zmin, bb.min.z); zmax = Math.max(zmax, bb.max.z);
+      xmin = Math.min(xmin, bb.min.x); xmax = Math.max(xmax, bb.max.x); });
+    doorLeaves.push({ name: d.name, parts: n, zmin, zmax, xmin, xmax });
   }
   return { items, loose, doorLeaves };
 });
 await b.close();
 raw.doorLeaves = (raw.doorLeaves || []).map(d => ({ name: d.name, parts: d.parts,
-  pzLo: -d.zmax / FT, pzHi: -d.zmin / FT }));
+  pzLo: -d.zmax / FT, pzHi: -d.zmin / FT, pxLo: -d.xmax / FT, pxHi: -d.xmin / FT }));
 
 const R = (v, n = 4) => +v.toFixed(n);
 let fail = 0; const A = (ok, m) => { if (!ok) fail++; console.log((ok ? '  PASS  ' : '  FAIL  ') + m); };
@@ -382,6 +383,16 @@ if (gUps.length === 2) {
     && Math.abs(m.yLo - sy) < 0.14 && m.yHi > 6.7 && m.yHi < 7.1
     && (m.pzHi - m.pzLo) > 0.25 && (m.pzHi - m.pzLo) < 0.45);
   A(posts.length === 2, `two casing posts on the east window (${posts.length})`); }
+
+// FAMILY -> SCULLERY door. Both facts are measured: this is the third swing set from a
+// sign convention in this model and the first two were wrong until someone looked.
+{ const d = (raw.doorLeaves || []).find(x => /Family -> Scullery/i.test(x.name));
+  A(!!d, 'family-room door leaf found');
+  if (d) {
+    A(d.pzLo > -11.95, `swings INTO the family room — leaf at pz ${R(d.pzLo,3)}..${R(d.pzHi,3)}, wall -11.9167`);
+    const c = (d.pxLo + d.pxHi) / 2;
+    A(Math.abs(c - 3.42) < 0.2, `hinged on the WEST jamb — leaf at px ${R(c,3)}, jambs 0.42 (E) and 3.42 (W)`);
+  } }
 
 // BACK DOOR: outswing, and glazed from the inside too
 { const d = (raw.doorLeaves || []).find(x => /back/i.test(x.name));

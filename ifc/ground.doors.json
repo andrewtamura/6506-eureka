@@ -7,7 +7,7 @@
   },
   {
     "name": "Family -> Scullery",
-    "hingeMax": true,
+    "hingeMax": false,
     "swingSign": 1,
     "style": "panel"
   },
