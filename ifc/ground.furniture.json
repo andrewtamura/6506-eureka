@@ -486,35 +486,33 @@
     {
       "type": "banquette",
       "px": 26.904,
-      "pz": -15.32,
+      "pz": -15.46967,
       "rot": 0.0,
       "faces": "E",
-      "lenFt": 4.5,
+      "lenFt": 6.3523,
       "depthFt": 1.9,
       "backFt": 3.0
     },
     {
       "type": "round_pedestal_table",
-      "px": 24.55,
+      "px": 24.174,
       "pz": -15.32,
       "rot": 0.0,
-      "diameter": 2.25,
+      "diameter": 3.0,
       "h": 2.5,
       "material": "walnut"
     },
     {
-      "type": "upholstered_dining_chair",
-      "px": 22.9,
-      "pz": -15.32,
-      "rot": 0.0,
-      "material": "linen"
+      "type": "bentwood_chair",
+      "px": 22.36,
+      "pz": -16.17,
+      "rot": 0.0
     },
     {
-      "type": "upholstered_dining_chair",
-      "px": 23.8,
-      "pz": -16.8,
-      "rot": 0.0,
-      "material": "linen"
+      "type": "bentwood_chair",
+      "px": 24.0,
+      "pz": -17.31,
+      "rot": 0.0
     }
   ]
 }

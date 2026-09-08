@@ -10,7 +10,7 @@ const PALETTE = {
   oatmeal: 0xd9d2c4, linen: 0xcfc6b4, upholstery: 0x5a6b80,
   lightoak: 0xb38f63, oak: 0xa9824f, walnut: 0x6b4a2f, darkwalnut: 0x3a2a1c,
   rug: 0x9c6b5a, sage: 0x8a9a86, slate: 0x4a5568, cabinet: 0xeae7df,
-  leather: 0x8a6244,
+  leather: 0x8a6244, cane: 0xc9a870, beech: 0x6f4a2c,
 };
 const col = (name, fallback) => new THREE.Color(PALETTE[name] ?? fallback);
 const fabricMat = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.95 });
@@ -1720,6 +1720,54 @@ function buildCounterStool(p) {
   return g;
 }
 
+// A BENTWOOD CAFE CHAIR (Thonet No. 14). Almost all air: round steam-bent beech about
+// an inch thick, a caned seat and nothing upholstered. The back hoop and BOTH REAR
+// LEGS are a single continuous bend — that is how the chair is actually made, and
+// drawing them as one tube is what stops it reading as a stick figure. Front = +Z
+// (buildFurniture turns it to face the table).
+function buildBentwoodChair(p) {
+  const g = new THREE.Group();
+  const beech = woodMat(col(p.material || "beech", 0x6f4a2c));
+  const cane = new THREE.MeshStandardMaterial({ color: col(p.seat || "cane", 0xc9a870), roughness: 0.9 });
+  const R = 0.014;                      // 1.1" round stock — the whole daintiness lever
+  const SEAT = 0.45, SR = 0.21;         // seat height / radius — a No. 14 seat is 42 cm
+  const tube = (pts, r = R) =>
+    new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(
+      pts.map(a => new THREE.Vector3(...a)), false, "catmullrom", 0.4), 64, r, 8, false), beech);
+
+  // 1) The single bend. Rear legs rise from UNDER the seat (x +-0.135 at the floor,
+  //    well inside the 0.21 seat radius), carry on past it and flare out into the
+  //    crown. Legs planted outside the seat disc would leave nothing for the support
+  //    ring to touch, which is exactly how the first pass went wrong.
+  g.add(tube([
+    [-0.135, 0, -0.185], [-0.125, 0.22, -0.175], [-0.118, SEAT, -0.168],
+    [-0.135, 0.65, -0.200], [-0.115, 0.86, -0.245], [0, 0.89, -0.255],
+    [0.115, 0.86, -0.245], [0.135, 0.65, -0.200], [0.118, SEAT, -0.168],
+    [0.125, 0.22, -0.175], [0.135, 0, -0.185],
+  ]));
+  // 2) The inner curl inside the hoop — the No. 14's other signature bend.
+  g.add(tube([
+    [-0.126, SEAT + 0.06, -0.172], [-0.107, 0.700, -0.205], [-0.055, 0.778, -0.222],
+    [0, 0.735, -0.226],
+    [0.055, 0.778, -0.222], [0.107, 0.700, -0.205], [0.126, SEAT + 0.06, -0.172],
+  ], R * 0.85));
+  // 3) Seat: a bent rim with a caned panel dropped into it.
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(SR - R, R, 8, 40), beech);
+  rim.rotation.x = Math.PI / 2; rim.position.y = SEAT - R; g.add(rim);
+  const pan = new THREE.Mesh(new THREE.CylinderGeometry(SR - R, SR - R * 1.4, 0.012, 40), cane);
+  pan.position.y = SEAT - R - 0.004; g.add(pan);
+  // 4) Front legs: round stock tucked under the rim, splaying out to the floor.
+  for (const ix of [-1, 1]) g.add(tube([
+    [ix * 0.150, SEAT - R, 0.130], [ix * 0.163, 0.21, 0.144], [ix * 0.175, 0, 0.158],
+  ], R * 0.92));
+  // 5) The support ring under the seat, which is what ties the four legs together.
+  //    Radius 0.207 puts it on the leg centrelines at this height (front legs pass
+  //    0.205 from the axis there, rear legs 0.209) rather than floating inside them.
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.207, R * 0.8, 8, 36), beech);
+  ring.rotation.x = Math.PI / 2; ring.position.y = 0.355; g.add(ring);
+  return g;
+}
+
 // A built-in CAFE BANQUETTE: a painted plinth and seat box carrying a buttoned
 // leather squab, with a stile-and-rail panelled back board against the wall. Built
 // the way one actually is — the box is joinery, the back is a panelled wall board,
@@ -1750,7 +1798,7 @@ function buildBanquette(p) {
 
   box(bk + (D - 0.22) / 2, 0, PL / 2, D - 0.22, L - 0.12, PL, paint);         // plinth (toe kick)
   box(0, 0, (PL + DECK) / 2, D, L, DECK - PL, paint);                          // seat box
-  box(D / 2 - 0.03, 0, DECK - 0.045, 0.10, L + 0.06, 0.09, paint, 0.02);       // nosing over the box front
+  box(D / 2 - 0.03, 0, DECK - 0.045, 0.10, L, 0.09, paint, 0.02);            // nosing over the box front
 
   // Back: a thin sheet on the wall with the frame standing proud of it, so the
   // panels are real recesses rather than lines drawn on a slab.
@@ -2108,12 +2156,12 @@ function buildAppliance(p) {
   return g;
 }
 
-const BUILDERS = { range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, open_shelves: buildOpenShelves, counter_stool: buildCounterStool, banquette: buildBanquette, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
+const BUILDERS = { range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, open_shelves: buildOpenShelves, counter_stool: buildCounterStool, banquette: buildBanquette, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, bentwood_chair: buildBentwoodChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 // Re-export a few individual builders so the viewer can drop single procedural
 // pieces (e.g. patio furniture on the alt roof deck) without going through the
 // furniture.json manifest.
 export { buildChair, buildRug, buildSofa };
-const CHAIRS = new Set(["upholstered_dining_chair", "highback_chair"]);
+const CHAIRS = new Set(["upholstered_dining_chair", "highback_chair", "bentwood_chair"]);
 const SEAT_FRONT = 0.225;   // chair seat front is +0.225 m toward the table from its centre
 const TUCK = 0.08;          // pushed-in: seat front this far under the table edge
 const SIT = 0.22;           // pulled-out: this gap between seat front and table edge

@@ -221,38 +221,36 @@
         "type": "banquette",
         "at": [
           26.904,
-          -15.32
+          -15.46967
         ],
         "faces": "E",
-        "lenFt": 4.5,
+        "lenFt": 6.3523,
         "depthFt": 1.9,
         "backFt": 3.0
       },
       {
         "type": "round_pedestal_table",
         "at": [
-          24.55,
+          24.174,
           -15.32
         ],
-        "diameter": 2.25,
+        "diameter": 3.0,
         "h": 2.5,
         "material": "walnut"
       },
       {
-        "type": "upholstered_dining_chair",
+        "type": "bentwood_chair",
         "at": [
-          22.9,
-          -15.32
-        ],
-        "material": "linen"
+          22.36,
+          -16.17
+        ]
       },
       {
-        "type": "upholstered_dining_chair",
+        "type": "bentwood_chair",
         "at": [
-          23.8,
-          -16.8
-        ],
-        "material": "linen"
+          24.0,
+          -17.31
+        ]
       }
     ]
   }
