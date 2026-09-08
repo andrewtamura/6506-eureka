@@ -85,25 +85,34 @@
     {
       "type": "cabinet_run",
       "px": 29.7708,
-      "pz": -6.9942,
+      "pz": -7.2442,
       "rot": 0.0,
       "kind": "base",
       "faces": "E",
-      "lenFt": 9.3866,
+      "lenFt": 8.8866,
       "depthFt": 2.0,
-      "sinkAt": -0.015,
+      "sinkAt": -0.265,
       "gaps": [
         {
-          "a": 0.9358,
-          "b": 2.9358,
+          "a": 1.235,
+          "b": 3.235,
           "counter": true
         }
+      ],
+      "drawers": [
+        0.22,
+        0.35,
+        0.43
+      ],
+      "sinkWFt": 3.0,
+      "divideAt": [
+        -3.1042
       ]
     },
     {
       "type": "appliance",
       "px": 29.7708,
-      "pz": -8.93,
+      "pz": -9.4792,
       "rot": 0.0,
       "kind": "dishwasher",
       "faces": "E",
