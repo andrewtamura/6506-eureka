@@ -70,8 +70,8 @@ const east = P.filter(r => r.type === 'cabinet_run' && r.px < 20);
 const drawers = east.find(r => r.kind === 'tall');
 const middle  = east.find(r => r.kind === 'wall' && Math.abs(r.yLo - 3.08) < 0.05);
 const upper   = east.find(r => r.kind === 'wall' && r.yLo > 6.5);
-const west    = pick('cabinet_run', 'base', -6.9942);
-const WALL = 15.3125, FR = 0.17, REV = 0.03, SET = 0.02;
+const west    = pick('cabinet_run', 'base', -7.2442);
+const WALL = 15.3125, FR = 0.17, REV = 0.055, SET = 0.04;
 const RUNS = [['drawers', drawers, WALL + 2.1, 1], ['middle', middle, WALL + 1.7667, 1],
               ['upper', upper, WALL + 1.7667, 1], ['west run', west, 30.7708 - 2.0, -1]];
 
@@ -102,7 +102,7 @@ for (const [n, r, face, sgn] of RUNS) {
   A(stiles.length > 0 && fr.length > 0, `${n}: ${stiles.length} stiles, ${fr.length} fronts`);
   if (!fr.length) continue;
   const backs = fr.map(m => Math.abs((sgn > 0 ? m.pxHi : m.pxLo) - face));
-  A(Math.min(...backs) > 0.014 && Math.max(...backs) < 0.028,
+  A(Math.min(...backs) > SET - 0.012 && Math.max(...backs) < SET + 0.012,
     `${n}: fronts set back ${R(Math.min(...backs) * 12, 2)} in behind the frame face`);
   const mods = modsOf(r, face, sgn);
   let minGap = Infinity;
@@ -112,12 +112,52 @@ for (const [n, r, face, sgn] of RUNS) {
 }
 
 console.log('DOOR WIDTHS');
-{ const doorRuns = RUNS.filter(([n]) => n !== 'drawers');   // drawer banks are double width by direction
+{ // Only the middle and upper bands carry doors now; both drawer runs are exempt,
+  // their banks being double width by direction.
+  const doorRuns = RUNS.filter(([n]) => n === 'middle' || n === 'upper');
   const all = doorRuns.flatMap(([n, r, face, sgn]) => modsOf(r, face, sgn).map(m => [n, m.hi - m.lo]));
   const wide = all.filter(([, w]) => w > 1.95);
   A(!wide.length, `no door wider than 1.95 ft (widest ${R(Math.max(...all.map(x => x[1])), 3)})`
-    + (wide.length ? ` — ${wide.map(([n, w]) => n + ' ' + R(w, 2))}` : ''));
-  A(modsOf(west, 30.7708 - 2.0, -1).length === 5, `west run subdivides to 4 doors + 1`); }
+    + (wide.length ? ` — ${wide.map(([n, w]) => n + ' ' + R(w, 2))}` : '')); }
+
+console.log('WEST RUN');
+{ const WF = 30.7708 - 2.0;
+  const banks = modsOf(west, WF, -1);
+  for (const m of banks) console.log(`  bank pz ${R(m.lo,3)}..${R(m.hi,3)}  ${R(m.hi - m.lo,3)} ft`);
+  const rowsOf = (bk) => { const ys = [];
+    for (const f of fronts(west, WF, -1)) { if (f.pzLo < bk.lo - 0.02 || f.pzHi > bk.hi + 0.02) continue;
+      const yc = (f.yLo + f.yHi) / 2; if (!ys.some(y => Math.abs(y - yc) < 0.15)) ys.push(yc); }
+    return ys.length; };
+  // Three fronts stacked = a pull-out bank; one = a door. The sink base carries a pair
+  // of doors under its bowl, so both kinds are expected on this run.
+  const stacks = banks.filter(m => rowsOf(m) === 3), singles = banks.filter(m => rowsOf(m) === 1);
+  A(stacks.length === 2, `two pull-out banks — one north of the sink, one south of the dishwasher (${stacks.length})`);
+  // The north bank spans its whole cabinet: one set of three drawers, not two banks of three.
+  const nBank = stacks.filter(m => m.lo > -5.5);
+  A(nBank.length === 1 && nBank[0].hi - nBank[0].lo > 2.2,
+    `the bank north of the sink spans the cabinet — ${nBank.length ? R(nBank[0].hi - nBank[0].lo, 3) : '-'} ft wide`);
+  A(singles.length === 2 && singles.every(m => m.lo > -8.6 && m.hi < -5.3),
+    `a pair of doors in the sink base (${singles.length})`);
+  A(stacks.every(m => (m.hi - m.lo) > 0.7), `narrowest drawer front ${R(Math.min(...stacks.map(m => m.hi - m.lo)) * 12, 1)} in — a 15 in base after frame and reveals`);
+  // the run terminates 6 in clear of W2's south edge at pz -2.2709
+  const stone = meshes(west).filter(m => Math.abs(m.yHi - 3.08) < 0.02 && (m.pzHi - m.pzLo) > 0.5
+    && (m.pxHi - m.pxLo) > 2.05);          // the slab; the sink rim is shallower
+  const north = Math.max(...stone.map(m => m.pzHi));
+  A(Math.abs(north - (-2.7709)) < 0.02,
+    `worktop ends at ${R(north,4)} — ${R((north + 2.2709) * -12, 1)} in clear of the north window`);
+  // FARMHOUSE SINK: an apron standing proud of the frame, centred on W1
+  const apron = meshes(west).filter(m => (m.yHi - m.yLo) > 0.7 && (m.yHi - m.yLo) < 1.0
+    && (m.pzHi - m.pzLo) > 2.0 && m.pxLo < WF - 0.02);
+  A(apron.length === 1, `one apron front (${apron.length})`);
+  if (apron.length) {
+    const ap = apron[0];
+    A(Math.abs((ap.pzLo + ap.pzHi) / 2 - (-6.9792)) < 0.02, `sink centred on the window (${R((ap.pzLo + ap.pzHi) / 2, 4)})`);
+    A(ap.pzHi - ap.pzLo > 2.7, `${R(ap.pzHi - ap.pzLo, 3)} ft wide — a large basin`);
+    A(WF - ap.pxLo > 0.02, `apron stands ${R((WF - ap.pxLo) * 12, 2)} in proud of the face frame`);
+    A(Math.abs(ap.yHi - 3.08) < 0.03, `apron top level with the worktop (${R(ap.yHi, 3)})`);
+  }
+  // no stone over the sink — the rim makes the surface there
+  A(!stone.some(m => m.pzLo < -6.9 && m.pzHi > -7.1), 'worktop breaks at the sink'); }
 
 console.log('BATTENS');
 // A batten is narrow in BOTH horizontal directions; the recessed field band is equally
@@ -156,14 +196,25 @@ const LINES = [-11.6875, -9.9792, -8.2709, -6.7709, -5.2709, -3.7709, -2.2709];
 const mm = modsOf(middle, WALL + 1.7667, 1), mu = modsOf(upper, WALL + 1.7667, 1), md = modsOf(drawers, WALL + 2.1, 1);
 A(mm.length === 4 && mu.length === 6, `middle 4 doors, upper 6 (${mm.length}/${mu.length})`);
 A(md.length === 2, `lower drawers 3 left + 3 right (${md.length} banks)`);
-A(![...mm, ...mu].flatMap(m => [m.lo, m.hi]).some(e => !LINES.some(l => Math.abs(e - l) < 0.22)),
+A(![...mm, ...mu].flatMap(m => [m.lo, m.hi]).some(e => !LINES.some(l => Math.abs(e - l) < FR + REV + 0.02)),
   'middle and upper modules on the six lines');
-const atHead = L.filter(m => m.yLo > 6.9 && m.yLo < 8.7);
-A(!atHead.some(m => (m.pzHi - m.pzLo) < 0.6 && (m.pxHi - m.pxLo) > 2 && m.pzLo < -11.6 && m.pzHi > -11.45),
-  'no entablature on the south wall');
-A(atHead.some(m => (m.pxHi - m.pxLo) < 0.6 && (m.pzHi - m.pzLo) > 2 && m.pxHi > 30.7 && m.pxLo < 30.45),
-  'west wall keeps its entablature');
-A(Math.abs((west.top - FY) / FT - 3.08) < 0.03, `west worktop at ${R((west.top - FY) / FT, 3)} ft`);
+// The cove crown is the only trim member that stands ~0.417 ft off the wall (P5 in
+// src/wall-finish.js) — the field band projects 0.039 and the bed mould 0.19 — so a
+// cornice mesh is the one that is thick in BOTH horizontal directions.
+const cornice = L.filter(m => m.yLo > 6.9 && m.yLo < 8.7
+  && Math.min(m.pxHi - m.pxLo, m.pzHi - m.pzLo) > 0.3
+  && Math.max(m.pxHi - m.pxLo, m.pzHi - m.pzLo) > 1.0);
+A(!cornice.filter(m => m.pzHi < 2.05 && m.pxLo > 15.0 && m.pxHi < 31.2).length,
+  `no cornice on any kitchen wall (${cornice.filter(m => m.pzHi < 2.05 && m.pxLo > 15.0 && m.pxHi < 31.2).length})`);
+// Positive control: without this the check above is purely negative and would pass just
+// as happily if the detector stopped finding cornices at all.
+A(cornice.filter(m => m.pzLo > 1.95).length > 0,
+  `dining room still has its cornice — the detector works (${cornice.filter(m => m.pzLo > 1.95).length})`);
+// Measured off the slab, not the group's largest footprint — breaking the counter at
+// the sink made the carcass the biggest piece, which reads 2.9.
+{ const slab = meshes(west).filter(m => (m.pxHi - m.pxLo) > 2.05 && (m.pzHi - m.pzLo) > 0.5);
+  A(slab.length && Math.abs(Math.max(...slab.map(m => m.yHi)) - 3.08) < 0.03,
+    `west worktop at ${R(Math.max(...slab.map(m => m.yHi)), 3)} ft`); }
 const isl = pick('island', null, -5.9249);
 { const face = Math.max(...meshes(isl).filter(m => (m.pxHi - m.pxLo) > 0.4 && (m.yHi - m.yLo) > 0.3).map(m => m.pzHi));
   A(!meshes(isl).filter(m => (m.pxHi - m.pxLo) > 0.4 && (m.yHi - m.yLo) > 0.3 && m.pzHi > face + 0.015).length,

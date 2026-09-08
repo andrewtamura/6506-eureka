@@ -71,10 +71,7 @@
     },
     "paneling": {
       "baseboard": 10,
-      "noCornice": [
-        "E",
-        "S"
-      ],
+      "noCornice": true,
       "battens": false
     },
     "furniture": [
@@ -167,27 +164,33 @@
         "type": "cabinet_run",
         "at": [
           29.7708,
-          -6.9942
+          -7.2442
         ],
         "kind": "base",
         "faces": "E",
-        "lenFt": 9.3866,
+        "lenFt": 8.8866,
         "depthFt": 2.0,
-        "sinkAt": -0.015,
+        "sinkAt": -0.265,
         "gaps": [
           {
-            "a": 0.9358,
-            "b": 2.9358,
+            "a": 1.235,
+            "b": 3.235,
             "counter": true
           }
-        ]
+        ],
+        "drawers": [
+          0.22,
+          0.35,
+          0.43
+        ],
+        "sinkWFt": 3.0
       },
       {
         "type": "appliance",
         "kind": "dishwasher",
         "at": [
           29.7708,
-          -8.93
+          -9.4792
         ],
         "faces": "E",
         "widthFt": 2.0,

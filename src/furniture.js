@@ -1270,7 +1270,6 @@ function buildCabinetRun(p) {
   const wood = woodMat(col(p.cabinet || "cabinet", 0xeae7df));
   const stone = new THREE.MeshStandardMaterial({ color: 0xdad7cf, roughness: 0.3 });
   const dark = new THREE.MeshStandardMaterial({ color: 0x26262a, roughness: 0.5 });
-  const chrome = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.25, metalness: 0.8 });
   const toeM = new THREE.MeshStandardMaterial({ color: 0x241b13, roughness: 0.8 });
   const brass = new THREE.MeshStandardMaterial({ color: 0xb08d57, roughness: 0.35, metalness: 0.6 });
   const A = DIR[p.faces || "N"], P = [-A[1], A[0]];
@@ -1287,6 +1286,56 @@ function buildCabinetRun(p) {
     k = pl(D / 2 + 0.075, ds, 0, 0);
     const m = new THREE.Mesh(new THREE.SphereGeometry(0.055 * ft, 14, 10), brass);
     m.position.copy(V(k[0], k[1], y)); g.add(m);                             // turned knob
+  };
+  // FARMHOUSE (apron-front) sink. The basin IS the cabinetry over its module: a fireclay
+  // apron stands proud of the face frame from the counter line down, with the bowl set
+  // into the run behind it and the rim making the worktop over its own width.
+  const fire = new THREE.MeshStandardMaterial({ color: 0xf2f0ea, roughness: 0.25 });
+  const farmhouseSink = (ds, w) => {
+    const APR = p.apronFt ?? 0.88;                 // apron height, ~10-1/2"
+    const top = CT + 0.08, bot = top - APR;        // rim level with the worktop
+    const BD = D - 0.14, RW = 0.10;              // bowl footprint, rim width
+    let k = pl(D / 2 + 0.03, ds, 0.06, w);
+    box(k[0], k[1], (bot + top) / 2, k[2], k[3], APR, fire, 0.03);          // apron, 3/4" proud
+    // Rim as a FRAME, not a slab — a slab across the opening left nothing to see into.
+    for (const t of [-1, 1]) {
+      k = pl(0.02 + t * (BD / 2 - RW / 2), ds, RW, w - 0.02);
+      box(k[0], k[1], top - 0.04, k[2], k[3], 0.08, fire, 0.015);           // rim, front and back
+      k = pl(0.02, ds + t * ((w - 0.02) / 2 - RW / 2), BD - 2 * RW, RW);
+      box(k[0], k[1], top - 0.04, k[2], k[3], 0.08, fire, 0.015);           // rim, the two ends
+    }
+    // bowl walls and floor, hung under the rim
+    const bw = BD - 2 * RW, bl = (w - 0.02) - 2 * RW, flo = bot + 0.10;
+    for (const t of [-1, 1]) {
+      k = pl(0.02 + t * (bw / 2 + 0.03), ds, 0.06, bl + 0.12);
+      box(k[0], k[1], (flo + top - 0.08) / 2, k[2], k[3], top - 0.08 - flo, fire);
+      k = pl(0.02, ds + t * (bl / 2 + 0.03), bw, 0.06);
+      box(k[0], k[1], (flo + top - 0.08) / 2, k[2], k[3], top - 0.08 - flo, fire);
+    }
+    k = pl(0.02, ds, bw, bl); box(k[0], k[1], flo, k[2], k[3], 0.06, fire);  // floor
+    k = pl(0.02, ds, 0.35, 0.35); box(k[0], k[1], flo + 0.035, k[2], k[3], 0.02, dark, 0.01); // waste
+    // The cabinet UNDER the bowl. Without it the bay is open to the floor: the apron
+    // stops 1'11" up and there has to be something below it.
+    const cTop = flo - 0.02, sw = w + FR;                        // back out to the stiles
+    k = pl(-0.12, ds, D - 0.24, sw - 0.04); box(k[0], k[1], TOE / 2, k[2], k[3], TOE, toeM);
+    k = pl(0, ds, D, sw); box(k[0], k[1], (y0 + cTop) / 2, k[2], k[3], cTop - y0, wood, 0.01);
+    k = pl(FACE, ds, FT_, sw); box(k[0], k[1], y0 + FR / 2, k[2], k[3], FR, wood, 0.006);   // bottom rail
+    k = pl(FACE, ds, FT_, FR); box(k[0], k[1], (y0 + cTop) / 2, k[2], k[3], cTop - y0, wood, 0.006); // centre stile
+    // A pair of doors, hinged outboard like the rest of the run.
+    const dy0 = y0 + FR, dy1 = cTop - 0.02, dw2 = (w - FR) / 2;
+    for (const t of [-1, 1]) {
+      const dc = ds + t * (dw2 + FR) / 2;
+      k = pl(DFACE, dc, FT_, dw2 - 2 * REV);
+      box(k[0], k[1], (dy0 + dy1) / 2, k[2], k[3], (dy1 - dy0) - 2 * REV, wood, 0.01);
+      k = pl(DFACE - 0.012, dc, 0.02, dw2 - 0.30);
+      box(k[0], k[1], (dy0 + dy1) / 2, k[2], k[3], (dy1 - dy0) - 0.30, stone, 0.008);
+      knob(dc + t * (dw2 / 2 - 0.16) * -1, dy1 - 0.35);          // knobs meet at the centre stile
+    }
+    // Tall gooseneck in the same brass as the pulls, set behind the bowl.
+    k = pl(-D / 2 + 0.18, ds, 0, 0);
+    cyl(k[0], k[1], top + 0.55, 0.045, 1.1, brass);
+    k = pl(-D / 2 + 0.18, ds, 0, 0);
+    box(k[0], k[1], top + 1.08, 0.62, 0.075, 0.075, brass);                 // spout
   };
   const binPull = (ds, y, len) => {
     let k = pl(D / 2 + 0.008, ds, 0.016, len + 0.07);
@@ -1313,7 +1362,14 @@ function buildCabinetRun(p) {
   // bank of drawers, glazed doors and over-cabinets read as one grid of vertical joints
   // instead of three independently-spaced bands. Values outside a segment are no-ops,
   // so every band can be handed the identical array.
-  const cuts = (p.divideAt || []).slice().sort((u, v) => u - v);
+  // A FARMHOUSE sink occupies a module of its own: the face frame breaks around it and
+  // the apron takes the place of a front, so its edges join the module lines.
+  const SKW = p.sinkWFt ?? 3.0;
+  const sinkLo = p.sinkAt === undefined ? null : p.sinkAt - SKW / 2;
+  const sinkHi = p.sinkAt === undefined ? null : p.sinkAt + SKW / 2;
+  const inSink = (c) => sinkLo !== null && c > sinkLo + 1e-4 && c < sinkHi - 1e-4;
+  const cuts = [...(p.divideAt || []), ...(sinkLo === null ? [] : [sinkLo, sinkHi])]
+    .slice().sort((u, v) => u - v);
   const modules = [];
   for (const [a, b] of segs) {
     let m = a;
@@ -1331,19 +1387,34 @@ function buildCabinetRun(p) {
   // nothing. The front now sits back a shade and carries a wider reveal, which puts
   // it in its own shadow and lets the frame read as a grid. Still inset — the front
   // is WITHIN its opening, not lapped over the frame.
-  const REV = p.revealFt ?? 0.03;        // reveal round each inset front
-  const SET = p.setbackFt ?? 0.02;       // front face behind the frame face
+  const REV = p.revealFt ?? 0.055;       // reveal round each inset front
+  const SET = p.setbackFt ?? 0.04;       // front face behind the frame face
   const FACE = D / 2 - FT_ / 2;          // centre plane of the FRAME
   const DFACE = FACE - SET;              // centre plane of the FRONTS
   const rows = p.drawers ? (Array.isArray(p.drawers) ? p.drawers
       : p.drawers === 3 ? [0.19, 0.19, 0.62]
       : Array(p.drawers).fill(1 / p.drawers)) : null;
 
+  // A sink bay carries no carcass, no toe kick and no rails — it is an open box with
+  // the bowl dropped into it. Only the flanking stiles remain.
+  const solids = [];
   for (const [a, b] of segs) {
+    if (sinkLo === null || sinkHi <= a + 1e-4 || sinkLo >= b - 1e-4) { solids.push([a, b]); continue; }
+    if (sinkLo > a + 1e-4) solids.push([a, sinkLo]);
+    if (sinkHi < b - 1e-4) solids.push([sinkHi, b]);
+  }
+  for (const [a, b] of solids) {
     const w = b - a, c = (a + b) / 2;
     if (w < 0.3) continue;
     if (kind !== "wall") { q = pl(-0.12, c, D - 0.24, w); box(q[0], q[1], TOE / 2, q[2], q[3], TOE, toeM); }   // toe kick
     q = pl(0, c, D, w); box(q[0], q[1], (y0 + y1) / 2, q[2], q[3], y1 - y0, wood, 0.01);                       // carcass
+    for (const t of [0, 1]) {                                                    // top and bottom rails
+      q = pl(FACE, c, FT_, w); box(q[0], q[1], t ? y1 - FR / 2 : y0 + FR / 2, q[2], q[3], FR, wood, 0.006);
+    }
+  }
+  for (const [a, b] of segs) {
+    const w = b - a, c = (a + b) / 2;
+    if (w < 0.3) continue;
 
     // --- face frame -------------------------------------------------------
     // `divideAt` gives the explicit module lines; within each of those a DOOR run
@@ -1360,9 +1431,6 @@ function buildCabinetRun(p) {
       for (let j = 1; j < nd; j++) lines.push(base[k] + sp * j / nd);
     }
     lines.push(b);
-    for (const t of [0, 1]) {                                                    // top and bottom rails
-      q = pl(FACE, c, FT_, w); box(q[0], q[1], t ? y1 - FR / 2 : y0 + FR / 2, q[2], q[3], FR, wood, 0.006);
-    }
     for (const ln of lines) {                                                    // stiles, ends pulled inboard
       const sc = ln === a ? a + FR / 2 : ln === b ? b - FR / 2 : ln;
       q = pl(FACE, sc, FT_, FR); box(q[0], q[1], (y0 + y1) / 2, q[2], q[3], y1 - y0, wood, 0.006);
@@ -1376,6 +1444,7 @@ function buildCabinetRun(p) {
       if (ow < 0.2) continue;
       const vy0 = y0 + FR, vy1 = y1 - FR;
 
+      if (inSink(oc)) { farmhouseSink(p.sinkAt, (sinkHi - sinkLo) - FR); continue; }
       if (rows) {
         // A drawer stack: intermediate rails between the fronts, so each drawer sits
         // in its own framed opening.
@@ -1421,12 +1490,14 @@ function buildCabinetRun(p) {
     if (t < L / 2) tops.push([t, L / 2]);
     for (const [a, b] of tops) {
       if (b - a < 0.2) continue;
-      q = pl(0.05, (a + b) / 2, D + 0.12, (b - a) + 0.06); box(q[0], q[1], CT, q[2], q[3], 0.16, stone, 0.02);
-    }
-    if (p.sinkAt !== undefined) {                     // undermount basin + faucet
-      q = pl(0.05, p.sinkAt, 1.5, 1.9); box(q[0], q[1], CT + 0.02, q[2], q[3], 0.05, dark, 0.03);
-      q = pl(-0.2, p.sinkAt, 0, 0); cyl(q[0], q[1], CT + 0.35, 0.04, 0.7, chrome);
-      q = pl(-0.2, p.sinkAt, 0, 0); box(q[0], q[1], CT + 0.68, 0.5, 0.07, 0.07, chrome);
+      // The stone stops at the sink: a farmhouse basin sets INTO the run, its own rim
+      // making the surface over its width.
+      const kLo = p.sinkAt - ((sinkHi - sinkLo) - FR) / 2;  // matched to the apron, centred
+      const kHi = p.sinkAt + ((sinkHi - sinkLo) - FR) / 2;
+      const pieces = sinkLo === null ? [[a, b]]
+        : [[a, Math.min(b, kLo)], [Math.max(a, kHi), b]].filter(([u, v]) => v - u > 0.2);
+      for (const [u, v] of pieces)
+        { q = pl(0.05, (u + v) / 2, D + 0.12, (v - u) + 0.06); box(q[0], q[1], CT, q[2], q[3], 0.16, stone, 0.02); }
     }
   }
   return g;
@@ -1529,7 +1600,7 @@ function buildIsland(p) {
   // frame and fronts share one plane at the carcass face, with a brass bin pull on each.
   const n = Math.max(2, Math.round(L / 1.4));
   const FR = p.frameFt ?? 0.17, FTK = 0.04;
-  const REV = p.revealFt ?? 0.03, SET = p.setbackFt ?? 0.02;
+  const REV = p.revealFt ?? 0.055, SET = p.setbackFt ?? 0.04;
   const FACE = -OVER / 2 - bodyD / 2 + FTK / 2;          // centre plane of the FRAME
   // The island's fronts look the OTHER way along da, so the setback is +SET here.
   const DFACE = FACE + SET;                              // centre plane of the FRONTS
