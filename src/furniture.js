@@ -10,6 +10,7 @@ const PALETTE = {
   oatmeal: 0xd9d2c4, linen: 0xcfc6b4, upholstery: 0x5a6b80,
   lightoak: 0xb38f63, oak: 0xa9824f, walnut: 0x6b4a2f, darkwalnut: 0x3a2a1c,
   rug: 0x9c6b5a, sage: 0x8a9a86, slate: 0x4a5568, cabinet: 0xeae7df,
+  leather: 0x8a6244,
 };
 const col = (name, fallback) => new THREE.Color(PALETTE[name] ?? fallback);
 const fabricMat = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.95 });
@@ -1719,6 +1720,73 @@ function buildCounterStool(p) {
   return g;
 }
 
+// A built-in CAFE BANQUETTE: a painted plinth and seat box carrying a buttoned
+// leather squab, with a stile-and-rail panelled back board against the wall. Built
+// the way one actually is — the box is joinery, the back is a panelled wall board,
+// and only the two cushions are upholstery — so it reads as cabinetry with a seat
+// on it rather than as a sofa pushed against a wall.
+// Anchor (px,pz) = footprint centre (as for a cabinet run); `faces` = the room side.
+// The back stops at 36" so it tucks under a window stool and its apron.
+function buildBanquette(p) {
+  const ft = FT, g = new THREE.Group();
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const A = DIR[p.faces || "N"], P = [-A[1], A[0]];
+  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
+  const box = (da, ds, yc, dl, dw, hy, mat, rad = 0) => {
+    const [opx, opz, sx, sz] = pl(da, ds, dl, dw);
+    const geo = rad > 0 ? new RoundedBoxGeometry(sx * ft, hy * ft, sz * ft, 3, rad * ft)
+                        : new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft);
+    const m = new THREE.Mesh(geo, mat); m.position.copy(V(opx, opz, yc));
+    m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  const paint = new THREE.MeshStandardMaterial({ color: col(p.joinery || "cabinet", 0xeae7df), roughness: 0.55 });
+  const hide = new THREE.MeshStandardMaterial({ color: col(p.cushion || "leather", 0x8a6244), roughness: 0.55 });
+  const stud = new THREE.MeshStandardMaterial({ color: hide.color.clone().multiplyScalar(0.62), roughness: 0.45 });
+
+  const L = p.lenFt ?? 4.5, D = p.depthFt ?? 1.9;
+  const PL = 0.29, DECK = 1.21, SEAT = 0.30;      // plinth / seat-deck / squab thickness
+  const BACKH = p.backFt ?? 3.0;                  // 36" to the top of the back board
+  const bk = -D / 2;                              // the wall plane, in front-offset terms
+
+  box(bk + (D - 0.22) / 2, 0, PL / 2, D - 0.22, L - 0.12, PL, paint);         // plinth (toe kick)
+  box(0, 0, (PL + DECK) / 2, D, L, DECK - PL, paint);                          // seat box
+  box(D / 2 - 0.03, 0, DECK - 0.045, 0.10, L + 0.06, 0.09, paint, 0.02);       // nosing over the box front
+
+  // Back: a thin sheet on the wall with the frame standing proud of it, so the
+  // panels are real recesses rather than lines drawn on a slab.
+  const bh = BACKH - DECK, fda = bk + 0.095;
+  box(bk + 0.025, 0, DECK + bh / 2, 0.05, L, bh, paint);                       // panel ground
+  box(fda, 0, DECK + 0.15, 0.09, L, 0.30, paint);                              // bottom rail
+  box(fda, 0, BACKH - 0.25, 0.09, L, 0.50, paint);                             // capping rail
+  const nP = Math.max(2, Math.round(L / 1.6));
+  for (let i = 0; i <= nP; i++) {
+    const wd = (i === 0 || i === nP) ? 0.22 : 0.16;
+    const ds = -L / 2 + (i * L) / nP + (i === 0 ? wd / 2 : i === nP ? -wd / 2 : 0);
+    box(fda, ds, DECK + bh / 2, 0.09, wd, bh, paint);                          // stiles
+  }
+
+  const cd = D - 0.20;
+  box(bk + 0.14 + cd / 2, 0, DECK + SEAT / 2, cd, L - 0.10, SEAT, hide, 0.06); // squab
+  // The back cushion is loose, so it stops short of the capping rail and leaves a 6"
+  // band of the painted back showing — without it the leather reads as one slab.
+  const bcT = 0.34, bcTop = BACKH - 0.50;
+  box(bk + 0.14 + bcT / 2, 0, (DECK + SEAT + bcTop) / 2, bcT, L - 0.10, bcTop - DECK - SEAT, hide, 0.09);
+
+  // Buttoning: two staggered rows of sunk studs, which is what stops a leather back
+  // cushion reading as a plain block.
+  const nb = Math.max(2, Math.round(L / 0.9));
+  for (let r = 0; r < 2; r++) {
+    const y = DECK + SEAT + 0.26 + r * 0.38, cols = r === 0 ? nb : nb - 1;
+    if (y > bcTop - 0.16) break;
+    for (let i = 0; i < cols; i++) {
+      const [opx, opz] = pl(bk + bcT + 0.12, -L / 2 + (L * (i + 1)) / (cols + 1), 0, 0);
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.035 * ft, 10, 8), stud);
+      m.position.copy(V(opx, opz, y)); g.add(m);
+    }
+  }
+  return g;
+}
+
 // Chimney-breast RANGE SURROUND, purely decorative: 1" reveal panels either side of
 // the range and a moulded lintel over, with the hood liner concealed in the lintel's
 // underside, a tiled back and a brass pot rail. It carries nothing, so the jambs are
@@ -2040,7 +2108,7 @@ function buildAppliance(p) {
   return g;
 }
 
-const BUILDERS = { range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, open_shelves: buildOpenShelves, counter_stool: buildCounterStool, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
+const BUILDERS = { range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, open_shelves: buildOpenShelves, counter_stool: buildCounterStool, banquette: buildBanquette, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 // Re-export a few individual builders so the viewer can drop single procedural
 // pieces (e.g. patio furniture on the alt roof deck) without going through the
 // furniture.json manifest.
@@ -2080,7 +2148,8 @@ export async function buildFurniture({ scene, parent = scene, floorY, baseUrl, m
   for (const it of items) {
     if (it.type !== "round_pedestal_table") continue;
     const [x, z] = world(it.px, it.pz);
-    const obj = buildTable(it); obj.position.set(x, floorY, z); scene.add(obj);
+    const obj = buildTable(it); obj.position.set(x, floorY, z);
+    obj.userData.item = it; scene.add(obj);
     tables.push({ x, z, radius: (it.diameter ?? 5) * ft / 2 });
   }
 
@@ -2106,6 +2175,7 @@ export async function buildFurniture({ scene, parent = scene, floorY, baseUrl, m
       inPos = new THREE.Vector3(cx, floorY, cz); outPos = inPos.clone();
     }
     root.position.copy(inPos);                     // default: pushed in
+    root.userData.item = it;                       // debug handle / measurable from a harness
     scene.add(root);
     const entry = { root, inPos, outPos, current: inPos.clone(), out: false };
     entry.toggle = () => { entry.out = !entry.out; };

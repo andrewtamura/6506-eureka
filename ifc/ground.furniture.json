@@ -482,6 +482,39 @@
           "b": 3.9729
         }
       ]
+    },
+    {
+      "type": "banquette",
+      "px": 26.904,
+      "pz": -15.32,
+      "rot": 0.0,
+      "faces": "E",
+      "lenFt": 4.5,
+      "depthFt": 1.9,
+      "backFt": 3.0
+    },
+    {
+      "type": "round_pedestal_table",
+      "px": 24.55,
+      "pz": -15.32,
+      "rot": 0.0,
+      "diameter": 2.25,
+      "h": 2.5,
+      "material": "walnut"
+    },
+    {
+      "type": "upholstered_dining_chair",
+      "px": 22.9,
+      "pz": -15.32,
+      "rot": 0.0,
+      "material": "linen"
+    },
+    {
+      "type": "upholstered_dining_chair",
+      "px": 23.8,
+      "pz": -16.8,
+      "rot": 0.0,
+      "material": "linen"
     }
   ]
 }

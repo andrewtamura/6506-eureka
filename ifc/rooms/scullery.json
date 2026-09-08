@@ -216,6 +216,43 @@
             "b": 3.9729
           }
         ]
+      },
+      {
+        "type": "banquette",
+        "at": [
+          26.904,
+          -15.32
+        ],
+        "faces": "E",
+        "lenFt": 4.5,
+        "depthFt": 1.9,
+        "backFt": 3.0
+      },
+      {
+        "type": "round_pedestal_table",
+        "at": [
+          24.55,
+          -15.32
+        ],
+        "diameter": 2.25,
+        "h": 2.5,
+        "material": "walnut"
+      },
+      {
+        "type": "upholstered_dining_chair",
+        "at": [
+          22.9,
+          -15.32
+        ],
+        "material": "linen"
+      },
+      {
+        "type": "upholstered_dining_chair",
+        "at": [
+          23.8,
+          -16.8
+        ],
+        "material": "linen"
       }
     ]
   }

@@ -384,6 +384,73 @@ if (gUps.length === 2) {
     && (m.pzHi - m.pzLo) > 0.25 && (m.pzHi - m.pzLo) < 0.45);
   A(posts.length === 2, `two casing posts on the east window (${posts.length})`); }
 
+// ============================================================ CAFE NOOK (SW corner)
+// The scullery is only 6'6" deep, so a bench + table + chair stack spans the room
+// wall to wall. What has to be measured is therefore not "does it fit" but "can you
+// still get from the kitchen portal to the back door" — hence the lane checks below.
+console.log('CAFE NOOK');
+{ const WWALL = 27.8542;                       // west wall interior face
+  const bq = P.find(r => r.type === 'banquette');
+  A(!!bq, 'banquette built');
+  if (bq) {
+    const bm = meshes(bq);
+    console.log(`  banquette px ${R(bq.pxLo,3)}..${R(bq.pxHi,3)}  pz ${R(bq.pzLo,3)}..${R(bq.pzHi,3)}`);
+    A(Math.abs(bq.pxHi - WWALL) < 0.02, `back on the WEST wall (${R(bq.pxHi,4)})`);
+    // The squab: the widest horizontal member topping out in the seat-height band.
+    const squab = bm.filter(m => m.yHi > 1.3 && m.yHi < 1.8 && (m.pzHi - m.pzLo) > 3.5)
+      .sort((u, v) => v.yHi - u.yHi)[0];
+    A(!!squab && Math.abs(squab.yHi - 1.51) < 0.06,
+      `seat at ${R((squab ? squab.yHi : 0) * 12, 1)} in`);
+    const top = Math.max(...bm.map(m => m.yHi));
+    A(Math.abs(top - 3.0) < 0.03, `back tops out at ${R(top * 12, 1)} in`);
+    // The west window's apron hangs 0.12 m below its 3.5 ft sill. A back that ran to
+    // the usual 38" would foul it, which is why this one stops at 36".
+    const apronB = 3.5 - 0.12 / FT;
+    A(top < apronB - 0.02, `tucks under the window apron (${R((apronB - top) * 12, 1)} in below it)`);
+    A(Math.abs((bq.pzLo + bq.pzHi) / 2 - (-15.17)) < 0.5, `centred on the west window (off by ${R(Math.abs((bq.pzLo + bq.pzHi) / 2 + 15.17) * 12, 1)} in)`);
+  }
+  const tb = P.find(r => r.type === 'round_pedestal_table' && r.pz < -12);
+  A(!!tb, 'cafe table built');
+  if (tb && bq) {
+    const dia = tb.pzHi - tb.pzLo;
+    A(Math.abs(dia - 2.25) < 0.05, `${R(dia * 12, 1)} in round top`);
+    A(Math.abs(tb.yHi - 2.5) < 0.03, `top at ${R(tb.yHi * 12, 1)} in`);
+    const gap = bq.pxLo - tb.pxHi;
+    A(gap > 0.1 && gap < 0.55, `${R(gap * 12, 1)} in between the table and the bench front`);
+  }
+  const ch = P.filter(r => r.type === 'upholstered_dining_chair' && r.pz < -12);
+  A(ch.length === 2, `two chairs at the table (${ch.length})`);
+  // Chairs must actually have found this table, not the dining-room one three rooms away.
+  if (tb) for (const c of ch) {
+    const d = Math.hypot((c.pxLo + c.pxHi) / 2 - tb.px, (c.pzLo + c.pzHi) / 2 - tb.pz);
+    A(d > 1.3 && d < 2.1, `chair pulled up to this table (${R(d, 2)} ft from its centre)`);
+  }
+  // CIRCULATION. The kitchen -> scullery portal is 6 ft of opening at px 20.04..26.04 in
+  // the north wall; the back door is at px 16.17..19.17 in the south wall. Sample across
+  // the portal and measure how far south you can walk before meeting the nook.
+  const nook = [bq, tb, ...ch].filter(Boolean).flatMap(meshes);
+  let bestLane = 0, run = 0, minDepth = 99;
+  for (let x = 20.04; x <= 26.04; x += 0.02) {
+    const hit = nook.filter(m => m.pxLo < x && m.pxHi > x);
+    const depth = hit.length ? NWALL - Math.max(...hit.map(m => m.pzHi)) : SWALL - NWALL;
+    minDepth = Math.min(minDepth, Math.abs(depth));
+    if (Math.abs(depth) > 5.0) { run += 0.02; bestLane = Math.max(bestLane, run); } else run = 0;
+  }
+  A(bestLane > 1.9, `${R(bestLane * 12, 1)} in of full-depth lane through the portal`);
+  A(minDepth > 0.8, `at its tightest the portal still opens ${R(minDepth * 12, 1)} in before the nook`);
+  // Along the north wall you must be able to cross the whole west end to reach the
+  // galley — measure the shallowest point of that strip over the nook's own footprint.
+  { let worst = 99;
+    for (let x = 22.2; x <= 25.7; x += 0.02) {
+      const hit = nook.filter(m => m.pxLo < x && m.pxHi > x);
+      if (hit.length) worst = Math.min(worst, NWALL - Math.max(...hit.map(m => m.pzHi)));
+    }
+    A(worst > 1.9, `${R(worst * 12, 1)} in of clear strip along the north wall past the nook`); }
+  // Nothing may reach the back door's swing zone.
+  { const east = Math.min(...nook.map(m => m.pxLo));
+    A(east > 19.17 + 0.5, `nook stops ${R((east - 19.17) * 12, 1)} in short of the back door`); }
+}
+
 // FAMILY -> SCULLERY door. Both facts are measured: this is the third swing set from a
 // sign convention in this model and the first two were wrong until someone looked.
 { const d = (raw.doorLeaves || []).find(x => /Family -> Scullery/i.test(x.name));
