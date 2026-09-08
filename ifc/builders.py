@@ -2327,12 +2327,22 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
                          ctx.X(pos), ctx.Y(fixed), sill_m, color=color)
         run("spatial.assign_container", ctx.model, products=[p], relating_structure=ctx.storey)
 
+    def _lites(style):
+        """"<n>lite" -> the row count for a divided-light leaf. Always two columns,
+        so 8lite is 2 x 4 and 10lite is 2 x 5. Parsed rather than enumerated, so a
+        new count needs no code."""
+        if isinstance(style, str) and style.endswith("lite") and style[:-4].isdigit():
+            n = int(style[:-4])
+            if n >= 2 and n % 2 == 0:
+                return n // 2
+        return None
+
     def door_leaf(name, orient, fixed, pos, w_ft, z0, z1, style="panel", paint=None):
         """An architectural stile-and-rail door leaf, built from boxes on the
         wall face (the solid massing sits behind it). A backing slab carries the
         IfcDoor; frame members + panels/glazing add relief on top.
-          - "panel"  -> a raised six-panel door (2 cols x 3 rows).
-          - "8lite"  -> a divided-light glazed door (2 cols x 4 rows = 8 lites).
+          - "panel"   -> a raised six-panel door (2 cols x 3 rows).
+          - "<n>lite" -> a divided-light glazed door, 2 columns by n/2 rows.
         Depths step outward (slab < panel/glass < frame < muntin) so panels read
         raised and the muntin grid sits proud of the glass. `paint` overrides the
         default stained-wood colour (e.g. "white" for a painted door)."""
@@ -2361,7 +2371,8 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
         fw = w - 2 * STILE                                       # inner field width (ft)
         # glazed doors (8-lite, patio) get thin rails so the glass runs top to
         # bottom; the panel door seats its panels on a heavier bottom rail.
-        botm = (0.42 if style in ("8lite", "patio") else BRAIL) * FT  # bottom rail (m)
+        rows = _lites(style)
+        botm = (0.42 if (rows or style == "patio") else BRAIL) * FT   # bottom rail (m)
         fz0, fz1 = z0 + botm, z1 - TRAILm                        # inner field height (m)
         # frame relief (proud): stiles + top + bottom rails
         dbox(pos - (w - STILE) / 2, STILE, z0, z1, DFRAME, WOOD)
@@ -2369,12 +2380,12 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
         dbox(pos, fw, fz1, z1, DFRAME, WOOD)                     # top rail
         dbox(pos, fw, z0, fz0, DFRAME, WOOD)                     # bottom rail
         mh = MUN * FT / 2                                        # half muntin/rail thickness (m)
-        if style == "8lite":
-            # two columns of glass, each split into four lites top-to-bottom
+        if rows:
+            # two columns of glass, each split into `rows` lites top-to-bottom
             dbox(pos, fw, fz0, fz1, DPANE, GLASS)                # glazed field
             dbox(pos, MUN, fz0, fz1, DMUN, WOOD)                 # 1 vertical -> 2 cols
-            for j in range(1, 4):                                # 3 horizontal -> 4 rows
-                zc = fz0 + j * (fz1 - fz0) / 4
+            for j in range(1, rows):                             # rows-1 horizontal
+                zc = fz0 + j * (fz1 - fz0) / rows
                 dbox(pos, fw, zc - mh, zc + mh, DMUN, WOOD)
         elif style == "patio":
             # two leaves, each a single large glass pane (no muntins), meeting

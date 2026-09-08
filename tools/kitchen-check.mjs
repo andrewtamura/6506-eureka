@@ -392,6 +392,9 @@ if (gUps.length === 2) {
     A(d.pzLo > -11.95, `swings INTO the family room — leaf at pz ${R(d.pzLo,3)}..${R(d.pzHi,3)}, wall -11.9167`);
     const c = (d.pxLo + d.pxHi) / 2;
     A(Math.abs(c - 3.42) < 0.2, `hinged on the WEST jamb — leaf at px ${R(c,3)}, jambs 0.42 (E) and 3.42 (W)`);
+    // 2 stiles + 2 rails + 1 pane + 1 vertical muntin + 4 horizontal = 10 members,
+    // dividing the glazing 2 columns by 5 rows.
+    A(d.parts === 10, `10-lite leaf: ${d.parts} members (2 stiles, 2 rails, pane, 5 muntins)`);
   } }
 
 // BACK DOOR: outswing, and glazed from the inside too

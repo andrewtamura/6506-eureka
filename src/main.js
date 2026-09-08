@@ -1999,17 +1999,20 @@ async function main() {
           mesh.position.set(dirSign * ((u0 + u1) / 2) * leafW, (y0 + y1) / 2, 0);
           grp.add(mesh); meshes.push(mesh);
         };
-        if (style !== "8lite") { put(0, 1, 0, sy, doorMat); return { grp, meshes }; }
-        // 8 LITES: two columns by four rows, so one vertical muntin and three horizontal.
+        // "<n>lite" -> two columns by n/2 rows. Parsed, not enumerated, so 8lite and
+        // 10lite are the same code path and a new count needs none.
+        const lm = /^(\d+)lite$/.exec(style);
+        const rows = lm && +lm[1] >= 2 && +lm[1] % 2 === 0 ? +lm[1] / 2 : 0;
+        if (!rows) { put(0, 1, 0, sy, doorMat); return { grp, meshes }; }
         const ST = Math.min(0.11, leafW * 0.14), BR = 0.30, TR = 0.11, MU = 0.032;
         const us = ST / leafW, ue = 1 - us, gy0 = BR, gy1 = sy - TR;
         put(0, us, 0, sy, doorMat); put(ue, 1, 0, sy, doorMat);           // stiles
         put(us, ue, 0, BR, doorMat); put(us, ue, gy1, sy, doorMat);       // bottom and top rails
         put(us, ue, gy0, gy1, doorGlass, th * 0.3);                       // glazing
         const um = (us + ue) / 2, hm = MU / leafW;
-        put(um - hm / 2, um + hm / 2, gy0, gy1, doorMat, th * 0.62);
-        for (let i = 1; i <= 3; i++) {
-          const y = gy0 + (gy1 - gy0) * i / 4;
+        put(um - hm / 2, um + hm / 2, gy0, gy1, doorMat, th * 0.62);      // 1 vertical -> 2 cols
+        for (let i = 1; i < rows; i++) {                                  // rows-1 horizontal
+          const y = gy0 + (gy1 - gy0) * i / rows;
           put(us, ue, y - MU / 2, y + MU / 2, doorMat, th * 0.62);
         }
         return { grp, meshes };

@@ -24,7 +24,8 @@
       "pos": 1.92,
       "width": 3.0,
       "hinge": "min",
-      "swing": "pos"
+      "swing": "pos",
+      "doorStyle": "10lite"
     },
     {
       "name": "Family <-> Sitting (opening)",
