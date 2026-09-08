@@ -482,6 +482,37 @@
           "b": 3.9729
         }
       ]
+    },
+    {
+      "type": "banquette",
+      "px": 26.904,
+      "pz": -15.46967,
+      "rot": 0.0,
+      "faces": "E",
+      "lenFt": 6.3523,
+      "depthFt": 1.9,
+      "backFt": 3.0
+    },
+    {
+      "type": "round_pedestal_table",
+      "px": 24.174,
+      "pz": -16.0,
+      "rot": 0.0,
+      "diameter": 3.0,
+      "h": 2.5,
+      "material": "walnut"
+    },
+    {
+      "type": "bentwood_chair",
+      "px": 22.32,
+      "pz": -15.014,
+      "rot": 0.0
+    },
+    {
+      "type": "bentwood_chair",
+      "px": 22.32,
+      "pz": -16.986,
+      "rot": 0.0
     }
   ]
 }

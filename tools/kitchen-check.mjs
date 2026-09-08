@@ -42,7 +42,22 @@ const raw = await page.evaluate(() => {
     const parts = [];
     o.traverse(m => { if (!m.isMesh) return; const mb = new B3().setFromObject(m);
       parts.push([mb.min.x, mb.min.y, mb.min.z, mb.max.x, mb.max.y, mb.max.z]); });
+    // A rotated item's world AABB is not its size — a 1.5 ft square chair turned 45 deg
+    // measures 2.1 ft on both axes. Take a bbox in the item's OWN frame as well, and the
+    // solid volume of its geometry, which is the only honest way to say "dainty".
+    const invM = o.matrixWorld.clone().invert(); const lb = new B3();
+    let vol = 0;
+    o.traverse(m => { if (!m.isMesh) return;
+      const gm = m.geometry; gm.computeBoundingBox();
+      lb.union(gm.boundingBox.clone().applyMatrix4(invM.clone().multiply(m.matrixWorld)));
+      const pos = gm.getAttribute('position'); if (!pos || pos.count > 60000) return;
+      const idx = gm.getIndex(), n = idx ? idx.count : pos.count;
+      const g3 = (i) => { const j = idx ? idx.getX(i) : i; return [pos.getX(j), pos.getY(j), pos.getZ(j)]; };
+      for (let i = 0; i + 2 < n; i += 3) { const a = g3(i), b = g3(i + 1), c = g3(i + 2);
+        vol += (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0])
+              + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6; } });
     items.push({ type: it.type, kind: it.kind || '', px: it.px, pz: it.pz, floorY: o.position.y,
+      lw: lb.max.x - lb.min.x, ld: lb.max.z - lb.min.z, vol: Math.abs(vol),
       min: [bb.min.x, bb.min.y, bb.min.z], max: [bb.max.x, bb.max.y, bb.max.z], parts,
       top: (() => { let best = null, area = -1;
         o.traverse(m => { if (!m.isMesh) return; const mb = new B3().setFromObject(m);
@@ -383,6 +398,114 @@ if (gUps.length === 2) {
     && Math.abs(m.yLo - sy) < 0.14 && m.yHi > 6.7 && m.yHi < 7.1
     && (m.pzHi - m.pzLo) > 0.25 && (m.pzHi - m.pzLo) < 0.45);
   A(posts.length === 2, `two casing posts on the east window (${posts.length})`); }
+
+// ============================================================ CAFE NOOK (SW corner)
+// The scullery is only 6'6" deep, so a bench + table + chair stack spans the room
+// wall to wall. What has to be measured is therefore not "does it fit" but "can you
+// still get from the kitchen portal to the back door" — hence the lane checks below.
+console.log('CAFE NOOK');
+{ const WWALL = 27.8542;                       // west wall interior face
+  // The Kitchen -> Scullery opening's casing post projects 0.045 m onto this side, so
+  // "full width" for the bench means south wall face to the architrave, not to the
+  // north wall itself.
+  const CASE = NWALL - 0.045 / FT;
+  const bq = P.find(r => r.type === 'banquette');
+  A(!!bq, 'banquette built');
+  if (bq) {
+    const bm = meshes(bq);
+    console.log(`  banquette px ${R(bq.pxLo,3)}..${R(bq.pxHi,3)}  pz ${R(bq.pzLo,3)}..${R(bq.pzHi,3)}`);
+    A(Math.abs(bq.pxHi - WWALL) < 0.02, `back on the WEST wall (${R(bq.pxHi,4)})`);
+    A(Math.abs(bq.pzLo - SWALL) < 0.03, `south end dies into the south wall (${R(bq.pzLo,4)})`);
+    A(Math.abs(bq.pzHi - CASE) < 0.03, `north end dies into the door architrave (${R(bq.pzHi,4)}, casing at ${R(CASE,4)})`);
+    A(bq.pzHi < NWALL - 0.10, `stops ${R((NWALL - bq.pzHi) * 12, 1)} in short of the opening, not in it`);
+    A(bq.pzHi - bq.pzLo > 6.3, `runs the full ${R(bq.pzHi - bq.pzLo, 3)} ft of the west end`);
+    // The squab: the widest horizontal member topping out in the seat-height band.
+    const squab = bm.filter(m => m.yHi > 1.3 && m.yHi < 1.8 && (m.pzHi - m.pzLo) > 3.5)
+      .sort((u, v) => v.yHi - u.yHi)[0];
+    A(!!squab && Math.abs(squab.yHi - 1.51) < 0.06,
+      `seat at ${R((squab ? squab.yHi : 0) * 12, 1)} in`);
+    const top = Math.max(...bm.map(m => m.yHi));
+    A(Math.abs(top - 3.0) < 0.03, `back tops out at ${R(top * 12, 1)} in`);
+    // The west window's apron hangs 0.12 m below its 3.5 ft sill. A back that ran to
+    // the usual 38" would foul it, which is why this one stops at 36".
+    const apronB = 3.5 - 0.12 / FT;
+    A(top < apronB - 0.02, `tucks under the window apron (${R((apronB - top) * 12, 1)} in below it)`);
+  }
+  const tb = P.find(r => r.type === 'round_pedestal_table' && r.pz < -12);
+  A(!!tb, 'cafe table built');
+  if (tb && bq) {
+    const dia = tb.pzHi - tb.pzLo;
+    A(Math.abs(dia - 3.0) < 0.05, `${R(dia * 12, 1)} in round top`);
+    A(Math.abs(tb.yHi - 2.5) < 0.03, `top at ${R(tb.yHi * 12, 1)} in`);
+    const gap = bq.pxLo - tb.pxHi;
+    A(gap > 0.15 && gap < 0.45, `${R(gap * 12, 1)} in between the table and the bench front`);
+    // The table used to be centred on the west window. With the bench running the full
+    // width the window is no longer the anchor, and the table is deliberately 10 in
+    // south of it so the chair opposite is not standing in the kitchen opening.
+    A(NWALL - tb.pzHi > 2.2, `${R((NWALL - tb.pzHi) * 12, 1)} in clear north of the table`);
+    A(tb.pzLo - SWALL > 0.9, `${R((tb.pzLo - SWALL) * 12, 1)} in clear south of it`);
+  }
+  const ch = P.filter(r => r.type === 'bentwood_chair');
+  A(ch.length === 2, `two bentwood chairs at the table (${ch.length})`);
+  // Chairs must actually have found this table, not the dining-room one three rooms away.
+  if (tb) for (const c of ch) {
+    const d = Math.hypot((c.pxLo + c.pxHi) / 2 - tb.px, (c.pzLo + c.pzHi) / 2 - tb.pz);
+    A(d > 1.6 && d < 2.4, `chair pulled up to this table (${R(d, 2)} ft from its centre)`);
+  }
+  if (ch.length === 2 && tb) {
+    const c = ch.map(x => [(x.pxLo + x.pxHi) / 2, (x.pzLo + x.pzHi) / 2]);
+    A(Math.hypot(c[0][0] - c[1][0], c[0][1] - c[1][1]) > 1.75,
+      `${R(Math.hypot(c[0][0] - c[1][0], c[0][1] - c[1][1]) * 12, 1)} in between the two chairs`);
+    // DIRECTLY OPPOSITE THE BENCH: both east of the table, and mirrored about the
+    // table's east-west axis rather than swung round to one side of it.
+    A(c.every(q => q[0] < tb.px - 0.8), 'both chairs east of the table, facing the bench');
+    A(Math.abs((c[0][1] - tb.pz) + (c[1][1] - tb.pz)) < 0.12,
+      `mirrored about the bench axis (offsets ${R(c[0][1] - tb.pz, 2)} / ${R(c[1][1] - tb.pz, 2)} ft)`);
+  }
+  // DAINTY, MEASURED. Bounding boxes cannot tell a bent hoop from a padded slab — a
+  // TubeGeometry's box is the whole bend — so measure the SOLID VOLUME of the geometry.
+  // That is exactly the property that changed: the upholstered dining chair is ~2.1 cu ft
+  // of cushion and box apron, a No. 14 is round stock and air.
+  const CUFT = 1 / (FT * FT * FT);
+  for (const c of ch) {
+    A(c.vol * CUFT < 0.5, `${R(c.vol * CUFT, 3)} cu ft of timber (the upholstered chair is ~2.1)`);
+    // Footprint from the chair's OWN frame, so the two chairs' different angles to the
+    // table do not change the answer.
+    // A Thonet No. 14 is 16.5 x 20.5 in on the floor; hold the model to within an inch.
+    A(c.lw / FT * 12 < 18.5 && c.ld / FT * 12 < 21.5,
+      `stands ${R(c.lw / FT * 12, 1)} x ${R(c.ld / FT * 12, 1)} in on the floor (a No. 14 is 16.5 x 20.5)`);
+    A(Math.abs(c.yHi - 2.92) < 0.25, `back at ${R(c.yHi * 12, 1)} in`);
+  }
+  { const ref = P.find(r => r.type === 'upholstered_dining_chair');
+    if (ref && ch.length) A(ch[0].vol < ref.vol / 4,
+      `${R(ref.vol / ch[0].vol, 1)}x less timber than the dining-room chair`); }
+  // CIRCULATION. The kitchen -> scullery portal is 6 ft of opening at px 20.04..26.04 in
+  // the north wall. West of the nook is now bench, so the question is not "how wide a
+  // full-depth lane" (nobody walks west) but how much of the opening you can step
+  // through and still have room to stand — take 2.5 ft of depth as that threshold.
+  const nook = [bq, tb, ...ch].filter(Boolean).flatMap(meshes);
+  const depthAt = x => { const hit = nook.filter(m => m.pxLo < x && m.pxHi > x);
+    return hit.length ? NWALL - Math.max(...hit.map(m => m.pzHi)) : NWALL - SWALL; };
+  // Sitting the chairs opposite the bench puts one of them in front of the west half of
+  // the opening — unavoidable in a 6'6" room whose only kitchen door is right here. So
+  // the measure is no longer "how wide a walk-through" but "how much depth do you have
+  // anywhere across the opening", and the bench's own 1.9 ft at the far west end is
+  // excluded because that is the piece the doorway dies into.
+  let best = 0, run = 0, minD = 99;
+  for (let x = 20.0417; x <= 25.90; x += 0.02) {
+    const d = Math.abs(depthAt(x)); minD = Math.min(minD, d);
+    if (d > 5.0) { run += 0.02; best = Math.max(best, run); } else run = 0;
+  }
+  A(minD > 1.8, `${R(minD * 12, 1)} in of depth at the tightest point of the opening`);
+  A(best > 1.2, `${R(best * 12, 1)} in of it is a clear walk-through, at the east jamb`);
+  // The south chair backs toward the south wall — nothing asserts that elsewhere, and
+  // sliding the table south to clear the doorway is exactly what would close this gap.
+  if (ch.length) { const sc = ch.reduce((a, b) => (a.pzLo < b.pzLo ? a : b));
+    A(sc.pzLo - SWALL > 0.5, `${R((sc.pzLo - SWALL) * 12, 1)} in behind the south chair`); }
+  // Nothing may reach the back door's swing zone.
+  { const east = Math.min(...nook.map(m => m.pxLo));
+    A(east > 19.17 + 0.5, `nook stops ${R((east - 19.17) * 12, 1)} in short of the back door`); }
+}
 
 // FAMILY -> SCULLERY door. Both facts are measured: this is the third swing set from a
 // sign convention in this model and the first two were wrong until someone looked.

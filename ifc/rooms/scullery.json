@@ -216,6 +216,41 @@
             "b": 3.9729
           }
         ]
+      },
+      {
+        "type": "banquette",
+        "at": [
+          26.904,
+          -15.46967
+        ],
+        "faces": "E",
+        "lenFt": 6.3523,
+        "depthFt": 1.9,
+        "backFt": 3.0
+      },
+      {
+        "type": "round_pedestal_table",
+        "at": [
+          24.174,
+          -16.0
+        ],
+        "diameter": 3.0,
+        "h": 2.5,
+        "material": "walnut"
+      },
+      {
+        "type": "bentwood_chair",
+        "at": [
+          22.32,
+          -15.014
+        ]
+      },
+      {
+        "type": "bentwood_chair",
+        "at": [
+          22.32,
+          -16.986
+        ]
       }
     ]
   }
