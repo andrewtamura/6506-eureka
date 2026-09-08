@@ -496,7 +496,7 @@
     {
       "type": "round_pedestal_table",
       "px": 24.174,
-      "pz": -15.32,
+      "pz": -16.0,
       "rot": 0.0,
       "diameter": 3.0,
       "h": 2.5,
@@ -504,14 +504,14 @@
     },
     {
       "type": "bentwood_chair",
-      "px": 22.36,
-      "pz": -16.17,
+      "px": 22.32,
+      "pz": -15.014,
       "rot": 0.0
     },
     {
       "type": "bentwood_chair",
-      "px": 24.0,
-      "pz": -17.31,
+      "px": 22.32,
+      "pz": -16.986,
       "rot": 0.0
     }
   ]

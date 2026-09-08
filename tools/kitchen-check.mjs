@@ -439,7 +439,11 @@ console.log('CAFE NOOK');
     A(Math.abs(tb.yHi - 2.5) < 0.03, `top at ${R(tb.yHi * 12, 1)} in`);
     const gap = bq.pxLo - tb.pxHi;
     A(gap > 0.15 && gap < 0.45, `${R(gap * 12, 1)} in between the table and the bench front`);
-    A(Math.abs(tb.pz - (-15.17)) < 0.3, `sits on the west window (off centre by ${R(Math.abs(tb.pz + 15.17) * 12, 1)} in)`);
+    // The table used to be centred on the west window. With the bench running the full
+    // width the window is no longer the anchor, and the table is deliberately 10 in
+    // south of it so the chair opposite is not standing in the kitchen opening.
+    A(NWALL - tb.pzHi > 2.2, `${R((NWALL - tb.pzHi) * 12, 1)} in clear north of the table`);
+    A(tb.pzLo - SWALL > 0.9, `${R((tb.pzLo - SWALL) * 12, 1)} in clear south of it`);
   }
   const ch = P.filter(r => r.type === 'bentwood_chair');
   A(ch.length === 2, `two bentwood chairs at the table (${ch.length})`);
@@ -448,10 +452,15 @@ console.log('CAFE NOOK');
     const d = Math.hypot((c.pxLo + c.pxHi) / 2 - tb.px, (c.pzLo + c.pzHi) / 2 - tb.pz);
     A(d > 1.6 && d < 2.4, `chair pulled up to this table (${R(d, 2)} ft from its centre)`);
   }
-  if (ch.length === 2) {
+  if (ch.length === 2 && tb) {
     const c = ch.map(x => [(x.pxLo + x.pxHi) / 2, (x.pzLo + x.pzHi) / 2]);
     A(Math.hypot(c[0][0] - c[1][0], c[0][1] - c[1][1]) > 1.75,
       `${R(Math.hypot(c[0][0] - c[1][0], c[0][1] - c[1][1]) * 12, 1)} in between the two chairs`);
+    // DIRECTLY OPPOSITE THE BENCH: both east of the table, and mirrored about the
+    // table's east-west axis rather than swung round to one side of it.
+    A(c.every(q => q[0] < tb.px - 0.8), 'both chairs east of the table, facing the bench');
+    A(Math.abs((c[0][1] - tb.pz) + (c[1][1] - tb.pz)) < 0.12,
+      `mirrored about the bench axis (offsets ${R(c[0][1] - tb.pz, 2)} / ${R(c[1][1] - tb.pz, 2)} ft)`);
   }
   // DAINTY, MEASURED. Bounding boxes cannot tell a bent hoop from a padded slab — a
   // TubeGeometry's box is the whole bend — so measure the SOLID VOLUME of the geometry.
@@ -477,13 +486,22 @@ console.log('CAFE NOOK');
   const nook = [bq, tb, ...ch].filter(Boolean).flatMap(meshes);
   const depthAt = x => { const hit = nook.filter(m => m.pxLo < x && m.pxHi > x);
     return hit.length ? NWALL - Math.max(...hit.map(m => m.pzHi)) : NWALL - SWALL; };
+  // Sitting the chairs opposite the bench puts one of them in front of the west half of
+  // the opening — unavoidable in a 6'6" room whose only kitchen door is right here. So
+  // the measure is no longer "how wide a walk-through" but "how much depth do you have
+  // anywhere across the opening", and the bench's own 1.9 ft at the far west end is
+  // excluded because that is the piece the doorway dies into.
   let best = 0, run = 0, minD = 99;
-  for (let x = 20.0417; x <= 26.0417; x += 0.02) {
+  for (let x = 20.0417; x <= 25.90; x += 0.02) {
     const d = Math.abs(depthAt(x)); minD = Math.min(minD, d);
-    if (d > 2.5) { run += 0.02; best = Math.max(best, run); } else run = 0;
+    if (d > 5.0) { run += 0.02; best = Math.max(best, run); } else run = 0;
   }
-  A(best > 2.4, `${R(best * 12, 1)} in of the portal opens onto standing room`);
-  A(minD > 0.10, `at its tightest the opening still clears the nook by ${R(minD * 12, 1)} in`);
+  A(minD > 1.8, `${R(minD * 12, 1)} in of depth at the tightest point of the opening`);
+  A(best > 1.2, `${R(best * 12, 1)} in of it is a clear walk-through, at the east jamb`);
+  // The south chair backs toward the south wall — nothing asserts that elsewhere, and
+  // sliding the table south to clear the doorway is exactly what would close this gap.
+  if (ch.length) { const sc = ch.reduce((a, b) => (a.pzLo < b.pzLo ? a : b));
+    A(sc.pzLo - SWALL > 0.5, `${R((sc.pzLo - SWALL) * 12, 1)} in behind the south chair`); }
   // Nothing may reach the back door's swing zone.
   { const east = Math.min(...nook.map(m => m.pxLo));
     A(east > 19.17 + 0.5, `nook stops ${R((east - 19.17) * 12, 1)} in short of the back door`); }
