@@ -104,10 +104,7 @@
         0.35,
         0.43
       ],
-      "sinkWFt": 3.0,
-      "divideAt": [
-        -3.1042
-      ]
+      "sinkWFt": 3.0
     },
     {
       "type": "appliance",

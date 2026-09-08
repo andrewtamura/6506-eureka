@@ -131,7 +131,11 @@ console.log('WEST RUN');
   // Three fronts stacked = a pull-out bank; one = a door. The sink base carries a pair
   // of doors under its bowl, so both kinds are expected on this run.
   const stacks = banks.filter(m => rowsOf(m) === 3), singles = banks.filter(m => rowsOf(m) === 1);
-  A(stacks.length === 3, `three pull-out banks — two north of the sink, one south of the dishwasher (${stacks.length})`);
+  A(stacks.length === 2, `two pull-out banks — one north of the sink, one south of the dishwasher (${stacks.length})`);
+  // The north bank spans its whole cabinet: one set of three drawers, not two banks of three.
+  const nBank = stacks.filter(m => m.lo > -5.5);
+  A(nBank.length === 1 && nBank[0].hi - nBank[0].lo > 2.2,
+    `the bank north of the sink spans the cabinet — ${nBank.length ? R(nBank[0].hi - nBank[0].lo, 3) : '-'} ft wide`);
   A(singles.length === 2 && singles.every(m => m.lo > -8.6 && m.hi < -5.3),
     `a pair of doors in the sink base (${singles.length})`);
   A(stacks.every(m => (m.hi - m.lo) > 0.7), `narrowest drawer front ${R(Math.min(...stacks.map(m => m.hi - m.lo)) * 12, 1)} in — a 15 in base after frame and reveals`);
