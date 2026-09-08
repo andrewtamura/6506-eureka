@@ -2785,6 +2785,9 @@ def add_doors(ctx, r):
             "name": d["name"],
             "hingeMax": d.get("hinge", "min") == "max",
             "swingSign": sign,
+            # `doorStyle` reached only the exterior massing, so a glazed door read as a
+            # plain slab from inside. The viewer's leaf needs it too.
+            "style": d.get("doorStyle", "panel"),
         })
 
 

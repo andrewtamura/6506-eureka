@@ -22,9 +22,5 @@
   {
     "name": "Ext Laundry - Tile Flooring",
     "pattern": "hexagon"
-  },
-  {
-    "name": "Scullery - Tile Flooring",
-    "pattern": "checkerboard"
   }
 ]

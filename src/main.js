@@ -1951,6 +1951,10 @@ async function main() {
   // open doorways are fully see-through.
   {
     const doorMat = new THREE.MeshLambertMaterial({ color: 0x9b7653 });
+    // Glazing for a divided-light leaf. depthWrite off so the muntins and whatever is
+    // beyond the door both read through it.
+    const doorGlass = new THREE.MeshLambertMaterial({ color: 0xc6d7da, transparent: true,
+                                                      opacity: 0.28, depthWrite: false });
     const dmap = await model.getItemsOfCategories([/IFCDOOR/]);
     const ids = Object.values(dmap).flat();
     const boxes = await model.getBoxes(ids);
@@ -1983,22 +1987,44 @@ async function main() {
       const hingeMax = !!m.hingeMax;
       const sign = m.swingSign != null ? m.swingSign : (alongX ? -1 : 1);
       const unit = { open: true };               // doors default to open
+      const style = m.style || "panel";
+      // A leaf is built in LOCAL X across its width, then turned for a N-S door, so the
+      // stile/rail layout does not have to be written twice.
+      const leafParts = (leafW, dirSign) => {
+        const grp = new THREE.Group(), meshes = [];
+        const put = (u0, u1, y0, y1, mat, tt) => {
+          const w = (u1 - u0) * leafW, h = y1 - y0;
+          if (w <= 0.002 || h <= 0.002) return;
+          const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, tt ?? th), mat);
+          mesh.position.set(dirSign * ((u0 + u1) / 2) * leafW, (y0 + y1) / 2, 0);
+          grp.add(mesh); meshes.push(mesh);
+        };
+        if (style !== "8lite") { put(0, 1, 0, sy, doorMat); return { grp, meshes }; }
+        // 8 LITES: two columns by four rows, so one vertical muntin and three horizontal.
+        const ST = Math.min(0.11, leafW * 0.14), BR = 0.30, TR = 0.11, MU = 0.032;
+        const us = ST / leafW, ue = 1 - us, gy0 = BR, gy1 = sy - TR;
+        put(0, us, 0, sy, doorMat); put(ue, 1, 0, sy, doorMat);           // stiles
+        put(us, ue, 0, BR, doorMat); put(us, ue, gy1, sy, doorMat);       // bottom and top rails
+        put(us, ue, gy0, gy1, doorGlass, th * 0.3);                       // glazing
+        const um = (us + ue) / 2, hm = MU / leafW;
+        put(um - hm / 2, um + hm / 2, gy0, gy1, doorMat, th * 0.62);
+        for (let i = 1; i <= 3; i++) {
+          const y = gy0 + (gy1 - gy0) * i / 4;
+          put(us, ue, y - MU / 2, y + MU / 2, doorMat, th * 0.62);
+        }
+        return { grp, meshes };
+      };
       const mkLeaf = (hx, hz, leafW, dirSign, openAngle) => {
         const pivot = new THREE.Group();
         pivot.position.set(hx, bx.min.y, hz);
         pivot.rotation.y = openAngle;            // start in the open position
-        const geo = alongX
-          ? new THREE.BoxGeometry(leafW, sy, th)
-          : new THREE.BoxGeometry(th, sy, leafW);
-        const panel = new THREE.Mesh(geo, doorMat);
-        if (alongX) panel.position.set(dirSign * leafW / 2, sy / 2, 0);
-        else panel.position.set(0, sy / 2, dirSign * leafW / 2);
-        pivot.add(panel);
+        const { grp, meshes } = leafParts(leafW, dirSign);
+        if (!alongX) grp.rotation.y = -Math.PI / 2;   // local +X becomes world +Z
+        pivot.add(grp);
         world.scene.three.add(pivot);
         const leaf = { pivot, openAngle, current: openAngle, unit, name: nm };
-        panel.userData.door = leaf;
+        for (const mesh of meshes) { mesh.userData.door = leaf; doorMeshes.push(mesh); }
         doors.push(leaf);
-        doorMeshes.push(panel);
       };
       if (W > DOUBLE) {                         // double doors (french/patio)
         const half = W / 2;                     // sign picks which side they swing to

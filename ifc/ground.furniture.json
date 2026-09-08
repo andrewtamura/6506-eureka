@@ -352,6 +352,116 @@
         "z1": -7.317,
         "z2": -0.33
       }
+    },
+    {
+      "type": "cabinet_run",
+      "px": 11.73085,
+      "pz": -13.1459,
+      "rot": 0.0,
+      "kind": "base",
+      "faces": "S",
+      "lenFt": 14.6217,
+      "depthFt": 2.0,
+      "sinkAt": 2.43915,
+      "sinkWFt": 3.0,
+      "sinkStyle": "dropin",
+      "gaps": [
+        {
+          "a": -7.31085,
+          "b": -5.31085,
+          "counter": true
+        },
+        {
+          "a": -3.56085,
+          "b": -1.06085,
+          "counter": false
+        },
+        {
+          "a": 3.93915,
+          "b": 5.93915,
+          "counter": true
+        }
+      ]
+    },
+    {
+      "type": "appliance",
+      "px": 5.42,
+      "pz": -13.1459,
+      "rot": 0.0,
+      "kind": "microwave",
+      "faces": "S",
+      "widthFt": 2.0,
+      "depthFt": 2.0
+    },
+    {
+      "type": "appliance",
+      "px": 9.42,
+      "pz": -13.1459,
+      "rot": 0.0,
+      "kind": "range",
+      "faces": "S",
+      "widthFt": 2.5,
+      "depthFt": 2.1,
+      "topFt": 3.08,
+      "burners": 4
+    },
+    {
+      "type": "appliance",
+      "px": 16.67,
+      "pz": -13.1459,
+      "rot": 0.0,
+      "kind": "dishwasher",
+      "faces": "S",
+      "widthFt": 2.0,
+      "depthFt": 2.0
+    },
+    {
+      "type": "appliance",
+      "px": 9.42,
+      "pz": -13.095899999999999,
+      "rot": 0.0,
+      "kind": "hood",
+      "faces": "S",
+      "widthFt": 2.8,
+      "depthFt": 1.9,
+      "bottomFt": 4.9,
+      "ceilFt": 9.0
+    },
+    {
+      "type": "cabinet_run",
+      "px": 11.73085,
+      "pz": -12.6959,
+      "rot": 0.0,
+      "kind": "wall",
+      "faces": "S",
+      "lenFt": 14.6217,
+      "depthFt": 1.1,
+      "bottomFt": 4.5,
+      "topFt": 7.0,
+      "gaps": [
+        {
+          "a": -3.81085,
+          "b": -0.81085
+        }
+      ]
+    },
+    {
+      "type": "cabinet_run",
+      "px": 11.73085,
+      "pz": -12.6959,
+      "rot": 0.0,
+      "kind": "wall",
+      "faces": "S",
+      "lenFt": 14.6217,
+      "depthFt": 1.1,
+      "bottomFt": 7.0,
+      "topFt": 9.0,
+      "gaps": [
+        {
+          "a": -3.81085,
+          "b": -0.81085
+        }
+      ]
     }
   ]
 }
