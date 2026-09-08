@@ -258,53 +258,55 @@ A(P.filter(r => r.type === 'counter_stool').length === 2, 'two counter stools');
 A(P.filter(r => r.type === 'open_shelves').length === 2, 'two open-shelf bays');
 // ============================================================ SCULLERY
 console.log('SCULLERY');
-const NW = -12.1459, SWALL = -18.6459;
+const SWALL = -18.6458, NWALL = -12.1459;
 const sc = P.filter(r => r.pz < -12);
 const gBase = sc.find(r => r.type === 'cabinet_run' && r.kind === 'base');
-const gUps  = sc.filter(r => r.type === 'cabinet_run' && r.kind === 'wall').sort((u, v) => u.yLo - v.yLo);
+const gUps  = sc.filter(r => r.type === 'cabinet_run' && r.kind === 'wall');
 const app = k => sc.find(r => r.type === 'appliance' && r.kind === k);
+const WINS = [[4.33, 6.33, 'S1'], [13.0, 15.0, 'S2'], [20.0833, 22.0833, 'S3']];
 A(!!gBase, 'galley base run built');
 if (gBase) {
   console.log(`  base px ${R(gBase.pxLo,3)}..${R(gBase.pxHi,3)}  pz ${R(gBase.pzLo,3)}..${R(gBase.pzHi,3)}`);
-  A(Math.abs(gBase.pzHi - NW) < 0.02, `back on the north wall (${R(gBase.pzHi,4)})`);
-  // FLOW: the run must clear both openings, and leave a walkway to the south wall.
-  A(gBase.pxLo - 3.42 > 0.9, `${R((gBase.pxLo - 3.42) * 12, 1)} in clear of the family-room opening`);
-  A(20.0417 - gBase.pxHi > 0.9, `${R((20.0417 - gBase.pxHi) * 12, 1)} in clear of the kitchen opening`);
-  const walk = gBase.pzLo - SWALL;
-  A(walk > 4.2, `${R(walk, 3)} ft of walkway south of the counter`);
-  const slab = meshes(gBase).filter(m => (m.pzHi - m.pzLo) > 2.05 && (m.pxHi - m.pxLo) > 0.5);
-  A(slab.length && Math.abs(Math.max(...slab.map(m => m.yHi)) - 3.08) < 0.03,
-    `worktop at ${slab.length ? R(Math.max(...slab.map(m => m.yHi)), 3) : '-'} ft`);
+  A(Math.abs(gBase.pzLo - SWALL) < 0.02, `back on the SOUTH wall (${R(gBase.pzLo,4)})`);
+  A(NWALL - gBase.pzHi > 4.2, `${R(NWALL - gBase.pzHi, 3)} ft of walkway north of the counter`);
+  A(16.17 - gBase.pxHi > 0.5, `${R((16.17 - gBase.pxHi) * 12, 1)} in clear of the back door`);
+  // The whole point of this wall: the worktop passes UNDER the windows, whose sills are
+  // at 4.0 against a 3.08 top. Assert both the height and the continuity.
+  const slab = meshes(gBase).filter(m => (m.pxHi - m.pxLo) > 0.5 && (m.pzHi - m.pzLo) > 2.05);
+  const topY = slab.length ? Math.max(...slab.map(m => m.yHi)) : 0;
+  A(Math.abs(topY - 3.08) < 0.03, `worktop at ${R(topY,3)} ft — clears the 4.0 ft sills by ${R((4.0-topY)*12,1)} in`);
+  for (const [a, b, nm] of WINS.slice(0, 2))
+    A(slab.some(m => m.pxLo < a + 0.05 && m.pxHi > b - 0.05), `worktop runs under window ${nm}`);
+  // sink under the middle window
+  const bowl = meshes(gBase).filter(m => m.yHi < 3.06 && m.yHi > 2.2 && (m.pzHi - m.pzLo) > 1.2
+    && m.pxLo > 12.3 && m.pxHi < 15.7);
+  A(bowl.length > 0, `sink set into the counter under window S2 (${bowl.length} members)`);
 }
 for (const k of ['microwave', 'range', 'dishwasher', 'hood']) A(!!app(k), `${k} present`);
-if (app('range')) A(Math.abs(app('range').px - 9.42) < 0.02 && Math.abs(app('hood').px - 9.42) < 0.02,
-  'hood centred over the range');
-A(gUps.length === 2, `two upper bands (${gUps.length})`);
-if (gUps.length === 2) {
-  A(Math.abs(gUps[0].yLo - 4.5) < 0.03 && Math.abs(gUps[1].yHi - 9.0) < 0.03,
-    `uppers run ${R(gUps[0].yLo,2)} to ${R(gUps[1].yHi,2)} ft — to the ceiling`);
-  A(Math.abs(gUps[0].yHi - gUps[1].yLo) < 0.03, 'the two bands meet with no void between them');
-  // broken over the range so the hood has its bay
-  for (const u of gUps) {
-    const fr = meshes(u).filter(m => (m.pzHi - m.pzLo) < 0.09 && (m.pxHi - m.pxLo) > 0.3);
-    A(!fr.some(m => m.pxLo > 8.1 && m.pxHi < 10.8), `uppers break over the range (${R(u.yLo,1)} ft band)`);
-  }
+if (app('range') && app('hood')) {
+  A(Math.abs(app('range').px - app('hood').px) < 0.02, 'hood centred over the range');
+  A(WINS.every(([a, b]) => app('range').pxHi < a || app('range').pxLo > b),
+    'range sits clear of every window, so its hood has wall to hang on');
 }
-// A DROP-IN bowl leaves the worktop continuous; only an apron sink breaks it.
-if (gBase) {
-  const slab = meshes(gBase).filter(m => (m.pzHi - m.pzLo) > 2.05 && (m.pxHi - m.pxLo) > 0.5);
-  A(slab.some(m => m.pxLo < 14.17 && m.pxHi > 14.17), 'worktop runs continuous under the drop-in bowl');
-  const bowl = meshes(gBase).filter(m => m.yHi < 3.06 && m.yHi > 2.2 && (m.pxHi - m.pxLo) > 2.0
-    && m.pxLo > 12.5 && m.pxHi < 15.9);
-  A(bowl.length > 0, `bowl set into the counter (${bowl.length} members)`);
+// ONE band of uppers, stopping on the 7 ft head line — NOT run to the ceiling.
+A(gUps.length === 1, `one band of uppers, not stacked to the ceiling (${gUps.length})`);
+if (gUps.length === 1) {
+  const u = gUps[0];
+  A(Math.abs(u.yLo - 4.5) < 0.03 && Math.abs(u.yHi - 7.0) < 0.03,
+    `uppers run ${R(u.yLo,2)} to ${R(u.yHi,2)} ft — level with the window heads`);
+  A(u.yHi < 8.0, `${R(9.0 - u.yHi, 2)} ft of open wall above them`);
+  const fr = meshes(u).filter(m => (m.pzHi - m.pzLo) < 0.09 && (m.pxHi - m.pxLo) > 0.3);
+  for (const [a, b, nm] of WINS)
+    A(!fr.some(m => m.pxHi > a + 0.05 && m.pxLo < b - 0.05), `uppers break at window ${nm}`);
+  if (app('hood')) A(!fr.some(m => m.pxHi > app('hood').pxLo + 0.05 && m.pxLo < app('hood').pxHi - 0.05),
+    'uppers break over the hood');
 }
 // BACK DOOR: outswing, and glazed from the inside too
 { const d = (raw.doorLeaves || []).find(x => /back/i.test(x.name));
   A(!!d, 'back door leaf found');
   if (d) {
     A(d.pzHi <= -18.875 + 0.02, `swings OUT — leaf at pz ${R(d.pzLo,3)}..${R(d.pzHi,3)}, wall -18.875`);
-    // 2 stiles + 2 rails + 1 pane + 1 vertical muntin + 3 horizontal = 9 members,
-    // which is what divides the glazing into 2 columns x 4 rows.
+    // 2 stiles + 2 rails + 1 pane + 1 vertical muntin + 3 horizontal = 9 members.
     A(d.parts === 9, `8-lite leaf: ${d.parts} members (2 stiles, 2 rails, pane, 4 muntins)`);
   } }
 
