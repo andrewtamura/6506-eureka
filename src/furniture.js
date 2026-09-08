@@ -1973,8 +1973,29 @@ function buildAppliance(p) {
   }
   if (kind === "hood") {
     const W = p.widthFt ?? 2.8, D = p.depthFt ?? 1.9, y0 = p.bottomFt ?? 4.9, ceil = p.ceilFt ?? 9.0;
-    q = pl(0, 0, D, W); box(q[0], q[1], y0 + 0.28, q[2], q[3], 0.56, steel, 0.03);            // canopy
-    q = pl(0, 0, D * 0.55, W * 0.42); box(q[0], q[1], (y0 + 0.56 + ceil) / 2, q[2], q[3], ceil - y0 - 0.56, steel, 0.02); // chimney
+    if (!p.boxed) {
+      q = pl(0, 0, D, W); box(q[0], q[1], y0 + 0.28, q[2], q[3], 0.56, steel, 0.03);          // canopy
+      q = pl(0, 0, D * 0.55, W * 0.42); box(q[0], q[1], (y0 + 0.56 + ceil) / 2, q[2], q[3], ceil - y0 - 0.56, steel, 0.02); // chimney
+      return g;
+    }
+    // BOXED hood: the working liner is stainless and everything above it is millwork —
+    // a moulded shelf reading as a mantel, a plain box carried to the ceiling, a crown
+    // where it meets it, and a corbel at each side of the liner.
+    const mill = new THREE.MeshStandardMaterial({ color: 0xefece4, roughness: 0.8 });
+    const LIN = p.linerFt ?? 0.34;                       // stainless canopy depth
+    q = pl(0, 0, D, W); box(q[0], q[1], y0 + LIN / 2, q[2], q[3], LIN, steel, 0.02);   // capture area
+    const shY = y0 + LIN;                                 // moulded shelf on the liner
+    q = pl(0.03, 0, D + 0.14, W + 0.14); box(q[0], q[1], shY + 0.10, q[2], q[3], 0.20, mill, 0.03);
+    q = pl(0.01, 0, D + 0.06, W + 0.06); box(q[0], q[1], shY + 0.24, q[2], q[3], 0.08, mill, 0.02);
+    const bx0 = shY + 0.28, bx1 = ceil - 0.30;            // the box itself
+    q = pl(-0.05, 0, D - 0.22, W - 0.14); box(q[0], q[1], (bx0 + bx1) / 2, q[2], q[3], bx1 - bx0, mill, 0.015);
+    q = pl(-0.02, 0, D - 0.10, W - 0.02);                 // crown at the ceiling
+    box(q[0], q[1], ceil - 0.19, q[2], q[3], 0.22, mill, 0.025);
+    q = pl(-0.03, 0, D - 0.04, W + 0.04); box(q[0], q[1], ceil - 0.04, q[2], q[3], 0.08, mill, 0.02);
+    for (const t of [-1, 1]) {                            // corbels flanking the liner
+      q = pl(D / 2 - 0.18, t * (W / 2 - 0.08), 0.30, 0.14);
+      box(q[0], q[1], shY - 0.13, q[2], q[3], 0.26, mill, 0.03);
+    }
     return g;
   }
   if (kind === "fridge") {

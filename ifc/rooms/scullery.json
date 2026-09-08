@@ -59,6 +59,15 @@
       "width": 2.5,
       "sill": 3.5,
       "head": 7.5
+    },
+    {
+      "name": "Window - Scullery E2",
+      "orient": "V",
+      "fixed": -0.0833,
+      "pos": -14.4,
+      "width": 2.5,
+      "sill": 3.5,
+      "head": 7.0
     }
   ],
   "interior": {
@@ -67,7 +76,8 @@
     },
     "paneling": {
       "baseboard": 10,
-      "noCornice": true
+      "noCornice": true,
+      "battens": false
     },
     "furniture": [
       {
@@ -83,23 +93,6 @@
         "sinkAt": -6.1771,
         "sinkWFt": 3.0,
         "sinkStyle": "dropin",
-        "gaps": [
-          {
-            "a": 5.6729,
-            "b": 7.6771,
-            "counter": true
-          },
-          {
-            "a": -1.5271,
-            "b": 0.9729,
-            "counter": false
-          },
-          {
-            "a": -4.6771,
-            "b": -2.6771,
-            "counter": true
-          }
-        ],
         "drawers": [
           0.22,
           0.35,
@@ -107,15 +100,33 @@
         ],
         "divideAt": [
           -6.1771,
-          2.5396,
-          4.1063
+          1.2864,
+          2.7499,
+          4.2134
+        ],
+        "gaps": [
+          {
+            "a": 5.6769,
+            "b": 7.6771,
+            "counter": true
+          },
+          {
+            "a": -2.6771,
+            "b": -0.1771,
+            "counter": false
+          },
+          {
+            "a": -4.6771,
+            "b": -2.6771,
+            "counter": true
+          }
         ]
       },
       {
         "type": "appliance",
         "kind": "microwave",
         "at": [
-          1.148,
+          1.146,
           -17.6458
         ],
         "faces": "N",
@@ -126,7 +137,7 @@
         "type": "appliance",
         "kind": "range",
         "at": [
-          8.1,
+          9.25,
           -17.6458
         ],
         "faces": "N",
@@ -150,14 +161,15 @@
         "type": "appliance",
         "kind": "hood",
         "at": [
-          8.1,
-          -17.695800000000002
+          9.25,
+          -17.5958
         ],
         "faces": "N",
-        "widthFt": 2.8,
-        "depthFt": 1.9,
-        "bottomFt": 4.9,
-        "ceilFt": 9.0
+        "widthFt": 3.0,
+        "depthFt": 2.1,
+        "bottomFt": 5.58,
+        "ceilFt": 9.0,
+        "boxed": true
       },
       {
         "type": "cabinet_run",
@@ -174,11 +186,34 @@
         "gaps": [
           {
             "a": -7.6771,
-            "b": -4.7271
+            "b": -4.6971
           },
           {
-            "a": -1.7771,
-            "b": 3.9429
+            "a": -3.1271,
+            "b": 3.9729
+          }
+        ]
+      },
+      {
+        "type": "cabinet_run",
+        "at": [
+          7.82292,
+          -18.0958
+        ],
+        "kind": "wall",
+        "faces": "N",
+        "lenFt": 15.3542,
+        "depthFt": 1.1,
+        "bottomFt": 7.0,
+        "topFt": 9.0,
+        "gaps": [
+          {
+            "a": -7.6771,
+            "b": -4.6971
+          },
+          {
+            "a": -3.1271,
+            "b": 3.9729
           }
         ]
       }

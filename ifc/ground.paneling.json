@@ -249,7 +249,7 @@
         ]
       ],
       "noCornice": true,
-      "noBattens": false
+      "noBattens": true
     },
     {
       "along": "x",
@@ -274,7 +274,7 @@
       "windows": [],
       "tall": [],
       "noCornice": true,
-      "noBattens": false
+      "noBattens": true
     },
     {
       "along": "z",
@@ -287,10 +287,17 @@
       "lo": -18.875,
       "hi": -11.917,
       "doors": [],
-      "windows": [],
+      "windows": [
+        [
+          -15.65,
+          -13.15,
+          3.5,
+          false
+        ]
+      ],
       "tall": [],
       "noCornice": true,
-      "noBattens": false
+      "noBattens": true
     },
     {
       "along": "z",
@@ -313,7 +320,7 @@
       ],
       "tall": [],
       "noCornice": true,
-      "noBattens": false
+      "noBattens": true
     }
   ]
 }

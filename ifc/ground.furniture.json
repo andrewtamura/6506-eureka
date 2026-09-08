@@ -365,23 +365,6 @@
       "sinkAt": -6.1771,
       "sinkWFt": 3.0,
       "sinkStyle": "dropin",
-      "gaps": [
-        {
-          "a": 5.6729,
-          "b": 7.6771,
-          "counter": true
-        },
-        {
-          "a": -1.5271,
-          "b": 0.9729,
-          "counter": false
-        },
-        {
-          "a": -4.6771,
-          "b": -2.6771,
-          "counter": true
-        }
-      ],
       "drawers": [
         0.22,
         0.35,
@@ -389,13 +372,31 @@
       ],
       "divideAt": [
         -6.1771,
-        2.5396,
-        4.1063
+        1.2864,
+        2.7499,
+        4.2134
+      ],
+      "gaps": [
+        {
+          "a": 5.6769,
+          "b": 7.6771,
+          "counter": true
+        },
+        {
+          "a": -2.6771,
+          "b": -0.1771,
+          "counter": false
+        },
+        {
+          "a": -4.6771,
+          "b": -2.6771,
+          "counter": true
+        }
       ]
     },
     {
       "type": "appliance",
-      "px": 1.148,
+      "px": 1.146,
       "pz": -17.6458,
       "rot": 0.0,
       "kind": "microwave",
@@ -405,7 +406,7 @@
     },
     {
       "type": "appliance",
-      "px": 8.1,
+      "px": 9.25,
       "pz": -17.6458,
       "rot": 0.0,
       "kind": "range",
@@ -427,15 +428,16 @@
     },
     {
       "type": "appliance",
-      "px": 8.1,
-      "pz": -17.695800000000002,
+      "px": 9.25,
+      "pz": -17.5958,
       "rot": 0.0,
       "kind": "hood",
       "faces": "N",
-      "widthFt": 2.8,
-      "depthFt": 1.9,
-      "bottomFt": 4.9,
-      "ceilFt": 9.0
+      "widthFt": 3.0,
+      "depthFt": 2.1,
+      "bottomFt": 5.58,
+      "ceilFt": 9.0,
+      "boxed": true
     },
     {
       "type": "cabinet_run",
@@ -451,11 +453,33 @@
       "gaps": [
         {
           "a": -7.6771,
-          "b": -4.7271
+          "b": -4.6971
         },
         {
-          "a": -1.7771,
-          "b": 3.9429
+          "a": -3.1271,
+          "b": 3.9729
+        }
+      ]
+    },
+    {
+      "type": "cabinet_run",
+      "px": 7.82292,
+      "pz": -18.0958,
+      "rot": 0.0,
+      "kind": "wall",
+      "faces": "N",
+      "lenFt": 15.3542,
+      "depthFt": 1.1,
+      "bottomFt": 7.0,
+      "topFt": 9.0,
+      "gaps": [
+        {
+          "a": -7.6771,
+          "b": -4.6971
+        },
+        {
+          "a": -3.1271,
+          "b": 3.9729
         }
       ]
     }
