@@ -2351,6 +2351,7 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
         if H <= 0.1 or w <= 0:
             return
         STILE, TRAIL, BRAIL, MUN = 0.46, 0.46, 0.92, 0.10        # member sizes (ft)
+        DOUBLE_FT = 1.2 / FT                                     # pair above this width
         DSLAB, DPANE, DFRAME, DMUN = 0.09, 0.12, 0.15, 0.17      # depths (m)
         TRAILm, BRAILm = TRAIL * FT, BRAIL * FT                  # rails in metres (z-axis)
 
@@ -2380,22 +2381,29 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
         dbox(pos, fw, fz1, z1, DFRAME, WOOD)                     # top rail
         dbox(pos, fw, z0, fz0, DFRAME, WOOD)                     # bottom rail
         mh = MUN * FT / 2                                        # half muntin/rail thickness (m)
-        if rows:
-            # two columns of glass, each split into `rows` lites top-to-bottom
-            dbox(pos, fw, fz0, fz1, DPANE, GLASS)                # glazed field
-            dbox(pos, MUN, fz0, fz1, DMUN, WOOD)                 # 1 vertical -> 2 cols
-            for j in range(1, rows):                             # rows-1 horizontal
-                zc = fz0 + j * (fz1 - fz0) / rows
-                dbox(pos, fw, zc - mh, zc + mh, DMUN, WOOD)
-        elif style == "patio":
-            # two leaves, each a single large glass pane (no muntins), meeting
-            # at a centre post
-            CP = 0.5                                             # centre meeting post (ft)
-            dbox(pos, CP, fz0, fz1, DFRAME, WOOD)
-            pane = (fw - CP) / 2                                 # one leaf's glass (ft)
-            off = (CP + pane) / 2                                # pane centre from middle
-            for cc in (pos - off, pos + off):
-                dbox(cc, pane, fz0, fz1, DPANE, GLASS)
+        if rows or style == "patio":
+            # PAIRING and DIVISION are independent. A door wider than the double-door
+            # threshold gets a centre meeting post and two glass fields; each field is
+            # then divided (or not) on its own. Without this a 6'8" french door asked
+            # for 8 lites drew ONE grid straight across the opening with no meeting
+            # stile. The threshold is the viewer's DOUBLE (src/main.js) in feet, so
+            # both files break a door into leaves at the same width.
+            if w > DOUBLE_FT:
+                CP = 0.5                                         # centre meeting post (ft)
+                dbox(pos, CP, fz0, fz1, DFRAME, WOOD)
+                pane = (fw - CP) / 2                             # one leaf's glass (ft)
+                off = (CP + pane) / 2                            # pane centre from middle
+                fields = ((pos - off, pane), (pos + off, pane))
+            else:
+                fields = ((pos, fw),)
+            for cc, pane in fields:
+                dbox(cc, pane, fz0, fz1, DPANE, GLASS)           # glazed field
+                if not rows:                                     # "patio": undivided sheet
+                    continue
+                dbox(cc, MUN, fz0, fz1, DMUN, WOOD)              # 1 vertical -> 2 cols
+                for j in range(1, rows):                         # rows-1 horizontal
+                    zc = fz0 + j * (fz1 - fz0) / rows
+                    dbox(cc, pane, zc - mh, zc + mh, DMUN, WOOD)
         else:                                                    # raised panelled door
             front = style == "front"
             MIDm = 0.5 * FT                                      # intermediate rail height (m)

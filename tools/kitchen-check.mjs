@@ -202,7 +202,12 @@ const battens = L.filter(m => m.yLo > 0.7 && m.yLo < 0.95 && (m.yHi - m.yLo) > 1
   && (m.pxHi - m.pxLo) < 0.25 && (m.pzHi - m.pzLo) < 0.25);
 A(!battens.filter(m => m.pzLo > -12 && m.pzHi < 2.1 && m.pxLo > 15.2 && m.pxHi < 31.1).length,
   'no battens on the kitchen walls');
-{ const sb = battens.filter(m => m.pzHi < -11.9 && m.pzLo > -18.7);   // inside the room
+// Bound px as well as pz. This filter was pz-only, so it swept the whole model at the
+// scullery's depth and fired on the muntins of the family room's french door, standing
+// open at px -1.6 and -8.3 — outside the room entirely. Same trap as the open back
+// door leaf it was narrowed for once already: a swinging leaf is a tall thin vertical.
+{ const sb = battens.filter(m => m.pzHi < -11.9 && m.pzLo > -18.7
+    && m.pxLo > 0.1 && m.pxHi < 27.9);                                 // inside the room
   A(!sb.length, `no battens in the scullery either (${sb.length})`); }
 A(battens.filter(m => m.pzLo > 2.0).length > 0, 'dining room keeps its battens');
 
@@ -518,6 +523,24 @@ console.log('CAFE NOOK');
     // 2 stiles + 2 rails + 1 pane + 1 vertical muntin + 3 horizontal = 9 members,
     // dividing the glazing 2 columns by 4 rows — the same count as the back door.
     A(d.parts === 9, `8-lite leaf: ${d.parts} members (2 stiles, 2 rails, pane, 4 muntins)`);
+  } }
+
+// FAMILY -> PATIO: the french pair. Both the IFC massing and the viewer split a door
+// this wide into two leaves; what regressed before is the DIVISION, which used to run
+// as one grid across the whole 6'8" opening with no meeting stile. A pair yields two
+// entries under one name, so filter rather than find.
+{ const ds = (raw.doorLeaves || []).filter(x => /Family -> Patio/i.test(x.name));
+  A(ds.length === 2, `french pair: two leaves (${ds.length})`);
+  for (const d of ds) A(d.parts === 9, `8-lite leaf: ${d.parts} members (2 stiles, 2 rails, pane, 4 muntins)`);
+  if (ds.length === 2) {
+    // Opening px -8.255..-1.585; each leaf hangs on its own jamb, so the two leaf
+    // centres sit at opposite ends of it.
+    const c = ds.map(d => (d.pxLo + d.pxHi) / 2).sort((u, v) => u - v);
+    console.log(`  patio leaves at px ${R(c[0],3)} and ${R(c[1],3)}, jambs -8.255 / -1.585`);
+    A(Math.abs(c[0] - (-8.255)) < 0.25 && Math.abs(c[1] - (-1.585)) < 0.25, 'hung on opposite jambs');
+    // A pair has to swing together — one leaf in and one out would be nonsense.
+    const side = ds.map(d => ((d.pzLo + d.pzHi) / 2) > -11.9167);
+    A(side[0] === side[1], `both leaves swing ${side[0] ? 'INTO the family room' : 'out to the patio'}`);
   } }
 
 // BACK DOOR: outswing, and glazed from the inside too
