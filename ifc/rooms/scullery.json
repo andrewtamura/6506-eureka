@@ -307,10 +307,10 @@
         "type": "skylight",
         "at": [
           5.33,
-          -15.9
+          -15.15
         ],
         "widthFt": 2.0,
-        "depthFt": 2.5,
+        "depthFt": 4.0,
         "ceilFt": 9.0,
         "pitch": 0.45,
         "datumPz": -18.875
@@ -319,10 +319,10 @@
         "type": "skylight",
         "at": [
           14.0,
-          -15.9
+          -15.15
         ],
         "widthFt": 2.0,
-        "depthFt": 2.5,
+        "depthFt": 4.0,
         "ceilFt": 9.0,
         "pitch": 0.45,
         "datumPz": -18.875
@@ -331,10 +331,10 @@
         "type": "skylight",
         "at": [
           21.0833,
-          -15.9
+          -15.15
         ],
         "widthFt": 2.0,
-        "depthFt": 2.5,
+        "depthFt": 4.0,
         "ceilFt": 9.0,
         "pitch": 0.45,
         "datumPz": -18.875

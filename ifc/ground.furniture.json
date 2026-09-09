@@ -561,10 +561,10 @@
     {
       "type": "skylight",
       "px": 5.33,
-      "pz": -15.9,
+      "pz": -15.15,
       "rot": 0.0,
       "widthFt": 2.0,
-      "depthFt": 2.5,
+      "depthFt": 4.0,
       "ceilFt": 9.0,
       "pitch": 0.45,
       "datumPz": -18.875
@@ -572,10 +572,10 @@
     {
       "type": "skylight",
       "px": 14.0,
-      "pz": -15.9,
+      "pz": -15.15,
       "rot": 0.0,
       "widthFt": 2.0,
-      "depthFt": 2.5,
+      "depthFt": 4.0,
       "ceilFt": 9.0,
       "pitch": 0.45,
       "datumPz": -18.875
@@ -583,10 +583,10 @@
     {
       "type": "skylight",
       "px": 21.0833,
-      "pz": -15.9,
+      "pz": -15.15,
       "rot": 0.0,
       "widthFt": 2.0,
-      "depthFt": 2.5,
+      "depthFt": 4.0,
       "ceilFt": 9.0,
       "pitch": 0.45,
       "datumPz": -18.875

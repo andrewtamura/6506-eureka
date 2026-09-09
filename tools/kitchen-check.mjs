@@ -640,7 +640,13 @@ console.log('WAINSCOT + LIGHTING');
   const sky = has('skylight').sort((u, v) => u.px - v.px);
   sky.forEach((k, i) => {
     A(Math.abs(k.px - winPx[i]) < 0.05, `skylight ${i + 1} on window line px ${winPx[i]} (${R(k.px,3)})`);
-    A(k.pzLo > SWALL + 1.05, `its well clears the galley uppers by ${R((k.pzLo - (SWALL + 1.1)) * 12, 1)} in`);
+    // 2'0" x 4'0". The south edge is pinned by the galley uppers, so the only way to
+    // enlarge these is northward — which is why the pair of clearances is asserted
+    // rather than the size alone.
+    A(Math.abs((k.pzHi - k.pzLo) - 4.0) < 0.05, `4 ft deep (${R(k.pzHi - k.pzLo, 2)})`);
+    A(Math.abs((k.pxHi - k.pxLo) - 2.0) < 0.05, `2 ft wide, unchanged (${R(k.pxHi - k.pxLo, 2)})`);
+    A(k.pzLo > SWALL + 1.1, `its well clears the galley uppers by ${R((k.pzLo - (SWALL + 1.1)) * 12, 1)} in`);
+    A(NWALL - k.pzHi > 0.8, `${R((NWALL - k.pzHi) * 12, 1)} in of ceiling left at the north wall`);
     // The roof springs from the ceiling at the south eave and rises 0.45/ft north, so
     // the glazing must sit ABOVE the 9 ft ceiling or the well has no depth at all.
     A(k.yHi > 9.5, `glazing ${R((k.yHi - 9.0) * 12, 1)} in above the ceiling at its high edge`);
