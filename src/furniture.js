@@ -53,15 +53,19 @@ function tickingTexture(ground, ink) {
   return _ticking;
 }
 
-// A CAPE COD DINING CHAIR (front = +Z): a painted frame in slim square stock with a
-// drop-in seat and an upholstered back panel, both in ticking stripe. Traditional in
-// its joinery — rear legs running on up to become the back stiles — but deliberately
-// plain: straight tapered legs, no turning, no carving, no stretchers, and a back that
-// stops at 37" rather than towering. The old chair read chunky because its cushion was
-// 120 mm thick and its back 110 mm; here they are 60 mm and 45 mm on 32 mm stock.
+// A CAPE COD DINING CHAIR (front = +Z): a painted frame in real chair scantlings with a
+// slip seat and an upholstered back, both in ticking stripe. Traditional joinery — the
+// rear legs run on up to become the back stiles — but deliberately plain: square tapered
+// legs, no turning, no carving, and a back that stops at 35" rather than towering.
+//
+// Sized off actual side-chair stock rather than by eye, because the first pass looked
+// like it would come apart when sat on: 40 mm legs tapering to 28 mm at the floor
+// (1 9/16" to 1 1/8"), 70 x 24 mm seat rails (2 3/4" x 7/8"), 38 mm stiles. It also
+// carries the two things that actually stop a chair racking and that were missing
+// entirely — glue blocks in the seat corners, and an H-stretcher between the legs.
 function buildChair(p) {
   const g = new THREE.Group();
-  const paint = new THREE.MeshStandardMaterial({ color: col(p.frame || "chalk", 0xf1ede4), roughness: 0.6 });
+  const paint = new THREE.MeshStandardMaterial({ color: col(p.frame || "chalk", 0xf8f5ef), roughness: 0.6 });
   const groundC = col(p.material || "oatmeal", 0xd9d2c4).getHex();
   const inkC = col(p.stripe || "ticking", 0x3c5a78).getHex();
   // Stripes run front-to-back on the seat and vertically up the back: on a box face the
@@ -72,65 +76,73 @@ function buildChair(p) {
     t.repeat.set(Math.max(1, Math.round(wMetres / 0.135)), 1);   // ~135 mm per stripe pair
     return new THREE.MeshStandardMaterial({ map: t, roughness: 0.92 });
   };
+  const box = (w, h, d, x, y, z, mat = paint, ry = 0) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    m.position.set(x, y, z); if (ry) m.rotation.y = ry;
+    m.castShadow = true; g.add(m); return m;
+  };
 
   const SH = 0.46, SW = 0.49, SD = 0.44;          // seat height / width / depth
   const BH = 0.90;                                 // top of the back, 35" off the floor
-  const LEG = 0.032, INSET = LEG / 2 + 0.004;
-  const RAIL = 0.055, RT = 0.024;                  // seat rail depth / thickness
-  const PAD = 0.06;                                // drop-in seat pad
+  const LEG = 0.040, LEGB = 0.028;                 // leg section at the seat / at the floor
+  const RAIL = 0.070, RT = 0.024;                  // seat rail depth / thickness
+  const PAD = 0.055;                               // slip seat, sitting on the rails
+  const TOP = SH - 0.045;                          // top of the frame; the pad laps over it
+  const INSET = LEG / 2 + 0.004;
+  const XL = SW / 2 - INSET, ZL = SD / 2 - INSET;  // leg centres
 
-  // Legs: square section, tapering to the floor, straight rather than splayed — the
-  // splay is what dates the shape. A 4-sided cylinder turned 45 deg gives a true square.
-  const legTo = SH - RAIL - 0.005;
-  const post = (x, z, h, y0, rTop, rBot) => {
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, h, 4), paint);
-    m.rotation.y = Math.PI / 4; m.position.set(x, y0 + h / 2, z);
-    m.castShadow = true; g.add(m); return m;
-  };
-  const R = LEG / Math.SQRT2, RB = 0.024 / Math.SQRT2;
-  for (const ix of [-1, 1]) {
-    post(ix * (SW / 2 - INSET), SD / 2 - INSET, legTo, 0, R, RB);       // front
-    post(ix * (SW / 2 - INSET), -(SD / 2 - INSET), legTo, 0, R, RB);    // rear
+  // Legs: square section tapering to the floor. A 4-sided cylinder turned 45 deg is a
+  // true square prism; straight rather than splayed, since the splay is what dates it.
+  const R = LEG / Math.SQRT2, RB = LEGB / Math.SQRT2;
+  for (const ix of [-1, 1]) for (const iz of [-1, 1]) {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(R, RB, TOP, 4), paint);
+    m.rotation.y = Math.PI / 4; m.position.set(ix * XL, TOP / 2, iz * ZL);
+    m.castShadow = true; g.add(m);
   }
-  // Seat rails, set in from the leg faces so the frame reads as joinery, not a slab.
-  const rail = (w, d, x, z) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, RAIL, d), paint);
-    m.position.set(x, SH - RAIL / 2 - 0.005, z); m.castShadow = true; g.add(m);
-  };
-  rail(SW - 2 * INSET, RT, 0, SD / 2 - INSET);
-  rail(SW - 2 * INSET, RT, 0, -(SD / 2 - INSET));
-  for (const ix of [-1, 1]) rail(RT, SD - 2 * INSET, ix * (SW / 2 - INSET), 0);
+  // Seat rails, deep enough to carry a seat: their whole point is bending stiffness.
+  const ry = TOP - RAIL / 2;
+  box(SW - 2 * INSET, RAIL, RT, 0, ry, ZL);
+  box(SW - 2 * INSET, RAIL, RT, 0, ry, -ZL);
+  for (const ix of [-1, 1]) box(RT, RAIL, SD - 2 * INSET, ix * XL, ry, 0);
+  // Glue blocks across each seat corner — the joint that stops a chair racking.
+  for (const ix of [-1, 1]) for (const iz of [-1, 1])
+    box(0.085, RAIL - 0.018, 0.020, ix * (XL - 0.031), ry - 0.006, iz * (ZL - 0.031),
+        paint, ix * iz > 0 ? -Math.PI / 4 : Math.PI / 4);
+  // H-stretcher: side rails leg-to-leg with a medial rail between them.
+  const SY = 0.165, ST = 0.026, SS = 0.020;
+  for (const ix of [-1, 1]) box(SS, ST, SD - 2 * INSET, ix * XL, SY, 0);
+  box(SW - 2 * INSET, ST, SS, 0, SY, 0);
 
-  // Drop-in seat pad, sitting into the frame.
-  const pad = new THREE.Mesh(new RoundedBoxGeometry(SW - 2 * INSET + 0.012, PAD, SD - 2 * INSET + 0.012, 2, 0.012),
+  // Slip seat, lapping over the rails.
+  const pad = new THREE.Mesh(new RoundedBoxGeometry(SW - 2 * INSET + 0.016, PAD, SD - 2 * INSET + 0.016, 2, 0.012),
                              fabric(SW));
   pad.position.set(0, SH - PAD / 2, 0); pad.castShadow = true; g.add(pad);
 
   // BACK, raked back 13.5 deg for about 4.5 in of set-back at the crest. Two notes,
   // both learned the hard way:
-  //   - The previous version used rotation.x = +0.105. A positive rotation about X tips
+  //   - An earlier version used rotation.x = +0.105. A positive rotation about X tips
   //     the top toward +Z, which here is the FRONT — it was leaning very slightly INTO
   //     the table, which is exactly why it read as bolt upright.
   //   - A curved sweep was tried, with the panel in three stacked slabs following it.
   //     The slab seams caught the light and turned the ticking stripe into a plaid, so
   //     the back is one flat plane: a single panel, no joints to show.
-  const RAKE = -0.235;
   const back = new THREE.Group();
-  back.position.set(0, SH - RAIL - 0.005, -(SD / 2 - INSET));
-  back.rotation.x = RAKE;
-  const bh = BH - (SH - RAIL);                     // stile length above the seat
-  const TOPR = 0.075, BOTR = 0.045;
-  const stile = (x) => {
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(R, R * 0.94, bh, 4), paint);
-    m.rotation.y = Math.PI / 4; m.position.set(x, bh / 2, 0); m.castShadow = true; back.add(m);
-  };
-  for (const ix of [-1, 1]) stile(ix * (SW / 2 - INSET));
-  const inner = SW - 2 * INSET - LEG;
+  back.position.set(0, TOP, -ZL);
+  back.rotation.x = -0.235;
+  const bh = BH - TOP;                             // stile length above the seat
+  const TOPR = 0.080, BOTR = 0.050;
+  const SR = 0.038 / Math.SQRT2;                   // stiles continue the rear legs
+  for (const ix of [-1, 1]) {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(SR * 0.82, SR, bh, 4), paint);
+    m.rotation.y = Math.PI / 4; m.position.set(ix * XL, bh / 2, 0);
+    m.castShadow = true; back.add(m);
+  }
+  const inner = SW - 2 * INSET - 0.038;
   const crossRail = (h, yc) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(inner, h, RT), paint);
     m.position.set(0, yc, 0); m.castShadow = true; back.add(m);
   };
-  crossRail(TOPR, bh - TOPR / 2);                  // top rail
+  crossRail(TOPR, bh - TOPR / 2);                  // crest rail
   crossRail(BOTR, 0.055);                          // bottom rail, just above the seat
   const ph = bh - TOPR - 0.055 - BOTR / 2 - 0.01;
   const panel = new THREE.Mesh(new RoundedBoxGeometry(inner - 0.004, ph, 0.045, 2, 0.01), fabric(inner));

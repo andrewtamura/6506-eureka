@@ -167,6 +167,15 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   whenever a builder or a manifest actually changes, and always once before committing;
   `--from` prints a loud STALE banner naming any input newer than the measurement, so a
   cached pass can't be mistaken for a real one.
+  **Never measure a member's SECTION from a bounding box.** `Box3.setFromObject` returns
+  the box of the geometry's box after transform, so any mesh with a rotation of its own
+  reports wider than it is — a 40 mm leg drawn as a 4-gon turned 45 deg measures 80 mm —
+  and the item's own yaw inflates it again. This has now caught three assertions: the
+  bentwood chair's "daintiness", the dining chair's raked back, and its leg section, the
+  last of which nearly shipped a committed number twice the truth. VERTICAL extents are
+  honest (yaw does not touch them); horizontal ones are an upper bound only. The harness
+  records a per-mesh solid volume for exactly this — `meshes(item)[i].vol` — so a section
+  is `sqrt(vol / length)` and a "how chunky" question is answered in volume.
   One trap when writing assertions: wall-finish meshes (the `loose` list) hang off `FLOOR`
   while placed items hang off `FLOOR + 0.02`, so a loose mesh reads **0.066 ft lower** than
   its authored height. The harness names this `LOOSE_DY`; a chair rail authored at 3.0 ft

@@ -77,6 +77,7 @@ const raw = await page.evaluate(() => {
     const parts = [];
     o.traverse(m => { if (!m.isMesh) return; const mb = new B3().setFromObject(m);
       parts.push([mb.min.x, mb.min.y, mb.min.z, mb.max.x, mb.max.y, mb.max.z]); });
+    const mvols = [];   // filled alongside the volume pass below, one per mesh, in order
     // A rotated item's world AABB is not its size — a 1.5 ft square chair turned 45 deg
     // measures 2.1 ft on both axes. Take a bbox in the item's OWN frame as well, and the
     // solid volume of its geometry, which is the only honest way to say "dainty".
@@ -88,11 +89,13 @@ const raw = await page.evaluate(() => {
       const pos = gm.getAttribute('position'); if (!pos || pos.count > 60000) return;
       const idx = gm.getIndex(), n = idx ? idx.count : pos.count;
       const g3 = (i) => { const j = idx ? idx.getX(i) : i; return [pos.getX(j), pos.getY(j), pos.getZ(j)]; };
+      let mv = 0;
       for (let i = 0; i + 2 < n; i += 3) { const a = g3(i), b = g3(i + 1), c = g3(i + 2);
-        vol += (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0])
-              + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6; } });
+        mv += (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0])
+             + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6; }
+      vol += mv; mvols.push(Math.abs(mv)); });
     items.push({ type: it.type, kind: it.kind || '', px: it.px, pz: it.pz, floorY: o.position.y,
-      lw: lb.max.x - lb.min.x, ld: lb.max.z - lb.min.z, vol: Math.abs(vol),
+      lw: lb.max.x - lb.min.x, ld: lb.max.z - lb.min.z, vol: Math.abs(vol), mvols,
       min: [bb.min.x, bb.min.y, bb.min.z], max: [bb.max.x, bb.max.y, bb.max.z], parts,
       top: (() => { let best = null, area = -1;
         o.traverse(m => { if (!m.isMesh) return; const mb = new B3().setFromObject(m);
@@ -161,8 +164,14 @@ const P = raw.items.map(r => conv(r, r.floorY));
 const FY = (P.find(r => r.type === 'island') || P[0]).floorY;
 const L = raw.loose.map(a => ({ pxLo: -a[3] / FT, pxHi: -a[0] / FT, pzLo: -a[5] / FT, pzHi: -a[2] / FT,
   yLo: (a[1] - FY) / FT, yHi: (a[4] - FY) / FT }));
-const meshes = r => (r ? r.parts : []).map(a => ({ pxLo: -a[3] / FT, pxHi: -a[0] / FT,
-  pzLo: -a[5] / FT, pzHi: -a[2] / FT, yLo: (a[1] - FY) / FT, yHi: (a[4] - FY) / FT }));
+// NOTE ON BOXES: pxLo/pxHi/pzLo/pzHi come from Box3.setFromObject, which returns the box
+// OF THE GEOMETRY'S BOX after transform — so any mesh with its own rotation reports wider
+// than it is (a 40 mm post turned 45 deg measures 80 mm), and the item's yaw inflates it
+// again. Vertical extents are honest; horizontal ones are an upper bound only. Use `vol`
+// for anything about a member's SECTION.
+const meshes = r => (r ? r.parts : []).map((a, i) => ({ pxLo: -a[3] / FT, pxHi: -a[0] / FT,
+  pzLo: -a[5] / FT, pzHi: -a[2] / FT, yLo: (a[1] - FY) / FT, yHi: (a[4] - FY) / FT,
+  vol: (r.mvols || [])[i] }));
 const pick = (t, k, pz) => P.find(r => r.type === t && (!k || r.kind === k) && (pz === undefined || Math.abs(r.pz - pz) < 0.01));
 const east = P.filter(r => r.type === 'cabinet_run' && r.px < 20);
 const drawers = east.find(r => r.kind === 'tall');
@@ -500,6 +509,24 @@ console.log('DINING CHAIRS');
     const setback = Math.hypot(ax - bx, az - bz);
     A(setback > 0.85 && setback < 1.25,
       `crest sits ${R(setback * 12, 1)} in behind the seat centre — a leaning back, not an upright one`);
+    // STRUCTURE. The frame was undersized before and read as if it would come apart when
+    // sat on. A square post's world box is never SMALLER than its section whatever yaw
+    // the chair has been turned to, so the thinner horizontal extent is a safe floor.
+    const legs = mm.filter(m => m.yLo < 0.05 && m.yHi > 1.0);
+    A(legs.length === 4, `four legs to the floor (${legs.length})`);
+    // Section from VOLUME / length, not from the box: a tapered post drawn as a 4-gon
+    // turned 45 deg reports an 80 mm box for a 40 mm leg, and asserting on that would
+    // have committed a number twice the truth.
+    const side = Math.min(...legs.map(m => Math.sqrt(m.vol / ((m.yHi - m.yLo) * FT)) / FT));
+    A(side * 12 > 1.25, `legs average ${R(side * 12, 2)} in square — 1.26 in was too spindly`);
+    // Seat rails carry the sitter; their depth is the whole point.
+    const rails = mm.filter(m => m.yLo > 1.05 && m.yHi < 1.40 && Math.max(m.pxHi - m.pxLo, m.pzHi - m.pzLo) > 1.1);
+    A(rails.length >= 4, `${rails.length} seat rails`);
+    A(Math.max(...rails.map(m => m.yHi - m.yLo)) > 0.21,
+      `rails are ${R(Math.max(...rails.map(m => m.yHi - m.yLo)) * 12, 1)} in deep`);
+    // H-stretcher: two side rails and a medial between them, low down.
+    const str = mm.filter(m => m.yLo > 0.45 && m.yHi < 0.68);
+    A(str.length === 3, `H-stretcher between the legs (${str.length} members)`);
     // No per-member "slim stock" check here: the back is RAKED, so every member in it has
     // an axis-aligned box far thicker than its section. Same trap the bentwood chair hit.
     // Total volume above is the rotation-proof way to say "not clunky".
