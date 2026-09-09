@@ -51,7 +51,7 @@ page.on('pageerror', e => console.log(' [pageerror]', String(e).slice(0, 300)));
 // `?solo=ground` skips the Second Floor and Attic exhibits and the duplicate alt lot,
 // none of which this harness measures. Profiled: 400 s to measurable without it, 34 s
 // with it (plus the prebuilt .frag files, which skip the in-browser IFC conversion).
-await page.goto(process.env.CHECK_URL || 'http://localhost:5173/?solo=ground', { waitUntil: 'domcontentloaded' });
+await page.goto(process.env.CHECK_URL || 'http://localhost:5173/?solo=ground&norender=1', { waitUntil: 'domcontentloaded' });
 for (let i = 0; i < 180; i++) {
   if (await page.evaluate(() => !!document.querySelector('#scenes .view-btn')
     && !!document.querySelector('#level-switcher [data-id="ground"]') && !!window.__eureka)) break;

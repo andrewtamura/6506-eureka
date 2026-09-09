@@ -805,6 +805,17 @@ async function main() {
   world.camera = new OBC.SimpleCamera(components);
   components.init();
 
+  // `?norender=1` holds the renderer off until the model is built. The renderer runs in
+  // AUTO mode — a frame per update tick — and in HEADLESS software rendering every
+  // presented frame costs a synchronous GPU readback. Traced over a `?solo=ground` load:
+  // 99 animation frames, 86 GLES2::ReadPixels, 19.2 s of a 26 s load blocked in
+  // CommandBufferHelper::Finish waiting for them. A real GPU presents without that
+  // readback, so this is a HEADLESS cost — hence a flag, not the default: a visitor
+  // wants to watch the model appear, and would otherwise stare at a blank canvas.
+  // Rendering resumes at the end of init, so screenshots after load are unaffected.
+  const NORENDER = new URLSearchParams(location.search).get("norender") === "1";
+  if (NORENDER) world.renderer.enabled = false;
+
   world.scene.setup();
   const scene = world.scene.three;
   await world.camera.controls.setLookAt(18, 14, 18, 0, 1.5, 0);
@@ -1911,6 +1922,9 @@ async function main() {
       switcherEl.appendChild(makeTab(lvl.id, SHORT[lvl.id] || label, label));
     }
   }
+
+  // Model is built and the UI is up — start drawing again (see `?norender` above).
+  if (NORENDER) { world.renderer.enabled = true; await fragments.core.update(true); }
 
   // 📷 Camera views menu: same presets, full labels (routes through focusLevel).
   const viewsEl = document.getElementById("views");

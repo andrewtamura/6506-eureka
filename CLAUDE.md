@@ -113,6 +113,22 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   and attic exhibits; and call `setPlanView(false)` for interiors, because the viewer opens in
   see-through-ceiling mode and would show straight through a ceiling or a skylight well.
   `waitUntil: 'networkidle2'` never fires — the viewer streams levels forever.
+- **`?norender=1` holds frames off until the model is built.** The renderer runs in AUTO
+  mode (a frame per update tick), and in HEADLESS software rendering every presented frame
+  costs a synchronous GPU readback. Traced over a `?solo=ground` load: 99 animation frames,
+  86 `GLES2::ReadPixels`, and **19.2 s of a 26 s load** blocked in
+  `CommandBufferHelper::Finish` waiting on them. Both tools set the flag; it took the
+  harness from 34 s to **20 s** and a render from 51 s to 34 s. Rendering resumes at the
+  end of init, so screenshots are unaffected. It is a flag rather than the default because
+  a real GPU presents without that readback — this is a headless cost, and a visitor
+  should watch the model appear rather than stare at a blank canvas.
+- **How to find this class of problem: use a Chrome trace, not stacks or micro-benchmarks.**
+  `page.tracing.start({ categories: ['devtools.timeline','gpu','toplevel'] })`, then sum
+  `dur` by event name. Three cheaper instruments all pointed the wrong way first: a CPU
+  profile blamed `(program)` (76%, which is just "native, not JS"); shrinking the viewport
+  56x changed almost nothing (so not fill rate); and wrapping every WebGL call from the
+  page measured 0.1 s (the readbacks are issued from fragments' worker on an OffscreenCanvas,
+  invisible to a `HTMLCanvasElement.getContext` patch). Only the trace named `ReadPixels`.
 - **Don't try to speed up fragments' `core.update` — avoid CALLING it.** Measured over a
   full load: 7 forced calls cost 48 s and 42 unforced ones cost 160 s, i.e. ~206 s of a
   290 s load is inside that one function, and the `force` flag barely matters because the
