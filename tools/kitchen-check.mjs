@@ -48,7 +48,10 @@ const b = await puppeteer.launch({ executablePath: '/opt/pw-browsers/chromium-11
   args: ['--use-gl=swiftshader', '--no-sandbox', '--enable-unsafe-swiftshader', '--window-size=1200,800'], protocolTimeout: 900000 });
 const page = await b.newPage(); await page.setViewport({ width: 1200, height: 800 });
 page.on('pageerror', e => console.log(' [pageerror]', String(e).slice(0, 300)));
-await page.goto('http://localhost:5173/', { waitUntil: 'domcontentloaded' });
+// `?solo=ground` skips the Second Floor and Attic exhibits and the duplicate alt lot,
+// none of which this harness measures. Profiled: 400 s to measurable without it, 34 s
+// with it (plus the prebuilt .frag files, which skip the in-browser IFC conversion).
+await page.goto(process.env.CHECK_URL || 'http://localhost:5173/?solo=ground', { waitUntil: 'domcontentloaded' });
 for (let i = 0; i < 180; i++) {
   if (await page.evaluate(() => !!document.querySelector('#scenes .view-btn')
     && !!document.querySelector('#level-switcher [data-id="ground"]') && !!window.__eureka)) break;

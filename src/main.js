@@ -945,6 +945,10 @@ async function main() {
   // there is no runtime CDN dependency. The default getWorker() fetches it
   // from unpkg, which we deliberately avoid.
   fragments.init(`${BASE}worker.mjs`);
+  // ifcLoader.load(..., coordinate=false) keeps authored coordinates; core.load has
+  // no such argument, so say the same thing here or a prebuilt model would be
+  // recentred on the first one loaded.
+  if (fragments.core?.settings) fragments.core.settings.autoCoordinate = false;
 
   // Keep the fragments geometry in sync with the camera. Force the upload to
   // finish on every change (not just on "rest") so hardwood planks and walls
@@ -980,12 +984,33 @@ async function main() {
   setStatus("Loading model…");
   const levelsCfg = (await (await fetch(`${BASE}levels.json${VER}`)).json()).levels;
   const groundLevel = levelsCfg.find((l) => l.id === "ground") || levelsCfg[0];
+  // `?solo=<id>` loads ONLY that level. The Second Floor and Attic sit beside the
+  // ground floor as display-only exhibits, and streaming them dominates load time:
+  // profiled cold, the ground floor is ready at 21.8 s and everything else takes
+  // until 400 s. A headless check that only measures the ground floor should not
+  // pay for models it never looks at.
+  const SOLO = new URLSearchParams(location.search).get("solo");
   const groundManifests = groundLevel.manifests;
   // coordinate=false keeps authored coordinates so the floor sits on the grid.
+  // Prefer a PREBUILT .frag: scripts/build-fragments.mjs runs the same web-ifc
+  // conversion at build time, so the browser skips it entirely. Falls back to
+  // parsing the IFC if the .frag is missing, which keeps a bare checkout working.
   const loadIfc = async (file, name) => {
-    const r = await fetch(`${BASE}${file}${VER}`);
-    if (!r.ok) throw new Error(`Could not fetch ${file} (${r.status})`);
-    const m = await ifcLoader.load(new Uint8Array(await r.arrayBuffer()), false, name);
+    let m = null;
+    const fr = await fetch(`${BASE}${file.replace(/\.ifc$/, ".frag")}${VER}`).catch(() => null);
+    // `fr.ok` is NOT enough: a dev server's SPA fallback answers a missing .frag with
+    // index.html at status 200, which then reaches the loader as HTML. Require that the
+    // body is not html before believing it.
+    const isFrag = fr && fr.ok && !/text\/html/i.test(fr.headers.get("content-type") || "");
+    if (isFrag) {
+      try { m = await fragments.core.load(new Uint8Array(await fr.arrayBuffer()), { modelId: name }); }
+      catch (err) { console.warn(`prebuilt ${file} unusable, parsing the IFC instead`, err); m = null; }
+    }
+    if (!m) {
+      const r = await fetch(`${BASE}${file}${VER}`);
+      if (!r.ok) throw new Error(`Could not fetch ${file} (${r.status})`);
+      m = await ifcLoader.load(new Uint8Array(await r.arrayBuffer()), false, name);
+    }
     // ALL_VISIBLE: no view-based hiding, so geometry doesn't pop as you pan.
     await m.setLodMode(FRAGS.LodMode.ALL_VISIBLE);
     await fragments.core.update(true);
@@ -1233,7 +1258,8 @@ async function main() {
     // the SOUTH (world +Z), a scratch lot for trying a different eastern addition.
     // It gets the same day sky-fill, night window glow, and landscape lighting, so
     // it reads identically; the switcher's Lot slot toggles between the two lots.
-    try {
+    // The alt lot is a second full copy of the 1.3 MB exterior — skipped under `solo`.
+    if (!SOLO) try {
       const FT = 0.3048;
       const alt = await loadIfc(exteriorLvl.ifc, "Exterior (alt)");
       let ab = new THREE.Box3().setFromObject(alt.object);
@@ -1658,6 +1684,7 @@ async function main() {
   // exhibits beside the ground floor. The exterior is already loaded + framed.
   for (const lvl of levelsCfg) {
     if (lvl.id === groundLevel.id || lvl.id === exteriorLvl?.id) continue;
+    if (SOLO && lvl.id !== SOLO) continue;
     try { await placeExhibit(lvl, false); }
     catch (err) { console.warn(`exhibit ${lvl.id} failed`, err); }
   }

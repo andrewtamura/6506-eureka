@@ -113,6 +113,20 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   and attic exhibits; and call `setPlanView(false)` for interiors, because the viewer opens in
   see-through-ceiling mode and would show straight through a ceiling or a skylight well.
   `waitUntil: 'networkidle2'` never fires — the viewer streams levels forever.
+- **`?solo=<level>` loads only that level.** The Second Floor and Attic sit beside the
+  ground floor as display-only exhibits, and streaming them dominates load time: profiled
+  cold, the ground floor is measurable at 21.8 s and everything else runs to 400 s. Both
+  `tools/kitchen-check.mjs` and `tools/shot.mjs` use it, which is what took a full harness
+  run from **344 s to 35 s**. Drop it (`CHECK_URL=http://localhost:5173/`) only when a
+  change could affect the exhibits or the level switcher.
+- **Prebuilt fragments.** `scripts/build-fragments.mjs` runs the web-ifc conversion in Node
+  at build time (0.7 s for the 1.3 MB exterior) and writes `public/<level>.frag`; the viewer
+  fetches those and skips parsing. It is wired into `prepare-assets` and is incremental, so
+  a no-op run costs ~1 s. Two things to keep in mind: `webIfcSettings.CIRCLE_SEGMENTS` there
+  MUST match `ifcLoader.setup({ webIfc: ... })` in `src/main.js` or round furniture quietly
+  goes coarse; and a missing `.frag` cannot be detected by `response.ok`, because a dev
+  server's SPA fallback answers with index.html at status 200 — the loader checks the
+  content-type instead, then falls back to parsing the IFC.
 - **Iterate with `node tools/kitchen-check.mjs --from`.** A full run is ~5m45s, almost
   all of it booting Chromium and loading the ground model; the ~136 assertions after
   that are arithmetic on a cached JSON blob and replay in ~0.3 s. So measure once, then
