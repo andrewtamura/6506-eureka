@@ -10,8 +10,40 @@
 // Lives in the repo deliberately: it has caught real faults (blocked doorways, a
 // 5'7" door, a cornice colliding with a portal) and had to be rebuilt from scratch
 // three times when it lived in a scratch directory.
+//   npm run dev                                   # or any server on :5173
+//   node tools/kitchen-check.mjs                  # measure + assert  (~4-5 min)
+//   node tools/kitchen-check.mjs --from           # re-assert the cached measurement (instant)
+//
+// MEASURE and ASSERT are separate. Booting Chromium and loading the ground model is
+// essentially the whole runtime; the ~110 assertions after it are arithmetic on a plain
+// object. Half of all re-runs change no geometry at all — a threshold is being tuned, or
+// a console.log added to find which mesh tripped a filter — so `--from` replays the last
+// measurement and skips the browser entirely. Re-measure whenever the geometry moves;
+// the staleness banner below says when that is.
 import puppeteer from 'puppeteer';
+import { readFileSync, writeFileSync, existsSync, statSync, readdirSync } from 'node:fs';
 const FT = 0.3048;
+
+const argv = process.argv.slice(2);
+const valOf = (k, d) => { const i = argv.indexOf(k); const v = argv[i + 1];
+  return i >= 0 && v && !v.startsWith('--') ? v : d; };
+const CACHE = valOf('--out', '.kitchen-check.json');
+const FROM = argv.includes('--from') ? valOf('--from', CACHE) : null;
+
+// What the measurement actually depends on: the manifests the viewer fetches and the
+// builders that turn them into meshes. NOT this file — editing an assertion does not
+// invalidate a measurement, which is the whole point of the split.
+const inputs = () => {
+  const out = [];
+  for (const [dir, ext] of [['public', '.json'], ['src', '.js']]) {
+    if (!existsSync(dir)) continue;
+    for (const f of readdirSync(dir)) if (f.endsWith(ext))
+      out.push({ file: `${dir}/${f}`, mtimeMs: statSync(`${dir}/${f}`).mtimeMs });
+  }
+  return out;
+};
+
+async function measure() {
 const b = await puppeteer.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
   args: ['--use-gl=swiftshader', '--no-sandbox', '--enable-unsafe-swiftshader', '--window-size=1200,800'], protocolTimeout: 900000 });
 const page = await b.newPage(); await page.setViewport({ width: 1200, height: 800 });
@@ -86,6 +118,33 @@ const raw = await page.evaluate(() => {
   return { items, loose, doorLeaves };
 });
 await b.close();
+  return raw;
+}
+
+let raw;
+if (FROM) {
+  if (!existsSync(FROM)) { console.log(`no cached measurement at ${FROM} — run without --from first`); process.exit(2); }
+  const cached = JSON.parse(readFileSync(FROM, 'utf8'));
+  raw = cached.raw;
+  const was = new Map((cached.inputs || []).map(i => [i.file, i.mtimeMs]));
+  // Changed since the measurement, or new since it — either way the cache no longer
+  // describes what the viewer would build now.
+  const moved = inputs().filter(i => !was.has(i.file) || i.mtimeMs > was.get(i.file) + 1).map(i => i.file);
+  console.log(`(cached measurement from ${cached.takenAt} — no browser, geometry NOT re-checked)`);
+  if (moved.length) {
+    const bar = '!'.repeat(78);
+    console.log(`\n${bar}\n!! STALE: ${moved.length} input(s) changed since this measurement was taken:`);
+    for (const f of moved.slice(0, 8)) console.log(`!!   ${f}`);
+    if (moved.length > 8) console.log(`!!   ...and ${moved.length - 8} more`);
+    console.log('!! Every result below describes the OLD geometry. Re-run without --from.');
+    console.log(`${bar}\n`);
+  }
+} else {
+  const stamp = inputs();                       // taken BEFORE measuring, so an edit
+  raw = await measure();                        // made mid-run still reads as stale
+  writeFileSync(CACHE, JSON.stringify({ takenAt: new Date().toISOString(), inputs: stamp, raw }));
+  console.log(`(measurement cached to ${CACHE} — re-assert it with --from)`);
+}
 raw.doorLeaves = (raw.doorLeaves || []).map(d => ({ name: d.name, parts: d.parts,
   pzLo: -d.zmax / FT, pzHi: -d.zmin / FT, pxLo: -d.xmax / FT, pxHi: -d.xmin / FT }));
 
