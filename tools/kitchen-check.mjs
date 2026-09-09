@@ -466,6 +466,37 @@ if (gUps.length === 2) {
     && (m.pzHi - m.pzLo) > 0.25 && (m.pzHi - m.pzLo) < 0.45);
   A(posts.length === 2, `two casing posts on the east window (${posts.length})`); }
 
+// ============================================================ DINING CHAIRS
+// Cape Cod: painted frame, drop-in seat and an upholstered back in ticking stripe.
+// The brief was "not clunky", so the thing to hold onto is the SLIMNESS — the chair it
+// replaced was 2.0 cu ft of cushion on 120 mm and 110 mm sections.
+console.log('DINING CHAIRS');
+{ const CUFT = 1 / (FT * FT * FT);
+  const dc = P.filter(r => r.type === 'upholstered_dining_chair');
+  A(dc.length === 6, `six chairs round the dining table (${dc.length})`);
+  if (dc.length) {
+    const vols = dc.map(c => c.vol * CUFT);
+    A(Math.max(...vols) - Math.min(...vols) < 0.01, 'all six are the same chair');
+    A(vols[0] < 1.1, `${R(vols[0], 2)} cu ft each — against 2.0 for the chair it replaced`);
+    const c = dc[0], mm = meshes(c);
+    // The drop-in pad is the biggest FOOTPRINT in the seat band. Picking "widest, then
+    // highest" instead found the back's bottom rail, which sits 0.7 in above the pad and
+    // is a similar width — both assertions then passed while measuring the wrong member.
+    const pad = mm.filter(m => m.yHi > 1.3 && m.yHi < 1.75)
+      .sort((u, v) => ((v.pxHi - v.pxLo) * (v.pzHi - v.pzLo)) - ((u.pxHi - u.pxLo) * (u.pzHi - u.pzLo)))[0];
+    A(!!pad && Math.abs(pad.yHi - 1.51) < 0.05, `seat at ${R((pad ? pad.yHi : 0) * 12, 1)} in`);
+    A(!!pad && (pad.yHi - pad.yLo) < 0.24,
+      `pad is ${R((pad ? (pad.yHi - pad.yLo) : 0) * 12, 1)} in thick — the chair it replaced had 4.7`);
+    const top = Math.max(...mm.map(m => m.yHi));
+    A(Math.abs(top - 2.95) < 0.12, `back tops out at ${R(top * 12, 1)} in — a dining back, not a throne`);
+    A(c.lw / FT < 1.75 && c.ld / FT < 1.8,
+      `stands ${R(c.lw / FT * 12, 1)} x ${R(c.ld / FT * 12, 1)} in on the floor`);
+    // No per-member "slim stock" check here: the back is RAKED, so every member in it has
+    // an axis-aligned box far thicker than its section. Same trap the bentwood chair hit.
+    // Total volume above is the rotation-proof way to say "not clunky".
+  }
+}
+
 // ============================================================ CAFE NOOK (SW corner)
 // The scullery is only 6'6" deep, so a bench + table + chair stack spans the room
 // wall to wall. What has to be measured is therefore not "does it fit" but "can you
@@ -543,8 +574,11 @@ console.log('CAFE NOOK');
       `stands ${R(c.lw / FT * 12, 1)} x ${R(c.ld / FT * 12, 1)} in on the floor (a No. 14 is 16.5 x 20.5)`);
     A(Math.abs(c.yHi - 2.92) < 0.25, `back at ${R(c.yHi * 12, 1)} in`);
   }
+  // Cross-check against the dining chair. Threshold is /3, not /4: the dining chair was
+  // itself re-modelled slimmer (2.0 -> 0.8 cu ft), so a tight ratio here would trip on a
+  // change to a DIFFERENT chair. The absolute check above is the real guard.
   { const ref = P.find(r => r.type === 'upholstered_dining_chair');
-    if (ref && ch.length) A(ch[0].vol < ref.vol / 4,
+    if (ref && ch.length) A(ch[0].vol < ref.vol / 3,
       `${R(ref.vol / ch[0].vol, 1)}x less timber than the dining-room chair`); }
   // CIRCULATION. The kitchen -> scullery portal is 6 ft of opening at px 20.04..26.04 in
   // the north wall. West of the nook is now bench, so the question is not "how wide a

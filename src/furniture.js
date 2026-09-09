@@ -11,6 +11,7 @@ const PALETTE = {
   lightoak: 0xb38f63, oak: 0xa9824f, walnut: 0x6b4a2f, darkwalnut: 0x3a2a1c,
   rug: 0x9c6b5a, sage: 0x8a9a86, slate: 0x4a5568, cabinet: 0xeae7df,
   leather: 0x8a6244, cane: 0xc9a870, beech: 0x6f4a2c,
+  ticking: 0x3c5a78, chalk: 0xf8f5ef,
 };
 const col = (name, fallback) => new THREE.Color(PALETTE[name] ?? fallback);
 const fabricMat = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.95 });
@@ -31,30 +32,104 @@ function fplace(A, P, da, ds, dl, dw) {
           Math.abs(A[1]) * dl + Math.abs(P[1]) * dw];
 }
 
-// An upholstered dining chair (front = +Z): tapered splayed legs into an apron,
-// a soft seat cushion, and a raked upholstered back anchored to the seat.
+// TICKING STRIPE, drawn rather than loaded — a wide bar and a hairline on a cream
+// ground, which is the classic pair. One canvas is shared; callers clone it so each
+// surface can set its own repeat and keep the stripe pitch physically constant
+// whatever the panel size.
+let _ticking = null;
+function tickingTexture(ground, ink) {
+  if (_ticking) return _ticking;
+  const c = document.createElement("canvas");
+  c.width = 64; c.height = 4;
+  const x = c.getContext("2d");
+  const hex = (n) => "#" + n.toString(16).padStart(6, "0");
+  x.fillStyle = hex(ground); x.fillRect(0, 0, 64, 4);
+  x.fillStyle = hex(ink);
+  x.fillRect(10, 0, 11, 4);                      // the wide bar
+  x.fillRect(28, 0, 3, 4);                       // the hairline beside it
+  _ticking = new THREE.CanvasTexture(c);
+  _ticking.wrapS = _ticking.wrapT = THREE.RepeatWrapping;
+  if (THREE.SRGBColorSpace) _ticking.colorSpace = THREE.SRGBColorSpace;
+  return _ticking;
+}
+
+// A CAPE COD DINING CHAIR (front = +Z): a painted frame in slim square stock with a
+// drop-in seat and an upholstered back panel, both in ticking stripe. Traditional in
+// its joinery — rear legs running on up to become the back stiles — but deliberately
+// plain: straight tapered legs, no turning, no carving, no stretchers, and a back that
+// stops at 37" rather than towering. The old chair read chunky because its cushion was
+// 120 mm thick and its back 110 mm; here they are 60 mm and 45 mm on 32 mm stock.
 function buildChair(p) {
-  const fab = fabricMat(col(p.material, 0xd9d2c4));
-  const oak = woodMat(col(p.legMaterial || "lightoak", 0xb38f63));
   const g = new THREE.Group();
-  const seatTop = 0.47, sw = 0.47, sd = 0.45;
-  const apron = new THREE.Mesh(new THREE.BoxGeometry(sw - 0.06, 0.07, sd - 0.06), oak);
-  apron.position.set(0, seatTop - 0.10, 0); g.add(apron);
-  const legGeo = new THREE.CylinderGeometry(0.026, 0.016, 0.40, 4); // tapers to the floor
-  for (const ix of [-1, 1]) for (const iz of [-1, 1]) {
-    const pivot = new THREE.Group();                 // pivot at the seat corner; foot splays out
-    pivot.position.set(ix * (sw / 2 - 0.06), seatTop - 0.07, iz * (sd / 2 - 0.06));
-    const leg = new THREE.Mesh(legGeo, oak);
-    leg.position.y = -0.18; leg.rotation.y = Math.PI / 4;
-    pivot.add(leg);
-    pivot.rotation.z = -ix * 0.10; pivot.rotation.x = iz * 0.10;
-    g.add(pivot);
+  const paint = new THREE.MeshStandardMaterial({ color: col(p.frame || "chalk", 0xf1ede4), roughness: 0.6 });
+  const groundC = col(p.material || "oatmeal", 0xd9d2c4).getHex();
+  const inkC = col(p.stripe || "ticking", 0x3c5a78).getHex();
+  // Stripes run front-to-back on the seat and vertically up the back: on a box face the
+  // texture's u maps to the horizontal axis in both cases, so one orientation does both.
+  const fabric = (wMetres) => {
+    const t = tickingTexture(groundC, inkC).clone();
+    t.needsUpdate = true;
+    t.repeat.set(Math.max(1, Math.round(wMetres / 0.135)), 1);   // ~135 mm per stripe pair
+    return new THREE.MeshStandardMaterial({ map: t, roughness: 0.92 });
+  };
+
+  const SH = 0.46, SW = 0.49, SD = 0.44;          // seat height / width / depth
+  const BH = 0.90;                                 // top of the back, 35" off the floor
+  const LEG = 0.032, INSET = LEG / 2 + 0.004;
+  const RAIL = 0.055, RT = 0.024;                  // seat rail depth / thickness
+  const PAD = 0.06;                                // drop-in seat pad
+
+  // Legs: square section, tapering to the floor, straight rather than splayed — the
+  // splay is what dates the shape. A 4-sided cylinder turned 45 deg gives a true square.
+  const legTo = SH - RAIL - 0.005;
+  const post = (x, z, h, y0, rTop, rBot) => {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, h, 4), paint);
+    m.rotation.y = Math.PI / 4; m.position.set(x, y0 + h / 2, z);
+    m.castShadow = true; g.add(m); return m;
+  };
+  const R = LEG / Math.SQRT2, RB = 0.024 / Math.SQRT2;
+  for (const ix of [-1, 1]) {
+    post(ix * (SW / 2 - INSET), SD / 2 - INSET, legTo, 0, R, RB);       // front
+    post(ix * (SW / 2 - INSET), -(SD / 2 - INSET), legTo, 0, R, RB);    // rear
   }
-  const seat = new THREE.Mesh(new RoundedBoxGeometry(sw, 0.12, sd, 3, 0.04), fab);
-  seat.position.set(0, seatTop - 0.05, 0); g.add(seat);
-  const back = new THREE.Mesh(new RoundedBoxGeometry(sw, 0.42, 0.11, 4, 0.05), fab);
-  back.position.set(0, seatTop + 0.21, -(sd / 2 - 0.07));
-  back.rotation.x = -0.13;                            // rake
+  // Seat rails, set in from the leg faces so the frame reads as joinery, not a slab.
+  const rail = (w, d, x, z) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, RAIL, d), paint);
+    m.position.set(x, SH - RAIL / 2 - 0.005, z); m.castShadow = true; g.add(m);
+  };
+  rail(SW - 2 * INSET, RT, 0, SD / 2 - INSET);
+  rail(SW - 2 * INSET, RT, 0, -(SD / 2 - INSET));
+  for (const ix of [-1, 1]) rail(RT, SD - 2 * INSET, ix * (SW / 2 - INSET), 0);
+
+  // Drop-in seat pad, sitting into the frame.
+  const pad = new THREE.Mesh(new RoundedBoxGeometry(SW - 2 * INSET + 0.012, PAD, SD - 2 * INSET + 0.012, 2, 0.012),
+                             fabric(SW));
+  pad.position.set(0, SH - PAD / 2, 0); pad.castShadow = true; g.add(pad);
+
+  // BACK as one raked assembly, pivoting at the seat line so the stiles continue the
+  // rear legs. 6 deg is enough to sit against without the chair looking reclined.
+  const back = new THREE.Group();
+  back.position.set(0, SH - RAIL - 0.005, -(SD / 2 - INSET));
+  back.rotation.x = 0.105;
+  const bh = BH - (SH - RAIL);                     // stile length above the seat
+  const TOPR = 0.075, BOTR = 0.045;
+  const stile = (x) => {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(R, R * 0.94, bh, 4), paint);
+    m.rotation.y = Math.PI / 4; m.position.set(x, bh / 2, 0); m.castShadow = true; back.add(m);
+  };
+  for (const ix of [-1, 1]) stile(ix * (SW / 2 - INSET));
+  const inner = SW - 2 * INSET - LEG;
+  const crossRail = (h, yc) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(inner, h, RT), paint);
+    m.position.set(0, yc, 0); m.castShadow = true; back.add(m);
+  };
+  crossRail(TOPR, bh - TOPR / 2);                  // top rail
+  crossRail(BOTR, 0.055);                          // bottom rail, just above the seat
+  // Upholstered panel between the rails, slightly proud so it reads as padding in a frame.
+  const ph = bh - TOPR - 0.055 - BOTR / 2 - 0.01;
+  const panel = new THREE.Mesh(new RoundedBoxGeometry(inner - 0.004, ph, 0.045, 2, 0.01), fabric(inner));
+  panel.position.set(0, 0.055 + BOTR / 2 + ph / 2 + 0.005, 0.006);
+  panel.castShadow = true; back.add(panel);
   g.add(back);
   return g;
 }
