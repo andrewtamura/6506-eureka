@@ -393,8 +393,9 @@
       "plateHFt": 0.85,
       "globeFt": 0.34,
       "armFt": 0.26,
-      "intensity": 0.85,
-      "glow": 0.8
+      "intensity": 0.5,
+      "glow": 0.45,
+      "reachFt": 8.0
     },
     {
       "type": "sconce",
@@ -407,8 +408,9 @@
       "plateHFt": 0.85,
       "globeFt": 0.34,
       "armFt": 0.26,
-      "intensity": 0.85,
-      "glow": 0.8
+      "intensity": 0.5,
+      "glow": 0.45,
+      "reachFt": 8.0
     },
     {
       "type": "recessed",

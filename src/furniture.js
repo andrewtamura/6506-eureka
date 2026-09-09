@@ -2419,7 +2419,9 @@ function buildSconce(p) {
   arm.position.copy(at(0.10 + ARM / 2, 0, Y)); g.add(arm);
   const globe = new THREE.Mesh(new THREE.SphereGeometry(R * ft, 20, 14), opal);
   globe.position.copy(at(0.10 + ARM + R * 0.7, 0, Y)); g.add(globe);
-  const light = new THREE.PointLight(0xffe7c0, p.intensity ?? 1.5, 0, 2);
+  // `reachFt` gives the light a finite range. Default 0 is three.js's "infinite", which
+  // for a fixture sitting 3 in off a wall washes the whole room from one small globe.
+  const light = new THREE.PointLight(0xffe7c0, p.intensity ?? 1.5, (p.reachFt ?? 0) * ft, 2);
   light.position.copy(globe.position); g.add(light);
   g.userData.fixtures = [{ light, emissive: opal }];
   return g;
