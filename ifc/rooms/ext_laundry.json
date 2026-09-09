@@ -14,9 +14,11 @@
       "name": "Laundry -> Bath",
       "orient": "V",
       "fixed": -17.4583,
-      "pos": -5.93,
-      "width": 2.0,
-      "opening": true
+      "pos": -6.425,
+      "width": 3.0,
+      "hinge": "max",
+      "swing": "neg",
+      "doorStyle": "panel"
     }
   ],
   "windows": [],

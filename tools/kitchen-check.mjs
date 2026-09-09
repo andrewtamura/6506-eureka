@@ -740,7 +740,18 @@ console.log('EXTENSION');
       const face = -22.917 + 0.22915;                 // bath east wall, interior face
       A(Math.abs(midPx(d) - face - 0.5) < 0.03,
         `${R((midPx(d) - face) * 12, 1)} in of return from the bath's east wall`);
-      A(d.pzHi <= -7.459 + 0.02, `swings into the WC (pz ${R(d.pzLo,2)}..${R(d.pzHi,2)})`);
+      A(d.pzHi <= -8.45 + 0.02, `swings into the WC (pz ${R(d.pzLo,2)}..${R(d.pzHi,2)})`);
+    } }
+
+  // LAUNDRY -> BATH. Was a 2'8" cased opening; the WC gave up depth so it could be a
+  // proper 3 ft door. It is the only way into the bathroom, so both facts matter.
+  { const d = leaf(/Laundry -> Bath/);
+    A(!!d, 'laundry/bath door leaf found (it used to be a cased opening)');
+    if (d) {
+      A(Math.abs(midPz(d) - (-7.925)) < 0.06, `hinged on the SOUTH jamb (pz ${R(midPz(d),2)})`);
+      A(midPx(d) < -17.46, `swings into the BATHROOM (px ${R(d.pxLo,2)}..${R(d.pxHi,2)})`);
+      const swept = Math.abs(d.pxHi - d.pxLo);
+      A(Math.abs(swept - 3.0) < 0.06, `${R(swept,2)} ft leaf — a full 3 ft door`);
     } }
 
   // TWIN DOORS, side by side on the family room's east wall.

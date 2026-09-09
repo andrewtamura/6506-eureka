@@ -48,6 +48,12 @@
     "style": "halfmoon"
   },
   {
+    "name": "Laundry -> Bath",
+    "hingeMax": true,
+    "swingSign": -1,
+    "style": "panel"
+  },
+  {
     "name": "Back Door",
     "hingeMax": true,
     "swingSign": 1,
