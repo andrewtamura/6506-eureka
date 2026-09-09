@@ -113,12 +113,27 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   and attic exhibits; and call `setPlanView(false)` for interiors, because the viewer opens in
   see-through-ceiling mode and would show straight through a ceiling or a skylight well.
   `waitUntil: 'networkidle2'` never fires — the viewer streams levels forever.
+- **Don't try to speed up fragments' `core.update` — avoid CALLING it.** Measured over a
+  full load: 7 forced calls cost 48 s and 42 unforced ones cost 160 s, i.e. ~206 s of a
+  290 s load is inside that one function, and the `force` flag barely matters because the
+  pending queue gets processed either way. Only 6 of those 53 calls come from this repo;
+  the rest are inside the library, so they cannot be thinned from outside. Two fixes that
+  looked obvious and measured as *no change at all* — flipping the per-frame camera
+  listener to unforced, and de-forcing the floor modules — were tried and reverted. The
+  thing that worked was moving the work off the critical path (see the exhibits below).
 - **`?solo=<level>` loads only that level.** The Second Floor and Attic sit beside the
   ground floor as display-only exhibits, and streaming them dominates load time: profiled
   cold, the ground floor is measurable at 21.8 s and everything else runs to 400 s. Both
   `tools/kitchen-check.mjs` and `tools/shot.mjs` use it, which is what took a full harness
   run from **344 s to 35 s**. Drop it (`CHECK_URL=http://localhost:5173/`) only when a
   change could affect the exhibits or the level switcher.
+- **Exhibits stream in behind a finished page.** The Second Floor and Attic are
+  display-only models parked beside the building, and building them takes minutes. The
+  exhibit loop is deliberately NOT awaited: init finishes, the switcher gets a tab for
+  every level, and `focusLevel` awaits `exhibitsReady` if you click one that has not
+  arrived. Interactive at 52 s instead of 288 s. If you add anything that needs an
+  exhibit's model at init time, hang it off `exhibitsReady` — the walker registration is
+  the worked example.
 - **Prebuilt fragments.** `scripts/build-fragments.mjs` runs the web-ifc conversion in Node
   at build time (0.7 s for the 1.3 MB exterior) and writes `public/<level>.frag`; the viewer
   fetches those and skips parsing. It is wired into `prepare-assets` and is incremental, so

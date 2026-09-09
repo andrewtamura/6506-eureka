@@ -1682,12 +1682,20 @@ async function main() {
 
   // Stream in the remaining levels (Level 2, Attic) to the West — display-only
   // exhibits beside the ground floor. The exterior is already loaded + framed.
-  for (const lvl of levelsCfg) {
-    if (lvl.id === groundLevel.id || lvl.id === exteriorLvl?.id) continue;
-    if (SOLO && lvl.id !== SOLO) continue;
-    try { await placeExhibit(lvl, false); }
-    catch (err) { console.warn(`exhibit ${lvl.id} failed`, err); }
-  }
+  // NOT awaited. The Second Floor and Attic are display-only exhibits parked beside
+  // the building; building them takes minutes (fragments' own core.update dominates,
+  // and it is called from inside the library where we cannot thin it out), and none
+  // of it is on screen at the landing view. Streaming them behind a finished, usable
+  // page turns a ~290 s wait into a ~15 s one. Anything that needs them awaits
+  // `exhibitsReady` — the switcher tabs and the walker registration below.
+  const exhibitsReady = (async () => {
+    for (const lvl of levelsCfg) {
+      if (lvl.id === groundLevel.id || lvl.id === exteriorLvl?.id) continue;
+      if (SOLO && lvl.id !== SOLO) continue;
+      try { await placeExhibit(lvl, false); }
+      catch (err) { console.warn(`exhibit ${lvl.id} failed`, err); }
+    }
+  })();
   {
     // Title each view with a flat label laid on the grid in FRONT of it (North =
     // world -Z), set well clear of the building and oriented to read upright from
@@ -1770,12 +1778,14 @@ async function main() {
   // POV. Only the floor slabs are walkable, so the raycast steps past the roof /
   // ceiling / window glass ("blue boxes") — those stay in place but never block
   // the teleport. Stand exactly where tapped (the slab's own world height).
-  for (const { lvl, model: em } of exhibitModels) {
-    if (lvl.id === "exterior") continue;               // already registered above
-    const fids = new Set(Object.values(await em.getItemsOfCategories([/IFCSLAB/])).flat());
-    walker.register(em, (id) => fids.has(id),
-      (hit) => ({ x: hit.point.x, y: hit.point.y + EYE, z: hit.point.z }));
-  }
+  exhibitsReady.then(async () => {
+    for (const { lvl, model: em } of exhibitModels) {
+      if (lvl.id === "exterior") continue;             // already registered above
+      const fids = new Set(Object.values(await em.getItemsOfCategories([/IFCSLAB/])).flat());
+      walker.register(em, (id) => fids.has(id),
+        (hit) => ({ x: hit.point.x, y: hit.point.y + EYE, z: hit.point.z }));
+    }
+  });
 
   // --- interactive doors (double-tap a door to swing it open/closed) ------
   const doorMeshes = []; // door panel meshes (for raycasting)
@@ -1851,7 +1861,13 @@ async function main() {
   // Shared by the always-visible #level-switcher, the 📷 Camera views menu, and
   // the pinch/scroll "back out" gesture, so they all stay in sync.
   const focusLevel = async (id, transition = true) => {
-    const mv = modelViews.find((v) => v.id === id);
+    let mv = modelViews.find((v) => v.id === id);
+    if (!mv) {                                  // still streaming in — wait for it
+      setStatus("Loading level…");
+      await exhibitsReady;
+      setStatus("");
+      mv = modelViews.find((v) => v.id === id);
+    }
     if (!mv) return;
     await clearSelection();
     overviewControls();
@@ -1877,7 +1893,11 @@ async function main() {
   const hasAlt = modelViews.some((v) => v.id === "exterior-alt");
   for (const lvl of levelsCfg) {
     const mv = modelViews.find((v) => v.id === lvl.id);
-    if (!mv) continue;
+    // A level whose exhibit is still streaming has no modelView yet — give it a tab
+    // anyway, and focusLevel will wait for it. Under `solo` those levels never load,
+    // so they get no tab at all.
+    const streaming = !mv && !SOLO && lvl.id !== groundLevel.id && lvl.id !== exteriorLvl?.id;
+    if (!mv && !streaming) continue;
     if (lvl.id === "exterior" && hasAlt) {
       // Lot slot gets an up/down toggle: the default exterior lot (top) and the
       // alternative lot (bottom), stacked within the left-to-right switcher.
@@ -1887,7 +1907,8 @@ async function main() {
       col.appendChild(makeTab("exterior-alt", "Alt", "Alternative exterior lot (south)"));
       switcherEl.appendChild(col);
     } else {
-      switcherEl.appendChild(makeTab(mv.id, SHORT[mv.id] || mv.label, mv.label));
+      const label = mv ? (mv.label) : (lvl.label || lvl.storey);
+      switcherEl.appendChild(makeTab(lvl.id, SHORT[lvl.id] || label, label));
     }
   }
 
