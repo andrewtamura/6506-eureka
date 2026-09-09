@@ -77,6 +77,7 @@ const raw = await page.evaluate(() => {
     const parts = [];
     o.traverse(m => { if (!m.isMesh) return; const mb = new B3().setFromObject(m);
       parts.push([mb.min.x, mb.min.y, mb.min.z, mb.max.x, mb.max.y, mb.max.z]); });
+    const mvols = [];   // filled alongside the volume pass below, one per mesh, in order
     // A rotated item's world AABB is not its size — a 1.5 ft square chair turned 45 deg
     // measures 2.1 ft on both axes. Take a bbox in the item's OWN frame as well, and the
     // solid volume of its geometry, which is the only honest way to say "dainty".
@@ -88,11 +89,13 @@ const raw = await page.evaluate(() => {
       const pos = gm.getAttribute('position'); if (!pos || pos.count > 60000) return;
       const idx = gm.getIndex(), n = idx ? idx.count : pos.count;
       const g3 = (i) => { const j = idx ? idx.getX(i) : i; return [pos.getX(j), pos.getY(j), pos.getZ(j)]; };
+      let mv = 0;
       for (let i = 0; i + 2 < n; i += 3) { const a = g3(i), b = g3(i + 1), c = g3(i + 2);
-        vol += (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0])
-              + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6; } });
+        mv += (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0])
+             + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6; }
+      vol += mv; mvols.push(Math.abs(mv)); });
     items.push({ type: it.type, kind: it.kind || '', px: it.px, pz: it.pz, floorY: o.position.y,
-      lw: lb.max.x - lb.min.x, ld: lb.max.z - lb.min.z, vol: Math.abs(vol),
+      lw: lb.max.x - lb.min.x, ld: lb.max.z - lb.min.z, vol: Math.abs(vol), mvols,
       min: [bb.min.x, bb.min.y, bb.min.z], max: [bb.max.x, bb.max.y, bb.max.z], parts,
       top: (() => { let best = null, area = -1;
         o.traverse(m => { if (!m.isMesh) return; const mb = new B3().setFromObject(m);
@@ -161,8 +164,14 @@ const P = raw.items.map(r => conv(r, r.floorY));
 const FY = (P.find(r => r.type === 'island') || P[0]).floorY;
 const L = raw.loose.map(a => ({ pxLo: -a[3] / FT, pxHi: -a[0] / FT, pzLo: -a[5] / FT, pzHi: -a[2] / FT,
   yLo: (a[1] - FY) / FT, yHi: (a[4] - FY) / FT }));
-const meshes = r => (r ? r.parts : []).map(a => ({ pxLo: -a[3] / FT, pxHi: -a[0] / FT,
-  pzLo: -a[5] / FT, pzHi: -a[2] / FT, yLo: (a[1] - FY) / FT, yHi: (a[4] - FY) / FT }));
+// NOTE ON BOXES: pxLo/pxHi/pzLo/pzHi come from Box3.setFromObject, which returns the box
+// OF THE GEOMETRY'S BOX after transform — so any mesh with its own rotation reports wider
+// than it is (a 40 mm post turned 45 deg measures 80 mm), and the item's yaw inflates it
+// again. Vertical extents are honest; horizontal ones are an upper bound only. Use `vol`
+// for anything about a member's SECTION.
+const meshes = r => (r ? r.parts : []).map((a, i) => ({ pxLo: -a[3] / FT, pxHi: -a[0] / FT,
+  pzLo: -a[5] / FT, pzHi: -a[2] / FT, yLo: (a[1] - FY) / FT, yHi: (a[4] - FY) / FT,
+  vol: (r.mvols || [])[i] }));
 const pick = (t, k, pz) => P.find(r => r.type === t && (!k || r.kind === k) && (pz === undefined || Math.abs(r.pz - pz) < 0.01));
 const east = P.filter(r => r.type === 'cabinet_run' && r.px < 20);
 const drawers = east.find(r => r.kind === 'tall');
@@ -466,6 +475,64 @@ if (gUps.length === 2) {
     && (m.pzHi - m.pzLo) > 0.25 && (m.pzHi - m.pzLo) < 0.45);
   A(posts.length === 2, `two casing posts on the east window (${posts.length})`); }
 
+// ============================================================ DINING CHAIRS
+// Cape Cod: painted frame, drop-in seat and an upholstered back in ticking stripe.
+// The brief was "not clunky", so the thing to hold onto is the SLIMNESS — the chair it
+// replaced was 2.0 cu ft of cushion on 120 mm and 110 mm sections.
+console.log('DINING CHAIRS');
+{ const CUFT = 1 / (FT * FT * FT);
+  const dc = P.filter(r => r.type === 'upholstered_dining_chair');
+  A(dc.length === 6, `six chairs round the dining table (${dc.length})`);
+  if (dc.length) {
+    const vols = dc.map(c => c.vol * CUFT);
+    A(Math.max(...vols) - Math.min(...vols) < 0.01, 'all six are the same chair');
+    A(vols[0] < 1.1, `${R(vols[0], 2)} cu ft each — against 2.0 for the chair it replaced`);
+    const c = dc[0], mm = meshes(c);
+    // The drop-in pad is the biggest FOOTPRINT in the seat band. Picking "widest, then
+    // highest" instead found the back's bottom rail, which sits 0.7 in above the pad and
+    // is a similar width — both assertions then passed while measuring the wrong member.
+    const pad = mm.filter(m => m.yHi > 1.3 && m.yHi < 1.75)
+      .sort((u, v) => ((v.pxHi - v.pxLo) * (v.pzHi - v.pzLo)) - ((u.pxHi - u.pxLo) * (u.pzHi - u.pzLo)))[0];
+    A(!!pad && Math.abs(pad.yHi - 1.51) < 0.05, `seat at ${R((pad ? pad.yHi : 0) * 12, 1)} in`);
+    A(!!pad && (pad.yHi - pad.yLo) < 0.24,
+      `pad is ${R((pad ? (pad.yHi - pad.yLo) : 0) * 12, 1)} in thick — the chair it replaced had 4.7`);
+    const top = Math.max(...mm.map(m => m.yHi));
+    A(Math.abs(top - 2.95) < 0.12, `back tops out at ${R(top * 12, 1)} in — a dining back, not a throne`);
+    A(c.lw / FT < 1.75 && c.ld / FT < 2.05,
+      `stands ${R(c.lw / FT * 12, 1)} x ${R(c.ld / FT * 12, 1)} in on the floor`);
+    // THE RAKE, which is the thing that was actually wrong: the back used to tip very
+    // slightly forward. Measure the crest's horizontal set-back from the seat centre —
+    // a distance, so it holds whatever direction the chair has been turned to face.
+    const crest = mm.reduce((a, m) => (m.yHi > a.yHi ? m : a));
+    const mid = (m) => [(m.pxLo + m.pxHi) / 2, (m.pzLo + m.pzHi) / 2];
+    const [ax, az] = mid(crest), [bx, bz] = mid(pad);
+    const setback = Math.hypot(ax - bx, az - bz);
+    A(setback > 0.85 && setback < 1.25,
+      `crest sits ${R(setback * 12, 1)} in behind the seat centre — a leaning back, not an upright one`);
+    // STRUCTURE. The frame was undersized before and read as if it would come apart when
+    // sat on. A square post's world box is never SMALLER than its section whatever yaw
+    // the chair has been turned to, so the thinner horizontal extent is a safe floor.
+    const legs = mm.filter(m => m.yLo < 0.05 && m.yHi > 1.0);
+    A(legs.length === 4, `four legs to the floor (${legs.length})`);
+    // Section from VOLUME / length, not from the box: a tapered post drawn as a 4-gon
+    // turned 45 deg reports an 80 mm box for a 40 mm leg, and asserting on that would
+    // have committed a number twice the truth.
+    const side = Math.min(...legs.map(m => Math.sqrt(m.vol / ((m.yHi - m.yLo) * FT)) / FT));
+    A(side * 12 > 1.25, `legs average ${R(side * 12, 2)} in square — 1.26 in was too spindly`);
+    // Seat rails carry the sitter; their depth is the whole point.
+    const rails = mm.filter(m => m.yLo > 1.05 && m.yHi < 1.40 && Math.max(m.pxHi - m.pxLo, m.pzHi - m.pzLo) > 1.1);
+    A(rails.length >= 4, `${rails.length} seat rails`);
+    A(Math.max(...rails.map(m => m.yHi - m.yLo)) > 0.21,
+      `rails are ${R(Math.max(...rails.map(m => m.yHi - m.yLo)) * 12, 1)} in deep`);
+    // H-stretcher: two side rails and a medial between them, low down.
+    const str = mm.filter(m => m.yLo > 0.45 && m.yHi < 0.68);
+    A(str.length === 3, `H-stretcher between the legs (${str.length} members)`);
+    // No per-member "slim stock" check here: the back is RAKED, so every member in it has
+    // an axis-aligned box far thicker than its section. Same trap the bentwood chair hit.
+    // Total volume above is the rotation-proof way to say "not clunky".
+  }
+}
+
 // ============================================================ CAFE NOOK (SW corner)
 // The scullery is only 6'6" deep, so a bench + table + chair stack spans the room
 // wall to wall. What has to be measured is therefore not "does it fit" but "can you
@@ -543,8 +610,11 @@ console.log('CAFE NOOK');
       `stands ${R(c.lw / FT * 12, 1)} x ${R(c.ld / FT * 12, 1)} in on the floor (a No. 14 is 16.5 x 20.5)`);
     A(Math.abs(c.yHi - 2.92) < 0.25, `back at ${R(c.yHi * 12, 1)} in`);
   }
+  // Cross-check against the dining chair. Threshold is /3, not /4: the dining chair was
+  // itself re-modelled slimmer (2.0 -> 0.8 cu ft), so a tight ratio here would trip on a
+  // change to a DIFFERENT chair. The absolute check above is the real guard.
   { const ref = P.find(r => r.type === 'upholstered_dining_chair');
-    if (ref && ch.length) A(ch[0].vol < ref.vol / 4,
+    if (ref && ch.length) A(ch[0].vol < ref.vol / 3,
       `${R(ref.vol / ch[0].vol, 1)}x less timber than the dining-room chair`); }
   // CIRCULATION. The kitchen -> scullery portal is 6 ft of opening at px 20.04..26.04 in
   // the north wall. West of the nook is now bench, so the question is not "how wide a
