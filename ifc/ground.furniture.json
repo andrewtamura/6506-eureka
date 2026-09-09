@@ -384,6 +384,16 @@
       "faces": "E"
     },
     {
+      "type": "mudroom_bench",
+      "px": -16.479,
+      "pz": -1.671,
+      "rot": 0.0,
+      "faces": "W",
+      "lenFt": 5.0,
+      "depthFt": 1.5,
+      "hooks": 5
+    },
+    {
       "type": "cabinet_run",
       "px": -14.729,
       "pz": -10.388,
@@ -434,6 +444,18 @@
       "depthFt": 1.1,
       "bottomFt": 4.75,
       "topFt": 7.0
+    },
+    {
+      "type": "cabinet_run",
+      "px": -14.729,
+      "pz": -11.138,
+      "rot": 0.0,
+      "kind": "wall",
+      "faces": "N",
+      "lenFt": 5.0,
+      "depthFt": 1.1,
+      "bottomFt": 7.0,
+      "topFt": 9.0
     },
     {
       "type": "cabinet_run",

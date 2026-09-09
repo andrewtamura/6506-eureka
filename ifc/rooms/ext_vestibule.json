@@ -36,6 +36,19 @@
     "flooring": {
       "material": "tile",
       "pattern": "basketweave"
-    }
+    },
+    "furniture": [
+      {
+        "type": "mudroom_bench",
+        "at": [
+          -16.479,
+          -1.671
+        ],
+        "faces": "W",
+        "lenFt": 5.0,
+        "depthFt": 1.5,
+        "hooks": 5
+      }
+    ]
   }
 }

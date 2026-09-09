@@ -83,6 +83,19 @@
         "depthFt": 1.1,
         "bottomFt": 4.75,
         "topFt": 7.0
+      },
+      {
+        "type": "cabinet_run",
+        "kind": "wall",
+        "at": [
+          -14.729,
+          -11.138
+        ],
+        "faces": "N",
+        "lenFt": 5.0,
+        "depthFt": 1.1,
+        "bottomFt": 7.0,
+        "topFt": 9.0
       }
     ]
   }

@@ -754,15 +754,44 @@ console.log('EXTENSION FIXTURES');
         // no toe kick, no doors. Only the counter and its splash.
         A(!meshes(base).some(m => m.yHi < 0.5 && m.yHi > 0.1), 'no toe kick — the bay is all machine');
       }
-      A(!!up, 'a wall cabinet hangs above it');
-      if (up && base) {
-        const mm = meshes(up), lo = Math.min(...mm.map(m => m.yLo)), hi = Math.max(...mm.map(m => m.yHi));
-        A(Math.abs(lo - 4.75) < 0.08 && Math.abs(hi - 7.0) < 0.08,
-          `runs ${R(lo * 12, 0)} to ${R(hi * 12, 0)} in`);
+      const ups = runs.filter(r => r.kind === 'wall');
+      A(ups.length === 2, `wall cabinets above, in two bands (${ups.length})`);
+      if (ups.length && base) {
+        const mm = ups.flatMap(meshes);
+        const lo = Math.min(...mm.map(m => m.yLo)), hi = Math.max(...mm.map(m => m.yHi));
+        A(Math.abs(lo - 4.75) < 0.08, `start at ${R(lo * 12, 0)} in`);
+        A(Math.abs(hi - 9.0) < 0.08, `run to ${R(hi * 12, 0)} in — the ceiling`);
+        // The break sits on the 7 ft head line, as it does in the scullery.
+        const tops = ups.map(r => Math.max(...meshes(r).map(m => m.yHi))).sort((a, b) => a - b);
+        A(Math.abs(tops[0] - 7.0) < 0.08, `the two bands meet on the head line (${R(tops[0], 2)})`);
         A(lo - Math.max(...meshes(base).map(m => m.yHi)) > 1.1,
           `${R((lo - Math.max(...meshes(base).map(m => m.yHi))) * 12, 1)} in of clear splash between counter and cabinet`);
-        A(Math.abs(up.pzLo - LS) < 0.08, 'hung on the south wall, over the machines');
+        A(ups.every(r => Math.abs(r.pzLo - LS) < 0.08), 'hung on the south wall, over the machines');
       }
+    } }
+
+  // VESTIBULE: built-in bench on the east wall, running off the south wall. It has to
+  // clear the entry door's swing and leave a walkable aisle to the family room door.
+  { const b = ext.find(r => r.type === 'mudroom_bench');
+    const VE = -17.229, VW = -12.229, VS = -4.171;      // vestibule interior faces
+    A(!!b, 'built-in bench in the vestibule');
+    if (b) {
+      A(Math.abs(b.pxLo - VE) < 0.06, `backs onto the east wall (${R(b.pxLo,3)})`);
+      A(Math.abs(b.pzLo - VS) < 0.06, `runs off the south wall (${R(b.pzLo,3)})`);
+      A(Math.abs((b.pzHi - b.pzLo) - 5.0) < 0.06, `${R(b.pzHi - b.pzLo, 2)} ft long`);
+      const mm = meshes(b);
+      const seat = mm.filter(m => m.yHi > 1.3 && m.yHi < 1.7 && (m.pzHi - m.pzLo) > 4.0)
+        .sort((u, v) => v.yHi - u.yHi)[0];
+      A(!!seat && Math.abs(seat.yHi - 1.5) < 0.05, `seat at ${R((seat ? seat.yHi : 0) * 12, 1)} in`);
+      A(Math.max(...mm.map(m => m.yHi)) > 5.7, `boarded back and shelf to ${R(Math.max(...mm.map(m => m.yHi)) * 12, 0)} in`);
+      // Pegs: small brass members standing off the rail, around 55 in.
+      const pegs = mm.filter(m => Math.abs((m.yLo + m.yHi) / 2 - 4.58) < 0.2
+        && (m.pzHi - m.pzLo) < 0.2 && (m.pxHi - m.pxLo) < 0.45);
+      A(pegs.length >= 5, `${pegs.length} peg members on the rail`);
+      // CIRCULATION: the entry door pivots on the wall centreline pz 4.0 with a 3 ft
+      // leaf, so its tip reaches pz 1.0 — the bench must stop short of that.
+      A(b.pzHi < 1.0, `stops ${R((1.0 - b.pzHi) * 12, 1)} in clear of the open entry door`);
+      A(VW - b.pxHi > 3.0, `${R(VW - b.pxHi, 2)} ft of aisle to the family room door`);
     } }
 
   // WC: toilet against the WEST wall (px -17.687), facing east into the room.
