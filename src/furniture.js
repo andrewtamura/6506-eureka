@@ -106,11 +106,18 @@ function buildChair(p) {
                              fabric(SW));
   pad.position.set(0, SH - PAD / 2, 0); pad.castShadow = true; g.add(pad);
 
-  // BACK as one raked assembly, pivoting at the seat line so the stiles continue the
-  // rear legs. 6 deg is enough to sit against without the chair looking reclined.
+  // BACK, raked back 13.5 deg for about 4.5 in of set-back at the crest. Two notes,
+  // both learned the hard way:
+  //   - The previous version used rotation.x = +0.105. A positive rotation about X tips
+  //     the top toward +Z, which here is the FRONT — it was leaning very slightly INTO
+  //     the table, which is exactly why it read as bolt upright.
+  //   - A curved sweep was tried, with the panel in three stacked slabs following it.
+  //     The slab seams caught the light and turned the ticking stripe into a plaid, so
+  //     the back is one flat plane: a single panel, no joints to show.
+  const RAKE = -0.235;
   const back = new THREE.Group();
   back.position.set(0, SH - RAIL - 0.005, -(SD / 2 - INSET));
-  back.rotation.x = 0.105;
+  back.rotation.x = RAKE;
   const bh = BH - (SH - RAIL);                     // stile length above the seat
   const TOPR = 0.075, BOTR = 0.045;
   const stile = (x) => {
@@ -125,7 +132,6 @@ function buildChair(p) {
   };
   crossRail(TOPR, bh - TOPR / 2);                  // top rail
   crossRail(BOTR, 0.055);                          // bottom rail, just above the seat
-  // Upholstered panel between the rails, slightly proud so it reads as padding in a frame.
   const ph = bh - TOPR - 0.055 - BOTR / 2 - 0.01;
   const panel = new THREE.Mesh(new RoundedBoxGeometry(inner - 0.004, ph, 0.045, 2, 0.01), fabric(inner));
   panel.position.set(0, 0.055 + BOTR / 2 + ph / 2 + 0.005, 0.006);

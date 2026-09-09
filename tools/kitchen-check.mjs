@@ -489,8 +489,17 @@ console.log('DINING CHAIRS');
       `pad is ${R((pad ? (pad.yHi - pad.yLo) : 0) * 12, 1)} in thick — the chair it replaced had 4.7`);
     const top = Math.max(...mm.map(m => m.yHi));
     A(Math.abs(top - 2.95) < 0.12, `back tops out at ${R(top * 12, 1)} in — a dining back, not a throne`);
-    A(c.lw / FT < 1.75 && c.ld / FT < 1.8,
+    A(c.lw / FT < 1.75 && c.ld / FT < 2.05,
       `stands ${R(c.lw / FT * 12, 1)} x ${R(c.ld / FT * 12, 1)} in on the floor`);
+    // THE RAKE, which is the thing that was actually wrong: the back used to tip very
+    // slightly forward. Measure the crest's horizontal set-back from the seat centre —
+    // a distance, so it holds whatever direction the chair has been turned to face.
+    const crest = mm.reduce((a, m) => (m.yHi > a.yHi ? m : a));
+    const mid = (m) => [(m.pxLo + m.pxHi) / 2, (m.pzLo + m.pzHi) / 2];
+    const [ax, az] = mid(crest), [bx, bz] = mid(pad);
+    const setback = Math.hypot(ax - bx, az - bz);
+    A(setback > 0.85 && setback < 1.25,
+      `crest sits ${R(setback * 12, 1)} in behind the seat centre — a leaning back, not an upright one`);
     // No per-member "slim stock" check here: the back is RAKED, so every member in it has
     // an axis-aligned box far thicker than its section. Same trap the bentwood chair hit.
     // Total volume above is the rotation-proof way to say "not clunky".
