@@ -1151,8 +1151,11 @@ function buildVanity(p) {
   // Mount proud of the wall's inner face (the cabinet back sits at the ~0.46 ft-thick
   // wall centreline, so -(Dp/2) would bury the mirror inside the wall).
   if (p.mirror !== false) {
-    const mw = sinks === 2 ? 1.0 : Wd - 0.4;
-    for (const ds of dsList) { q = pl(-(Dp / 2 - 0.3), ds, 0.06, mw); box(q[0], q[1], 4.3, q[2], q[3], 2.2, mirror); }
+    // Height, top and width are parameters. The 5.4 ft default tops the glass out at
+    // 65 in, which is below eye level for anyone tall; a mirror wants its top nearer 6'6".
+    const mw = p.mirrorWFt ?? (sinks === 2 ? 1.0 : Wd - 0.4);
+    const mh = p.mirrorHFt ?? 2.2, mtop = p.mirrorTopFt ?? 5.4;
+    for (const ds of dsList) { q = pl(-(Dp / 2 - 0.3), ds, 0.06, mw); box(q[0], q[1], mtop - mh / 2, q[2], q[3], mh, mirror); }
   }
   // Slim wall sconces outboard of the mirrors (at the vanity ends), proud of the wall.
   if (p.sconces) for (const s of [-1, 1]) { q = pl(-(Dp / 2 - 0.28), s * (Wd / 2 - 0.25), 0.08, 0.22); box(q[0], q[1], 5.0, q[2], q[3], 1.2, sconceMat); }
@@ -1933,6 +1936,25 @@ function buildMudroomBench(p) {
   return g;
 }
 
+// A RECESSED DOWNLIGHT: trim ring and lens flush with the ceiling, nothing below it.
+// The housing is deliberately not modelled — it would sit above the ceiling slab where
+// nothing can see it.
+function buildRecessed(p) {
+  const ft = FT, g = new THREE.Group();
+  const CEIL = (p.ceilFt ?? 9.0) * ft, R = ((p.diaFt ?? 0.5) / 2) * ft;
+  const trim = new THREE.MeshStandardMaterial({ color: 0xf2f0ea, roughness: 0.5 });
+  const lens = new THREE.MeshStandardMaterial({ color: 0xfff6e4, emissive: 0xffe3ae,
+    emissiveIntensity: 1.1, roughness: 0.4 });
+  const ring = new THREE.Mesh(new THREE.CylinderGeometry(R, R, 0.035 * ft, 24), trim);
+  ring.position.y = CEIL - 0.018 * ft; g.add(ring);
+  const l = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.8, R * 0.8, 0.02 * ft, 24), lens);
+  l.position.y = CEIL - 0.042 * ft; g.add(l);
+  const light = new THREE.PointLight(0xfff0db, p.intensity ?? 1.5, 0, 2);
+  light.position.y = CEIL - 0.12 * ft; g.add(light);
+  g.userData.fixtures = [{ light, emissive: lens }];
+  return g;
+}
+
 // A built-in CAFE BANQUETTE: a painted plinth and seat box carrying a buttoned
 // leather squab, with a stile-and-rail panelled back board against the wall. Built
 // the way one actually is — the box is joinery, the back is a panelled wall board,
@@ -2385,10 +2407,11 @@ function buildSconce(p) {
   const A = DIR[p.faces || "S"], P = [-A[1], A[0]];
   const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
   const at = (da, ds, y) => { const q = fplace(A, P, da, ds, 0, 0); return V(q[0], q[1], y); };
-  const brass = BRASS(), opal = GLOW(0xffdda0, 1.1);
+  const brass = BRASS(), opal = GLOW(0xffdda0, p.glow ?? 1.1);
   const Y = p.atFt ?? 5.5, ARM = p.armFt ?? 0.46, R = (p.globeFt ?? 0.52) / 2;
-  const [opx, opz, sx, sz] = fplace(A, P, 0.05, 0, 0.10, 0.46);
-  const plate = new THREE.Mesh(new RoundedBoxGeometry(sx * ft, 0.62 * ft, sz * ft, 3, 0.03), brass);
+  const PW = p.plateFt ?? 0.46, PH = p.plateHFt ?? 0.62;   // slim it down to flank a mirror
+  const [opx, opz, sx, sz] = fplace(A, P, 0.05, 0, 0.10, PW);
+  const plate = new THREE.Mesh(new RoundedBoxGeometry(sx * ft, PH * ft, sz * ft, 3, 0.03), brass);
   plate.position.copy(V(opx, opz, Y)); g.add(plate);                    // backplate
   const outward = new THREE.Vector3(-A[0], 0, -A[1]).normalize();       // plan A -> world
   const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, ARM * ft, 10), brass);
@@ -2472,7 +2495,7 @@ function buildSkylight(p) {
   return g;
 }
 
-const BUILDERS = { mudroom_bench: buildMudroomBench, pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight,
+const BUILDERS = { mudroom_bench: buildMudroomBench, recessed: buildRecessed, pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight,
   range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, open_shelves: buildOpenShelves, counter_stool: buildCounterStool, banquette: buildBanquette, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, bentwood_chair: buildBentwoodChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 // Re-export a few individual builders so the viewer can drop single procedural
 // pieces (e.g. patio furniture on the alt roof deck) without going through the

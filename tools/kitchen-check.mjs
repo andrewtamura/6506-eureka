@@ -853,6 +853,36 @@ console.log('EXTENSION FIXTURES');
         A(v.pzLo > -3.795, `stops ${R((v.pzLo + 3.795) * 12, 1)} in clear of the window casing`);
       }
 
+      // LIGHTING. The mirror had topped out at 65 in; sconces flank it and downlights
+      // replace the generic per-room ceiling fixture.
+      { const v2 = ext.find(r => r.type === 'vanity');
+        if (v2) { const mir = meshes(v2).filter(m => m.yHi > 5.0 && (m.pxHi - m.pxLo) < 0.25)
+            .sort((a, b) => b.yHi - a.yHi)[0];
+          A(!!mir && Math.abs(mir.yHi - 6.5) < 0.08, `mirror tops out at ${R((mir ? mir.yHi : 0) * 12, 0)} in — it was 65`);
+          A(!!mir && mir.yLo > 3.1, `its foot clears the counter by ${R((mir.yLo - 3.05) * 12, 1)} in`); }
+        const sc = ext.filter(r => r.type === 'sconce' && r.pz > -8.3 && r.pz < 3.9);
+        A(sc.length === 2, `two sconces at the mirror (${sc.length})`);
+        if (sc.length === 2 && v2) {
+          // It projects WEST off the east wall, so pxLo is the face and pxHi the globe.
+          A(sc.every(m => Math.abs(m.pxLo - (-22.688)) < 0.1), 'both on the east wall beside it');
+          A(sc.every(m => m.pxHi - m.pxLo < 0.9), `each projects ${R(Math.max(...sc.map(m => m.pxHi - m.pxLo)) * 12, 1)} in`);
+          const pz = sc.map(m => m.pz).sort((a, b) => a - b);
+          A(pz[0] < v2.pz && pz[1] > v2.pz, 'one either side of the vanity centre');
+          A(sc.every(m => Math.abs(m.yLo + m.yHi) / 2 > 4.5), 'hung at mirror height');
+        }
+        const cans = ext.filter(r => r.type === 'recessed');
+        A(cans.length === 4, `four downlights — three in the bath, one in the WC (${cans.length})`);
+        A(cans.every(c => Math.abs(c.yHi - 9.0) < 0.06), 'all flush with the ceiling');
+        A(cans.filter(c => c.pz > -8.3).length === 3 && cans.filter(c => c.pz < -8.3).length === 1,
+          'three bath, one WC');
+        // The generic per-room semi-flush hangs ~11 in below the ceiling. Nothing in
+        // either room should now — that is what "remove the overhead lighting" means.
+        const hung = L.filter(m => m.pxLo > -22.75 && m.pxHi < -17.6 && m.pzLo > -11.75 && m.pzHi < 3.85
+          && (m.yLo + m.yHi) / 2 > 7.9 && (m.yLo + m.yHi) / 2 < 8.8
+          && (m.pxHi - m.pxLo) < 1.5 && (m.pzHi - m.pzLo) < 1.5);
+        A(hung.length === 0, `no ceiling fixture hanging in the bath or WC (${hung.length})`);
+      }
+
       // WINDOW TRIM on the bath's east wall — the room had no trim program at all.
       { const BEW = -22.68785, DY = 0.066;      // interior face; loose meshes read DY low
         const onEast = (m) => m.pxLo > BEW - 0.05 && m.pxHi < BEW + 0.30

@@ -53,7 +53,67 @@
         "depthFt": 1.83,
         "sinks": 1,
         "cols": 2,
-        "rows": 1
+        "rows": 1,
+        "mirrorWFt": 2.1,
+        "mirrorHFt": 3.1,
+        "mirrorTopFt": 6.5
+      },
+      {
+        "type": "sconce",
+        "at": [
+          -22.688,
+          -0.625
+        ],
+        "faces": "W",
+        "atFt": 5.0,
+        "plateFt": 0.3,
+        "plateHFt": 0.85,
+        "globeFt": 0.34,
+        "armFt": 0.26,
+        "intensity": 0.85,
+        "glow": 0.8
+      },
+      {
+        "type": "sconce",
+        "at": [
+          -22.688,
+          -3.383
+        ],
+        "faces": "W",
+        "atFt": 5.0,
+        "plateFt": 0.3,
+        "plateHFt": 0.85,
+        "globeFt": 0.34,
+        "armFt": 0.26,
+        "intensity": 0.85,
+        "glow": 0.8
+      },
+      {
+        "type": "recessed",
+        "at": [
+          -20.1875,
+          1.8
+        ],
+        "ceilFt": 9.0,
+        "diaFt": 0.5
+      },
+      {
+        "type": "recessed",
+        "at": [
+          -20.1875,
+          -2.3
+        ],
+        "ceilFt": 9.0,
+        "diaFt": 0.5
+      },
+      {
+        "type": "recessed",
+        "at": [
+          -20.1875,
+          -6.4
+        ],
+        "ceilFt": 9.0,
+        "diaFt": 0.5
       }
     ],
     "paneling": {
