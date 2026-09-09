@@ -29,6 +29,25 @@
     },
     "furniture": [
       {
+        "type": "cabinet_run",
+        "kind": "base",
+        "at": [
+          -14.729,
+          -10.388
+        ],
+        "faces": "N",
+        "lenFt": 5.0,
+        "depthFt": 2.6,
+        "counterFt": 3.25,
+        "gaps": [
+          {
+            "a": -2.5,
+            "b": 2.5,
+            "counter": true
+          }
+        ]
+      },
+      {
         "type": "appliance",
         "kind": "washer",
         "at": [
@@ -51,6 +70,19 @@
         "widthFt": 2.25,
         "depthFt": 2.5,
         "topFt": 3.0
+      },
+      {
+        "type": "cabinet_run",
+        "kind": "wall",
+        "at": [
+          -14.729,
+          -11.138
+        ],
+        "faces": "N",
+        "lenFt": 5.0,
+        "depthFt": 1.1,
+        "bottomFt": 4.75,
+        "topFt": 7.0
       }
     ]
   }

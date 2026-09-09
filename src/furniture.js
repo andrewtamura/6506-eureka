@@ -1473,7 +1473,10 @@ function buildCabinetRun(p) {
   };
   const D = p.depthFt ?? (kind === "wall" ? 1.1 : kind === "tall" ? 2.1 : 2.0);
   const L = p.lenFt ?? 6.0;
-  const TOE = 0.3, CT = 3.0, baseTop = 2.9;
+  // Counter height is a parameter: a laundry worktop bridging front-load machines
+  // sits higher than a kitchen one. baseTop tracks it so the carcass still stops
+  // under the slab.
+  const TOE = 0.3, CT = p.counterFt ?? 3.0, baseTop = CT - 0.1;
   // vertical envelope of the cabinet BODY for this kind
   const y0 = kind === "wall" ? (p.bottomFt ?? 4.5) : kind === "tall" ? TOE : TOE;
   const y1 = kind === "wall" ? (p.topFt ?? 7.0) : kind === "tall" ? (p.topFt ?? 7.0) : baseTop;

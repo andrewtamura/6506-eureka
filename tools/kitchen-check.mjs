@@ -740,6 +740,29 @@ console.log('EXTENSION FIXTURES');
       A(pair[1].pxLo - pair[0].pxHi > 0.02, `side by side, ${R((pair[1].pxLo - pair[0].pxHi) * 12, 1)} in apart`);
       A(pair[0].pxLo > -17.29 && pair[1].pxHi < -12.17, 'the pair fits between the side walls');
       A(Math.abs(Math.max(...pair.map(m => m.yHi)) - 3.0) < 0.1, `${R(Math.max(...pair.map(m => m.yHi)) * 12, 0)} in tall`);
+      // BUILT IN: a worktop bridges the pair, and a wall cabinet hangs over it.
+      const runs = ext.filter(r => r.type === 'cabinet_run');
+      const base = runs.find(r => r.kind === 'base'), up = runs.find(r => r.kind === 'wall');
+      A(!!base, 'a counter runs over the machines');
+      if (base) {
+        const top = Math.max(...meshes(base).map(m => m.yHi));
+        A(Math.abs(top - 3.33) < 0.06, `worktop at ${R(top * 12, 1)} in — above a kitchen counter, as a laundry one is`);
+        const clear = 3.25 - Math.max(...pair.map(m => m.yHi));
+        A(clear > 0.1, `${R(clear * 12, 1)} in between the machine tops and the worktop`);
+        A(base.pxHi - base.pxLo > 4.9, `spans the full ${R(base.pxHi - base.pxLo, 2)} ft wall to wall`);
+        // The whole run is machine bay, so there should be no carcass under the worktop —
+        // no toe kick, no doors. Only the counter and its splash.
+        A(!meshes(base).some(m => m.yHi < 0.5 && m.yHi > 0.1), 'no toe kick — the bay is all machine');
+      }
+      A(!!up, 'a wall cabinet hangs above it');
+      if (up && base) {
+        const mm = meshes(up), lo = Math.min(...mm.map(m => m.yLo)), hi = Math.max(...mm.map(m => m.yHi));
+        A(Math.abs(lo - 4.75) < 0.08 && Math.abs(hi - 7.0) < 0.08,
+          `runs ${R(lo * 12, 0)} to ${R(hi * 12, 0)} in`);
+        A(lo - Math.max(...meshes(base).map(m => m.yHi)) > 1.1,
+          `${R((lo - Math.max(...meshes(base).map(m => m.yHi))) * 12, 1)} in of clear splash between counter and cabinet`);
+        A(Math.abs(up.pzLo - LS) < 0.08, 'hung on the south wall, over the machines');
+      }
     } }
 
   // WC: toilet against the WEST wall (px -17.687), facing east into the room.

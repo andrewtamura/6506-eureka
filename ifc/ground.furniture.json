@@ -384,6 +384,24 @@
       "faces": "E"
     },
     {
+      "type": "cabinet_run",
+      "px": -14.729,
+      "pz": -10.388,
+      "rot": 0.0,
+      "kind": "base",
+      "faces": "N",
+      "lenFt": 5.0,
+      "depthFt": 2.6,
+      "counterFt": 3.25,
+      "gaps": [
+        {
+          "a": -2.5,
+          "b": 2.5,
+          "counter": true
+        }
+      ]
+    },
+    {
       "type": "appliance",
       "px": -15.904,
       "pz": -10.438,
@@ -404,6 +422,18 @@
       "widthFt": 2.25,
       "depthFt": 2.5,
       "topFt": 3.0
+    },
+    {
+      "type": "cabinet_run",
+      "px": -14.729,
+      "pz": -11.138,
+      "rot": 0.0,
+      "kind": "wall",
+      "faces": "N",
+      "lenFt": 5.0,
+      "depthFt": 1.1,
+      "bottomFt": 4.75,
+      "topFt": 7.0
     },
     {
       "type": "cabinet_run",
