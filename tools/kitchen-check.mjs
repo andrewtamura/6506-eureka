@@ -10,8 +10,40 @@
 // Lives in the repo deliberately: it has caught real faults (blocked doorways, a
 // 5'7" door, a cornice colliding with a portal) and had to be rebuilt from scratch
 // three times when it lived in a scratch directory.
+//   npm run dev                                   # or any server on :5173
+//   node tools/kitchen-check.mjs                  # measure + assert  (~4-5 min)
+//   node tools/kitchen-check.mjs --from           # re-assert the cached measurement (instant)
+//
+// MEASURE and ASSERT are separate. Booting Chromium and loading the ground model is
+// essentially the whole runtime; the ~110 assertions after it are arithmetic on a plain
+// object. Half of all re-runs change no geometry at all — a threshold is being tuned, or
+// a console.log added to find which mesh tripped a filter — so `--from` replays the last
+// measurement and skips the browser entirely. Re-measure whenever the geometry moves;
+// the staleness banner below says when that is.
 import puppeteer from 'puppeteer';
+import { readFileSync, writeFileSync, existsSync, statSync, readdirSync } from 'node:fs';
 const FT = 0.3048;
+
+const argv = process.argv.slice(2);
+const valOf = (k, d) => { const i = argv.indexOf(k); const v = argv[i + 1];
+  return i >= 0 && v && !v.startsWith('--') ? v : d; };
+const CACHE = valOf('--out', '.kitchen-check.json');
+const FROM = argv.includes('--from') ? valOf('--from', CACHE) : null;
+
+// What the measurement actually depends on: the manifests the viewer fetches and the
+// builders that turn them into meshes. NOT this file — editing an assertion does not
+// invalidate a measurement, which is the whole point of the split.
+const inputs = () => {
+  const out = [];
+  for (const [dir, ext] of [['public', '.json'], ['src', '.js']]) {
+    if (!existsSync(dir)) continue;
+    for (const f of readdirSync(dir)) if (f.endsWith(ext))
+      out.push({ file: `${dir}/${f}`, mtimeMs: statSync(`${dir}/${f}`).mtimeMs });
+  }
+  return out;
+};
+
+async function measure() {
 const b = await puppeteer.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
   args: ['--use-gl=swiftshader', '--no-sandbox', '--enable-unsafe-swiftshader', '--window-size=1200,800'], protocolTimeout: 900000 });
 const page = await b.newPage(); await page.setViewport({ width: 1200, height: 800 });
@@ -86,6 +118,33 @@ const raw = await page.evaluate(() => {
   return { items, loose, doorLeaves };
 });
 await b.close();
+  return raw;
+}
+
+let raw;
+if (FROM) {
+  if (!existsSync(FROM)) { console.log(`no cached measurement at ${FROM} — run without --from first`); process.exit(2); }
+  const cached = JSON.parse(readFileSync(FROM, 'utf8'));
+  raw = cached.raw;
+  const was = new Map((cached.inputs || []).map(i => [i.file, i.mtimeMs]));
+  // Changed since the measurement, or new since it — either way the cache no longer
+  // describes what the viewer would build now.
+  const moved = inputs().filter(i => !was.has(i.file) || i.mtimeMs > was.get(i.file) + 1).map(i => i.file);
+  console.log(`(cached measurement from ${cached.takenAt} — no browser, geometry NOT re-checked)`);
+  if (moved.length) {
+    const bar = '!'.repeat(78);
+    console.log(`\n${bar}\n!! STALE: ${moved.length} input(s) changed since this measurement was taken:`);
+    for (const f of moved.slice(0, 8)) console.log(`!!   ${f}`);
+    if (moved.length > 8) console.log(`!!   ...and ${moved.length - 8} more`);
+    console.log('!! Every result below describes the OLD geometry. Re-run without --from.');
+    console.log(`${bar}\n`);
+  }
+} else {
+  const stamp = inputs();                       // taken BEFORE measuring, so an edit
+  raw = await measure();                        // made mid-run still reads as stale
+  writeFileSync(CACHE, JSON.stringify({ takenAt: new Date().toISOString(), inputs: stamp, raw }));
+  console.log(`(measurement cached to ${CACHE} — re-assert it with --from)`);
+}
 raw.doorLeaves = (raw.doorLeaves || []).map(d => ({ name: d.name, parts: d.parts,
   pzLo: -d.zmax / FT, pzHi: -d.zmin / FT, pxLo: -d.xmax / FT, pxHi: -d.xmin / FT }));
 
@@ -510,6 +569,88 @@ console.log('CAFE NOOK');
   // Nothing may reach the back door's swing zone.
   { const east = Math.min(...nook.map(m => m.pxLo));
     A(east > 19.17 + 0.5, `nook stops ${R((east - 19.17) * 12, 1)} in short of the back door`); }
+}
+
+// ============================================================ SCULLERY DECORATION
+console.log('WAINSCOT + LIGHTING');
+{ const EW = 0.1459, WW = 27.8542;
+  // Wall-finish meshes hang off FLOOR while placed items hang off FLOOR + 0.02, so a
+  // loose mesh reads 0.066 ft lower than its authored height. The window-stool check
+  // already carried a bare `- 0.066` for this; name it rather than sprinkle it.
+  const LOOSE_DY = 0.066, CAP = 3.0 - LOOSE_DY;
+  // WAINSCOT lives on the NORTH wall only. Its chair-rail cap is the tell: a member
+  // topping out at 3.0 ft, thin in pz, running along the wall inside the room.
+  const capOf = (pzLo, pzHi) => L.filter(m => Math.abs(m.yHi - CAP) < 0.03 && (m.yHi - m.yLo) < 0.35
+    && m.pzLo > pzLo && m.pzHi < pzHi && (m.pxHi - m.pxLo) > 1.0 && m.pxLo > EW - 0.3 && m.pxHi < WW + 0.3);
+  const nCap = capOf(NWALL - 0.35, NWALL + 0.05);
+  A(nCap.length >= 2, `chair rail on the north wall, in ${nCap.length} runs (broken at the two doorways)`);
+  // Two doorways at px 0.42-3.42 and 20.04-26.04 leave exactly two runs of wall.
+  A(nCap.length === 2, `exactly two runs — one between each pair of openings (${nCap.length})`);
+  if (nCap.length === 2) {
+    const r = nCap.map(m => [R(m.pxLo,2), R(m.pxHi,2)]).sort((u,v) => u[0]-v[0]);
+    console.log(`  chair rail px ${r[0][0]}-${r[0][1]} and ${r[1][0]}-${r[1][1]}`);
+    A(r[0][0] > 3.42 - 0.02 && r[0][1] < 20.05, 'the long run dies at both door casings');
+  }
+  // ...and NOWHERE else. A dado that crept onto the south wall would sit behind the
+  // galley and never be seen, so it has to be asserted rather than looked at.
+  A(!capOf(SWALL - 0.05, SWALL + 0.35).length, 'no wainscot on the south wall');
+  const sideCap = L.filter(m => Math.abs(m.yHi - CAP) < 0.03 && (m.yHi - m.yLo) < 0.35
+    && (m.pzHi - m.pzLo) > 1.0 && m.pzLo > SWALL - 0.05 && m.pzHi < NWALL + 0.05
+    && (m.pxLo < EW + 0.35 || m.pxHi > WW - 0.35));
+  A(!sideCap.length, `no wainscot on the east or west walls (${sideCap.length})`);
+  // Panel stiles: narrow verticals between the baseboard and the rail.
+  const stiles = L.filter(m => Math.abs(m.yLo - (10 / 12 - LOOSE_DY)) < 0.06 && Math.abs(m.yHi - CAP) < 0.06
+    && (m.pxHi - m.pxLo) < 0.45 && m.pzLo > NWALL - 0.35 && m.pzHi < NWALL + 0.05);
+  A(stiles.length >= 8, `${stiles.length} panel stiles dividing the runs`);
+
+  // LIGHTING. The generic per-room semi-flush must be GONE from this room — that is
+  // the half of "replace the fixtures" a screenshot makes easy to miss.
+  const sc = P.filter(r => r.pz < -12 && r.pz > -19);
+  const has = t => sc.filter(r => r.type === t);
+  A(has('pendant').length === 1, `one pendant (${has('pendant').length})`);
+  A(has('sconce').length === 2, `two sconces (${has('sconce').length})`);
+  A(has('undercabinet').length === 1, `under-cabinet run (${has('undercabinet').length})`);
+  A(has('skylight').length === 3, `three skylights (${has('skylight').length})`);
+  const tb = P.find(r => r.type === 'round_pedestal_table' && r.pz < -12);
+  const pend = has('pendant')[0];
+  if (pend && tb) A(Math.hypot(pend.px - tb.px, pend.pz - tb.pz) < 0.4,
+    `pendant centred over the nook table (${R(Math.hypot(pend.px - tb.px, pend.pz - tb.pz) * 12, 1)} in off)`);
+  // 30-36 in over the table top is the whole point of a table pendant; at 47 in it
+  // reads as a room light that happens to be over the table.
+  if (pend && tb) { const drop = Math.min(...meshes(pend).map(m => m.yLo)) - tb.yHi;
+    A(drop > 2.4 && drop < 3.1, `hangs ${R(drop * 12, 1)} in above the table top`); }
+  // Sconces: on the north wall, above the chair rail, and clear of their door casings.
+  // Casings run 0.165 past each jamb, so measure to the casing edge, not the opening.
+  for (const s of has('sconce')) {
+    const mm = meshes(s);
+    A(Math.abs(s.pz - NWALL) < 0.02, `sconce on the north wall (${R(s.pz,4)})`);
+    A(Math.min(...mm.map(m => m.yLo)) > 3.0 + 0.5, `sits ${R((Math.min(...mm.map(m => m.yLo)) - 3.0) * 12, 1)} in above the chair rail`);
+    const gap = Math.min(Math.abs(s.px - (3.42 + 0.165)), Math.abs(s.px - (20.0417 - 0.165)));
+    A(gap > 1.0, `${R(gap * 12, 1)} in clear of the nearest door casing`);
+    A(Math.max(...mm.map(m => NWALL - m.pzLo)) < 1.3, `projects ${R(Math.max(...mm.map(m => NWALL - m.pzLo)) * 12, 1)} in into the room`);
+  }
+  // Under-cabinet: above the worktop, below the uppers, and inside their footprint.
+  const uc = has('undercabinet')[0];
+  if (uc) { const mm = meshes(uc);
+    const lo = Math.min(...mm.map(m => m.yLo)), hi = Math.max(...mm.map(m => m.yHi));
+    A(lo > 3.08 + 0.9 && hi < 4.52, `tucked at ${R(lo * 12,1)}-${R(hi * 12,1)} in — under the 4.5 ft uppers, over the 3.08 ft worktop`);
+    A(mm.every(m => m.pzHi < SWALL + 1.15), 'sits within the upper cabinets’ depth'); }
+  // Skylights: on the three window lines, and their wells north of the uppers.
+  const winPx = [5.33, 14.0, 21.0833];
+  const sky = has('skylight').sort((u, v) => u.px - v.px);
+  sky.forEach((k, i) => {
+    A(Math.abs(k.px - winPx[i]) < 0.05, `skylight ${i + 1} on window line px ${winPx[i]} (${R(k.px,3)})`);
+    // 2'0" x 4'0". The south edge is pinned by the galley uppers, so the only way to
+    // enlarge these is northward — which is why the pair of clearances is asserted
+    // rather than the size alone.
+    A(Math.abs((k.pzHi - k.pzLo) - 4.0) < 0.05, `4 ft deep (${R(k.pzHi - k.pzLo, 2)})`);
+    A(Math.abs((k.pxHi - k.pxLo) - 2.0) < 0.05, `2 ft wide, unchanged (${R(k.pxHi - k.pxLo, 2)})`);
+    A(k.pzLo > SWALL + 1.1, `its well clears the galley uppers by ${R((k.pzLo - (SWALL + 1.1)) * 12, 1)} in`);
+    A(NWALL - k.pzHi > 0.8, `${R((NWALL - k.pzHi) * 12, 1)} in of ceiling left at the north wall`);
+    // The roof springs from the ceiling at the south eave and rises 0.45/ft north, so
+    // the glazing must sit ABOVE the 9 ft ceiling or the well has no depth at all.
+    A(k.yHi > 9.5, `glazing ${R((k.yHi - 9.0) * 12, 1)} in above the ceiling at its high edge`);
+  });
 }
 
 // FAMILY -> SCULLERY door. Both facts are measured: this is the third swing set from a

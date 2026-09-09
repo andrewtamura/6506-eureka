@@ -81,7 +81,13 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   stays empty, so don't go looking for an egress problem). `gh`/`hub` are not installed and
   the GitHub MCP server has no delete-branch tool. There is no route to it, and none needed.
 - Regenerate IFC after `ifc/` changes: `/tmp/ifcvenv/bin/python ifc/generate_ifc.py`
-  (IfcOpenShell venv). Then `npm run build`.
+  (IfcOpenShell venv). Then `npm run prepare-assets` — **not `npm run build`**. The dev
+  server serves `src/` live, so a viewer-code edit needs no build step at all, and an
+  `ifc/` edit needs only the manifest copy: 2.2 s against 14.4 s for the full Vite/PWA
+  build. Chain them (`python ifc/generate_ifc.py && npm run prepare-assets`) rather than
+  running three serial commands. `npm run build` is for shipping, not for iterating —
+  but do remember one of the two, because the dev server reads `public/`, and skipping
+  the copy has produced a stale-manifest false failure before.
 - **Regenerating is destructive — restore what you didn't mean to change.** Some
   manifests are hand-authored and the generator does NOT reproduce them: notably
   `ifc/level2.furniture.json`, which a plain regen rewrites to near-empty, wiping all
@@ -100,3 +106,23 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   actually gone wrong before: doorway approach zones, island aisles, cabinet module
   alignment, inset reveals, door widths. Extend it rather than starting a new one in the
   scratchpad, which is where it lived while being rebuilt from scratch three times.
+- **Render with `node tools/shot.mjs <outdir> '[["name",[px,pz,ft],[px,pz,ft]]]'`** — views are
+  plan feet plus a height above the floor. Two traps it already handles, both of which cost
+  a wasted render each: take the floor datum from an item on THIS level (`SHOT_DATUM`, default
+  `island`) or the camera lands outside the building, since the scene also holds the level-2
+  and attic exhibits; and call `setPlanView(false)` for interiors, because the viewer opens in
+  see-through-ceiling mode and would show straight through a ceiling or a skylight well.
+  `waitUntil: 'networkidle2'` never fires — the viewer streams levels forever.
+- **Iterate with `node tools/kitchen-check.mjs --from`.** A full run is ~5m45s, almost
+  all of it booting Chromium and loading the ground model; the ~136 assertions after
+  that are arithmetic on a cached JSON blob and replay in ~0.3 s. So measure once, then
+  use `--from` for everything that does not move geometry — tuning a threshold, adding a
+  `console.log` to find which mesh tripped a filter, checking a fix to the assertion
+  itself. Half of all re-runs are that. Re-measure (plain `node tools/kitchen-check.mjs`)
+  whenever a builder or a manifest actually changes, and always once before committing;
+  `--from` prints a loud STALE banner naming any input newer than the measurement, so a
+  cached pass can't be mistaken for a real one.
+  One trap when writing assertions: wall-finish meshes (the `loose` list) hang off `FLOOR`
+  while placed items hang off `FLOOR + 0.02`, so a loose mesh reads **0.066 ft lower** than
+  its authored height. The harness names this `LOOSE_DY`; a chair rail authored at 3.0 ft
+  measures 2.934.

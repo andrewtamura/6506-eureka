@@ -1585,7 +1585,9 @@ async function main() {
   await buildWallFinish({ scene, floorY: FLOOR, ceilingY: modelBox.max.y, baseUrl: BASE, manifestFile: groundManifests.paneling + VER });
 
   // --- ceilings (block the sun; opaque in POV, transparent in plan) -------
-  const baseSetPlanView = buildCeilings({ scene, rooms: roomBoxes, ceilingY: modelBox.max.y, opening: furniture?.stairwellOpening }).setPlanView;
+  // Every hole the ceiling has to carry: the stairwell void, plus a well for each skylight.
+  const ceilOpenings = [furniture?.stairwellOpening, ...(furniture?.ceilingOpenings || [])].filter(Boolean);
+  const baseSetPlanView = buildCeilings({ scene, rooms: roomBoxes, ceilingY: modelBox.max.y, openings: ceilOpenings }).setPlanView;
   // Also toggle the attic's sloped ceiling: opaque overhead in the first-person
   // POV (so you can see it), translucent in the dollhouse overview (so you can
   // see into the attic from outside/above).
@@ -1600,6 +1602,7 @@ async function main() {
   };
   window.__eureka.setPlanView = setPlanView;   // debug handle (headless render harness)
   window.__eureka.setHour = apply;             // debug handle: set time of day (0-24)
+  window.__eureka.setPlanView = setPlanView;   // debug handle: opaque (false) vs see-through (true) ceilings
   window.__eureka.fixtures = fixtures;         // debug handle: interior light fixtures (scene control)
   window.__eureka.exhibits = exhibitModels;    // debug handle: [{lvl, model}] placed exhibits (render harness)
 
@@ -1622,9 +1625,19 @@ async function main() {
     scene.add(g);
     registerFixture(light, level, shadeMat);
   };
-  const roomCenters = roomBoxes.map((r) => ({ x: (r.box.min.x + r.box.max.x) / 2, z: (r.box.min.z + r.box.max.z) / 2,
+  // Authored fixtures (pendants, sconces, under-cabinet strips) join the time-of-day
+  // scenes like any other lamp...
+  for (const f of furniture?.fixtures || []) registerFixture(f.light, "ground", f.emissive);
+  // ...and a room that lights itself does NOT also get the generic semi-flush. Keyed off
+  // where the fixtures actually landed, so there is no room list to keep in sync.
+  const lit = new Set();
+  for (const f of furniture?.fixtures || []) {
+    const rb = roomBoxes.find((r) => f.x > r.box.min.x && f.x < r.box.max.x && f.z > r.box.min.z && f.z < r.box.max.z);
+    if (rb) lit.add(rb.id);
+  }
+  const roomCenters = roomBoxes.map((r) => ({ id: r.id, x: (r.box.min.x + r.box.max.x) / 2, z: (r.box.min.z + r.box.max.z) / 2,
                                               sx: r.box.max.x - r.box.min.x, sz: r.box.max.z - r.box.min.z }));
-  for (const c of roomCenters) semiFlush(c.x, modelBox.max.y - 0.04, c.z, 3.0, "ground");   // ground floor: one per room
+  for (const c of roomCenters) if (!lit.has(c.id)) semiFlush(c.x, modelBox.max.y - 0.04, c.z, 3.0, "ground");
 
   // Opaque blockers (ceiling, walls, floor, furniture) cast shadow so the sun
   // can't pass through them; transparent glass does NOT cast, so windows let
