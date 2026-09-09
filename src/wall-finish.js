@@ -103,6 +103,26 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       post(g, bbH, yTop, BATTEN_W, 0.03);
     }
 
+    // 2b) WAINSCOT — a framed dado on the walls that ask for it. Real relief in three
+    //     planes: the wall's own recessed field (0.012), a panel ground proud of it,
+    //     then rails and stiles proud of that, capped by the chair rail. `subtract`
+    //     breaks each run at the doorways with the same margin the baseboard uses, so
+    //     the rail dies behind the door casing rather than butting its edge.
+    if (w.wainscot) {
+      const capY = (w.chairRailFt || 3.0) * ft;
+      const RAILH = 0.085, CAPH = 0.075, SW = 0.33;       // bottom rail / cap heights (m), stile width (ft)
+      for (const [a, b] of subtract(w.lo, w.hi, [...doors, ...tallX], 0.12)) {
+        band(a, b, bbH, capY, 0.020, field);              // panel ground
+        band(a, b, bbH, bbH + RAILH, 0.045);              // bottom rail, sitting on the baseboard
+        band(a, b, capY - CAPH, capY, 0.075);             // chair rail cap
+        const n = Math.max(1, Math.round((b - a) / 1.7)); // panels about 20 in wide
+        for (let i = 0; i <= n; i++) {
+          const s = a + ((b - a) * i) / n;
+          post(i === 0 ? s + SW / 2 : i === n ? s - SW / 2 : s, bbH, capY, SW * ft, 0.045);
+        }
+      }
+    }
+
     // A wall can opt out of the entablature (`noCornice`) while keeping the rest of
     // the trim program — the crown, its frieze and bed mould, and the plain field
     // above them all belong to this block.

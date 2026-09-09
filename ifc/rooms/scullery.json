@@ -77,7 +77,10 @@
     "paneling": {
       "baseboard": 10,
       "noCornice": true,
-      "battens": false
+      "battens": false,
+      "wainscot": [
+        "N"
+      ]
     },
     "furniture": [
       {
@@ -251,6 +254,90 @@
           22.32,
           -16.986
         ]
+      },
+      {
+        "type": "pendant",
+        "at": [
+          24.174,
+          -16.0
+        ],
+        "dropFt": 5.5,
+        "shadeFt": 1.15
+      },
+      {
+        "type": "sconce",
+        "at": [
+          5.0,
+          -12.1459
+        ],
+        "faces": "S",
+        "atFt": 5.5
+      },
+      {
+        "type": "sconce",
+        "at": [
+          18.5,
+          -12.1459
+        ],
+        "faces": "S",
+        "atFt": 5.5
+      },
+      {
+        "type": "undercabinet",
+        "at": [
+          7.82292,
+          -18.0958
+        ],
+        "faces": "N",
+        "lenFt": 15.3542,
+        "depthFt": 1.1,
+        "atFt": 4.5,
+        "gaps": [
+          {
+            "a": -7.6771,
+            "b": -4.6971
+          },
+          {
+            "a": -3.1271,
+            "b": 3.9729
+          }
+        ]
+      },
+      {
+        "type": "skylight",
+        "at": [
+          5.33,
+          -15.9
+        ],
+        "widthFt": 2.0,
+        "depthFt": 2.5,
+        "ceilFt": 9.0,
+        "pitch": 0.45,
+        "datumPz": -18.875
+      },
+      {
+        "type": "skylight",
+        "at": [
+          14.0,
+          -15.9
+        ],
+        "widthFt": 2.0,
+        "depthFt": 2.5,
+        "ceilFt": 9.0,
+        "pitch": 0.45,
+        "datumPz": -18.875
+      },
+      {
+        "type": "skylight",
+        "at": [
+          21.0833,
+          -15.9
+        ],
+        "widthFt": 2.0,
+        "depthFt": 2.5,
+        "ceilFt": 9.0,
+        "pitch": 0.45,
+        "datumPz": -18.875
       }
     ]
   }

@@ -513,6 +513,83 @@
       "px": 22.32,
       "pz": -16.986,
       "rot": 0.0
+    },
+    {
+      "type": "pendant",
+      "px": 24.174,
+      "pz": -16.0,
+      "rot": 0.0,
+      "dropFt": 5.5,
+      "shadeFt": 1.15
+    },
+    {
+      "type": "sconce",
+      "px": 5.0,
+      "pz": -12.1459,
+      "rot": 0.0,
+      "faces": "S",
+      "atFt": 5.5
+    },
+    {
+      "type": "sconce",
+      "px": 18.5,
+      "pz": -12.1459,
+      "rot": 0.0,
+      "faces": "S",
+      "atFt": 5.5
+    },
+    {
+      "type": "undercabinet",
+      "px": 7.82292,
+      "pz": -18.0958,
+      "rot": 0.0,
+      "faces": "N",
+      "lenFt": 15.3542,
+      "depthFt": 1.1,
+      "atFt": 4.5,
+      "gaps": [
+        {
+          "a": -7.6771,
+          "b": -4.6971
+        },
+        {
+          "a": -3.1271,
+          "b": 3.9729
+        }
+      ]
+    },
+    {
+      "type": "skylight",
+      "px": 5.33,
+      "pz": -15.9,
+      "rot": 0.0,
+      "widthFt": 2.0,
+      "depthFt": 2.5,
+      "ceilFt": 9.0,
+      "pitch": 0.45,
+      "datumPz": -18.875
+    },
+    {
+      "type": "skylight",
+      "px": 14.0,
+      "pz": -15.9,
+      "rot": 0.0,
+      "widthFt": 2.0,
+      "depthFt": 2.5,
+      "ceilFt": 9.0,
+      "pitch": 0.45,
+      "datumPz": -18.875
+    },
+    {
+      "type": "skylight",
+      "px": 21.0833,
+      "pz": -15.9,
+      "rot": 0.0,
+      "widthFt": 2.0,
+      "depthFt": 2.5,
+      "ceilFt": 9.0,
+      "pitch": 0.45,
+      "datumPz": -18.875
     }
   ]
 }

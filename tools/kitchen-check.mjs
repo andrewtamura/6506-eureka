@@ -571,6 +571,82 @@ console.log('CAFE NOOK');
     A(east > 19.17 + 0.5, `nook stops ${R((east - 19.17) * 12, 1)} in short of the back door`); }
 }
 
+// ============================================================ SCULLERY DECORATION
+console.log('WAINSCOT + LIGHTING');
+{ const EW = 0.1459, WW = 27.8542;
+  // Wall-finish meshes hang off FLOOR while placed items hang off FLOOR + 0.02, so a
+  // loose mesh reads 0.066 ft lower than its authored height. The window-stool check
+  // already carried a bare `- 0.066` for this; name it rather than sprinkle it.
+  const LOOSE_DY = 0.066, CAP = 3.0 - LOOSE_DY;
+  // WAINSCOT lives on the NORTH wall only. Its chair-rail cap is the tell: a member
+  // topping out at 3.0 ft, thin in pz, running along the wall inside the room.
+  const capOf = (pzLo, pzHi) => L.filter(m => Math.abs(m.yHi - CAP) < 0.03 && (m.yHi - m.yLo) < 0.35
+    && m.pzLo > pzLo && m.pzHi < pzHi && (m.pxHi - m.pxLo) > 1.0 && m.pxLo > EW - 0.3 && m.pxHi < WW + 0.3);
+  const nCap = capOf(NWALL - 0.35, NWALL + 0.05);
+  A(nCap.length >= 2, `chair rail on the north wall, in ${nCap.length} runs (broken at the two doorways)`);
+  // Two doorways at px 0.42-3.42 and 20.04-26.04 leave exactly two runs of wall.
+  A(nCap.length === 2, `exactly two runs — one between each pair of openings (${nCap.length})`);
+  if (nCap.length === 2) {
+    const r = nCap.map(m => [R(m.pxLo,2), R(m.pxHi,2)]).sort((u,v) => u[0]-v[0]);
+    console.log(`  chair rail px ${r[0][0]}-${r[0][1]} and ${r[1][0]}-${r[1][1]}`);
+    A(r[0][0] > 3.42 - 0.02 && r[0][1] < 20.05, 'the long run dies at both door casings');
+  }
+  // ...and NOWHERE else. A dado that crept onto the south wall would sit behind the
+  // galley and never be seen, so it has to be asserted rather than looked at.
+  A(!capOf(SWALL - 0.05, SWALL + 0.35).length, 'no wainscot on the south wall');
+  const sideCap = L.filter(m => Math.abs(m.yHi - CAP) < 0.03 && (m.yHi - m.yLo) < 0.35
+    && (m.pzHi - m.pzLo) > 1.0 && m.pzLo > SWALL - 0.05 && m.pzHi < NWALL + 0.05
+    && (m.pxLo < EW + 0.35 || m.pxHi > WW - 0.35));
+  A(!sideCap.length, `no wainscot on the east or west walls (${sideCap.length})`);
+  // Panel stiles: narrow verticals between the baseboard and the rail.
+  const stiles = L.filter(m => Math.abs(m.yLo - (10 / 12 - LOOSE_DY)) < 0.06 && Math.abs(m.yHi - CAP) < 0.06
+    && (m.pxHi - m.pxLo) < 0.45 && m.pzLo > NWALL - 0.35 && m.pzHi < NWALL + 0.05);
+  A(stiles.length >= 8, `${stiles.length} panel stiles dividing the runs`);
+
+  // LIGHTING. The generic per-room semi-flush must be GONE from this room — that is
+  // the half of "replace the fixtures" a screenshot makes easy to miss.
+  const sc = P.filter(r => r.pz < -12 && r.pz > -19);
+  const has = t => sc.filter(r => r.type === t);
+  A(has('pendant').length === 1, `one pendant (${has('pendant').length})`);
+  A(has('sconce').length === 2, `two sconces (${has('sconce').length})`);
+  A(has('undercabinet').length === 1, `under-cabinet run (${has('undercabinet').length})`);
+  A(has('skylight').length === 3, `three skylights (${has('skylight').length})`);
+  const tb = P.find(r => r.type === 'round_pedestal_table' && r.pz < -12);
+  const pend = has('pendant')[0];
+  if (pend && tb) A(Math.hypot(pend.px - tb.px, pend.pz - tb.pz) < 0.4,
+    `pendant centred over the nook table (${R(Math.hypot(pend.px - tb.px, pend.pz - tb.pz) * 12, 1)} in off)`);
+  // 30-36 in over the table top is the whole point of a table pendant; at 47 in it
+  // reads as a room light that happens to be over the table.
+  if (pend && tb) { const drop = Math.min(...meshes(pend).map(m => m.yLo)) - tb.yHi;
+    A(drop > 2.4 && drop < 3.1, `hangs ${R(drop * 12, 1)} in above the table top`); }
+  // Sconces: on the north wall, above the chair rail, and clear of their door casings.
+  // Casings run 0.165 past each jamb, so measure to the casing edge, not the opening.
+  for (const s of has('sconce')) {
+    const mm = meshes(s);
+    A(Math.abs(s.pz - NWALL) < 0.02, `sconce on the north wall (${R(s.pz,4)})`);
+    A(Math.min(...mm.map(m => m.yLo)) > 3.0 + 0.5, `sits ${R((Math.min(...mm.map(m => m.yLo)) - 3.0) * 12, 1)} in above the chair rail`);
+    const gap = Math.min(Math.abs(s.px - (3.42 + 0.165)), Math.abs(s.px - (20.0417 - 0.165)));
+    A(gap > 1.0, `${R(gap * 12, 1)} in clear of the nearest door casing`);
+    A(Math.max(...mm.map(m => NWALL - m.pzLo)) < 1.3, `projects ${R(Math.max(...mm.map(m => NWALL - m.pzLo)) * 12, 1)} in into the room`);
+  }
+  // Under-cabinet: above the worktop, below the uppers, and inside their footprint.
+  const uc = has('undercabinet')[0];
+  if (uc) { const mm = meshes(uc);
+    const lo = Math.min(...mm.map(m => m.yLo)), hi = Math.max(...mm.map(m => m.yHi));
+    A(lo > 3.08 + 0.9 && hi < 4.52, `tucked at ${R(lo * 12,1)}-${R(hi * 12,1)} in — under the 4.5 ft uppers, over the 3.08 ft worktop`);
+    A(mm.every(m => m.pzHi < SWALL + 1.15), 'sits within the upper cabinets’ depth'); }
+  // Skylights: on the three window lines, and their wells north of the uppers.
+  const winPx = [5.33, 14.0, 21.0833];
+  const sky = has('skylight').sort((u, v) => u.px - v.px);
+  sky.forEach((k, i) => {
+    A(Math.abs(k.px - winPx[i]) < 0.05, `skylight ${i + 1} on window line px ${winPx[i]} (${R(k.px,3)})`);
+    A(k.pzLo > SWALL + 1.05, `its well clears the galley uppers by ${R((k.pzLo - (SWALL + 1.1)) * 12, 1)} in`);
+    // The roof springs from the ceiling at the south eave and rises 0.45/ft north, so
+    // the glazing must sit ABOVE the 9 ft ceiling or the well has no depth at all.
+    A(k.yHi > 9.5, `glazing ${R((k.yHi - 9.0) * 12, 1)} in above the ceiling at its high edge`);
+  });
+}
+
 // FAMILY -> SCULLERY door. Both facts are measured: this is the third swing set from a
 // sign convention in this model and the first two were wrong until someone looked.
 { const d = (raw.doorLeaves || []).find(x => /Family -> Scullery/i.test(x.name));

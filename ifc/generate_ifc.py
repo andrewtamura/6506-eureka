@@ -89,6 +89,11 @@ def compute_paneling(ctx, rooms):
         all_sides = nc is True
         no_cornice = set() if all_sides else {sd.upper() for sd in (nc or [])}
         no_battens = pan.get("battens") is False
+        # `wainscot` follows the same shape as `noCornice`: True for the whole room,
+        # or a list of sides. A dado is normally a per-wall decision.
+        ws = pan.get("wainscot")
+        all_ws = ws is True
+        wainscot = set() if all_ws else {sd.upper() for sd in (ws or [])}
         for orient, fixed, lo, hi, face, normal, side in [
             ("H", z1, x1, x2, z1 + half, [0, 1], "S"),
             ("H", z2, x1, x2, z2 - half, [0, -1], "N"),
@@ -103,6 +108,7 @@ def compute_paneling(ctx, rooms):
                 "doors": doors, "windows": wins, "tall": tall,
                 "noCornice": all_sides or side in no_cornice,
                 "noBattens": no_battens,
+                "wainscot": all_ws or side in wainscot,
             })
 
 

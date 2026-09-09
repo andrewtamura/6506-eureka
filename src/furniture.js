@@ -2156,7 +2156,136 @@ function buildAppliance(p) {
   return g;
 }
 
-const BUILDERS = { range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, open_shelves: buildOpenShelves, counter_stool: buildCounterStool, banquette: buildBanquette, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, bentwood_chair: buildBentwoodChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
+// ---------------------------------------------------------------- LIGHT FIXTURES
+// Procedural, per CLAUDE.md — lighting is an interior-design element, never an IFC
+// box proxy. Each builder hangs `userData.fixtures` on its group: the caller
+// (buildFurniture -> main.js) wires those into the time-of-day lighting scenes, and
+// uses their presence to suppress the viewer's generic per-room ceiling fixture.
+const BRASS = () => new THREE.MeshStandardMaterial({ color: 0xb08d57, roughness: 0.35, metalness: 0.6 });
+const GLOW = (c = 0xffdda0, i = 1.0) =>
+  new THREE.MeshStandardMaterial({ color: 0xf9f4e8, emissive: c, emissiveIntensity: i, roughness: 0.45 });
+
+// A hanging pendant: ceiling canopy, slim rod, spun cone shade with a brass rim.
+function buildPendant(p) {
+  const ft = FT, g = new THREE.Group();
+  const brass = BRASS(), shade = GLOW(0xffe0a8, 0.9);
+  shade.side = THREE.DoubleSide;
+  const CEIL = (p.ceilFt ?? 9.0) * ft, BOT = (p.dropFt ?? 6.4) * ft, SH = (p.shadeFt ?? 1.15) * ft;
+  const can = new THREE.Mesh(new THREE.CylinderGeometry(0.075, 0.075, 0.035, 20), brass);
+  can.position.y = CEIL - 0.018; g.add(can);
+  const rodTop = CEIL - 0.035, rodBot = BOT + SH * 0.60;
+  const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.011, Math.max(rodTop - rodBot, 0.02), 10), brass);
+  rod.position.y = (rodTop + rodBot) / 2; g.add(rod);
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(SH / 2, SH * 0.60, 28, 1, true), shade);
+  cone.position.y = BOT + SH * 0.30; g.add(cone);                       // wide end down
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(SH / 2, 0.011, 8, 32), brass);
+  rim.rotation.x = Math.PI / 2; rim.position.y = BOT; g.add(rim);
+  const bulbMat = GLOW(0xffca73, 1.2);
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), bulbMat);
+  bulb.position.y = BOT + 0.07; g.add(bulb);
+  const light = new THREE.PointLight(0xfff0db, p.intensity ?? 3.2, 0, 2);
+  light.position.y = BOT - 0.04; g.add(light);
+  g.userData.fixtures = [{ light, emissive: shade }];
+  return g;
+}
+
+// A wall sconce: backplate, brass arm out from the wall, opal globe. `faces` is the
+// room side it looks into, so the arm is laid along that direction rather than
+// assuming a wall axis.
+function buildSconce(p) {
+  const ft = FT, g = new THREE.Group();
+  const A = DIR[p.faces || "S"], P = [-A[1], A[0]];
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const at = (da, ds, y) => { const q = fplace(A, P, da, ds, 0, 0); return V(q[0], q[1], y); };
+  const brass = BRASS(), opal = GLOW(0xffdda0, 1.1);
+  const Y = p.atFt ?? 5.5, ARM = p.armFt ?? 0.46, R = (p.globeFt ?? 0.52) / 2;
+  const [opx, opz, sx, sz] = fplace(A, P, 0.05, 0, 0.10, 0.46);
+  const plate = new THREE.Mesh(new RoundedBoxGeometry(sx * ft, 0.62 * ft, sz * ft, 3, 0.03), brass);
+  plate.position.copy(V(opx, opz, Y)); g.add(plate);                    // backplate
+  const outward = new THREE.Vector3(-A[0], 0, -A[1]).normalize();       // plan A -> world
+  const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, ARM * ft, 10), brass);
+  arm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), outward);
+  arm.position.copy(at(0.10 + ARM / 2, 0, Y)); g.add(arm);
+  const globe = new THREE.Mesh(new THREE.SphereGeometry(R * ft, 20, 14), opal);
+  globe.position.copy(at(0.10 + ARM + R * 0.7, 0, Y)); g.add(globe);
+  const light = new THREE.PointLight(0xffe7c0, p.intensity ?? 1.5, 0, 2);
+  light.position.copy(globe.position); g.add(light);
+  g.userData.fixtures = [{ light, emissive: opal }];
+  return g;
+}
+
+// UNDER-CABINET task lighting: a shallow brass channel with a warm lens on the
+// underside of a wall run, washing the worktop below. `gaps` uses the same offsets
+// along the run as the cabinet_run it hides under, so it breaks at the hood and the
+// window bays without the positions being restated.
+function buildUnderCabinet(p) {
+  const ft = FT, g = new THREE.Group();
+  const A = DIR[p.faces || "N"], P = [-A[1], A[0]];
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const box = (da, ds, y, dl, dw, hy, mat) => {
+    const [opx, opz, sx, sz] = fplace(A, P, da, ds, dl, dw);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft), mat);
+    m.position.copy(V(opx, opz, y)); g.add(m); return m;
+  };
+  const brass = BRASS(), lens = GLOW(0xffd79a, 1.0);
+  const L = p.lenFt ?? 8, D = p.depthFt ?? 1.1, Y = p.atFt ?? 4.5;
+  const gaps = (p.gaps || []).map((q) => [Math.min(q.a, q.b), Math.max(q.a, q.b)]).sort((u, v) => u[0] - v[0]);
+  const runs = []; let cur = -L / 2;
+  for (const [a, b] of gaps) { if (a > cur) runs.push([cur, Math.min(a, L / 2)]); cur = Math.max(cur, b); }
+  if (cur < L / 2) runs.push([cur, L / 2]);
+  const fixtures = [];
+  for (const [a, b] of runs) {
+    const len = b - a - 0.25; if (len < 0.6) continue;                  // skip stubs
+    const ds = (a + b) / 2;
+    box(-D / 2 + 0.30, ds, Y - 0.055, 0.34, len, 0.055, brass);         // channel, set back from the face
+    box(-D / 2 + 0.30, ds, Y - 0.075, 0.26, len - 0.10, 0.018, lens);   // lens
+    const q = fplace(A, P, -D / 2 + 0.30, ds, 0, 0);
+    const light = new THREE.PointLight(0xffe3ae, p.intensity ?? 0.9, 2.6, 2);
+    light.position.copy(V(q[0], q[1], Y - 0.16)); g.add(light);
+    fixtures.push({ light, emissive: lens });
+  }
+  g.userData.fixtures = fixtures;
+  return g;
+}
+
+// A SKYLIGHT over a flat ceiling under a sloping roof: a well from the ceiling
+// opening up to the roof plane, glazed at the top. The scullery's shedhip springs
+// from the ceiling line at the south eave and rises `pitch` per foot northward, so
+// the well is a WEDGE — shallow at its south edge, deeper at its north. That is what
+// a skylight in a sloped roof actually looks like, and it is why these sit a couple
+// of feet off the south wall rather than literally over the windows.
+function buildSkylight(p) {
+  const ft = FT, g = new THREE.Group();
+  const W = (p.widthFt ?? 2.0) * ft, D = (p.depthFt ?? 2.5) * ft;
+  const CEIL = (p.ceilFt ?? 9.0), PITCH = p.pitch ?? 0.45, DATUM = p.datumPz ?? -18.875;
+  const roofY = (pz) => (CEIL + PITCH * (pz - DATUM)) * ft;
+  const plaster = new THREE.MeshStandardMaterial({ color: 0xf6f3ec, roughness: 0.95, side: THREE.DoubleSide });
+  const glass = new THREE.MeshStandardMaterial({ color: 0xeaf3fb, emissive: 0xdfeeff, emissiveIntensity: 0.85,
+    roughness: 0.1, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
+  const quad = (a, b, c, d, mat) => {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute([...a, ...b, ...c, ...a, ...c, ...d], 3));
+    geo.computeVertexNormals();
+    g.add(new THREE.Mesh(geo, mat));
+  };
+  // local: +x is one side of the width, +z is SOUTH (world z = -pz)
+  const x0 = -W / 2, x1 = W / 2, zS = D / 2, zN = -D / 2;
+  const yC = CEIL * ft, yS = roofY((p.pz ?? 0) - (p.depthFt ?? 2.5) / 2), yN = roofY((p.pz ?? 0) + (p.depthFt ?? 2.5) / 2);
+  quad([x0, yC, zS], [x1, yC, zS], [x1, yS, zS], [x0, yS, zS], plaster);   // south jamb
+  quad([x0, yC, zN], [x1, yC, zN], [x1, yN, zN], [x0, yN, zN], plaster);   // north jamb
+  quad([x0, yC, zS], [x0, yC, zN], [x0, yN, zN], [x0, yS, zS], plaster);   // side jambs
+  quad([x1, yC, zS], [x1, yC, zN], [x1, yN, zN], [x1, yS, zS], plaster);
+  quad([x0, yS, zS], [x1, yS, zS], [x1, yN, zN], [x0, yN, zN], glass);     // glazing, in the roof plane
+  // Daylight, so deliberately NOT registered with the lamp scenes — a skylight that
+  // went dark whenever the lamps did would be wrong at noon, which is when it matters.
+  const light = new THREE.PointLight(0xeaf2ff, p.intensity ?? 2.2, 0, 2);
+  light.position.set(0, (yS + yN) / 2 - 0.06, 0); g.add(light);
+  g.userData.fixtures = [];
+  return g;
+}
+
+const BUILDERS = { pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight,
+  range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, open_shelves: buildOpenShelves, counter_stool: buildCounterStool, banquette: buildBanquette, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, bentwood_chair: buildBentwoodChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 // Re-export a few individual builders so the viewer can drop single procedural
 // pieces (e.g. patio furniture on the alt roof deck) without going through the
 // furniture.json manifest.
@@ -2168,13 +2297,15 @@ const SIT = 0.22;           // pulled-out: this gap between seat front and table
 
 export async function buildFurniture({ scene, parent = scene, floorY, baseUrl, manifestFile = "furniture.json" }) {
   let data;
-  try { data = await (await fetch(`${baseUrl}${manifestFile}`)).json(); } catch (e) { return { chairMeshes: [], doorMeshes: [] }; }
+  try { data = await (await fetch(`${baseUrl}${manifestFile}`)).json(); } catch (e) { return { chairMeshes: [], doorMeshes: [], fixtures: [], ceilingOpenings: [] }; }
   const { ft = 0.3048, xs = -1, zs = 1, items = [] } = data || {};
   // plan (feet) -> three.js world: x = xs*px*ft, z = -(zs*pz*ft) (web-ifc maps IFC +Y -> -Z)
   const world = (px, pz) => [xs * px * ft, -(zs * pz * ft)];
 
   const doorEntries = [];   // { pivot, openAngle, current, open } — eased open/close
   const doorMeshes = [];    // hinged leaf meshes for raycast picking (userData.fdoor -> entry)
+  const fixtures = [];      // { light, emissive, x, z } -> the viewer's lighting scenes
+  const ceilingOpenings = [];  // skylight wells: the ceiling has to be cut for them
 
   // Flat/static pieces first (rugs) so the table + chairs sit on top of them.
   for (const it of items) {
@@ -2185,6 +2316,11 @@ export async function buildFurniture({ scene, parent = scene, floorY, baseUrl, m
     obj.userData.item = it;                                 // debug handle: the manifest entry behind this group
     if (it.rot) obj.rotation.y = (it.rot * Math.PI) / 180;  // e.g. a built-in facing into the room
     parent.add(obj);
+    if (obj.userData.fixtures) for (const f of obj.userData.fixtures) fixtures.push({ ...f, x, z });
+    if (it.type === "skylight") {
+      const hw = ((it.widthFt ?? 2.0) * ft) / 2, hd = ((it.depthFt ?? 2.5) * ft) / 2;
+      ceilingOpenings.push({ minX: x - hw, maxX: x + hw, minZ: z - hd, maxZ: z + hd });
+    }
     if (obj.userData.doors) for (const d of obj.userData.doors) {  // collect hinged leaves (e.g. bathroom)
       doorEntries.push(d);
       d.pivot.traverse((m) => { if (m.isMesh && m.userData.fdoor) doorMeshes.push(m); });
@@ -2259,5 +2395,5 @@ export async function buildFurniture({ scene, parent = scene, floorY, baseUrl, m
     const o = st.opening, [ax, az] = world(o.x1, o.z1), [bx, bz] = world(o.x2, o.z2);
     stairwellOpening = { minX: Math.min(ax, bx), maxX: Math.max(ax, bx), minZ: Math.min(az, bz), maxZ: Math.max(az, bz) };
   }
-  return { chairMeshes, stairwellOpening, doorMeshes };
+  return { chairMeshes, stairwellOpening, doorMeshes, fixtures, ceilingOpenings };
 }
