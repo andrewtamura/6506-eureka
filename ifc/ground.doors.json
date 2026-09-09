@@ -37,9 +37,9 @@
   },
   {
     "name": "Family -> Ext Vestibule",
-    "hingeMax": true,
-    "swingSign": 1,
-    "style": "panel"
+    "hingeMax": false,
+    "swingSign": -1,
+    "style": "8lite"
   },
   {
     "name": "Ext Vestibule -> Outside",

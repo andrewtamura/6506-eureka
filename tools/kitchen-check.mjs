@@ -750,11 +750,17 @@ console.log('EXTENSION');
       // Family room runs pz -11.917..0; a door hinged outside that opens off another room.
       for (const [n, d] of [['vestibule', v], ['laundry', l]])
         A(midPz(d) > -11.9 && midPz(d) < 0, `${n} door is on the family room's wall (pz ${R(midPz(d),2)})`);
-      const pier = Math.abs(midPz(v) - midPz(l));
-      A(pier > 0.9 && pier < 1.3, `${R(pier * 12, 1)} in between the two hinge jambs`);
-      // The vestibule/laundry partition lands on the centreline of that pier.
-      A(Math.abs((midPz(v) + midPz(l)) / 2 - (-4.4)) < 0.08,
-        `partition sits on the pier centreline (${R((midPz(v) + midPz(l)) / 2, 2)} vs -4.40)`);
+      // Each door hangs on the jamb NEAREST its own room's far side: the vestibule on
+      // its north jamb, the laundry on its north jamb too. So the pier is between the
+      // vestibule's OTHER jamb (3 ft south of its hinge) and the laundry's hinge.
+      A(Math.abs(midPz(v) - (-0.87)) < 0.06, `vestibule door hangs on its NORTH jamb (pz ${R(midPz(v),2)})`);
+      A(Math.abs(midPz(l) - (-4.93)) < 0.06, `laundry door hangs on its north jamb (pz ${R(midPz(l),2)})`);
+      const vSouth = midPz(v) - 3.0;                  // its other jamb, one door width away
+      const pier = vSouth - midPz(l);
+      A(pier > 0.9 && pier < 1.3, `${R(pier * 12, 1)} in of pier between the two openings`);
+      A(Math.abs((vSouth + midPz(l)) / 2 - (-4.4)) < 0.08,
+        `partition sits on the pier centreline (${R((vSouth + midPz(l)) / 2, 2)} vs -4.40)`);
+      A(v.parts === 9, `vestibule door is an 8-lite leaf: ${v.parts} members`);
       // They serve different rooms, so they swing apart rather than into each other.
       A((midPx(v) > -12) !== (midPx(l) > -12),
         'they swing apart — one into the family room, one into the laundry');

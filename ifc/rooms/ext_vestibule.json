@@ -16,8 +16,9 @@
       "fixed": -12,
       "pos": -2.37,
       "width": 3.0,
-      "hinge": "max",
-      "swing": "pos"
+      "hinge": "min",
+      "swing": "neg",
+      "doorStyle": "8lite"
     },
     {
       "name": "Ext Vestibule -> Outside",
