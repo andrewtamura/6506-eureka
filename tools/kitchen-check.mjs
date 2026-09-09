@@ -766,6 +766,28 @@ console.log('EXTENSION');
         'they swing apart — one into the family room, one into the laundry');
     } }
 
+  // DOOR TRIM on the family room's east wall — the two extension openings. Casing is
+  // wall-finish geometry, so it lands in the `loose` list and reads LOOSE_DY low.
+  { const EW = -11.77085, DY = 0.066;
+    const onWall = (m) => m.pxLo > EW - 0.05 && m.pxHi < EW + 0.30 && m.pzLo > -11.95 && m.pzHi < 0.05;
+    const posts = L.filter(m => onWall(m) && (m.pzHi - m.pzLo) < 0.45 && m.yLo < 0.05 && m.yHi > 6.5);
+    A(posts.length === 4, `four casing jambs, two per opening (${posts.length})`);
+    const at = posts.map(m => R((m.pzLo + m.pzHi) / 2, 2)).sort((u, v) => u - v);
+    A(JSON.stringify(at) === JSON.stringify([-7.93, -4.93, -3.87, -0.87]),
+      `jambs land on the openings: ${at.join(', ')}`);
+    // Casing projects 0.045 m; the recessed field is 0.012. Without that the plain
+    // field band above the head line — as wide as the wall — counted as a third head.
+    const heads = L.filter(m => onWall(m) && (m.pzHi - m.pzLo) > 3.4 && m.yLo > 6.5
+      && (m.pxHi - m.pxLo) > 0.10);
+    A(heads.length === 2, `a head casing over each opening (${heads.length})`);
+    if (heads.length) A(Math.abs(heads[0].yLo - (7.0 - DY)) < 0.05,
+      `head sits on the 7 ft opening line (${R(heads[0].yLo + DY, 2)} ft)`);
+    if (heads.length) A(Math.abs((heads[0].pzHi - heads[0].pzLo) - 3.66) < 0.05,
+      `head returns over both jambs (${R(heads[0].pzHi - heads[0].pzLo, 2)} ft over a 3 ft opening)`);
+    const base = L.filter(m => onWall(m) && m.yLo < 0.02 && m.yHi > 0.7 && m.yHi < 0.85);
+    A(base.length >= 2, `baseboard runs the wall in ${base.length} lengths`);
+  }
+
   // The outside door carries a half-round light: slab with the arc cut out, a glazed
   // half-disc, three radial bars, and panel relief below. 10 members in all.
   { const d = leaf(/Ext Vestibule -> Outside/);

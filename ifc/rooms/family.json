@@ -50,6 +50,11 @@
   "interior": {
     "flooring": {
       "material": "hardwood"
+    },
+    "paneling": {
+      "baseboard": 10,
+      "noCornice": true,
+      "battens": false
     }
   }
 }
