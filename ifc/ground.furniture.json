@@ -356,25 +356,85 @@
     {
       "type": "shower",
       "px": -20.1875,
-      "pz": 1.271,
+      "pz": 1.771,
       "rot": 0.0,
       "opens": "S",
       "widthFt": 5.0,
-      "depthFt": 5.0,
+      "depthFt": 4.0,
       "ponyFt": 2.5,
       "ponySide": "E",
       "curb": false,
-      "heads": 1
+      "heads": 1,
+      "heightFt": 9.0
     },
     {
       "type": "vanity",
       "px": -21.7729,
-      "pz": -2.579,
+      "pz": -2.004,
       "rot": 0.0,
       "faces": "W",
-      "widthFt": 2.25,
+      "widthFt": 3.1,
       "depthFt": 1.83,
-      "sinks": 1
+      "sinks": 1,
+      "cols": 2,
+      "rows": 1,
+      "mirrorWFt": 2.1,
+      "mirrorHFt": 3.1,
+      "mirrorTopFt": 6.5
+    },
+    {
+      "type": "sconce",
+      "px": -22.688,
+      "pz": -0.625,
+      "rot": 0.0,
+      "faces": "W",
+      "atFt": 5.0,
+      "plateFt": 0.3,
+      "plateHFt": 0.85,
+      "globeFt": 0.34,
+      "armFt": 0.26,
+      "intensity": 0.5,
+      "glow": 0.45,
+      "reachFt": 8.0
+    },
+    {
+      "type": "sconce",
+      "px": -22.688,
+      "pz": -3.383,
+      "rot": 0.0,
+      "faces": "W",
+      "atFt": 5.0,
+      "plateFt": 0.3,
+      "plateHFt": 0.85,
+      "globeFt": 0.34,
+      "armFt": 0.26,
+      "intensity": 0.5,
+      "glow": 0.45,
+      "reachFt": 8.0
+    },
+    {
+      "type": "recessed",
+      "px": -20.1875,
+      "pz": 1.8,
+      "rot": 0.0,
+      "ceilFt": 9.0,
+      "diaFt": 0.5
+    },
+    {
+      "type": "recessed",
+      "px": -20.1875,
+      "pz": -2.3,
+      "rot": 0.0,
+      "ceilFt": 9.0,
+      "diaFt": 0.5
+    },
+    {
+      "type": "recessed",
+      "px": -20.1875,
+      "pz": -6.4,
+      "rot": 0.0,
+      "ceilFt": 9.0,
+      "diaFt": 0.5
     },
     {
       "type": "toilet",
@@ -382,6 +442,14 @@
       "pz": -10.1835,
       "rot": 0.0,
       "faces": "E"
+    },
+    {
+      "type": "recessed",
+      "px": -20.1875,
+      "pz": -10.184,
+      "rot": 0.0,
+      "ceilFt": 9.0,
+      "diaFt": 0.5
     },
     {
       "type": "mudroom_bench",
