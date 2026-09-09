@@ -1045,7 +1045,9 @@ function buildShower(p) {
   const glass = new THREE.MeshStandardMaterial({ color: 0xafc4cc, roughness: 0.05, transparent: true, opacity: 0.26 });
   glass.depthWrite = false;
   const A = DIR[p.opens || "N"], P = [-A[1], A[0]];   // A = open (glass) side
-  const Wd = p.widthFt ?? 3.6, Dp = p.depthFt ?? 3.2, H = 6.8, wt = 0.3;
+  // Enclosure height is a parameter: a walk-in tiled to the ceiling is a different
+  // thing from one stopping at 6'10", and the glass over the pony wall follows it.
+  const Wd = p.widthFt ?? 3.6, Dp = p.depthFt ?? 3.2, H = p.heightFt ?? 6.8, wt = 0.3;
   const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
   let q;
   // Curb ONLY across the walk-in opening — not a full pan — so the continuous hex

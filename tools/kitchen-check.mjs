@@ -822,7 +822,11 @@ console.log('EXTENSION FIXTURES');
       A(west.length === 0, `the WEST half is open — that is the entrance (${west.length} members)`);
       const pony = east.filter(m => m.yLo < 0.1).sort((a, b) => b.yHi - a.yHi)[0];
       A(!!pony && pony.yHi > 3.0 && pony.yHi < 3.8, `pony wall stands ${R((pony ? pony.yHi : 0) * 12, 0)} in`);
-      A(east.some(m => m.yLo > 3.0 && m.yHi > 6.0), 'glass carries on above it');
+      A(east.some(m => m.yLo > 3.0 && m.yHi > 8.9), 'glass carries on above it, to the ceiling');
+      // FULL HEIGHT: the tiled enclosure runs floor to ceiling, not to 6'10".
+      A(Math.abs(Math.max(...mm.map(m => m.yHi)) - 9.0) < 0.08,
+        `enclosure tiled to ${R(Math.max(...mm.map(m => m.yHi)) * 12, 0)} in — the ceiling`);
+      A(mm.filter(m => m.yHi > 8.9).length >= 3, 'back and both sides all reach it');
       // No curb: a walk-in should not have a threshold across its entrance.
       A(!mm.some(m => m.yHi < 0.4 && m.yHi > 0.15 && (m.pxHi - m.pxLo) > 1.0), 'curbless — no threshold across the opening');
 

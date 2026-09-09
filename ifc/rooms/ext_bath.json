@@ -39,7 +39,8 @@
         "ponyFt": 2.5,
         "ponySide": "E",
         "curb": false,
-        "heads": 1
+        "heads": 1,
+        "heightFt": 9.0
       },
       {
         "type": "vanity",
