@@ -1877,6 +1877,57 @@ function buildBentwoodChair(p) {
   return g;
 }
 
+// A BUILT-IN MUDROOM BENCH (front = the `faces` side): plinth, seat slab, a boarded
+// back carrying a peg rail, a shelf over it, and a cheek closing each end. Sized off the
+// real thing — seat at 18", pegs at 55", shelf at 70" — so it reads as joinery rather
+// than a box against a wall.
+function buildMudroomBench(p) {
+  const ft = FT, g = new THREE.Group();
+  const A = DIR[p.faces || "W"], P = [-A[1], A[0]];
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
+  const box = (da, ds, y, dl, dw, hy, mat, rad = 0) => {
+    const [opx, opz, sx, sz] = pl(da, ds, dl, dw);
+    const geo = rad > 0 ? new RoundedBoxGeometry(sx * ft, hy * ft, sz * ft, 3, rad * ft)
+                        : new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft);
+    const m = new THREE.Mesh(geo, mat); m.position.copy(V(opx, opz, y));
+    m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  const paint = new THREE.MeshStandardMaterial({ color: col(p.paint || "chalk", 0xf8f5ef), roughness: 0.6 });
+  const brass = new THREE.MeshStandardMaterial({ color: 0xb08d57, roughness: 0.35, metalness: 0.6 });
+  const L = p.lenFt ?? 5.0, D = p.depthFt ?? 1.5;
+  const SEAT = 1.5, PL = 0.30, RAIL = p.railFt ?? 4.58, SHELF = p.shelfFt ?? 5.85;
+  const bk = -D / 2;                                   // the wall plane, in front-offsets
+  const CH = 0.09;                                     // end cheek thickness
+
+  box(bk + (D - 0.16) / 2, 0, PL / 2, D - 0.16, L - 2 * CH, PL, paint);          // plinth, set back as a toe
+  box(0.02, 0, SEAT - 0.06, D + 0.04, L, 0.12, paint, 0.015);                     // seat slab, nosed proud
+  box(bk + 0.03, 0, (SEAT + SHELF) / 2, 0.06, L, SHELF - SEAT, paint);            // boarded back
+  const nB = Math.max(2, Math.round(L / 1.05));                                   // battens on the boarding
+  for (let i = 0; i <= nB; i++) {
+    const w = 0.09, ds = -L / 2 + (i * L) / nB + (i === 0 ? w / 2 : i === nB ? -w / 2 : 0);
+    box(bk + 0.075, ds, (SEAT + SHELF) / 2, 0.03, w, SHELF - SEAT, paint);
+  }
+  box(bk + 0.10, 0, RAIL, 0.09, L - 2 * CH, 0.34, paint);                          // peg rail
+  box(bk + 0.35 / 2, 0, SHELF + 0.04, 0.35, L, 0.08, paint, 0.01);                 // shelf
+  for (const sg of [-1, 1]) box(0, sg * (L / 2 - CH / 2), (SHELF + 0.08) / 2, D, CH, SHELF + 0.08, paint); // cheeks
+
+  // Shaker pegs on the rail, angled out along the facing direction.
+  const outward = new THREE.Vector3(-A[0], 0, -A[1]).normalize();
+  const nH = p.hooks ?? 5, span = L - 2 * CH - 0.5;
+  for (let i = 0; i < nH; i++) {
+    const ds = -span / 2 + (span * i) / (nH - 1);
+    let q = pl(bk + 0.22, ds, 0, 0);
+    const peg = new THREE.Mesh(new THREE.CylinderGeometry(0.026 * ft, 0.036 * ft, 0.30 * ft, 12), brass);
+    peg.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), outward);
+    peg.position.copy(V(q[0], q[1], RAIL)); g.add(peg);
+    q = pl(bk + 0.375, ds, 0, 0);
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.045 * ft, 12, 9), brass);
+    knob.position.copy(V(q[0], q[1], RAIL)); g.add(knob);
+  }
+  return g;
+}
+
 // A built-in CAFE BANQUETTE: a painted plinth and seat box carrying a buttoned
 // leather squab, with a stile-and-rail panelled back board against the wall. Built
 // the way one actually is — the box is joinery, the back is a panelled wall board,
@@ -2416,7 +2467,7 @@ function buildSkylight(p) {
   return g;
 }
 
-const BUILDERS = { pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight,
+const BUILDERS = { mudroom_bench: buildMudroomBench, pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight,
   range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, open_shelves: buildOpenShelves, counter_stool: buildCounterStool, banquette: buildBanquette, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, bentwood_chair: buildBentwoodChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 // Re-export a few individual builders so the viewer can drop single procedural
 // pieces (e.g. patio furniture on the alt roof deck) without going through the
