@@ -2404,6 +2404,25 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
                 for j in range(1, rows):                         # rows-1 horizontal
                     zc = fz0 + j * (fz1 - fz0) / rows
                     dbox(cc, pane, zc - mh, zc + mh, DMUN, WOOD)
+        elif style == "halfmoon":
+            # A panelled door with a HALF-ROUND light in the top. The arch is stepped
+            # from boxes here — this path only draws the exterior massing, and dbox is
+            # all it has; the viewer cuts a true arc (see leafParts in src/main.js).
+            r = fw / 2                                           # arch radius (ft)
+            spring = fz1 - r * FT                                # springline
+            LOCK = 0.5
+            dbox(pos, fw, spring - LOCK * FT, spring, DFRAME, WOOD)          # lock rail under the arch
+            dbox(pos, MUN, fz0, spring - LOCK * FT, DFRAME, WOOD)            # muntin -> two lower panels
+            for cc in (pos - (fw + MUN) / 4, pos + (fw + MUN) / 4):
+                dbox(cc, (fw - MUN) / 2 - 0.12, fz0 + 0.10 * FT,
+                     spring - (LOCK + 0.10) * FT, DPANE, WOOD)               # raised panels
+            N = 7
+            for j in range(N):                                               # stepped half-round
+                y0 = spring + j * (r * FT) / N
+                y1 = spring + (j + 1) * (r * FT) / N
+                mid = (j + 0.5) / N                                          # 0..1 up the arc
+                half = r * math.sqrt(max(0.0, 1.0 - mid * mid))
+                dbox(pos, 2 * half, y0, y1, DPANE, GLASS)
         else:                                                    # raised panelled door
             front = style == "front"
             MIDm = 0.5 * FT                                      # intermediate rail height (m)

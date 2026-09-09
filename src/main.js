@@ -2078,6 +2078,39 @@ async function main() {
         // 10lite are the same code path and a new count needs none.
         const lm = /^(\d+)lite$/.exec(style);
         const rows = lm && +lm[1] >= 2 && +lm[1] % 2 === 0 ? +lm[1] / 2 : 0;
+        // HALF-MOON: a slab with a true half-round hole cut in it (Shape + hole, so the
+        // light is actually open rather than a disc laid on a solid door), a glazed
+        // half-disc in the opening and three radial bars.
+        if (style === "halfmoon") {
+          const ST = Math.min(0.115, leafW * 0.15), TR = 0.10;
+          const r = Math.min((leafW - 2 * ST) / 2, (sy - TR) * 0.32);
+          const springY = sy - TR - r;
+          const outline = new THREE.Shape();
+          outline.moveTo(0, 0); outline.lineTo(leafW, 0); outline.lineTo(leafW, sy); outline.lineTo(0, sy);
+          const hole = new THREE.Path();
+          hole.absarc(leafW / 2, springY, r, 0, Math.PI, false);
+          outline.holes.push(hole);
+          const sg = new THREE.ExtrudeGeometry(outline, { depth: th, bevelEnabled: false });
+          sg.translate(0, 0, -th / 2); sg.scale(dirSign, 1, 1);
+          const slab = new THREE.Mesh(sg, doorMat); grp.add(slab); meshes.push(slab);
+          const disc = new THREE.Mesh(new THREE.CircleGeometry(r * 1.01, 40, 0, Math.PI), doorGlass);
+          disc.position.set(dirSign * leafW / 2, springY, 0); grp.add(disc); meshes.push(disc);
+          for (const a of [0.25, 0.5, 0.75]) {                       // radial glazing bars
+            const bar = new THREE.Mesh(new THREE.BoxGeometry(0.022, r, th * 0.55), doorMat);
+            bar.position.set(dirSign * (leafW / 2 + Math.cos(Math.PI * a) * r / 2),
+                             springY + Math.sin(Math.PI * a) * r / 2, 0);
+            bar.rotation.z = Math.PI * a - Math.PI / 2;
+            grp.add(bar); meshes.push(bar);
+          }
+          // Frame relief on the solid part, so it reads as a panelled door under the
+          // light rather than a plain slab — matching the massing in ifc/builders.py.
+          const us = ST / leafW, ue = 1 - us, lock = springY - 0.075;
+          put(0, us, 0, sy, doorMat, th * 1.04); put(ue, 1, 0, sy, doorMat, th * 1.04);   // stiles
+          put(us, ue, lock, lock + 0.075, doorMat, th * 1.04);                            // lock rail
+          put(us, ue, 0.02, 0.20, doorMat, th * 1.04);                                    // bottom rail
+          put(0.485, 0.515, 0.20, lock, doorMat, th * 1.04);                              // muntin -> two panels
+          return { grp, meshes };
+        }
         if (!rows) { put(0, 1, 0, sy, doorMat); return { grp, meshes }; }
         const ST = Math.min(0.11, leafW * 0.14), BR = 0.30, TR = 0.11, MU = 0.032;
         const us = ST / leafW, ue = 1 - us, gy0 = BR, gy1 = sy - TR;

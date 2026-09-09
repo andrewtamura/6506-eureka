@@ -5,16 +5,16 @@
   "bounds": {
     "x1": -17.4583,
     "x2": -12,
-    "z1": -2.4583,
+    "z1": -4.4,
     "z2": 4
   },
   "walls": true,
   "doors": [
     {
-      "name": "Sitting -> Ext Vestibule",
+      "name": "Family -> Ext Vestibule",
       "orient": "V",
       "fixed": -12,
-      "pos": 1.75,
+      "pos": -2.37,
       "width": 3.0,
       "hinge": "max",
       "swing": "pos"
@@ -26,7 +26,8 @@
       "pos": -14.73,
       "width": 3.0,
       "hinge": "max",
-      "swing": "pos"
+      "swing": "pos",
+      "doorStyle": "halfmoon"
     }
   ],
   "windows": [],

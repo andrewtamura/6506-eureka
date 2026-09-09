@@ -36,7 +36,7 @@
     "style": "panel"
   },
   {
-    "name": "Sitting -> Ext Vestibule",
+    "name": "Family -> Ext Vestibule",
     "hingeMax": true,
     "swingSign": 1,
     "style": "panel"
@@ -45,7 +45,7 @@
     "name": "Ext Vestibule -> Outside",
     "hingeMax": true,
     "swingSign": 1,
-    "style": "panel"
+    "style": "halfmoon"
   },
   {
     "name": "Back Door",

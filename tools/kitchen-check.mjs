@@ -726,6 +726,49 @@ console.log('WAINSCOT + LIGHTING');
   });
 }
 
+// ============================================================ EAST EXTENSION
+// Laundry / bath / WC / vestibule. An open leaf stands perpendicular to its wall, so
+// the thin axis of its box IS the hinge jamb — which is what these measure.
+console.log('EXTENSION');
+{ const leaf = (re) => (raw.doorLeaves || []).find(d => re.test(d.name));
+  const midPx = (d) => (d.pxLo + d.pxHi) / 2, midPz = (d) => (d.pzLo + d.pzHi) / 2;
+
+  // WC door: 6 in of wall between the bath's east wall and the opening.
+  { const d = leaf(/Bath -> WC/);
+    A(!!d, 'WC door leaf found');
+    if (d) {
+      const face = -22.917 + 0.22915;                 // bath east wall, interior face
+      A(Math.abs(midPx(d) - face - 0.5) < 0.03,
+        `${R((midPx(d) - face) * 12, 1)} in of return from the bath's east wall`);
+      A(d.pzHi <= -7.459 + 0.02, `swings into the WC (pz ${R(d.pzLo,2)}..${R(d.pzHi,2)})`);
+    } }
+
+  // TWIN DOORS, side by side on the family room's east wall.
+  { const v = leaf(/Family -> Ext Vestibule/), l = leaf(/Family -> Ext Laundry/);
+    A(!!v && !!l, 'both extension doors open off the family room');
+    if (v && l) {
+      // Family room runs pz -11.917..0; a door hinged outside that opens off another room.
+      for (const [n, d] of [['vestibule', v], ['laundry', l]])
+        A(midPz(d) > -11.9 && midPz(d) < 0, `${n} door is on the family room's wall (pz ${R(midPz(d),2)})`);
+      const pier = Math.abs(midPz(v) - midPz(l));
+      A(pier > 0.9 && pier < 1.3, `${R(pier * 12, 1)} in between the two hinge jambs`);
+      // The vestibule/laundry partition lands on the centreline of that pier.
+      A(Math.abs((midPz(v) + midPz(l)) / 2 - (-4.4)) < 0.08,
+        `partition sits on the pier centreline (${R((midPz(v) + midPz(l)) / 2, 2)} vs -4.40)`);
+      // They serve different rooms, so they swing apart rather than into each other.
+      A((midPx(v) > -12) !== (midPx(l) > -12),
+        'they swing apart — one into the family room, one into the laundry');
+    } }
+
+  // The outside door carries a half-round light: slab with the arc cut out, a glazed
+  // half-disc, three radial bars, and panel relief below. 10 members in all.
+  { const d = leaf(/Ext Vestibule -> Outside/);
+    A(!!d, 'vestibule outside door leaf found');
+    if (d) A(d.parts === 10,
+      `half-moon leaf: ${d.parts} members (pierced slab, glazed disc, 3 bars, 2 stiles, 2 rails, muntin)`);
+  }
+}
+
 // FAMILY -> SCULLERY door. Both facts are measured: this is the third swing set from a
 // sign convention in this model and the first two were wrong until someone looked.
 { const d = (raw.doorLeaves || []).find(x => /Family -> Scullery/i.test(x.name));

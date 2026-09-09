@@ -6,7 +6,7 @@
     "x1": -17.4583,
     "x2": -12,
     "z1": -11.9167,
-    "z2": -2.4583
+    "z2": -4.4
   },
   "walls": true,
   "doors": [
@@ -14,8 +14,8 @@
       "name": "Laundry -> Bath",
       "orient": "V",
       "fixed": -17.4583,
-      "pos": -5.13,
-      "width": 2.67,
+      "pos": -5.93,
+      "width": 2.0,
       "opening": true
     }
   ],
