@@ -805,6 +805,17 @@ async function main() {
   world.camera = new OBC.SimpleCamera(components);
   components.init();
 
+  // `?norender=1` holds the renderer off until the model is built. The renderer runs in
+  // AUTO mode — a frame per update tick — and in HEADLESS software rendering every
+  // presented frame costs a synchronous GPU readback. Traced over a `?solo=ground` load:
+  // 99 animation frames, 86 GLES2::ReadPixels, 19.2 s of a 26 s load blocked in
+  // CommandBufferHelper::Finish waiting for them. A real GPU presents without that
+  // readback, so this is a HEADLESS cost — hence a flag, not the default: a visitor
+  // wants to watch the model appear, and would otherwise stare at a blank canvas.
+  // Rendering resumes at the end of init, so screenshots after load are unaffected.
+  const NORENDER = new URLSearchParams(location.search).get("norender") === "1";
+  if (NORENDER) world.renderer.enabled = false;
+
   world.scene.setup();
   const scene = world.scene.three;
   await world.camera.controls.setLookAt(18, 14, 18, 0, 1.5, 0);
@@ -945,6 +956,10 @@ async function main() {
   // there is no runtime CDN dependency. The default getWorker() fetches it
   // from unpkg, which we deliberately avoid.
   fragments.init(`${BASE}worker.mjs`);
+  // ifcLoader.load(..., coordinate=false) keeps authored coordinates; core.load has
+  // no such argument, so say the same thing here or a prebuilt model would be
+  // recentred on the first one loaded.
+  if (fragments.core?.settings) fragments.core.settings.autoCoordinate = false;
 
   // Keep the fragments geometry in sync with the camera. Force the upload to
   // finish on every change (not just on "rest") so hardwood planks and walls
@@ -980,12 +995,33 @@ async function main() {
   setStatus("Loading model…");
   const levelsCfg = (await (await fetch(`${BASE}levels.json${VER}`)).json()).levels;
   const groundLevel = levelsCfg.find((l) => l.id === "ground") || levelsCfg[0];
+  // `?solo=<id>` loads ONLY that level. The Second Floor and Attic sit beside the
+  // ground floor as display-only exhibits, and streaming them dominates load time:
+  // profiled cold, the ground floor is ready at 21.8 s and everything else takes
+  // until 400 s. A headless check that only measures the ground floor should not
+  // pay for models it never looks at.
+  const SOLO = new URLSearchParams(location.search).get("solo");
   const groundManifests = groundLevel.manifests;
   // coordinate=false keeps authored coordinates so the floor sits on the grid.
+  // Prefer a PREBUILT .frag: scripts/build-fragments.mjs runs the same web-ifc
+  // conversion at build time, so the browser skips it entirely. Falls back to
+  // parsing the IFC if the .frag is missing, which keeps a bare checkout working.
   const loadIfc = async (file, name) => {
-    const r = await fetch(`${BASE}${file}${VER}`);
-    if (!r.ok) throw new Error(`Could not fetch ${file} (${r.status})`);
-    const m = await ifcLoader.load(new Uint8Array(await r.arrayBuffer()), false, name);
+    let m = null;
+    const fr = await fetch(`${BASE}${file.replace(/\.ifc$/, ".frag")}${VER}`).catch(() => null);
+    // `fr.ok` is NOT enough: a dev server's SPA fallback answers a missing .frag with
+    // index.html at status 200, which then reaches the loader as HTML. Require that the
+    // body is not html before believing it.
+    const isFrag = fr && fr.ok && !/text\/html/i.test(fr.headers.get("content-type") || "");
+    if (isFrag) {
+      try { m = await fragments.core.load(new Uint8Array(await fr.arrayBuffer()), { modelId: name }); }
+      catch (err) { console.warn(`prebuilt ${file} unusable, parsing the IFC instead`, err); m = null; }
+    }
+    if (!m) {
+      const r = await fetch(`${BASE}${file}${VER}`);
+      if (!r.ok) throw new Error(`Could not fetch ${file} (${r.status})`);
+      m = await ifcLoader.load(new Uint8Array(await r.arrayBuffer()), false, name);
+    }
     // ALL_VISIBLE: no view-based hiding, so geometry doesn't pop as you pan.
     await m.setLodMode(FRAGS.LodMode.ALL_VISIBLE);
     await fragments.core.update(true);
@@ -1233,7 +1269,8 @@ async function main() {
     // the SOUTH (world +Z), a scratch lot for trying a different eastern addition.
     // It gets the same day sky-fill, night window glow, and landscape lighting, so
     // it reads identically; the switcher's Lot slot toggles between the two lots.
-    try {
+    // The alt lot is a second full copy of the 1.3 MB exterior — skipped under `solo`.
+    if (!SOLO) try {
       const FT = 0.3048;
       const alt = await loadIfc(exteriorLvl.ifc, "Exterior (alt)");
       let ab = new THREE.Box3().setFromObject(alt.object);
@@ -1656,11 +1693,20 @@ async function main() {
 
   // Stream in the remaining levels (Level 2, Attic) to the West — display-only
   // exhibits beside the ground floor. The exterior is already loaded + framed.
-  for (const lvl of levelsCfg) {
-    if (lvl.id === groundLevel.id || lvl.id === exteriorLvl?.id) continue;
-    try { await placeExhibit(lvl, false); }
-    catch (err) { console.warn(`exhibit ${lvl.id} failed`, err); }
-  }
+  // NOT awaited. The Second Floor and Attic are display-only exhibits parked beside
+  // the building; building them takes minutes (fragments' own core.update dominates,
+  // and it is called from inside the library where we cannot thin it out), and none
+  // of it is on screen at the landing view. Streaming them behind a finished, usable
+  // page turns a ~290 s wait into a ~15 s one. Anything that needs them awaits
+  // `exhibitsReady` — the switcher tabs and the walker registration below.
+  const exhibitsReady = (async () => {
+    for (const lvl of levelsCfg) {
+      if (lvl.id === groundLevel.id || lvl.id === exteriorLvl?.id) continue;
+      if (SOLO && lvl.id !== SOLO) continue;
+      try { await placeExhibit(lvl, false); }
+      catch (err) { console.warn(`exhibit ${lvl.id} failed`, err); }
+    }
+  })();
   {
     // Title each view with a flat label laid on the grid in FRONT of it (North =
     // world -Z), set well clear of the building and oriented to read upright from
@@ -1743,12 +1789,14 @@ async function main() {
   // POV. Only the floor slabs are walkable, so the raycast steps past the roof /
   // ceiling / window glass ("blue boxes") — those stay in place but never block
   // the teleport. Stand exactly where tapped (the slab's own world height).
-  for (const { lvl, model: em } of exhibitModels) {
-    if (lvl.id === "exterior") continue;               // already registered above
-    const fids = new Set(Object.values(await em.getItemsOfCategories([/IFCSLAB/])).flat());
-    walker.register(em, (id) => fids.has(id),
-      (hit) => ({ x: hit.point.x, y: hit.point.y + EYE, z: hit.point.z }));
-  }
+  exhibitsReady.then(async () => {
+    for (const { lvl, model: em } of exhibitModels) {
+      if (lvl.id === "exterior") continue;             // already registered above
+      const fids = new Set(Object.values(await em.getItemsOfCategories([/IFCSLAB/])).flat());
+      walker.register(em, (id) => fids.has(id),
+        (hit) => ({ x: hit.point.x, y: hit.point.y + EYE, z: hit.point.z }));
+    }
+  });
 
   // --- interactive doors (double-tap a door to swing it open/closed) ------
   const doorMeshes = []; // door panel meshes (for raycasting)
@@ -1824,7 +1872,13 @@ async function main() {
   // Shared by the always-visible #level-switcher, the 📷 Camera views menu, and
   // the pinch/scroll "back out" gesture, so they all stay in sync.
   const focusLevel = async (id, transition = true) => {
-    const mv = modelViews.find((v) => v.id === id);
+    let mv = modelViews.find((v) => v.id === id);
+    if (!mv) {                                  // still streaming in — wait for it
+      setStatus("Loading level…");
+      await exhibitsReady;
+      setStatus("");
+      mv = modelViews.find((v) => v.id === id);
+    }
     if (!mv) return;
     await clearSelection();
     overviewControls();
@@ -1850,7 +1904,11 @@ async function main() {
   const hasAlt = modelViews.some((v) => v.id === "exterior-alt");
   for (const lvl of levelsCfg) {
     const mv = modelViews.find((v) => v.id === lvl.id);
-    if (!mv) continue;
+    // A level whose exhibit is still streaming has no modelView yet — give it a tab
+    // anyway, and focusLevel will wait for it. Under `solo` those levels never load,
+    // so they get no tab at all.
+    const streaming = !mv && !SOLO && lvl.id !== groundLevel.id && lvl.id !== exteriorLvl?.id;
+    if (!mv && !streaming) continue;
     if (lvl.id === "exterior" && hasAlt) {
       // Lot slot gets an up/down toggle: the default exterior lot (top) and the
       // alternative lot (bottom), stacked within the left-to-right switcher.
@@ -1860,9 +1918,13 @@ async function main() {
       col.appendChild(makeTab("exterior-alt", "Alt", "Alternative exterior lot (south)"));
       switcherEl.appendChild(col);
     } else {
-      switcherEl.appendChild(makeTab(mv.id, SHORT[mv.id] || mv.label, mv.label));
+      const label = mv ? (mv.label) : (lvl.label || lvl.storey);
+      switcherEl.appendChild(makeTab(lvl.id, SHORT[lvl.id] || label, label));
     }
   }
+
+  // Model is built and the UI is up — start drawing again (see `?norender` above).
+  if (NORENDER) { world.renderer.enabled = true; await fragments.core.update(true); }
 
   // 📷 Camera views menu: same presets, full labels (routes through focusLevel).
   const viewsEl = document.getElementById("views");

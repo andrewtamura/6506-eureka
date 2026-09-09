@@ -113,6 +113,51 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   and attic exhibits; and call `setPlanView(false)` for interiors, because the viewer opens in
   see-through-ceiling mode and would show straight through a ceiling or a skylight well.
   `waitUntil: 'networkidle2'` never fires — the viewer streams levels forever.
+- **`?norender=1` holds frames off until the model is built.** The renderer runs in AUTO
+  mode (a frame per update tick), and in HEADLESS software rendering every presented frame
+  costs a synchronous GPU readback. Traced over a `?solo=ground` load: 99 animation frames,
+  86 `GLES2::ReadPixels`, and **19.2 s of a 26 s load** blocked in
+  `CommandBufferHelper::Finish` waiting on them. Both tools set the flag; it took the
+  harness from 34 s to **20 s** and a render from 51 s to 34 s. Rendering resumes at the
+  end of init, so screenshots are unaffected. It is a flag rather than the default because
+  a real GPU presents without that readback — this is a headless cost, and a visitor
+  should watch the model appear rather than stare at a blank canvas.
+- **How to find this class of problem: use a Chrome trace, not stacks or micro-benchmarks.**
+  `page.tracing.start({ categories: ['devtools.timeline','gpu','toplevel'] })`, then sum
+  `dur` by event name. Three cheaper instruments all pointed the wrong way first: a CPU
+  profile blamed `(program)` (76%, which is just "native, not JS"); shrinking the viewport
+  56x changed almost nothing (so not fill rate); and wrapping every WebGL call from the
+  page measured 0.1 s (the readbacks are issued from fragments' worker on an OffscreenCanvas,
+  invisible to a `HTMLCanvasElement.getContext` patch). Only the trace named `ReadPixels`.
+- **Don't try to speed up fragments' `core.update` — avoid CALLING it.** Measured over a
+  full load: 7 forced calls cost 48 s and 42 unforced ones cost 160 s, i.e. ~206 s of a
+  290 s load is inside that one function, and the `force` flag barely matters because the
+  pending queue gets processed either way. Only 6 of those 53 calls come from this repo;
+  the rest are inside the library, so they cannot be thinned from outside. Two fixes that
+  looked obvious and measured as *no change at all* — flipping the per-frame camera
+  listener to unforced, and de-forcing the floor modules — were tried and reverted. The
+  thing that worked was moving the work off the critical path (see the exhibits below).
+- **`?solo=<level>` loads only that level.** The Second Floor and Attic sit beside the
+  ground floor as display-only exhibits, and streaming them dominates load time: profiled
+  cold, the ground floor is measurable at 21.8 s and everything else runs to 400 s. Both
+  `tools/kitchen-check.mjs` and `tools/shot.mjs` use it, which is what took a full harness
+  run from **344 s to 35 s**. Drop it (`CHECK_URL=http://localhost:5173/`) only when a
+  change could affect the exhibits or the level switcher.
+- **Exhibits stream in behind a finished page.** The Second Floor and Attic are
+  display-only models parked beside the building, and building them takes minutes. The
+  exhibit loop is deliberately NOT awaited: init finishes, the switcher gets a tab for
+  every level, and `focusLevel` awaits `exhibitsReady` if you click one that has not
+  arrived. Interactive at 52 s instead of 288 s. If you add anything that needs an
+  exhibit's model at init time, hang it off `exhibitsReady` — the walker registration is
+  the worked example.
+- **Prebuilt fragments.** `scripts/build-fragments.mjs` runs the web-ifc conversion in Node
+  at build time (0.7 s for the 1.3 MB exterior) and writes `public/<level>.frag`; the viewer
+  fetches those and skips parsing. It is wired into `prepare-assets` and is incremental, so
+  a no-op run costs ~1 s. Two things to keep in mind: `webIfcSettings.CIRCLE_SEGMENTS` there
+  MUST match `ifcLoader.setup({ webIfc: ... })` in `src/main.js` or round furniture quietly
+  goes coarse; and a missing `.frag` cannot be detected by `response.ok`, because a dev
+  server's SPA fallback answers with index.html at status 200 — the loader checks the
+  content-type instead, then falls back to parsing the IFC.
 - **Iterate with `node tools/kitchen-check.mjs --from`.** A full run is ~5m45s, almost
   all of it booting Chromium and loading the ground model; the ~136 assertions after
   that are arithmetic on a cached JSON blob and replay in ~0.3 s. So measure once, then

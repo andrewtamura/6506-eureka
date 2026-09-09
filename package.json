@@ -4,12 +4,13 @@
   "description": "BIM viewer for the Eureka residence, built on That Open Engine",
   "type": "module",
   "scripts": {
-    "prepare-assets": "node scripts/prepare-assets.mjs",
+    "prepare-assets": "node scripts/build-fragments.mjs && node scripts/prepare-assets.mjs",
     "predev": "npm run prepare-assets",
     "dev": "vite",
     "prebuild": "npm run prepare-assets",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "build-fragments": "node scripts/build-fragments.mjs"
   },
   "dependencies": {
     "@thatopen/components": "~3.4.0",

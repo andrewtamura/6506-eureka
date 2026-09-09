@@ -21,7 +21,10 @@ await page.setViewport({ width: 1400, height: 900 });
 page.on('pageerror', e => console.log(' [pageerror]', String(e).slice(0, 200)));
 // domcontentloaded + poll, NOT networkidle2 — the viewer streams levels forever and
 // never goes idle, so networkidle2 just times out.
-await page.goto('http://localhost:5173/', { waitUntil: 'domcontentloaded' });
+// Only the level being photographed is loaded — see `?solo` in src/main.js.
+// norender holds frames off during the build; rendering resumes at the end of init,
+// well before any screenshot is taken.
+await page.goto(`http://localhost:5173/?solo=${level}&norender=1`, { waitUntil: 'domcontentloaded' });
 for (let i = 0; i < 180; i++) {
   if (await page.evaluate(() => !!document.querySelector('#level-switcher .view-btn, #level-switcher [data-id]') && !!window.__eureka)) break;
   await new Promise(r => setTimeout(r, 2000));
