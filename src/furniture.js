@@ -1051,9 +1051,11 @@ function buildShower(p) {
   // Curb ONLY across the walk-in opening — not a full pan — so the continuous hex
   // floor tile runs unbroken through the shower (this threshold is the single break).
   { const curbMat = new THREE.MeshStandardMaterial({ color: 0xcfd2d4, roughness: 0.5 });
-    const oW = p.ponyWalls ? (p.openFt ?? 4.0) : Wd / 2;
-    const oC = p.ponyWalls ? 0 : Wd / 4;
-    q = pl(Dp / 2, oC, 0.34, oW); box(q[0], q[1], 0.14, q[2], q[3], 0.28, curbMat); }       // threshold curb at the opening
+    if (p.curb !== false) {
+      const oW = p.ponyWalls ? (p.openFt ?? 4.0) : Wd / 2;
+      const oC = p.ponyWalls ? 0 : Wd / 4;
+      q = pl(Dp / 2, oC, 0.34, oW); box(q[0], q[1], 0.14, q[2], q[3], 0.28, curbMat);       // threshold curb
+    } }
   q = pl(-(Dp / 2), 0, wt, Wd);    box(q[0], q[1], H / 2, q[2], q[3], H, tile);            // back wall
   for (const s of [-1, 1]) { q = pl(0, s * (Wd / 2), Dp, wt); box(q[0], q[1], H / 2, q[2], q[3], H, tile); } // sides
   if (p.ponyWalls) {
@@ -1074,6 +1076,17 @@ function buildShower(p) {
       q = pl(inner, c, 0.1, ponyW * 0.6);   box(q[0], q[1], 2.45, q[2], q[3], 1.2, niche);                    // recessed product niche in the pony wall
       q = pl(inner, c, 0.16, ponyW * 0.6);  box(q[0], q[1], 2.45, q[2], q[3], 0.05, bench);                   // niche shelf
     }
+  } else if (p.ponyFt) {
+    // ONE pony wall with glass over it, hard against the named side, leaving the rest of
+    // the opening as the walk-in. `ponySide` is a compass direction resolved against the
+    // across-axis, so it reads the same whichever way the shower opens.
+    const d = DIR[p.ponySide || "E"];
+    const sgn = Math.sign(d[0] * P[0] + d[1] * P[1]) || 1;
+    const ponyH = 3.4, c = sgn * (Wd / 2 - p.ponyFt / 2);
+    q = pl(Dp / 2, c, wt, p.ponyFt);
+    box(q[0], q[1], ponyH / 2, q[2], q[3], ponyH, tile);                                    // pony wall
+    q = pl(Dp / 2, c, 0.05, p.ponyFt - 0.08);
+    box(q[0], q[1], (ponyH + H) / 2, q[2], q[3], H - ponyH, glass);                          // glass over it
   } else {
     q = pl(Dp / 2, -(Wd / 4), 0.05, Wd / 2); box(q[0], q[1], 3.3, q[2], q[3], 6.6, glass);  // fixed glass over half
   }
@@ -2231,6 +2244,29 @@ function buildAppliance(p) {
     box(q[0], q[1], mc - 0.1, q[2], q[3], 0.3, steel, 0.01);                                           // controls
     q = pl(D / 2 + 0.03, 0, 0.05, W - 0.06);
     box(q[0], q[1], (y0 + y1 - MH) / 2, q[2], q[3], y1 - MH - y0 - 0.05, steel, 0.02);                 // panel below
+    return g;
+  }
+  if (kind === "washer" || kind === "dryer") {
+    // Front loaders: body, control panel across the top, and a porthole. The door disc
+    // is oriented off `faces` rather than assuming a wall axis, so a pair can sit on any
+    // wall without the portholes ending up edge-on.
+    const W = p.widthFt ?? 2.25, D = p.depthFt ?? 2.5, H = p.topFt ?? 3.0;
+    const disc = (da, ds, yc, r, t, mat) => {
+      const c = pl(da, ds, 0, 0);
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(r * ft, r * ft, t * ft, 28), mat);
+      m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0),
+        new THREE.Vector3(-A[0], 0, -A[1]).normalize());
+      m.position.copy(V(c[0], c[1], yc)); m.castShadow = true; g.add(m); return m;
+    };
+    q = pl(0, 0, D, W);                      box(q[0], q[1], H / 2, q[2], q[3], H, steel, 0.02);
+    q = pl(D / 2 + 0.02, 0, 0.05, W - 0.10); box(q[0], q[1], H - 0.24, q[2], q[3], 0.40, dark, 0.02);  // control panel
+    disc(D / 2 + 0.03, 0, H * 0.42, W * 0.40, 0.07, steel);        // door ring
+    disc(D / 2 + 0.07, 0, H * 0.42, W * 0.32, 0.05,
+         kind === "dryer" ? dark : glass);                          // porthole (the dryer's reads solid)
+    for (const sx of [-1, 1]) for (const sd of [-1, 1]) {           // levelling feet
+      q = pl(sd * (D / 2 - 0.12), sx * (W / 2 - 0.12), 0.10, 0.10);
+      box(q[0], q[1], 0.05, q[2], q[3], 0.10, dark);
+    }
     return g;
   }
   if (kind === "dishwasher") {

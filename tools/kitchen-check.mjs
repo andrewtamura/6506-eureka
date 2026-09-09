@@ -726,6 +726,67 @@ console.log('WAINSCOT + LIGHTING');
   });
 }
 
+// ============================================================ EXTENSION FIXTURES
+// Laundry pair, WC toilet, and the bath's walk-in shower + vanity.
+console.log('EXTENSION FIXTURES');
+{ const LS = -11.688, BE = -22.688, BW = -17.687, BN = 3.771;   // interior faces
+  const ext = P.filter(r => r.px < -11.9);
+
+  // LAUNDRY: washer and dryer side by side, backs to the south wall.
+  { const pair = ext.filter(r => r.type === 'appliance' && /washer|dryer/.test(r.kind)).sort((a, b) => a.px - b.px);
+    A(pair.length === 2, `washer and dryer (${pair.length})`);
+    if (pair.length === 2) {
+      A(pair.every(m => Math.abs(m.pzLo - LS) < 0.06), 'both back onto the south wall');
+      A(pair[1].pxLo - pair[0].pxHi > 0.02, `side by side, ${R((pair[1].pxLo - pair[0].pxHi) * 12, 1)} in apart`);
+      A(pair[0].pxLo > -17.29 && pair[1].pxHi < -12.17, 'the pair fits between the side walls');
+      A(Math.abs(Math.max(...pair.map(m => m.yHi)) - 3.0) < 0.1, `${R(Math.max(...pair.map(m => m.yHi)) * 12, 0)} in tall`);
+    } }
+
+  // WC: toilet against the WEST wall (px -17.687), facing east into the room.
+  { const t = ext.find(r => r.type === 'toilet');
+    A(!!t, 'toilet in the WC');
+    if (t) {
+      A(Math.abs(t.pxHi - (-17.687)) < 0.08, `backs onto the WC's west wall (${R(t.pxHi,3)})`);
+      A(t.pzLo > -11.72 && t.pzHi < -8.65, 'sits clear of both WC walls');
+    } }
+
+  // BATH: square walk-in at the north end. Pony wall + glass on the EAST half of the
+  // opening, nothing on the WEST half — that gap IS the entrance.
+  { const sh = ext.find(r => r.type === 'shower');
+    A(!!sh, 'walk-in shower in the bath');
+    if (sh) {
+      const w = sh.pxHi - sh.pxLo, d = sh.pzHi - sh.pzLo;
+      A(Math.abs(w - d) < 0.35, `square: ${R(w,2)} x ${R(d,2)} ft`);
+      // The tiled surround straddles the wall line by half its 0.3 ft thickness, so the
+      // shower's box reads 0.15 past the interior face. That is the tile, not an error.
+      A(Math.abs(sh.pzHi - BN) < 0.2, `set against the north wall (${R(sh.pzHi,2)} vs ${R(BN,2)})`);
+      const mm = meshes(sh), open = sh.pzLo;                       // the opening line
+      const atOpening = (m) => Math.abs((m.pzLo + m.pzHi) / 2 - open) < 0.3 && (m.pzHi - m.pzLo) < 0.5;
+      const east = mm.filter(m => atOpening(m) && (m.pxLo + m.pxHi) / 2 < -20.19);
+      const west = mm.filter(m => atOpening(m) && (m.pxLo + m.pxHi) / 2 > -20.19);
+      A(east.length >= 2, `pony wall and glass close the EAST half (${east.length} members)`);
+      A(west.length === 0, `the WEST half is open — that is the entrance (${west.length} members)`);
+      const pony = east.filter(m => m.yLo < 0.1).sort((a, b) => b.yHi - a.yHi)[0];
+      A(!!pony && pony.yHi > 3.0 && pony.yHi < 3.8, `pony wall stands ${R((pony ? pony.yHi : 0) * 12, 0)} in`);
+      A(east.some(m => m.yLo > 3.0 && m.yHi > 6.0), 'glass carries on above it');
+      // No curb: a walk-in should not have a threshold across its entrance.
+      A(!mm.some(m => m.yHi < 0.4 && m.yHi > 0.15 && (m.pxHi - m.pxLo) > 1.0), 'curbless — no threshold across the opening');
+
+      // VANITY on the east wall, directly south of the pony wall.
+      const v = ext.find(r => r.type === 'vanity');
+      A(!!v, 'vanity in the bath');
+      if (v) {
+        A(Math.abs(v.pxLo - BE) < 0.12, `backs onto the bath's east wall (${R(v.pxLo,3)})`);
+        // Measured on the COUNTERTOP, which overhangs the cabinet by 0.075 each end.
+        A(v.pzHi < open + 0.02 && v.pzHi > open - 0.45,
+          `counter starts at the pony wall (${R(v.pzHi,3)} vs ${R(open,3)})`);
+        const px0 = Math.min(...east.map(m => m.pxLo)), px1 = Math.max(...east.map(m => m.pxHi));
+        A(v.pxLo >= px0 - 0.1 && v.pxHi <= px1 + 0.1, 'sits within the pony wall’s footprint — directly south of it');
+        A(v.pzLo > -3.96, `stops ${R((v.pzLo + 3.96) * 12, 1)} in clear of the bath window`);
+      }
+    } }
+}
+
 // ============================================================ EAST EXTENSION
 // Laundry / bath / WC / vestibule. An open leaf stands perpendicular to its wall, so
 // the thin axis of its box IS the hinge jamb — which is what these measure.

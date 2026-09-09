@@ -26,6 +26,32 @@
     "flooring": {
       "material": "tile",
       "pattern": "hexagon"
-    }
+    },
+    "furniture": [
+      {
+        "type": "appliance",
+        "kind": "washer",
+        "at": [
+          -15.904,
+          -10.438
+        ],
+        "faces": "N",
+        "widthFt": 2.25,
+        "depthFt": 2.5,
+        "topFt": 3.0
+      },
+      {
+        "type": "appliance",
+        "kind": "dryer",
+        "at": [
+          -13.554,
+          -10.438
+        ],
+        "faces": "N",
+        "widthFt": 2.25,
+        "depthFt": 2.5,
+        "topFt": 3.0
+      }
+    ]
   }
 }

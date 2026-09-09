@@ -354,6 +354,58 @@
       }
     },
     {
+      "type": "shower",
+      "px": -20.1875,
+      "pz": 1.271,
+      "rot": 0.0,
+      "opens": "S",
+      "widthFt": 5.0,
+      "depthFt": 5.0,
+      "ponyFt": 2.5,
+      "ponySide": "E",
+      "curb": false,
+      "heads": 1
+    },
+    {
+      "type": "vanity",
+      "px": -21.7729,
+      "pz": -2.579,
+      "rot": 0.0,
+      "faces": "W",
+      "widthFt": 2.25,
+      "depthFt": 1.83,
+      "sinks": 1
+    },
+    {
+      "type": "toilet",
+      "px": -18.7872,
+      "pz": -10.1835,
+      "rot": 0.0,
+      "faces": "E"
+    },
+    {
+      "type": "appliance",
+      "px": -15.904,
+      "pz": -10.438,
+      "rot": 0.0,
+      "kind": "washer",
+      "faces": "N",
+      "widthFt": 2.25,
+      "depthFt": 2.5,
+      "topFt": 3.0
+    },
+    {
+      "type": "appliance",
+      "px": -13.554,
+      "pz": -10.438,
+      "rot": 0.0,
+      "kind": "dryer",
+      "faces": "N",
+      "widthFt": 2.25,
+      "depthFt": 2.5,
+      "topFt": 3.0
+    },
+    {
       "type": "cabinet_run",
       "px": 7.82292,
       "pz": -17.6458,
