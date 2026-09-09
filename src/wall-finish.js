@@ -189,7 +189,13 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       // battens simply carry on to the stool.
       if (!plainBelow) band(a, b, sy - 0.12, sy, 0.05);                    // apron
     }
-    // 5) door casing: jambs (floor..head)
-    for (const [a, b] of doors) { post(a, 0, headY, caseW, 0.045); post(b, 0, headY, caseW, 0.045); }
+    // 5) door casing: jambs (floor..head) PLUS a head casing across the top. The head
+    //    was missing everywhere — every cased door in the house had two verticals and
+    //    nothing over them, which is what left trimmed doorways still reading unfinished.
+    for (const [a, b] of doors) {
+      post(a, 0, headY, caseW, 0.045); post(b, 0, headY, caseW, 0.045);
+      const lo = Math.min(a, b) - caseW / ft, hi = Math.max(a, b) + caseW / ft;
+      band(lo, hi, headY, headY + caseW, 0.045);       // head, returning over both jambs
+    }
   }
 }

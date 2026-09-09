@@ -36,15 +36,21 @@
     "style": "panel"
   },
   {
-    "name": "Sitting -> Ext Vestibule",
-    "hingeMax": true,
-    "swingSign": 1,
-    "style": "panel"
+    "name": "Family -> Ext Vestibule",
+    "hingeMax": false,
+    "swingSign": -1,
+    "style": "8lite"
   },
   {
     "name": "Ext Vestibule -> Outside",
     "hingeMax": true,
     "swingSign": 1,
+    "style": "halfmoon"
+  },
+  {
+    "name": "Laundry -> Bath",
+    "hingeMax": true,
+    "swingSign": -1,
     "style": "panel"
   },
   {

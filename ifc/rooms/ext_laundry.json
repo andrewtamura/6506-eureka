@@ -6,7 +6,7 @@
     "x1": -17.4583,
     "x2": -12,
     "z1": -11.9167,
-    "z2": -2.4583
+    "z2": -4.4
   },
   "walls": true,
   "doors": [
@@ -14,9 +14,11 @@
       "name": "Laundry -> Bath",
       "orient": "V",
       "fixed": -17.4583,
-      "pos": -5.13,
-      "width": 2.67,
-      "opening": true
+      "pos": -6.425,
+      "width": 3.0,
+      "hinge": "max",
+      "swing": "neg",
+      "doorStyle": "panel"
     }
   ],
   "windows": [],
@@ -24,6 +26,64 @@
     "flooring": {
       "material": "tile",
       "pattern": "hexagon"
-    }
+    },
+    "furniture": [
+      {
+        "type": "cabinet_run",
+        "kind": "base",
+        "at": [
+          -14.729,
+          -10.388
+        ],
+        "faces": "N",
+        "lenFt": 5.0,
+        "depthFt": 2.6,
+        "counterFt": 3.25,
+        "gaps": [
+          {
+            "a": -2.5,
+            "b": 2.5,
+            "counter": true
+          }
+        ]
+      },
+      {
+        "type": "appliance",
+        "kind": "washer",
+        "at": [
+          -15.904,
+          -10.438
+        ],
+        "faces": "N",
+        "widthFt": 2.25,
+        "depthFt": 2.5,
+        "topFt": 3.0
+      },
+      {
+        "type": "appliance",
+        "kind": "dryer",
+        "at": [
+          -13.554,
+          -10.438
+        ],
+        "faces": "N",
+        "widthFt": 2.25,
+        "depthFt": 2.5,
+        "topFt": 3.0
+      },
+      {
+        "type": "cabinet_run",
+        "kind": "wall",
+        "at": [
+          -14.729,
+          -11.138
+        ],
+        "faces": "N",
+        "lenFt": 5.0,
+        "depthFt": 1.1,
+        "bottomFt": 4.75,
+        "topFt": 7.0
+      }
+    ]
   }
 }

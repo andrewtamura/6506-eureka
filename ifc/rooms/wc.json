@@ -6,15 +6,15 @@
     "x1": -22.9167,
     "x2": -17.4583,
     "z1": -11.9167,
-    "z2": -7.459
+    "z2": -8.45
   },
   "walls": true,
   "doors": [
     {
       "name": "Bath -> WC",
       "orient": "H",
-      "fixed": -7.459,
-      "pos": -19.0,
+      "fixed": -8.45,
+      "pos": -21.023,
       "width": 2.33,
       "hinge": "max",
       "swing": "pos"
@@ -25,6 +25,16 @@
     "flooring": {
       "material": "tile",
       "pattern": "hexagon"
-    }
+    },
+    "furniture": [
+      {
+        "type": "toilet",
+        "at": [
+          -18.7872,
+          -10.1835
+        ],
+        "faces": "E"
+      }
+    ]
   }
 }

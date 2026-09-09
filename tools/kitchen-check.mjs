@@ -726,6 +726,172 @@ console.log('WAINSCOT + LIGHTING');
   });
 }
 
+// ============================================================ EXTENSION FIXTURES
+// Laundry pair, WC toilet, and the bath's walk-in shower + vanity.
+console.log('EXTENSION FIXTURES');
+{ const LS = -11.688, BE = -22.688, BW = -17.687, BN = 3.771;   // interior faces
+  const ext = P.filter(r => r.px < -11.9);
+
+  // LAUNDRY: washer and dryer side by side, backs to the south wall.
+  { const pair = ext.filter(r => r.type === 'appliance' && /washer|dryer/.test(r.kind)).sort((a, b) => a.px - b.px);
+    A(pair.length === 2, `washer and dryer (${pair.length})`);
+    if (pair.length === 2) {
+      A(pair.every(m => Math.abs(m.pzLo - LS) < 0.06), 'both back onto the south wall');
+      A(pair[1].pxLo - pair[0].pxHi > 0.02, `side by side, ${R((pair[1].pxLo - pair[0].pxHi) * 12, 1)} in apart`);
+      A(pair[0].pxLo > -17.29 && pair[1].pxHi < -12.17, 'the pair fits between the side walls');
+      A(Math.abs(Math.max(...pair.map(m => m.yHi)) - 3.0) < 0.1, `${R(Math.max(...pair.map(m => m.yHi)) * 12, 0)} in tall`);
+      // BUILT IN: a worktop bridges the pair, and a wall cabinet hangs over it.
+      const runs = ext.filter(r => r.type === 'cabinet_run');
+      const base = runs.find(r => r.kind === 'base'), up = runs.find(r => r.kind === 'wall');
+      A(!!base, 'a counter runs over the machines');
+      if (base) {
+        const top = Math.max(...meshes(base).map(m => m.yHi));
+        A(Math.abs(top - 3.33) < 0.06, `worktop at ${R(top * 12, 1)} in — above a kitchen counter, as a laundry one is`);
+        const clear = 3.25 - Math.max(...pair.map(m => m.yHi));
+        A(clear > 0.1, `${R(clear * 12, 1)} in between the machine tops and the worktop`);
+        A(base.pxHi - base.pxLo > 4.9, `spans the full ${R(base.pxHi - base.pxLo, 2)} ft wall to wall`);
+        // The whole run is machine bay, so there should be no carcass under the worktop —
+        // no toe kick, no doors. Only the counter and its splash.
+        A(!meshes(base).some(m => m.yHi < 0.5 && m.yHi > 0.1), 'no toe kick — the bay is all machine');
+      }
+      A(!!up, 'a wall cabinet hangs above it');
+      if (up && base) {
+        const mm = meshes(up), lo = Math.min(...mm.map(m => m.yLo)), hi = Math.max(...mm.map(m => m.yHi));
+        A(Math.abs(lo - 4.75) < 0.08 && Math.abs(hi - 7.0) < 0.08,
+          `runs ${R(lo * 12, 0)} to ${R(hi * 12, 0)} in`);
+        A(lo - Math.max(...meshes(base).map(m => m.yHi)) > 1.1,
+          `${R((lo - Math.max(...meshes(base).map(m => m.yHi))) * 12, 1)} in of clear splash between counter and cabinet`);
+        A(Math.abs(up.pzLo - LS) < 0.08, 'hung on the south wall, over the machines');
+      }
+    } }
+
+  // WC: toilet against the WEST wall (px -17.687), facing east into the room.
+  { const t = ext.find(r => r.type === 'toilet');
+    A(!!t, 'toilet in the WC');
+    if (t) {
+      A(Math.abs(t.pxHi - (-17.687)) < 0.08, `backs onto the WC's west wall (${R(t.pxHi,3)})`);
+      A(t.pzLo > -11.72 && t.pzHi < -8.65, 'sits clear of both WC walls');
+    } }
+
+  // BATH: square walk-in at the north end. Pony wall + glass on the EAST half of the
+  // opening, nothing on the WEST half — that gap IS the entrance.
+  { const sh = ext.find(r => r.type === 'shower');
+    A(!!sh, 'walk-in shower in the bath');
+    if (sh) {
+      const w = sh.pxHi - sh.pxLo, d = sh.pzHi - sh.pzLo;
+      A(Math.abs(w - d) < 0.35, `square: ${R(w,2)} x ${R(d,2)} ft`);
+      // The tiled surround straddles the wall line by half its 0.3 ft thickness, so the
+      // shower's box reads 0.15 past the interior face. That is the tile, not an error.
+      A(Math.abs(sh.pzHi - BN) < 0.2, `set against the north wall (${R(sh.pzHi,2)} vs ${R(BN,2)})`);
+      const mm = meshes(sh), open = sh.pzLo;                       // the opening line
+      const atOpening = (m) => Math.abs((m.pzLo + m.pzHi) / 2 - open) < 0.3 && (m.pzHi - m.pzLo) < 0.5;
+      const east = mm.filter(m => atOpening(m) && (m.pxLo + m.pxHi) / 2 < -20.19);
+      const west = mm.filter(m => atOpening(m) && (m.pxLo + m.pxHi) / 2 > -20.19);
+      A(east.length >= 2, `pony wall and glass close the EAST half (${east.length} members)`);
+      A(west.length === 0, `the WEST half is open — that is the entrance (${west.length} members)`);
+      const pony = east.filter(m => m.yLo < 0.1).sort((a, b) => b.yHi - a.yHi)[0];
+      A(!!pony && pony.yHi > 3.0 && pony.yHi < 3.8, `pony wall stands ${R((pony ? pony.yHi : 0) * 12, 0)} in`);
+      A(east.some(m => m.yLo > 3.0 && m.yHi > 6.0), 'glass carries on above it');
+      // No curb: a walk-in should not have a threshold across its entrance.
+      A(!mm.some(m => m.yHi < 0.4 && m.yHi > 0.15 && (m.pxHi - m.pxLo) > 1.0), 'curbless — no threshold across the opening');
+
+      // VANITY on the east wall, directly south of the pony wall.
+      const v = ext.find(r => r.type === 'vanity');
+      A(!!v, 'vanity in the bath');
+      if (v) {
+        A(Math.abs(v.pxLo - BE) < 0.12, `backs onto the bath's east wall (${R(v.pxLo,3)})`);
+        // Measured on the COUNTERTOP, which overhangs the cabinet by 0.075 each end.
+        A(v.pzHi < open + 0.02 && v.pzHi > open - 0.45,
+          `counter starts at the pony wall (${R(v.pzHi,3)} vs ${R(open,3)})`);
+        const px0 = Math.min(...east.map(m => m.pxLo)), px1 = Math.max(...east.map(m => m.pxHi));
+        A(v.pxLo >= px0 - 0.1 && v.pxHi <= px1 + 0.1, 'sits within the pony wall’s footprint — directly south of it');
+        A(v.pzLo > -3.96, `stops ${R((v.pzLo + 3.96) * 12, 1)} in clear of the bath window`);
+      }
+    } }
+}
+
+// ============================================================ EAST EXTENSION
+// Laundry / bath / WC / vestibule. An open leaf stands perpendicular to its wall, so
+// the thin axis of its box IS the hinge jamb — which is what these measure.
+console.log('EXTENSION');
+{ const leaf = (re) => (raw.doorLeaves || []).find(d => re.test(d.name));
+  const midPx = (d) => (d.pxLo + d.pxHi) / 2, midPz = (d) => (d.pzLo + d.pzHi) / 2;
+
+  // WC door: 6 in of wall between the bath's east wall and the opening.
+  { const d = leaf(/Bath -> WC/);
+    A(!!d, 'WC door leaf found');
+    if (d) {
+      const face = -22.917 + 0.22915;                 // bath east wall, interior face
+      A(Math.abs(midPx(d) - face - 0.5) < 0.03,
+        `${R((midPx(d) - face) * 12, 1)} in of return from the bath's east wall`);
+      A(d.pzHi <= -8.45 + 0.02, `swings into the WC (pz ${R(d.pzLo,2)}..${R(d.pzHi,2)})`);
+    } }
+
+  // LAUNDRY -> BATH. Was a 2'8" cased opening; the WC gave up depth so it could be a
+  // proper 3 ft door. It is the only way into the bathroom, so both facts matter.
+  { const d = leaf(/Laundry -> Bath/);
+    A(!!d, 'laundry/bath door leaf found (it used to be a cased opening)');
+    if (d) {
+      A(Math.abs(midPz(d) - (-7.925)) < 0.06, `hinged on the SOUTH jamb (pz ${R(midPz(d),2)})`);
+      A(midPx(d) < -17.46, `swings into the BATHROOM (px ${R(d.pxLo,2)}..${R(d.pxHi,2)})`);
+      const swept = Math.abs(d.pxHi - d.pxLo);
+      A(Math.abs(swept - 3.0) < 0.06, `${R(swept,2)} ft leaf — a full 3 ft door`);
+    } }
+
+  // TWIN DOORS, side by side on the family room's east wall.
+  { const v = leaf(/Family -> Ext Vestibule/), l = leaf(/Family -> Ext Laundry/);
+    A(!!v && !!l, 'both extension doors open off the family room');
+    if (v && l) {
+      // Family room runs pz -11.917..0; a door hinged outside that opens off another room.
+      for (const [n, d] of [['vestibule', v], ['laundry', l]])
+        A(midPz(d) > -11.9 && midPz(d) < 0, `${n} door is on the family room's wall (pz ${R(midPz(d),2)})`);
+      // Each door hangs on the jamb NEAREST its own room's far side: the vestibule on
+      // its north jamb, the laundry on its north jamb too. So the pier is between the
+      // vestibule's OTHER jamb (3 ft south of its hinge) and the laundry's hinge.
+      A(Math.abs(midPz(v) - (-0.87)) < 0.06, `vestibule door hangs on its NORTH jamb (pz ${R(midPz(v),2)})`);
+      A(Math.abs(midPz(l) - (-4.93)) < 0.06, `laundry door hangs on its north jamb (pz ${R(midPz(l),2)})`);
+      const vSouth = midPz(v) - 3.0;                  // its other jamb, one door width away
+      const pier = vSouth - midPz(l);
+      A(pier > 0.9 && pier < 1.3, `${R(pier * 12, 1)} in of pier between the two openings`);
+      A(Math.abs((vSouth + midPz(l)) / 2 - (-4.4)) < 0.08,
+        `partition sits on the pier centreline (${R((vSouth + midPz(l)) / 2, 2)} vs -4.40)`);
+      A(v.parts === 9, `vestibule door is an 8-lite leaf: ${v.parts} members`);
+      // They serve different rooms, so they swing apart rather than into each other.
+      A((midPx(v) > -12) !== (midPx(l) > -12),
+        'they swing apart — one into the family room, one into the laundry');
+    } }
+
+  // DOOR TRIM on the family room's east wall — the two extension openings. Casing is
+  // wall-finish geometry, so it lands in the `loose` list and reads LOOSE_DY low.
+  { const EW = -11.77085, DY = 0.066;
+    const onWall = (m) => m.pxLo > EW - 0.05 && m.pxHi < EW + 0.30 && m.pzLo > -11.95 && m.pzHi < 0.05;
+    const posts = L.filter(m => onWall(m) && (m.pzHi - m.pzLo) < 0.45 && m.yLo < 0.05 && m.yHi > 6.5);
+    A(posts.length === 4, `four casing jambs, two per opening (${posts.length})`);
+    const at = posts.map(m => R((m.pzLo + m.pzHi) / 2, 2)).sort((u, v) => u - v);
+    A(JSON.stringify(at) === JSON.stringify([-7.93, -4.93, -3.87, -0.87]),
+      `jambs land on the openings: ${at.join(', ')}`);
+    // Casing projects 0.045 m; the recessed field is 0.012. Without that the plain
+    // field band above the head line — as wide as the wall — counted as a third head.
+    const heads = L.filter(m => onWall(m) && (m.pzHi - m.pzLo) > 3.4 && m.yLo > 6.5
+      && (m.pxHi - m.pxLo) > 0.10);
+    A(heads.length === 2, `a head casing over each opening (${heads.length})`);
+    if (heads.length) A(Math.abs(heads[0].yLo - (7.0 - DY)) < 0.05,
+      `head sits on the 7 ft opening line (${R(heads[0].yLo + DY, 2)} ft)`);
+    if (heads.length) A(Math.abs((heads[0].pzHi - heads[0].pzLo) - 3.66) < 0.05,
+      `head returns over both jambs (${R(heads[0].pzHi - heads[0].pzLo, 2)} ft over a 3 ft opening)`);
+    const base = L.filter(m => onWall(m) && m.yLo < 0.02 && m.yHi > 0.7 && m.yHi < 0.85);
+    A(base.length >= 2, `baseboard runs the wall in ${base.length} lengths`);
+  }
+
+  // The outside door carries a half-round light: slab with the arc cut out, a glazed
+  // half-disc, three radial bars, and panel relief below. 10 members in all.
+  { const d = leaf(/Ext Vestibule -> Outside/);
+    A(!!d, 'vestibule outside door leaf found');
+    if (d) A(d.parts === 10,
+      `half-moon leaf: ${d.parts} members (pierced slab, glazed disc, 3 bars, 2 stiles, 2 rails, muntin)`);
+  }
+}
+
 // FAMILY -> SCULLERY door. Both facts are measured: this is the third swing set from a
 // sign convention in this model and the first two were wrong until someone looked.
 { const d = (raw.doorLeaves || []).find(x => /Family -> Scullery/i.test(x.name));

@@ -5,7 +5,7 @@
   "bounds": {
     "x1": -22.9167,
     "x2": -17.4583,
-    "z1": -7.459,
+    "z1": -8.45,
     "z2": 4
   },
   "walls": true,
@@ -25,6 +25,33 @@
     "flooring": {
       "material": "tile",
       "pattern": "hexagon"
-    }
+    },
+    "furniture": [
+      {
+        "type": "shower",
+        "at": [
+          -20.1875,
+          1.271
+        ],
+        "opens": "S",
+        "widthFt": 5.0,
+        "depthFt": 5.0,
+        "ponyFt": 2.5,
+        "ponySide": "E",
+        "curb": false,
+        "heads": 1
+      },
+      {
+        "type": "vanity",
+        "at": [
+          -21.7729,
+          -2.579
+        ],
+        "faces": "W",
+        "widthFt": 2.25,
+        "depthFt": 1.83,
+        "sinks": 1
+      }
+    ]
   }
 }
