@@ -808,7 +808,9 @@ console.log('EXTENSION FIXTURES');
     A(!!sh, 'walk-in shower in the bath');
     if (sh) {
       const w = sh.pxHi - sh.pxLo, d = sh.pzHi - sh.pzLo;
-      A(Math.abs(w - d) < 0.35, `square: ${R(w,2)} x ${R(d,2)} ft`);
+      // 12 in shallower than it was built: 5 x 4 nominal, reading 0.3 over on each axis
+      // because the tiled surround straddles the wall lines.
+      A(Math.abs(w - 5.3) < 0.2 && Math.abs(d - 4.3) < 0.2, `${R(w,2)} x ${R(d,2)} ft`);
       // The tiled surround straddles the wall line by half its 0.3 ft thickness, so the
       // shower's box reads 0.15 past the interior face. That is the tile, not an error.
       A(Math.abs(sh.pzHi - BN) < 0.2, `set against the north wall (${R(sh.pzHi,2)} vs ${R(BN,2)})`);
@@ -834,7 +836,34 @@ console.log('EXTENSION FIXTURES');
           `counter starts at the pony wall (${R(v.pzHi,3)} vs ${R(open,3)})`);
         const px0 = Math.min(...east.map(m => m.pxLo)), px1 = Math.max(...east.map(m => m.pxHi));
         A(v.pxLo >= px0 - 0.1 && v.pxHi <= px1 + 0.1, 'sits within the pony wall’s footprint — directly south of it');
-        A(v.pzLo > -3.96, `stops ${R((v.pzLo + 3.96) * 12, 1)} in clear of the bath window`);
+        A(v.pxHi - v.pxLo > 1.7, `${R(v.pxHi - v.pxLo, 2)} ft deep`);
+        A(v.pzHi - v.pzLo > 3.1, `${R(v.pzHi - v.pzLo, 2)} ft of counter — it was 2.4`);
+        // Fewer fronts: two doors, not a nine-drawer grid. A front is a thin proud panel
+        // on the cabinet face; the bar pulls are the same thickness but far shorter.
+        // Below the counter only — the MIRROR is the same thin tall panel and counted
+        // as a third front until this bound went in.
+        const fronts = meshes(v).filter(m => (m.pxHi - m.pxLo) < 0.12 && m.yHi < 3.0
+          && (m.yHi - m.yLo) > 1.0 && (m.pzHi - m.pzLo) > 0.5);
+        A(fronts.length === 2, `two door fronts (${fronts.length}) — the 3x3 default is nine`);
+        // The window casing runs 4 in past its jamb, so the counter has to stop short of it.
+        A(v.pzLo > -3.795, `stops ${R((v.pzLo + 3.795) * 12, 1)} in clear of the window casing`);
+      }
+
+      // WINDOW TRIM on the bath's east wall — the room had no trim program at all.
+      { const BEW = -22.68785, DY = 0.066;      // interior face; loose meshes read DY low
+        const onEast = (m) => m.pxLo > BEW - 0.05 && m.pxHi < BEW + 0.30
+          && m.pzLo > -8.3 && m.pzHi < 3.9;
+        const posts = L.filter(m => onEast(m) && (m.pzHi - m.pzLo) < 0.45
+          && Math.abs(m.yLo - (3.0 - DY)) < 0.12 && m.yHi > 6.5);
+        A(posts.length === 2, `two casing jambs on the bath window (${posts.length})`);
+        const at = posts.map(m => R((m.pzLo + m.pzHi) / 2, 2)).sort((u, v2) => u - v2);
+        A(JSON.stringify(at) === JSON.stringify([-6.96, -3.96]), `they land on the opening: ${at.join(', ')}`);
+        const stool = L.filter(m => onEast(m) && (m.pzHi - m.pzLo) > 3.4
+          && m.yHi > 3.0 - DY && m.yHi < 3.2);
+        A(stool.length >= 1, `a stool at the sill (${stool.length})`);
+        const apron = L.filter(m => onEast(m) && (m.pzHi - m.pzLo) > 2.8 && (m.pzHi - m.pzLo) < 3.3
+          && m.yHi < 3.0 - DY + 0.02 && m.yLo > 2.4);
+        A(apron.length >= 1, `an apron under it (${apron.length})`);
       }
     } }
 }

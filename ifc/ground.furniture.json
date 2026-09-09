@@ -356,11 +356,11 @@
     {
       "type": "shower",
       "px": -20.1875,
-      "pz": 1.271,
+      "pz": 1.771,
       "rot": 0.0,
       "opens": "S",
       "widthFt": 5.0,
-      "depthFt": 5.0,
+      "depthFt": 4.0,
       "ponyFt": 2.5,
       "ponySide": "E",
       "curb": false,
@@ -369,12 +369,14 @@
     {
       "type": "vanity",
       "px": -21.7729,
-      "pz": -2.579,
+      "pz": -2.004,
       "rot": 0.0,
       "faces": "W",
-      "widthFt": 2.25,
+      "widthFt": 3.1,
       "depthFt": 1.83,
-      "sinks": 1
+      "sinks": 1,
+      "cols": 2,
+      "rows": 1
     },
     {
       "type": "toilet",

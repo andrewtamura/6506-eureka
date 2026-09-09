@@ -31,11 +31,11 @@
         "type": "shower",
         "at": [
           -20.1875,
-          1.271
+          1.771
         ],
         "opens": "S",
         "widthFt": 5.0,
-        "depthFt": 5.0,
+        "depthFt": 4.0,
         "ponyFt": 2.5,
         "ponySide": "E",
         "curb": false,
@@ -45,13 +45,20 @@
         "type": "vanity",
         "at": [
           -21.7729,
-          -2.579
+          -2.004
         ],
         "faces": "W",
-        "widthFt": 2.25,
+        "widthFt": 3.1,
         "depthFt": 1.83,
-        "sinks": 1
+        "sinks": 1,
+        "cols": 2,
+        "rows": 1
       }
-    ]
+    ],
+    "paneling": {
+      "baseboard": 10,
+      "noCornice": true,
+      "battens": false
+    }
   }
 }

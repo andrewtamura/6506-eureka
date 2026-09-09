@@ -1128,7 +1128,10 @@ function buildVanity(p) {
   const kbH = 0.33, cabTop = 2.9;
   q = pl(-0.13, 0, Dp - 0.28, Wd - 0.15); box(q[0], q[1], kbH / 2, q[2], q[3], kbH, toekick);          // recessed toe-kick
   q = pl(0, 0, Dp, Wd);                    box(q[0], q[1], kbH + (cabTop - kbH) / 2, q[2], q[3], cabTop - kbH, woodv, 0.02); // cabinet body
-  const nCols = 3, nRows = 3, colW = Wd / nCols, rowH = (cabTop - kbH) / nRows;
+  // Front layout is a parameter. The default 3x3 is nine drawer fronts, which on a
+  // single-sink cabinet reads as a busy grid rather than as joinery; a small vanity
+  // wants two door fronts and nothing else.
+  const nCols = p.cols ?? 3, nRows = p.rows ?? 3, colW = Wd / nCols, rowH = (cabTop - kbH) / nRows;
   for (let c = 0; c < nCols; c++) for (let r = 0; r < nRows; r++) {
     const ds = -Wd / 2 + (c + 0.5) * colW, yc = kbH + (r + 0.5) * rowH;
     q = pl(Dp / 2 + 0.02, ds, 0.04, colW - 0.07); box(q[0], q[1], yc, q[2], q[3], rowH - 0.07, woodv, 0.015);  // drawer front (proud)
