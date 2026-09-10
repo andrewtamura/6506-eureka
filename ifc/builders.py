@@ -971,19 +971,46 @@ def add_hip_dormer(ctx, x1, x2, y1, y2, pitch, spec, side="east", base_z=0.0, st
     return (min(xE, x_p), max(xE, x_p), yL, yR)
 
 
-def add_lot(ctx, lot, rooms):
-    """A flat lot plane sized lot.widthFt x lot.depthFt (E-W x N-S), positioned so
-    the building sits `westMarginFt` inside the west line (west = +plan x) and the
-    scullery `scullerySouthFt` off the south line (south = min plan z)."""
-    pxs = [v for r in rooms for v in (r["bounds"]["x1"], r["bounds"]["x2"])]
-    pzs = [v for r in rooms for v in (r["bounds"]["z1"], r["bounds"]["z2"])]
-    west = max(pxs) + lot["westMarginFt"]                  # west lot line (plan x)
+def lot_lines(lot, bounds, half_wall_ft):
+    """The four property lines, in plan feet, for an iterable of room `bounds`.
+
+    The parcel is anchored to the BUILDING rather than the other way round:
+
+        west   `westMarginFt` outside the house's west wall
+        east   `widthFt` in from the west line
+        south  `scullerySouthFt` off the scullery's south wall
+        north  set by the FRONT YARD rather than by a parcel depth:
+               `frontage.northYardFt` of clear ground between the outer FACE of
+               the north exterior wall and the near face of the retaining wall
+               standing on the line
+
+    Room bounds are wall CENTRELINES, so `half_wall_ft` (half the house's wall
+    thickness) is what turns the north bound into the north wall's face. Parcel
+    depth is therefore derived, and comes back as the fifth value so the lot
+    plane can be sized from it.
+    """
+    f = lot.get("frontage") or {}
+    pxs = [v for r in bounds for v in (r["x1"], r["x2"])]
+    pzs = [v for r in bounds for v in (r["z1"], r["z2"])]
+    west = max(pxs) + lot["westMarginFt"]
     east = west - lot["widthFt"]
-    south = min(pzs) - lot["scullerySouthFt"]              # south lot line (plan z)
-    north = south + lot["depthFt"]
+    south = min(pzs) - lot["scullerySouthFt"]
+    north = (max(pzs) + half_wall_ft                     # north wall's outer face
+             + f.get("northYardFt", 10)                  # clear front yard
+             + f.get("wallThicknessIn", 10) / 12.0)      # retaining wall thickness
+    return west, east, south, north, north - south
+
+
+def add_lot(ctx, lot, rooms):
+    """A flat lot plane `widthFt` wide, positioned so the building sits
+    `westMarginFt` inside the west line (west = +plan x) and the scullery
+    `scullerySouthFt` off the south line (south = min plan z). Depth follows
+    from the front yard — see lot_lines."""
+    west, east, south, north, depth = lot_lines(
+        lot, [r["bounds"] for r in rooms], ctx.T / FT / 2)
     cx, cz = (west + east) / 2, (south + north) / 2
     lotmesh = make_box(ctx, "IfcSlab", "Lot",
-                       lot["widthFt"] * FT, lot["depthFt"] * FT, 0.1,
+                       lot["widthFt"] * FT, depth * FT, 0.1,
                        ctx.X(cx), ctx.Y(cz), -0.11, predefined="BASESLAB", color=(0.46, 0.55, 0.34))
     run("spatial.assign_container", ctx.model, products=[lotmesh], relating_structure=ctx.storey)
     return lotmesh
@@ -1573,11 +1600,7 @@ def add_lot_wall(ctx, lot, rooms_cache, base):
     t = 8 / 12                                       # 8" CMU thickness (ft)
     H = 84 / 12 * FT                                 # 84" above grade (m)
     B = {k: v["bounds"] for k, v in rooms_cache.items()}
-    pxs = [v for r in B.values() for v in (r["x1"], r["x2"])]
-    pzs = [v for r in B.values() for v in (r["z1"], r["z2"])]
-    west = max(pxs) + lot["westMarginFt"]            # same lot lines as add_lot
-    east = west - lot["widthFt"]                     # east lot line (min plan x)
-    south = min(pzs) - lot["scullerySouthFt"]        # south lot line (min plan z)
+    west, east, south, _, _ = lot_lines(lot, B.values(), ctx.T / FT / 2)
     scu_west = max(B["scullery"]["x1"], B["scullery"]["x2"])
 
     def wall(name, x1, x2, z1, z2):
@@ -1603,8 +1626,7 @@ def add_picket_fence(ctx, lot, rooms_cache):
     B = {k: v["bounds"] for k, v in rooms_cache.items()}
     pxs = [v for r in B.values() for v in (r["x1"], r["x2"])]
     pzs = [v for r in B.values() for v in (r["z1"], r["z2"])]
-    west = max(pxs) + lot["westMarginFt"]            # west lot line (plan x)
-    south = min(pzs) - lot["scullerySouthFt"]        # south lot line (plan z)
+    west, _, south, _, _ = lot_lines(lot, B.values(), ctx.T / FT / 2)
     scu_west = max(B["scullery"]["x1"], B["scullery"]["x2"])  # CMU south wall ends here
     north = max(pzs)                                 # house north exterior wall plane
     house_west = max(pxs)                            # house's west exterior wall (NW corner at z=north)
@@ -1708,9 +1730,9 @@ def add_street_frontage(ctx, lot, rooms_cache):
         north:  property line | park strip | sidewalk   | curb | street
         west:   property line | sidewalk   | park strip | curb | street
 
-    Both are 10 ft overall, so the curb lines agree and the paved NW corner block —
-    which is what carries a pedestrian between the inboard west walk and the
-    outboard north one — needs no special casing.
+    Both total parkStrip + sidewalk (13 ft here), so the curb lines agree and the
+    paved NW corner block — which is what carries a pedestrian between the inboard
+    west walk and the outboard north one — needs no special casing.
 
     The property stands highest above the sidewalk at the NW corner; the drop dies
     out in both directions (to nothing part-way along the north line, and to a low
@@ -1730,12 +1752,7 @@ def add_street_frontage(ctx, lot, rooms_cache):
     STUCCO = (0.90, 0.88, 0.84)                      # matches the CMU lot wall
 
     B = {k: v["bounds"] for k, v in rooms_cache.items()}
-    pxs = [v for r in B.values() for v in (r["x1"], r["x2"])]
-    pzs = [v for r in B.values() for v in (r["z1"], r["z2"])]
-    west = max(pxs) + lot["westMarginFt"]            # same lot lines as add_lot
-    east = west - lot["widthFt"]
-    south = min(pzs) - lot["scullerySouthFt"]
-    north = south + lot["depthFt"]
+    west, east, south, north, _ = lot_lines(lot, B.values(), ctx.T / FT / 2)
 
     nw = f.get("nwDropIn", 36) / 12.0                # drop at the NW corner (ft)
     sw = f.get("swDropIn", 12) / 12.0                # drop at the SW corner (ft)
@@ -1761,7 +1778,7 @@ def add_street_frontage(ctx, lot, rooms_cache):
     # Band edges, measured outward from each property line. The two frontages run
     # DIFFERENT orders: on the north the walk sits outboard, hard against the curb,
     # with the planting strip inboard against the property line; on the west the walk
-    # is inboard against the retaining wall. Both are 10 ft overall, so the outer
+    # is inboard against the retaining wall. Both bands total the same, so the outer
     # edges (n2/n3, w2/w3) — and with them the corner block — line up either way.
     n1, n2, n3 = north + STRIP, north + STRIP + WALK, north + STRIP + WALK + CURB
     w1, w2, w3 = west + WALK, west + WALK + STRIP, west + WALK + STRIP + CURB

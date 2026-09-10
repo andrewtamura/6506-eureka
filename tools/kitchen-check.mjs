@@ -66,6 +66,23 @@ for (let i = 0; i < 60; i++) {
   if (n > 0) break;
   await new Promise(r => setTimeout(r, 2000));
 }
+// Without `?solo` the Second Floor and Attic stream in behind a finished page (see
+// CLAUDE.md), so the collector would run before their lights exist and a full-scope run
+// would quietly cover LESS than the solo one while looking like it covered more. That
+// already happened once: 60 lights collected, zero of them the attic's.
+if (!(process.env.CHECK_URL || '').includes('solo=') && process.env.CHECK_URL) {
+  // Await the real signal. Counting `exhibits` does NOT work: the exterior exhibit is
+  // placed too, so "length >= 2" is already true with the ATTIC still streaming — which
+  // is exactly how a full-scope run reported 60 lights and none of the attic's.
+  console.log('awaiting exhibitsReady (the attic streams in last)...');
+  for (let i = 0; i < 60; i++) {
+    if (await page.evaluate(() => !!window.__eureka.exhibitsReady).catch(() => false)) break;
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  await page.evaluate(() => window.__eureka.exhibitsReady);
+  const ids = await page.evaluate(() => (window.__eureka.exhibits || []).map(e => e.lvl && e.lvl.id));
+  console.log(`  exhibits placed: ${ids.join(', ')}`);
+}
 const raw = await page.evaluate(() => {
   const B3 = window.__eureka.modelViews[0].box.constructor;
   const items = [], loose = [];
@@ -110,6 +127,23 @@ const raw = await page.evaluate(() => {
     const mb = new B3().setFromObject(o); if (mb.isEmpty()) return;
     loose.push([mb.min.x, mb.min.y, mb.min.z, mb.max.x, mb.max.y, mb.max.z]);
   });
+  // LIGHTS. Global, not folded into the item loop above: semiFlush and the attic
+  // downlights hang off no userData.item, and they are the ones that were uncapped.
+  // `distance` 0 is three.js's "no cutoff" — only Point and Spot lights have the
+  // property at all, so the Ambient/Hemisphere/Directional scene lights in
+  // lighting.js are filtered out rather than counted as failures.
+  const lights = [];
+  window.__eureka.world.scene.three.traverse(o => {
+    if (!o.isPointLight && !o.isSpotLight) return;
+    o.updateMatrixWorld(true);
+    let p = o.parent, owner = '';
+    while (p) { if (p.userData && p.userData.item) { owner = p.userData.item.type; break; } p = p.parent; }
+    const w = o.getWorldPosition(new o.position.constructor());
+    lights.push({ kind: o.isSpotLight ? 'spot' : 'point', owner,
+      lamp: (o.userData && o.userData.lamp) || '',
+      intensity: o.intensity, distance: o.distance, decay: o.decay,
+      x: w.x, y: w.y, z: w.z });
+  });
   const doorLeaves = [];
   for (const d of window.__eureka.doors || []) {
     d.pivot.updateMatrixWorld(true);
@@ -121,7 +155,7 @@ const raw = await page.evaluate(() => {
       xmin = Math.min(xmin, bb.min.x); xmax = Math.max(xmax, bb.max.x); });
     doorLeaves.push({ name: d.name, parts: n, zmin, zmax, xmin, xmax });
   }
-  return { items, loose, doorLeaves };
+  return { items, loose, doorLeaves, lights };
 });
 await b.close();
   return raw;
@@ -1023,6 +1057,50 @@ console.log('EXTENSION');
     // 2 stiles + 2 rails + 1 pane + 1 vertical muntin + 3 horizontal = 9 members.
     A(d.parts === 9, `8-lite leaf: ${d.parts} members (2 stiles, 2 rails, pane, 4 muntins)`);
   } }
+
+// ---- LIGHT FALLOFF -------------------------------------------------------------
+// three.js reads distance 0 as "no cutoff": with decay 2 the light still falls off by
+// inverse square, but the tail never reaches zero, so every lamp keeps contributing
+// across the room and into the next one. This section is the regression guard — the
+// harness was mesh-only before it, which is why "the bath sconces wash the room" had
+// to be caught by eye instead of here.
+//
+// NOTE ON SCOPE: this runs under `?solo=ground`, so it sees ground-floor lights only.
+// The attic's 12 spots and level 2's semi-flushes need one run with
+// CHECK_URL=http://localhost:5173/ — see CLAUDE.md on dropping `?solo`.
+{
+  const LI = raw.lights || [];
+  console.log('\nLIGHT FALLOFF');
+  A(LI.length > 0, `lights collected (${LI.length})`);
+  const uncapped = LI.filter(l => !(l.distance > 0));
+  A(uncapped.length === 0,
+    `every light has a finite range (${uncapped.length} uncapped` +
+    (uncapped.length ? `: ${[...new Set(uncapped.map(l => l.owner || l.kind))].join(', ')}` : '') + ')');
+  A(LI.every(l => l.decay === 2), `all decay physically (${[...new Set(LI.map(l => l.decay))].join('/')})`);
+  // Each builder's default, in plan feet. A stray edit to one of these shows up here
+  // rather than three rooms later in a screenshot.
+  const REACH = { recessed: 12, pendant: 10, sconce: 8, undercabinet: 8.5, skylight: 16 };
+  for (const [type, want] of Object.entries(REACH)) {
+    const own = LI.filter(l => l.owner === type);
+    if (!own.length) continue;
+    const ft = own.map(l => l.distance / FT);
+    A(ft.every(d => Math.abs(d - want) < 0.05),
+      `${type} reaches ${want} ft (${[...new Set(ft.map(d => R(d, 2)))].join(', ')}) \u00d7${own.length}`);
+  }
+  // The generic per-room fixture and the attic downlights own no furniture item, so
+  // main.js tags them — do NOT identify them by "has no owner", which also catches
+  // every landscape light on the lot. (Those are finite already, and deliberately
+  // long: they are written in RAW METRES, not feet, so the street lamp's `14` is 46 ft,
+  // not 14. That inconsistency with the ft-based builders is pre-existing.)
+  const tagged = { semiFlush: 14, atticCan: 12, atticVanity: 8 };
+  for (const [lamp, want] of Object.entries(tagged)) {
+    const own = LI.filter(l => l.lamp === lamp);
+    if (!own.length) continue;                        // attic lamps are absent under ?solo=ground
+    const ft = own.map(l => l.distance / FT);
+    A(ft.every(d => Math.abs(d - want) < 0.05),
+      `${lamp} reaches ${want} ft (${[...new Set(ft.map(d => R(d, 2)))].join(', ')}) \u00d7${own.length}`);
+  }
+}
 
 console.log(fail ? `\n${fail} FAILURES` : '\nALL CHECKS PASSED');
 process.exit(fail ? 1 : 0);

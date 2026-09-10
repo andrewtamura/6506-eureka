@@ -53,7 +53,11 @@ function addAtticLighting(parent, onFixture) {
     const lm = lensMat.clone();
     const lens = new THREE.Mesh(new THREE.CylinderGeometry(0.085, 0.085, 0.012, 20), lm);
     lens.position.y = -0.03; g.add(lens);                        // glowing lens just below
-    const light = new THREE.SpotLight(0xfff2d6, intensity, 0, Math.PI / 4.4, 0.7, 2);
+    // 12 ft of reach. A distance of 0 is three.js's "no cutoff" — the cone is bounded
+    // sideways but its tail runs on forever, so a can keeps lighting whatever is below it
+    // however far down that is. 12 ft clears the attic floor with a pool to spare.
+    const light = new THREE.SpotLight(0xfff2d6, intensity, 12 * FT, Math.PI / 4.4, 0.7, 2);
+    light.userData.lamp = "atticCan";
     light.position.y = -0.05;
     light.target.position.set(0, -3, 0);                         // aim straight down
     g.add(light); g.add(light.target);
@@ -70,7 +74,8 @@ function addAtticLighting(parent, onFixture) {
     lens.position.x = -0.03; g.add(lens);                        // lens faces -localX = WEST = into the bathroom
     // SpotLight aimed DOWN-and-into-the-bathroom (west) so it lights the vanity, not
     // the stairwell wall on the east side of this wall. (-localX = west = into room.)
-    const light = new THREE.SpotLight(0xfff2d6, intensity, 0, Math.PI / 4, 0.8, 2);
+    const light = new THREE.SpotLight(0xfff2d6, intensity, 8 * FT, Math.PI / 4, 0.8, 2);   // capped, see can()
+    light.userData.lamp = "atticVanity";
     light.position.set(-0.05, -0.05, 0);
     light.target.position.set(-1.0, -2.0, 0);                    // down + west into the bathroom
     g.add(light); g.add(light.target);
@@ -98,8 +103,11 @@ function addAtticLighting(parent, onFixture) {
 // "exterior" so a scene switches it on as a group (starts OFF for the daytime
 // landing view). Three pieces: an elegant post-top STREET LAMP on a poured
 // concrete base at the NW lot corner; a STRING-LIGHT post in the middle of the
-// west side yard fanning catenary strands to the house at 10' above grade; and a
-// row of facade UPLIGHTS across the north (front) elevation. Plan feet: px grows
+// west side yard fanning catenary strands to the house at 10' above grade; puddle
+// lights down the front-step cheek walls; ENTRY LANTERNS either side of the front
+// door; and post-cap lights along the CMU garden wall. (There are no facade uplights
+// — that block was removed, which is why the numbering below runs 1), 2), 4).)
+// Every light here already carries a finite range. Plan feet: px grows
 // WEST, pz grows NORTH; parent-local (x,y,z) = (-px, height, -pz)·FT, grade y=0.
 function addLandscapeLighting(parent, onFixture) {
   const FT = 0.3048;
@@ -412,7 +420,7 @@ function addAltDriveway(parent) {
   // and its east edge at ext_east (DW) — so the leg abuts the garage at GSZ, the deck
   // at DW and the CMU wall at SZ with no gaps.
   // NB plan px increases WEST, so `- BW` moves EAST, into the strip.
-  const WX = -38, EX = -52.33, SZ = -23.208, NZ = 26.125, BW = 1.0;
+  const WX = -38, EX = -52.33, SZ = -23.208, NZ = 27.1458, BW = 1.0;
   const DW = -22.9167, GSZ = -11.9167;                  // deck east edge; garage south wall
   const fW = WX - BW, fE = EX + BW, fS = SZ + BW, fN = NZ - BW;   // fields, inset by the border
   box(fE, fW, fS, fN, 0, 0.12, concrete);               // field — north leg (near-flush, ~1.5")
@@ -430,7 +438,11 @@ function addAltDriveway(parent) {
   // it across the planting strip and the sidewalk to the curb face. Public
   // right-of-way, so it's plain concrete — the decorative border stops at the line
   // and reads as the joint between private drive and public apron.
-  const CURB_FACE = 36.625;
+  // NZ and CURB_FACE mirror the lot lines the generator derives (lot_lines +
+  // frontage.northYardFt / parkStripWidthFt in ifc/model.json). Both have to move
+  // whenever the front yard or the band widths do, or the apron stops short of
+  // the curb and leaves a strip of grass across the drive.
+  const CURB_FACE = 40.6458;
   box(WX, EX, NZ, CURB_FACE, 0, 0.02, concrete);
 }
 
@@ -1652,13 +1664,17 @@ async function main() {
   const fxMetal = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.5, metalness: 0.6 });
   const fxShade = new THREE.MeshStandardMaterial({ color: 0xfff6e6, emissive: 0xffe7b8, emissiveIntensity: 1.2, roughness: 0.45 });
   const newCeilMat = () => new THREE.MeshStandardMaterial({ color: 0xf2efe9, roughness: 0.95, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide });
-  const semiFlush = (x, ceilY, z, intensity, level) => {
+  // `reachFt` caps the light so it lights ITS room and stops. Uncapped, a fixture in every
+  // room meant every room was also being lit by its neighbours. 14 ft covers the longest
+  // room here (the foyer, ~22 ft) from a centred fixture.
+  const semiFlush = (x, ceilY, z, intensity, level, reachFt = 14) => {
     const g = new THREE.Group(); g.position.set(x, ceilY, z);
     const canopy = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.04, 16), fxMetal); canopy.position.y = -0.02; g.add(canopy);
     const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.1, 8), fxMetal); stem.position.y = -0.09; g.add(stem);
     const shadeMat = fxShade.clone();                    // per-fixture so scenes can dim/kill its glow
     const shade = new THREE.Mesh(new THREE.SphereGeometry(0.12, 18, 12, 0, Math.PI * 2, 0, Math.PI * 0.55), shadeMat); shade.rotation.x = Math.PI; shade.position.y = -0.17; g.add(shade);
-    const light = new THREE.PointLight(0xfff0db, intensity, 0, 2); light.position.y = -0.27; g.add(light);
+    const light = new THREE.PointLight(0xfff0db, intensity, reachFt * 0.3048, 2); light.position.y = -0.27; g.add(light);
+    light.userData.lamp = "semiFlush";                 // so the harness can tell these from the landscape lights
     scene.add(g);
     registerFixture(light, level, shadeMat);
   };
@@ -1707,6 +1723,7 @@ async function main() {
       catch (err) { console.warn(`exhibit ${lvl.id} failed`, err); }
     }
   })();
+  window.__eureka.exhibitsReady = exhibitsReady;  // debug handle: awaited by the check harness
   {
     // Title each view with a flat label laid on the grid in FRONT of it (North =
     // world -Z), set well clear of the building and oriented to read upright from
@@ -1973,7 +1990,7 @@ async function main() {
     // photocell if it still owns the landscape lights.
     if (level === "all" && extAuto) setFixtures("exterior", nightFactor, true);
   };
-  // Landscape lights (street lamp, side-yard string lights, facade uplights, garage
+  // Landscape lights (street lamp, side-yard string lights, entry lanterns, garage
   // sconces) live on the exterior massing, tagged "exterior"; a warm window glow fakes
   // "interior lights on" from outside.
   const setWindowGlow = (on) => {

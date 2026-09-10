@@ -24,18 +24,58 @@ page.on('pageerror', e => console.log(' [pageerror]', String(e).slice(0, 200)));
 // Only the level being photographed is loaded — see `?solo` in src/main.js.
 // norender holds frames off during the build; rendering resumes at the end of init,
 // well before any screenshot is taken.
-await page.goto(`http://localhost:5173/?solo=${level}&norender=1`, { waitUntil: 'domcontentloaded' });
+// SHOT_SOLO=0 drops `?solo`, which is the only way to photograph the alt lot: it is a
+// second full copy of the exterior, loaded well after init and skipped entirely under
+// solo. Costs the full ~5 min load, so keep it for shots that actually need it.
+const solo = process.env.SHOT_SOLO === '0' ? '' : `solo=${level}&`;
+await page.goto(`http://localhost:5173/?${solo}norender=1`, { waitUntil: 'domcontentloaded' });
 for (let i = 0; i < 180; i++) {
   if (await page.evaluate(() => !!document.querySelector('#level-switcher .view-btn, #level-switcher [data-id]') && !!window.__eureka)) break;
   await new Promise(r => setTimeout(r, 2000));
 }
-await page.evaluate(() => window.__eureka.setHour(12));
+// SHOT_SCENE picks a "Time of day" button by name (morning / evening / night).
+// This matters more than SHOT_HOUR: setHour is only a debug alias for the sun+season
+// placement, so on its own it makes a dark room with every lamp still OFF. The lamps
+// are driven by the scene buttons, which call setFixtures. To photograph light
+// falloff you need the scene; the hour alone proves nothing.
+const scene = (process.env.SHOT_SCENE || '').toLowerCase();
+if (scene) await page.evaluate((want) => {
+  const b = [...document.querySelectorAll('#scenes .view-btn')]
+    .find(el => el.textContent.toLowerCase().includes(want));
+  if (b) b.click(); else console.warn('no scene button matching', want);
+}, scene);
+// Applied after the scene, since a scene sets its own hour — this lets you hold the
+// lamps on while moving the sun.
+if (process.env.SHOT_HOUR || !scene) {
+  await page.evaluate((h) => window.__eureka.setHour(h), +(process.env.SHOT_HOUR ?? 12));
+}
+// The Second Floor and Attic are EXHIBITS: they stream in behind a finished page, so
+// their switcher tab and their lights do not exist for the first few minutes. Shooting
+// before that gives a black frame with no tab to click — which is what a level2 and an
+// attic shot both did. main.js exposes exhibitsReady for exactly this.
+// NOTE: `?solo=level2` / `?solo=attic` CANNOT photograph those levels. The switcher is
+// built once at init, and under solo an exhibit that has not landed yet gets no
+// placeholder tab (main.js: `streaming` is gated on `!SOLO`), so the tab never appears
+// and the shot comes back black. Use SHOT_SOLO=0 for an exhibit level — it costs the
+// full load, but it is the only way the tab exists.
+if (level !== 'ground' && level !== 'exterior') {
+  console.log('awaiting exhibitsReady...');
+  for (let i = 0; i < 60; i++) {
+    if (await page.evaluate(() => !!window.__eureka.exhibitsReady).catch(() => false)) break;
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  await page.evaluate(() => window.__eureka.exhibitsReady);
+}
 await page.evaluate((l) => document.querySelector(`#level-switcher [data-id="${l}"]`)?.click(), level);
-await new Promise(r => setTimeout(r, 8000));
+await new Promise(r => setTimeout(r, solo ? 8000 : 60000));
 // Take the floor datum from a piece known to be on THIS level — the scene also holds
 // the level-2 and attic exhibits, and the first userData.item you meet may be one of
 // them, which puts the camera outside the building looking down.
-const floorY = await page.evaluate((t) => {
+// SHOT_DATUM=grade pins the datum at y=0, which is what the exterior/lot level wants:
+// it carries no furniture at all, so the search below falls through to whatever item it
+// meets first — a ground-floor exhibit parked beside the building — and aims the camera
+// at that instead of at the lot.
+const floorY = process.env.SHOT_DATUM === 'grade' ? 0 : await page.evaluate((t) => {
   let y = null;
   window.__eureka.world.scene.three.traverse(o => { if (y === null && o.userData?.item?.type === t) y = o.position.y; });
   if (y === null) window.__eureka.world.scene.three.traverse(o => { if (y === null && o.userData?.item) y = o.position.y; });
@@ -44,10 +84,20 @@ const floorY = await page.evaluate((t) => {
 // Interior shots want the ceiling solid overhead; the viewer opens in see-through
 // overview mode, which would show straight through it (and through the skylight wells).
 if (process.env.SHOT_PLAN !== '1') await page.evaluate(() => window.__eureka.setPlanView?.(false));
+// Models are not necessarily loaded at the plan origin — the viewer gives each model
+// view its own transform, and the exterior/lot one sits well off in +x. Plan coords
+// would aim the camera at empty sky without this, which is exactly what they did.
+const off = await page.evaluate((l) => {
+  const v = (window.__eureka.modelViews || []).find(m => m.id === l);
+  const o = v && (v.obj || v.object); if (!o) return [0, 0, 0];
+  o.updateMatrixWorld(true);
+  return [o.matrixWorld.elements[12], o.matrixWorld.elements[13], o.matrixWorld.elements[14]];
+}, level);
 for (const [name, e, t] of views) {
-  const [ex, ez] = W(e[0], e[1]), [tx, tz] = W(t[0], t[1]);
+  const [ex0, ez0] = W(e[0], e[1]), [tx0, tz0] = W(t[0], t[1]);
+  const [ex, ez] = [ex0 + off[0], ez0 + off[2]], [tx, tz] = [tx0 + off[0], tz0 + off[2]];
   await page.evaluate((a) => window.__eureka.world.camera.controls.setLookAt(...a, false),
-    [ex, floorY + e[2] * FT, ez, tx, floorY + t[2] * FT, tz]);
+    [ex, floorY + off[1] + e[2] * FT, ez, tx, floorY + off[1] + t[2] * FT, tz]);
   await new Promise(r => setTimeout(r, 2500));
   await page.screenshot({ path: `${outDir}/${name}.png` });
   console.log('shot', name);
