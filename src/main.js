@@ -412,7 +412,7 @@ function addAltDriveway(parent) {
   // and its east edge at ext_east (DW) — so the leg abuts the garage at GSZ, the deck
   // at DW and the CMU wall at SZ with no gaps.
   // NB plan px increases WEST, so `- BW` moves EAST, into the strip.
-  const WX = -38, EX = -52.33, SZ = -23.208, NZ = 26.125, BW = 1.0;
+  const WX = -38, EX = -52.33, SZ = -23.208, NZ = 27.1458, BW = 1.0;
   const DW = -22.9167, GSZ = -11.9167;                  // deck east edge; garage south wall
   const fW = WX - BW, fE = EX + BW, fS = SZ + BW, fN = NZ - BW;   // fields, inset by the border
   box(fE, fW, fS, fN, 0, 0.12, concrete);               // field — north leg (near-flush, ~1.5")
@@ -430,7 +430,11 @@ function addAltDriveway(parent) {
   // it across the planting strip and the sidewalk to the curb face. Public
   // right-of-way, so it's plain concrete — the decorative border stops at the line
   // and reads as the joint between private drive and public apron.
-  const CURB_FACE = 36.625;
+  // NZ and CURB_FACE mirror the lot lines the generator derives (lot_lines +
+  // frontage.northYardFt / parkStripWidthFt in ifc/model.json). Both have to move
+  // whenever the front yard or the band widths do, or the apron stops short of
+  // the curb and leaves a strip of grass across the drive.
+  const CURB_FACE = 40.6458;
   box(WX, EX, NZ, CURB_FACE, 0, 0.02, concrete);
 }
 
