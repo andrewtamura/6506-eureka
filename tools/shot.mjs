@@ -33,7 +33,39 @@ for (let i = 0; i < 180; i++) {
   if (await page.evaluate(() => !!document.querySelector('#level-switcher .view-btn, #level-switcher [data-id]') && !!window.__eureka)) break;
   await new Promise(r => setTimeout(r, 2000));
 }
-await page.evaluate(() => window.__eureka.setHour(12));
+// SHOT_SCENE picks a "Time of day" button by name (morning / evening / night).
+// This matters more than SHOT_HOUR: setHour is only a debug alias for the sun+season
+// placement, so on its own it makes a dark room with every lamp still OFF. The lamps
+// are driven by the scene buttons, which call setFixtures. To photograph light
+// falloff you need the scene; the hour alone proves nothing.
+const scene = (process.env.SHOT_SCENE || '').toLowerCase();
+if (scene) await page.evaluate((want) => {
+  const b = [...document.querySelectorAll('#scenes .view-btn')]
+    .find(el => el.textContent.toLowerCase().includes(want));
+  if (b) b.click(); else console.warn('no scene button matching', want);
+}, scene);
+// Applied after the scene, since a scene sets its own hour — this lets you hold the
+// lamps on while moving the sun.
+if (process.env.SHOT_HOUR || !scene) {
+  await page.evaluate((h) => window.__eureka.setHour(h), +(process.env.SHOT_HOUR ?? 12));
+}
+// The Second Floor and Attic are EXHIBITS: they stream in behind a finished page, so
+// their switcher tab and their lights do not exist for the first few minutes. Shooting
+// before that gives a black frame with no tab to click — which is what a level2 and an
+// attic shot both did. main.js exposes exhibitsReady for exactly this.
+// NOTE: `?solo=level2` / `?solo=attic` CANNOT photograph those levels. The switcher is
+// built once at init, and under solo an exhibit that has not landed yet gets no
+// placeholder tab (main.js: `streaming` is gated on `!SOLO`), so the tab never appears
+// and the shot comes back black. Use SHOT_SOLO=0 for an exhibit level — it costs the
+// full load, but it is the only way the tab exists.
+if (level !== 'ground' && level !== 'exterior') {
+  console.log('awaiting exhibitsReady...');
+  for (let i = 0; i < 60; i++) {
+    if (await page.evaluate(() => !!window.__eureka.exhibitsReady).catch(() => false)) break;
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  await page.evaluate(() => window.__eureka.exhibitsReady);
+}
 await page.evaluate((l) => document.querySelector(`#level-switcher [data-id="${l}"]`)?.click(), level);
 await new Promise(r => setTimeout(r, solo ? 8000 : 60000));
 // Take the floor datum from a piece known to be on THIS level — the scene also holds

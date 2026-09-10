@@ -1949,7 +1949,10 @@ function buildRecessed(p) {
   ring.position.y = CEIL - 0.018 * ft; g.add(ring);
   const l = new THREE.Mesh(new THREE.CylinderGeometry(R * 0.8, R * 0.8, 0.02 * ft, 24), lens);
   l.position.y = CEIL - 0.042 * ft; g.add(l);
-  const light = new THREE.PointLight(0xfff0db, p.intensity ?? 1.5, 0, 2);
+  // `reachFt` caps the light's range. A distance of 0 is three.js's "no cutoff": the
+  // tail never reaches zero, so one can keeps lighting the next room. 12 ft clears a
+  // floor 9 ft below with a pool around it.
+  const light = new THREE.PointLight(0xfff0db, p.intensity ?? 1.5, (p.reachFt ?? 12) * ft, 2);
   light.position.y = CEIL - 0.12 * ft; g.add(light);
   g.userData.fixtures = [{ light, emissive: lens }];
   return g;
@@ -2393,7 +2396,9 @@ function buildPendant(p) {
   const bulbMat = GLOW(0xffca73, 1.2);
   const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), bulbMat);
   bulb.position.y = BOT + 0.07; g.add(bulb);
-  const light = new THREE.PointLight(0xfff0db, p.intensity ?? 3.2, 0, 2);
+  // Hangs to ~6.4 ft over a table: 10 ft of reach lights the table and a ring of floor
+  // around it, and stops there rather than washing the whole room. See buildRecessed.
+  const light = new THREE.PointLight(0xfff0db, p.intensity ?? 3.2, (p.reachFt ?? 10) * ft, 2);
   light.position.y = BOT - 0.04; g.add(light);
   g.userData.fixtures = [{ light, emissive: shade }];
   return g;
@@ -2419,9 +2424,9 @@ function buildSconce(p) {
   arm.position.copy(at(0.10 + ARM / 2, 0, Y)); g.add(arm);
   const globe = new THREE.Mesh(new THREE.SphereGeometry(R * ft, 20, 14), opal);
   globe.position.copy(at(0.10 + ARM + R * 0.7, 0, Y)); g.add(globe);
-  // `reachFt` gives the light a finite range. Default 0 is three.js's "infinite", which
-  // for a fixture sitting 3 in off a wall washes the whole room from one small globe.
-  const light = new THREE.PointLight(0xffe7c0, p.intensity ?? 1.5, (p.reachFt ?? 0) * ft, 2);
+  // 8 ft, which is what the bath pair was tuned to by eye: a fixture sitting 3 in off a
+  // wall washes the whole room from one small globe if you let its tail run. See buildRecessed.
+  const light = new THREE.PointLight(0xffe7c0, p.intensity ?? 1.5, (p.reachFt ?? 8) * ft, 2);
   light.position.copy(globe.position); g.add(light);
   g.userData.fixtures = [{ light, emissive: opal }];
   return g;
@@ -2453,7 +2458,10 @@ function buildUnderCabinet(p) {
     box(-D / 2 + 0.30, ds, Y - 0.055, 0.34, len, 0.055, brass);         // channel, set back from the face
     box(-D / 2 + 0.30, ds, Y - 0.075, 0.26, len - 0.10, 0.018, lens);   // lens
     const q = fplace(A, P, -D / 2 + 0.30, ds, 0, 0);
-    const light = new THREE.PointLight(0xffe3ae, p.intensity ?? 0.9, 2.6, 2);
+    // Already capped before the rest of the fixtures were — this only moves it onto the
+    // same `reachFt` idiom. 8.5 ft is the 2.6 m it used to pass in raw world units, so
+    // the strip looks exactly as it did.
+    const light = new THREE.PointLight(0xffe3ae, p.intensity ?? 0.9, (p.reachFt ?? 8.5) * ft, 2);
     light.position.copy(V(q[0], q[1], Y - 0.16)); g.add(light);
     fixtures.push({ light, emissive: lens });
   }
@@ -2491,7 +2499,9 @@ function buildSkylight(p) {
   quad([x0, yS, zS], [x1, yS, zS], [x1, yN, zN], [x0, yN, zN], glass);     // glazing, in the roof plane
   // Daylight, so deliberately NOT registered with the lamp scenes — a skylight that
   // went dark whenever the lamps did would be wrong at noon, which is when it matters.
-  const light = new THREE.PointLight(0xeaf2ff, p.intensity ?? 2.2, 0, 2);
+  // Capped like the lamps (see buildRecessed) — a daylight shaft with no cutoff lights
+  // the whole floor. 16 ft fills the room under the well and stops at its walls.
+  const light = new THREE.PointLight(0xeaf2ff, p.intensity ?? 2.2, (p.reachFt ?? 16) * ft, 2);
   light.position.set(0, (yS + yN) / 2 - 0.06, 0); g.add(light);
   g.userData.fixtures = [];
   return g;
