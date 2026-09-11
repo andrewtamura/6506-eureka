@@ -2043,6 +2043,10 @@ async function main() {
   // open doorways are fully see-through.
   {
     const doorMat = new THREE.MeshLambertMaterial({ color: 0x9b7653 });
+    // The front door's recessed panels go a shade darker than its stiles and rails, the
+    // same trick ifc/builders.py uses (`panelc`): it is what makes the panelling read in
+    // flat light instead of dissolving into one brown rectangle.
+    const doorPanel = new THREE.MeshLambertMaterial({ color: 0x7d5c40 });
     // Glazing for a divided-light leaf. depthWrite off so the muntins and whatever is
     // beyond the door both read through it.
     const doorGlass = new THREE.MeshLambertMaterial({ color: 0xc6d7da, transparent: true,
@@ -2065,7 +2069,7 @@ async function main() {
       for (const d of await (await fetch(`${BASE}${groundManifests.doors}${VER}`)).json()) meta[d.name] = d;
     } catch (e) { /* fall back to defaults */ }
 
-    const ANG = Math.PI / 2;
+    const ANG = Math.PI / 2;                   // default swing; `openDeg` overrides per door
     const DOUBLE = 1.2; // doors wider than this (m) split into double doors
     ids.forEach((id, i) => {
       const bx = boxes[i];
@@ -2079,6 +2083,11 @@ async function main() {
       const hingeMax = !!m.hingeMax;
       const sign = m.swingSign != null ? m.swingSign : (alongX ? -1 : 1);
       const unit = { open: true };               // doors default to open
+      // A leaf can only lie FLAT against its own wall if that wall returns past the
+      // jamb by at least the leaf width. The foyer's french pair returns 28.2 in for a
+      // 36 in leaf, so 180 deg would drive each tip 7.8 in into the side wall; `openDeg`
+      // is how far it actually goes.
+      const ang = m.openDeg != null ? (m.openDeg * Math.PI) / 180 : ANG;
       const style = m.style || "panel";
       // A leaf is built in LOCAL X across its width, then turned for a N-S door, so the
       // stile/rail layout does not have to be written twice.
@@ -2128,6 +2137,36 @@ async function main() {
           put(0.485, 0.515, 0.20, lock, doorMat, th * 1.04);                              // muntin -> two panels
           return { grp, meshes };
         }
+        // FRONT DOOR: a raised six-panel leaf with bolection molding, matching the
+        // massing ifc/builders.py builds for the exterior (door_leaf, style "front").
+        // Without this the ground-floor leaf was a blank plank while the same door
+        // read as panelled from the street. Proportions are the generator's: a short
+        // top panel, a tall middle and a medium bottom, not plain thirds.
+        if (style === "front") {
+          const ST = Math.min(0.12, leafW * 0.15), MID = 0.155;
+          const us = ST / leafW, ue = 1 - us;
+          const usable = sy - 2 * ST - 2 * MID;
+          const r1 = ST + usable * 0.22, r2 = r1 + MID + usable * 0.44;
+          put(0, us, 0, sy, doorMat); put(ue, 1, 0, sy, doorMat);            // stiles
+          put(us, ue, 0, ST, doorMat); put(us, ue, sy - ST, sy, doorMat);    // top and bottom rails
+          put(us, ue, r1, r1 + MID, doorMat); put(us, ue, r2, r2 + MID, doorMat);  // mid rails
+          const mu = 0.055, um = (us + ue) / 2, hm = mu / leafW;
+          put(um - hm / 2, um + hm / 2, ST, sy - ST, doorMat);               // mullion -> 2 columns
+          const cols = [[us + hm / 2 * 0 + 0.0, um - hm / 2], [um + hm / 2, ue]];
+          const bands = [[ST, r1], [r1 + MID, r2], [r2 + MID, sy - ST]];
+          const INS = 0.055;
+          for (const [y0, y1] of bands) for (const [u0, u1] of cols) {
+            const du = INS / leafW;
+            // The panel sits PROUD of the rails and the bolection lip prouder still,
+            // which is what makes the panelling read in flat light.
+            put(u0 + du, u1 - du, y0 + INS, y1 - INS, doorPanel, th * 1.10);
+            put(u0 + du * 0.45, u1 - du * 0.45, y0 + INS * 0.45, y0 + INS * 0.8, doorMat, th * 1.3);
+            put(u0 + du * 0.45, u1 - du * 0.45, y1 - INS * 0.8, y1 - INS * 0.45, doorMat, th * 1.3);
+            put(u0 + du * 0.45, u0 + du * 0.8, y0 + INS * 0.45, y1 - INS * 0.45, doorMat, th * 1.3);
+            put(u1 - du * 0.8, u1 - du * 0.45, y0 + INS * 0.45, y1 - INS * 0.45, doorMat, th * 1.3);
+          }
+          return { grp, meshes };
+        }
         if (!rows) { put(0, 1, 0, sy, doorMat); return { grp, meshes }; }
         const ST = Math.min(0.11, leafW * 0.14), BR = 0.30, TR = 0.11, MU = 0.032;
         const us = ST / leafW, ue = 1 - us, gy0 = BR, gy1 = sy - TR;
@@ -2157,16 +2196,16 @@ async function main() {
       if (W > DOUBLE) {                         // double doors (french/patio)
         const half = W / 2;                     // sign picks which side they swing to
         if (alongX) {
-          mkLeaf(bx.min.x, cz, half, +1, -sign * ANG);
-          mkLeaf(bx.max.x, cz, half, -1, +sign * ANG);
+          mkLeaf(bx.min.x, cz, half, +1, -sign * ang);
+          mkLeaf(bx.max.x, cz, half, -1, +sign * ang);
         } else {
-          mkLeaf(cx, bx.min.z, half, +1, -sign * ANG);
-          mkLeaf(cx, bx.max.z, half, -1, +sign * ANG);
+          mkLeaf(cx, bx.min.z, half, +1, -sign * ang);
+          mkLeaf(cx, bx.max.z, half, -1, +sign * ang);
         }
       } else {                                  // single leaf
         const dir = hingeMax ? -1 : +1;         // extend away from the hinge jamb
-        if (alongX) mkLeaf(hingeMax ? bx.max.x : bx.min.x, cz, W, dir, sign * ANG);
-        else mkLeaf(cx, hingeMax ? bx.max.z : bx.min.z, W, dir, sign * ANG);
+        if (alongX) mkLeaf(hingeMax ? bx.max.x : bx.min.x, cz, W, dir, sign * ang);
+        else mkLeaf(cx, hingeMax ? bx.max.z : bx.min.z, W, dir, sign * ang);
       }
     });
     window.__eureka.doors = doors; // for the headless smoke test

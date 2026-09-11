@@ -2095,10 +2095,16 @@ def second_floor_windows(rooms):
     def add(name, orient, fixed, pos, sill=SILL, width=W, head=HEAD):
         specs.append({"name": name, "orient": orient, "fixed": fixed, "pos": pos,
                       "width": width, "sill": sill, "head": head})
-    # NORTH (locked): one upper over each ground-floor front opening (windows + door)
+    # NORTH (locked): one upper over each ground-floor front opening (windows + door).
+    # `transom` opts an opening OUT: a transom is part of the opening below it, not a
+    # bay of its own. Without this the front door's transom — same wall, same plan-x —
+    # added a second bay on top of the door's, which shifted aligned_front_bays and
+    # moved an attic dormer and the window bench with it.
     for r in rooms:
         for o in r.get("windows", []) + r.get("doors", []):
-            if not o.get("opening") and o["orient"] == "H" and abs(o["fixed"] - front_z) < 1e-3:
+            if o.get("opening") or o.get("transom"):
+                continue
+            if o["orient"] == "H" and abs(o["fixed"] - front_z) < 1e-3:
                 add(f"Upper - {o['name']}", "H", front_z, o["pos"])
     # WEST: one upper over EVERY ground-floor west opening — four now, so the elevation
     # reads four over four with both rows symmetric about the facade centre. This used to
@@ -2844,6 +2850,11 @@ def add_doors(ctx, r):
             # plain slab from inside. The viewer's leaf needs it too.
             "style": d.get("doorStyle", "panel"),
         })
+        # `openDeg` overrides the viewer's default 90 deg swing for this door only.
+        # A leaf can only lie flat against its own wall if the wall RETURNS past the
+        # jamb by at least the leaf width; where it does not, this is how far it goes.
+        if d.get("openDeg") is not None:
+            ctx.door_meta[-1]["openDeg"] = float(d["openDeg"])
 
 
 def add_windows(ctx, r):
@@ -2854,6 +2865,20 @@ def add_windows(ctx, r):
             cut_opening(ctx, "IfcWindow", w["name"], w["orient"], w["fixed"], w["pos"],
                         w["width"], w["sill"], ctx.head_ft, leaf=False)
             continue
-        # Uniform head for every window (sills stay as authored).
+        # Uniform head for every window (sills stay as authored) — the whole house lines
+        # up on one head line, so an authored `head` is deliberately IGNORED here.
+        # A transom is the one real exception: it sits ABOVE that line, stacked on the
+        # opening it belongs to, so it authors its own head. Without this carve-out a
+        # transom with sill == head_ft came out ZERO HEIGHT, and both it and its opening
+        # then failed to produce geometry at all — a silently missing window, not an error.
+        head = w["head"] if w.get("transom") else ctx.head_ft
+        if head <= w["sill"]:
+            # Loud, because the quiet version cost a debugging round: a zero-height
+            # window still produces an IfcWindow and an IfcOpeningElement, so nothing
+            # looks wrong until you notice the wall is solid where the glass should be.
+            raise ValueError(
+                f"{w['name']}: head {head} is not above sill {w['sill']} — the window "
+                f"would be zero height. A transom sitting ON the head line must author "
+                f"its own `head` and carry `transom: true`.")
         cut_opening(ctx, "IfcWindow", w["name"], w["orient"], w["fixed"], w["pos"],
-                    w["width"], w["sill"], ctx.head_ft)
+                    w["width"], w["sill"], head)

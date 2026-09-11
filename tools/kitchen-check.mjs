@@ -1133,6 +1133,62 @@ console.log('EXTENSION');
     A(d.parts === 9, `8-lite leaf: ${d.parts} members (2 stiles, 2 rails, pane, 4 muntins)`);
   } }
 
+// ---- MAIN VESTIBULE ------------------------------------------------------------
+{
+  console.log('\nMAIN VESTIBULE');
+  const VE = 4.146, VW = 14.854;            // vestibule/foyer side-wall interior faces
+  const ves = P.filter(r => r.pz > 10.3 && r.pz < 15.9 && r.px > 4.0 && r.px < 15.0);
+
+  // FRONT DOOR: a raised six-panel leaf, not the blank plank it used to render as.
+  // The generator has always built the panelled massing; the viewer's swinging leaf
+  // fell through to a single slab because `leafParts` only knew "<n>lite" and halfmoon.
+  const fd = raw.doorLeaves.find(d => d.name === 'Front Door');
+  A(!!fd, 'front door leaf found');
+  if (fd) A(fd.parts > 20, `six-panel with bolection molding: ${fd.parts} members (a flat slab is 1)`);
+
+  // FRENCH PAIR into the foyer: 8-lite, and open as far as the wall physically allows.
+  const fr = raw.doorLeaves.filter(d => /Foyer -> Vestibule/.test(d.name));
+  A(fr.length === 2, `french pair into the foyer (${fr.length})`);
+  for (const d of fr) A(d.parts === 9, `8-lite leaf: ${d.parts} members (2 stiles, 2 rails, pane, 4 muntins)`);
+  if (fr.length === 2) {
+    // The leaves swing back toward their own wall until the tips meet the side walls.
+    // A 36 in leaf would need 36 in of return to lie FLAT and the foyer gives 28.2, so
+    // this is the real limit, not a chosen angle — assert the clearance, not the degrees.
+    const tipE = Math.min(...fr.map(d => d.pxLo)), tipW = Math.max(...fr.map(d => d.pxHi));
+    A(tipE >= VE - 0.01, `east leaf stops at the side wall (${R(tipE, 3)} vs ${VE})`);
+    A(tipW <= VW + 0.01, `west leaf stops at the side wall (${R(tipW, 3)} vs ${VW})`);
+    // ...and are genuinely swung back, not standing perpendicular at 90 deg, which is
+    // what "open only half way" looked like: at 90 deg a leaf reaches 3 ft into the foyer.
+    const intoFoyer = Math.max(...fr.map(d => 10.1667 - d.pzLo));
+    A(intoFoyer < 2.2, `swung back against the wall — ${R(intoFoyer, 2)} ft into the foyer, not 3.0`);
+  }
+
+  // BENCH on the EAST wall, MIRROR on the WEST wall — facing each other.
+  { const b = ves.find(r => r.type === 'mudroom_bench');
+    A(!!b, 'bench in the main vestibule');
+    if (b) {
+      A(Math.abs(b.pxLo - VE) < 0.06, `backs onto the east wall (${R(b.pxLo, 3)})`);
+      const mm = meshes(b);
+      A(mm.some(m => (m.pzHi - m.pzLo) > 4.0 && Math.abs(m.yHi - 1.55) < 0.05), 'cushioned seat at 18.6 in');
+      const divs = mm.filter(m => (m.pzHi - m.pzLo) < 0.12 && (m.pxHi - m.pxLo) > 1.2
+        && m.yLo > 0.25 && m.yHi < 1.3);
+      A(divs.length === 5, `shoe cubbies below it (${divs.length} boards)`);
+      const pegs = mm.filter(m => Math.abs((m.yLo + m.yHi) / 2 - 4.58) < 0.2
+        && (m.pzHi - m.pzLo) < 0.2 && (m.pxHi - m.pxLo) < 0.45);
+      A(pegs.length >= 5, `coat pegs on the rail (${pegs.length} members)`);
+    } }
+  { const mir = ves.find(r => r.type === 'wall_mirror');
+    A(!!mir, 'full-length mirror in the main vestibule');
+    if (mir) {
+      A(Math.abs(mir.pxHi - VW) < 0.08, `hung on the west wall (${R(mir.pxHi, 3)})`);
+      A(mir.pzHi - mir.pzLo > 3.0, `${R(mir.pzHi - mir.pzLo, 2)} ft wide`);
+      A(Math.abs(mir.yLo - 1.5) < 0.08, `foot ${R(mir.yLo * 12, 0)} in off the floor`);
+      A(Math.abs(mir.yHi - 7.0) < 0.08, `tops out on the 7 ft head line (${R(mir.yHi * 12, 0)} in)`);
+      const b2 = ves.find(r => r.type === 'mudroom_bench');
+      if (b2) A(mir.px > b2.px, 'bench and mirror face each other across the room');
+    } }
+}
+
 // ---- LIGHT FALLOFF -------------------------------------------------------------
 // three.js reads distance 0 as "no cutoff": with decay 2 the light still falls off by
 // inverse square, but the tail never reaches zero, so every lamp keeps contributing

@@ -12,6 +12,7 @@
 //   - "checkerboard": black/white 12" squares on the diagonal (diamonds, N-S).
 //   - "hexagon": white hex honeycomb with a repeating charcoal accent (1-in-7).
 //   - "grid": plain 6 in square tile on a straight grid — the quiet one.
+//   - "checker": black/white 12 in squares laid SQUARE — the formal entry floor.
 import * as THREE from "three";
 
 const FT = 0.3048;
@@ -120,7 +121,24 @@ function hexagon(hexes, b) {
   }
 }
 
-const PATTERNS = { basketweave, checkerboard, grid };
+// --- black & white 12 in squares, laid SQUARE to the room ---
+// The same tile as `checkerboard`, which lays it on the diagonal as diamonds. This one
+// runs with the walls, which is the formal entrance-hall version. Shares the
+// checkerboard's tile size, joint and shade list so the two read as one floor material
+// in two layouts, and is anchored to the same GLOBAL lattice as `grid`.
+function checker(boxes, b) {
+  const i0 = Math.floor(b.min.x / T), i1 = Math.ceil(b.max.x / T);
+  const j0 = Math.floor(b.min.z / T), j1 = Math.ceil(b.max.z / T);
+  const side = T - 2 * CG;
+  for (let i = i0; i < i1; i++) for (let j = j0; j < j1; j++) {
+    const base = ((i + j) & 1) === 0 ? WHITE : BLACK;
+    const sf = CSHADE[Math.floor(hash(i * 23.3 + j * 4.1) * CSHADE.length) % CSHADE.length];
+    boxes.push({ cx: (i + 0.5) * T, cz: (j + 0.5) * T, w: side, d: side, y: TH / 2, h: TH,
+      rot: 0, rgb: [base[0] * sf, base[1] * sf, base[2] * sf] });
+  }
+}
+
+const PATTERNS = { basketweave, checkerboard, grid, checker };
 
 // inward-facing clip planes at the covering box faces (= wall centerlines)
 function clipPlanes(b) {
