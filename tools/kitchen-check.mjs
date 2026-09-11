@@ -883,8 +883,14 @@ console.log('EXTENSION FIXTURES');
     if (mir) {
       A(Math.abs(mir.pzLo - VS) < 0.08, `hung on the south wall (${R(mir.pzLo, 3)} vs ${VS})`);
       A(mir.pxHi - mir.pxLo > 2.0, `${R(mir.pxHi - mir.pxLo, 2)} ft wide`);
-      A(mir.yLo > 0.6 && mir.yLo < 1.2, `foot ${R(mir.yLo * 12, 0)} in off the floor`);
-      A(mir.yHi > 6.0, `tops out at ${R(mir.yHi * 12, 0)} in — head-to-toe`);
+      // 18 in clears the arc a toe swings through, and matches the bench's finished
+      // seat on the next wall. It costs nothing in what you can see: to catch your own
+      // feet the glass only has to reach HALF your eye height (~32 in at 5'10"), so
+      // "raise it" and "still full length" are not in tension here.
+      A(Math.abs(mir.yLo - 1.5) < 0.08, `foot ${R(mir.yLo * 12, 0)} in off the floor — clear of toes`);
+      // The top then lands on the 7 ft door-head line used across this level, so it
+      // aligns with the heads of the two vestibule doors rather than floating.
+      A(Math.abs(mir.yHi - 7.0) < 0.08, `tops out on the 7 ft head line (${R(mir.yHi * 12, 0)} in)`);
       A((mir.pzHi - mir.pzLo) < 0.3, `sits flat on the wall, ${R((mir.pzHi - mir.pzLo) * 12, 1)} in proud`);
       // It shares the south wall with the bench, which runs off that wall 1.5 ft deep.
       // The glass has to start past the bench or you are looking at the end of it.
