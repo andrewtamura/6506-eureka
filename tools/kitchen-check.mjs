@@ -814,9 +814,45 @@ console.log('EXTENSION FIXTURES');
       A(Math.abs(b.pzLo - VS) < 0.06, `runs off the south wall (${R(b.pzLo,3)})`);
       A(Math.abs((b.pzHi - b.pzLo) - 5.0) < 0.06, `${R(b.pzHi - b.pzLo, 2)} ft long`);
       const mm = meshes(b);
-      const seat = mm.filter(m => m.yHi > 1.3 && m.yHi < 1.7 && (m.pzHi - m.pzLo) > 4.0)
-        .sort((u, v) => v.yHi - u.yHi)[0];
-      A(!!seat && Math.abs(seat.yHi - 1.5) < 0.05, `seat at ${R((seat ? seat.yHi : 0) * 12, 1)} in`);
+      // FINISHED seat = the top of the cushion. The timber deck sits a squab lower,
+      // which is the whole point of building it upholstered rather than laying a pad
+      // on an 18 in deck and ending up at nearly 21.
+      // Bounded to the SEAT band: the shelf and the boarded back also run the full
+      // length, and unbounded this picked the shelf at 71 in as the "cushion".
+      const wide = mm.filter(m => (m.pzHi - m.pzLo) > 4.0 && m.yHi > 1.2 && m.yHi < 1.8)
+        .sort((u, v) => v.yHi - u.yHi);
+      // Below the cushion ENTIRELY — the welt piping runs the same length and sits at
+      // the squab's mid-height, so "first one lower" finds the piping, not the deck.
+      const squab = wide[0], deck = wide.find(m => m.yHi <= squab.yLo + 0.01);
+      A(!!squab && Math.abs(squab.yHi - 1.55) < 0.05, `finished seat at ${R(squab.yHi * 12, 1)} in — cushion top`);
+      A(!!squab && Math.abs((squab.yHi - squab.yLo) - 0.20) < 0.04,
+        `upholstered: a ${R((squab.yHi - squab.yLo) * 12, 1)} in squab, not a painted slab`);
+      A(!!deck && Math.abs(deck.yHi - 1.35) < 0.05, `timber deck at ${R((deck ? deck.yHi : 0) * 12, 1)} in, under it`);
+      // The squab is inset from the nosed timber seat — a cushion flush to the edge
+      // reads as a second slab.
+      A(!!deck && squab.pxLo > deck.pxLo + 0.02 && squab.pxHi < deck.pxHi - 0.02,
+        `squab inset ${R((squab.pxLo - deck.pxLo) * 12, 1)} in behind the seat's nosed edge`);
+      // SHOE CUBBIES: vertical boards running the full depth, stopping under the seat.
+      const divs = mm.filter(m => (m.pzHi - m.pzLo) < 0.12 && (m.pxHi - m.pxLo) > 1.2
+        && m.yLo > 0.25 && m.yHi < 1.3).sort((u, v) => u.pz - v.pz);
+      A(divs.length === 5, `4 shoe cubbies — 2 gables + 3 dividers (${divs.length} boards)`);
+      if (divs.length === 5) {
+        const gaps = divs.slice(1).map((d, i) => d.pzLo - divs[i].pzHi);
+        A(gaps.every(g => Math.abs(g - gaps[0]) < 0.02), `bays even at ${R(gaps[0] * 12, 1)} in`);
+        A(gaps[0] > 0.9, `each bay ${R(gaps[0] * 12, 1)} in wide — a pair of shoes`);
+      }
+      // Opening: cubby floor up to the underside of the front seat rail. Shoes need
+      // real height here, which is why the rail is slim and the floor sits on the plinth.
+      if (divs.length) {
+        const open = Math.min(...divs.map(d => d.yHi)) - Math.max(...divs.map(d => d.yLo));
+        A(open > 0.66, `${R(open * 12, 1)} in of opening — clears a shoe`);
+      }
+      // Framing that is actually doing work: a front rail tying the tops of the gables.
+      // Near the FRONT face specifically — the cubby back panel has the same section
+       // and height, and would otherwise be counted as the rail.
+      const frontRail = mm.filter(m => (m.pzHi - m.pzLo) > 4.0 && (m.pxHi - m.pxLo) < 0.12
+        && m.yHi > 1.1 && m.yHi < 1.3 && m.pxHi > b.pxHi - 0.15);
+      A(frontRail.length >= 1, `front seat rail across the cubby tops (${frontRail.length})`);
       A(Math.max(...mm.map(m => m.yHi)) > 5.7, `boarded back and shelf to ${R(Math.max(...mm.map(m => m.yHi)) * 12, 0)} in`);
       // Pegs: small brass members standing off the rail, around 55 in.
       const pegs = mm.filter(m => Math.abs((m.yLo + m.yHi) / 2 - 4.58) < 0.2
@@ -826,6 +862,45 @@ console.log('EXTENSION FIXTURES');
       // leaf, so its tip reaches pz 1.0 — the bench must stop short of that.
       A(b.pzHi < 1.0, `stops ${R((1.0 - b.pzHi) * 12, 1)} in clear of the open entry door`);
       A(VW - b.pxHi > 3.0, `${R(VW - b.pxHi, 2)} ft of aisle to the family room door`);
+      // NO END CHEEKS. A cheek is the give-away shape: a full-depth panel standing the
+      // whole height of the back at one end. Nothing in the bench should match that —
+      // the shelf is full height but only 0.35 ft deep, the back only 0.06 ft.
+      const cheeks = mm.filter(m => (m.yHi - m.yLo) > 5.0 && (m.pxHi - m.pxLo) > 1.2
+        && (m.pzHi - m.pzLo) < 0.4);
+      A(cheeks.length === 0, `no end cheeks — the bench is open at both ends (${cheeks.length})`);
+      // and with the cheeks gone the plinth and peg rail run the FULL length, not the
+      // length minus two cheek thicknesses.
+      const rail = mm.filter(m => Math.abs((m.yLo + m.yHi) / 2 - 4.58) < 0.25 && (m.pzHi - m.pzLo) > 3.0)
+        .sort((u, v) => (v.pzHi - v.pzLo) - (u.pzHi - u.pzLo))[0];
+      A(!!rail && Math.abs((rail.pzHi - rail.pzLo) - 5.0) < 0.06,
+        `peg rail runs the full 5 ft (${R(rail ? rail.pzHi - rail.pzLo : 0, 2)})`);
+    } }
+
+  // FULL-LENGTH MIRROR on the vestibule's SOUTH wall — a fit check on the way out.
+  { const VE = -17.229, VW = -12.229, VS = -4.171;      // vestibule interior faces
+    const mir = ext.find(r => r.type === 'wall_mirror');
+    A(!!mir, 'full-length mirror in the vestibule');
+    if (mir) {
+      A(Math.abs(mir.pzLo - VS) < 0.08, `hung on the south wall (${R(mir.pzLo, 3)} vs ${VS})`);
+      A(mir.pxHi - mir.pxLo > 2.0, `${R(mir.pxHi - mir.pxLo, 2)} ft wide`);
+      // 18 in clears the arc a toe swings through, and matches the bench's finished
+      // seat on the next wall. It costs nothing in what you can see: to catch your own
+      // feet the glass only has to reach HALF your eye height (~32 in at 5'10"), so
+      // "raise it" and "still full length" are not in tension here.
+      A(Math.abs(mir.yLo - 1.5) < 0.08, `foot ${R(mir.yLo * 12, 0)} in off the floor — clear of toes`);
+      // The top then lands on the 7 ft door-head line used across this level, so it
+      // aligns with the heads of the two vestibule doors rather than floating.
+      A(Math.abs(mir.yHi - 7.0) < 0.08, `tops out on the 7 ft head line (${R(mir.yHi * 12, 0)} in)`);
+      A((mir.pzHi - mir.pzLo) < 0.3, `sits flat on the wall, ${R((mir.pzHi - mir.pzLo) * 12, 1)} in proud`);
+      // It shares the south wall with the bench, which runs off that wall 1.5 ft deep.
+      // The glass has to start past the bench or you are looking at the end of it.
+      const b2 = ext.find(r => r.type === 'mudroom_bench');
+      if (b2) A(mir.pxLo > b2.pxHi, `clear of the bench by ${R((mir.pxLo - b2.pxHi) * 12, 1)} in`);
+      A(VW - mir.pxHi > 0.4, `${R((VW - mir.pxHi) * 12, 1)} in clear of the west wall`);
+      // A mirror is glass in a frame, not a painted panel: the frame members stand
+      // proud of the glass, so the deepest mesh is not the widest one.
+      const mmm = meshes(mir);
+      A(mmm.length >= 6, `framed: ${mmm.length} members (backing, glass, 2 stiles, 2 rails)`);
     } }
 
   // WC: toilet against the WEST wall (px -17.687), facing east into the room.

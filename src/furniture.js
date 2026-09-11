@@ -1903,22 +1903,60 @@ function buildMudroomBench(p) {
   };
   const paint = new THREE.MeshStandardMaterial({ color: col(p.paint || "chalk", 0xf8f5ef), roughness: 0.6 });
   const brass = new THREE.MeshStandardMaterial({ color: 0xb08d57, roughness: 0.35, metalness: 0.6 });
+  const fabric = fabricMat(col(p.cushion || "upholstery", 0x5a6b80));
+  const welt = fabricMat(col(p.cushion || "upholstery", 0x5a6b80).multiplyScalar(0.82));
   const L = p.lenFt ?? 5.0, D = p.depthFt ?? 1.5;
-  const SEAT = 1.5, PL = 0.30, RAIL = p.railFt ?? 4.58, SHELF = p.shelfFt ?? 5.85;
+  // SEAT is the FINISHED height — the top of the cushion, which is what you sit on.
+  // The timber deck below it therefore sits a cushion-thickness lower, the way an
+  // upholstered bench is actually built; a squab laid on an 18 in deck would put the
+  // finished seat at nearly 21 in.
+  const SEAT = p.seatFt ?? 1.55, CU = p.cushionFt ?? 0.20;
+  const DECK = SEAT - CU;                              // timber seat the squab lies on
+  const PL = 0.30, RAIL = p.railFt ?? 4.58, SHELF = p.shelfFt ?? 5.85;
   const bk = -D / 2;                                   // the wall plane, in front-offsets
-  const CH = 0.09;                                     // end cheek thickness
+  // End cheeks are OFF by default: they close the bench in at both ends and make a
+  // 5 ft bench read as a booth. Everything sized `L - 2 * CH` (plinth, peg rail, the
+  // peg span) then runs the full length on its own.
+  const CH = p.cheeks ? 0.09 : 0;
+  const TK = 0.06;                                     // carcase board (3/4 in ply)
+  const CDECK = PL + TK;                               // cubby floor, laid on the plinth
+  const UNDER = DECK - 0.12;                           // underside of the timber seat
+  const RAILH = 0.12;                                  // front seat rail
 
-  box(bk + (D - 0.16) / 2, 0, PL / 2, D - 0.16, L - 2 * CH, PL, paint);          // plinth, set back as a toe
-  box(0.02, 0, SEAT - 0.06, D + 0.04, L, 0.12, paint, 0.015);                     // seat slab, nosed proud
-  box(bk + 0.03, 0, (SEAT + SHELF) / 2, 0.06, L, SHELF - SEAT, paint);            // boarded back
+  // --- carcase: what actually holds the seat up --------------------------------
+  box(bk + (D - 0.16) / 2, 0, PL / 2, D - 0.16, L, PL, paint);                    // plinth, set back as a toe
+  box(0, 0, CDECK - TK / 2, D, L, TK, paint);                                     // cubby floor on the plinth
+  box(bk + 0.02, 0, (CDECK + UNDER) / 2, 0.04, L, UNDER - CDECK, paint);          // back panel behind the cubbies
+  // Gables and dividers carry the seat and make the shoe cubbies. These are NOT the
+  // cheek walls that were removed: those ran the full height to the shelf and closed
+  // the bench in; these stop under the seat, so the bench stays open above it.
+  const nC = Math.max(1, p.cubbies ?? 4);
+  const bay = (L - (nC + 1) * TK) / nC;
+  for (let i = 0; i <= nC; i++) {
+    const ds = -L / 2 + TK / 2 + i * (bay + TK);
+    box(0, ds, (CDECK + UNDER) / 2, D, TK, UNDER - CDECK, paint);
+  }
+  box(D / 2 - TK / 2, 0, UNDER - RAILH / 2, TK, L, RAILH, paint);                 // front seat rail, tying the tops
+
+  box(0.02, 0, DECK - 0.06, D + 0.04, L, 0.12, paint, 0.015);                     // timber seat, nosed proud
+  // --- squab: foam in a welted cover, not a slab ------------------------------
+  const cw = L - 0.10, cd = D - 0.10;
+  box(0.02, 0, DECK + CU / 2, cd, cw, CU, fabric, 0.055);                         // the cushion itself
+  const WL = 0.035, WH = 0.05;                                                     // piped seam round the perimeter
+  box(0.02 + cd / 2, 0, DECK + CU / 2, WL, cw, WH, welt);
+  box(0.02 - cd / 2, 0, DECK + CU / 2, WL, cw, WH, welt);
+  for (const sg of [-1, 1]) box(0.02, sg * cw / 2, DECK + CU / 2, cd, WL, WH, welt);
+
+  box(bk + 0.03, 0, (DECK + SHELF) / 2, 0.06, L, SHELF - DECK, paint);            // boarded back
   const nB = Math.max(2, Math.round(L / 1.05));                                   // battens on the boarding
   for (let i = 0; i <= nB; i++) {
     const w = 0.09, ds = -L / 2 + (i * L) / nB + (i === 0 ? w / 2 : i === nB ? -w / 2 : 0);
-    box(bk + 0.075, ds, (SEAT + SHELF) / 2, 0.03, w, SHELF - SEAT, paint);
+    box(bk + 0.075, ds, (DECK + SHELF) / 2, 0.03, w, SHELF - DECK, paint);
   }
   box(bk + 0.10, 0, RAIL, 0.09, L - 2 * CH, 0.34, paint);                          // peg rail
   box(bk + 0.35 / 2, 0, SHELF + 0.04, 0.35, L, 0.08, paint, 0.01);                 // shelf
-  for (const sg of [-1, 1]) box(0, sg * (L / 2 - CH / 2), (SHELF + 0.08) / 2, D, CH, SHELF + 0.08, paint); // cheeks
+  if (p.cheeks)
+    for (const sg of [-1, 1]) box(0, sg * (L / 2 - CH / 2), (SHELF + 0.08) / 2, D, CH, SHELF + 0.08, paint);
 
   // Shaker pegs on the rail, angled out along the facing direction.
   const outward = new THREE.Vector3(-A[0], 0, -A[1]).normalize();
@@ -2507,7 +2545,45 @@ function buildSkylight(p) {
   return g;
 }
 
-const BUILDERS = { mudroom_bench: buildMudroomBench, recessed: buildRecessed, pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight,
+// A wall-hung FULL-LENGTH mirror — the one you check yourself in on the way out.
+// Built the way a real one is: a frame around a glass panel that sits BEHIND the
+// frame face on a thin backing board, so the frame throws a shadow line onto the
+// glass. A single flat plane on the wall reads as a sticker, not a mirror.
+// `at` is the centre of its (thin) footprint and `faces` the way it looks into the
+// room, same convention as the bench.
+function buildWallMirror(p) {
+  const ft = FT, g = new THREE.Group();
+  const A = DIR[p.faces || "N"], P = [-A[1], A[0]];
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
+  const box = (da, ds, y, dl, dw, hy, mat) => {
+    const [opx, opz, sx, sz] = pl(da, ds, dl, dw);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft), mat);
+    m.position.copy(V(opx, opz, y));
+    m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  const paint = new THREE.MeshStandardMaterial({ color: col(p.paint || "chalk", 0xf8f5ef), roughness: 0.6 });
+  // NOT the vanity mirror's recipe (0xbfd0d6 / metalness 0.3 / roughness 0.05). There is
+  // no environment map in this scene, so a dark low-roughness metal has nothing to
+  // reflect and renders near-black: at vanity size, over a lit counter, that passes; at
+  // 2 x 5.5 ft on a wall facing AWAY from the window it reads as a slate panel. A pale,
+  // slightly rougher surface stands in for "reflecting an averagely-lit room", which is
+  // what a mirror this size actually shows.
+  const glass = new THREE.MeshStandardMaterial({ color: 0xe4ecef, roughness: 0.10, metalness: 0.0 });
+  const W = p.widthFt ?? 2.2, H = p.heightFt ?? 5.5, B = p.bottomFt ?? 0.9;
+  const FR = p.frameFt ?? 0.11, D = p.depthFt ?? 0.12;
+  const cy = B + H / 2, bk = -D / 2;                   // bk = the wall plane, in front-offsets
+
+  box(bk + 0.02, 0, cy, 0.04, W, H, paint);                          // backing board
+  box(bk + 0.07, 0, cy, 0.03, W - 2 * FR, H - 2 * FR, glass);        // glass, set behind the face
+  for (const sg of [-1, 1])                                          // stiles, full height
+    box(bk + D / 2, sg * (W - FR) / 2, cy, D, FR, H, paint);
+  for (const sg of [-1, 1])                                          // rails, between the stiles
+    box(bk + D / 2, 0, cy + sg * (H - FR) / 2, D, W - 2 * FR, FR, paint);
+  return g;
+}
+
+const BUILDERS = { mudroom_bench: buildMudroomBench, wall_mirror: buildWallMirror, recessed: buildRecessed, pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight,
   range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, open_shelves: buildOpenShelves, counter_stool: buildCounterStool, banquette: buildBanquette, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, bentwood_chair: buildBentwoodChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 // Re-export a few individual builders so the viewer can drop single procedural
 // pieces (e.g. patio furniture on the alt roof deck) without going through the

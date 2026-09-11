@@ -462,6 +462,16 @@
       "hooks": 5
     },
     {
+      "type": "wall_mirror",
+      "px": -13.979,
+      "pz": -4.111,
+      "rot": 0.0,
+      "faces": "N",
+      "widthFt": 2.2,
+      "heightFt": 5.5,
+      "bottomFt": 1.5
+    },
+    {
       "type": "cabinet_run",
       "px": -14.729,
       "pz": -10.388,
