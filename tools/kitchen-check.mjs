@@ -826,6 +826,39 @@ console.log('EXTENSION FIXTURES');
       // leaf, so its tip reaches pz 1.0 — the bench must stop short of that.
       A(b.pzHi < 1.0, `stops ${R((1.0 - b.pzHi) * 12, 1)} in clear of the open entry door`);
       A(VW - b.pxHi > 3.0, `${R(VW - b.pxHi, 2)} ft of aisle to the family room door`);
+      // NO END CHEEKS. A cheek is the give-away shape: a full-depth panel standing the
+      // whole height of the back at one end. Nothing in the bench should match that —
+      // the shelf is full height but only 0.35 ft deep, the back only 0.06 ft.
+      const cheeks = mm.filter(m => (m.yHi - m.yLo) > 5.0 && (m.pxHi - m.pxLo) > 1.2
+        && (m.pzHi - m.pzLo) < 0.4);
+      A(cheeks.length === 0, `no end cheeks — the bench is open at both ends (${cheeks.length})`);
+      // and with the cheeks gone the plinth and peg rail run the FULL length, not the
+      // length minus two cheek thicknesses.
+      const rail = mm.filter(m => Math.abs((m.yLo + m.yHi) / 2 - 4.58) < 0.25 && (m.pzHi - m.pzLo) > 3.0)
+        .sort((u, v) => (v.pzHi - v.pzLo) - (u.pzHi - u.pzLo))[0];
+      A(!!rail && Math.abs((rail.pzHi - rail.pzLo) - 5.0) < 0.06,
+        `peg rail runs the full 5 ft (${R(rail ? rail.pzHi - rail.pzLo : 0, 2)})`);
+    } }
+
+  // FULL-LENGTH MIRROR on the vestibule's SOUTH wall — a fit check on the way out.
+  { const VE = -17.229, VW = -12.229, VS = -4.171;      // vestibule interior faces
+    const mir = ext.find(r => r.type === 'wall_mirror');
+    A(!!mir, 'full-length mirror in the vestibule');
+    if (mir) {
+      A(Math.abs(mir.pzLo - VS) < 0.08, `hung on the south wall (${R(mir.pzLo, 3)} vs ${VS})`);
+      A(mir.pxHi - mir.pxLo > 2.0, `${R(mir.pxHi - mir.pxLo, 2)} ft wide`);
+      A(mir.yLo > 0.6 && mir.yLo < 1.2, `foot ${R(mir.yLo * 12, 0)} in off the floor`);
+      A(mir.yHi > 6.0, `tops out at ${R(mir.yHi * 12, 0)} in — head-to-toe`);
+      A((mir.pzHi - mir.pzLo) < 0.3, `sits flat on the wall, ${R((mir.pzHi - mir.pzLo) * 12, 1)} in proud`);
+      // It shares the south wall with the bench, which runs off that wall 1.5 ft deep.
+      // The glass has to start past the bench or you are looking at the end of it.
+      const b2 = ext.find(r => r.type === 'mudroom_bench');
+      if (b2) A(mir.pxLo > b2.pxHi, `clear of the bench by ${R((mir.pxLo - b2.pxHi) * 12, 1)} in`);
+      A(VW - mir.pxHi > 0.4, `${R((VW - mir.pxHi) * 12, 1)} in clear of the west wall`);
+      // A mirror is glass in a frame, not a painted panel: the frame members stand
+      // proud of the glass, so the deepest mesh is not the widest one.
+      const mmm = meshes(mir);
+      A(mmm.length >= 6, `framed: ${mmm.length} members (backing, glass, 2 stiles, 2 rails)`);
     } }
 
   // WC: toilet against the WEST wall (px -17.687), facing east into the room.

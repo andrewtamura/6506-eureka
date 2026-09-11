@@ -35,7 +35,7 @@
   "interior": {
     "flooring": {
       "material": "tile",
-      "pattern": "basketweave"
+      "pattern": "grid"
     },
     "furniture": [
       {
@@ -48,6 +48,17 @@
         "lenFt": 5.0,
         "depthFt": 1.5,
         "hooks": 5
+      },
+      {
+        "type": "wall_mirror",
+        "at": [
+          -13.979,
+          -4.111
+        ],
+        "faces": "N",
+        "widthFt": 2.2,
+        "heightFt": 5.5,
+        "bottomFt": 0.9
       }
     ]
   }

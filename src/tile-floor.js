@@ -11,6 +11,7 @@
 //   - "basketweave": white marble bricks woven in pairs + charcoal dot junctions.
 //   - "checkerboard": black/white 12" squares on the diagonal (diamonds, N-S).
 //   - "hexagon": white hex honeycomb with a repeating charcoal accent (1-in-7).
+//   - "grid": plain 6 in square tile on a straight grid — the quiet one.
 import * as THREE from "three";
 
 const FT = 0.3048;
@@ -40,6 +41,26 @@ function basketweave(boxes, b) {
   }
   for (let i = 0; i <= ni; i++) for (let j = 0; j <= nj; j++)
     boxes.push({ cx: x1 + i * U, cz: z1 + j * U, w: DOT, d: DOT, y: TH / 2 + 0.002, h: TH + 0.004, rot: 0, rgb: DOTCOL });
+}
+
+// --- plain 6 in square tile, straight grid ---
+// Deliberately the CALM pattern: one colour, a fine joint and barely any shade
+// variation, for rooms where the floor should not be the loudest thing in them.
+const GT = (6 / 12) * FT;
+const GTG = 0.004;                                   // grout joint (half the basketweave's)
+const GTILE = [0.855, 0.845, 0.815];
+const GSHADE = [0.985, 1.0, 1.01, 0.995];            // near-flat: enough to avoid a plastic sheet
+
+function grid(boxes, b) {
+  // Anchored to a GLOBAL lattice (origin 0,0) like the checkerboard, so the joints
+  // run through a doorway instead of each room starting its own grid at its corner.
+  const i0 = Math.floor(b.min.x / GT), i1 = Math.ceil(b.max.x / GT);
+  const j0 = Math.floor(b.min.z / GT), j1 = Math.ceil(b.max.z / GT);
+  for (let i = i0; i < i1; i++) for (let j = j0; j < j1; j++) {
+    const sf = GSHADE[Math.floor(hash(i * 11.3 + j * 17.9) * GSHADE.length) % GSHADE.length];
+    boxes.push({ cx: (i + 0.5) * GT, cz: (j + 0.5) * GT, w: GT - 2 * GTG, d: GT - 2 * GTG,
+      y: TH / 2, h: TH, rot: 0, rgb: [GTILE[0] * sf, GTILE[1] * sf, GTILE[2] * sf] });
+  }
 }
 
 // --- black & white checkerboard on the diagonal (diamonds, points N-S) ---
@@ -99,7 +120,7 @@ function hexagon(hexes, b) {
   }
 }
 
-const PATTERNS = { basketweave, checkerboard };
+const PATTERNS = { basketweave, checkerboard, grid };
 
 // inward-facing clip planes at the covering box faces (= wall centerlines)
 function clipPlanes(b) {

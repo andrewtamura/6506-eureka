@@ -1906,7 +1906,10 @@ function buildMudroomBench(p) {
   const L = p.lenFt ?? 5.0, D = p.depthFt ?? 1.5;
   const SEAT = 1.5, PL = 0.30, RAIL = p.railFt ?? 4.58, SHELF = p.shelfFt ?? 5.85;
   const bk = -D / 2;                                   // the wall plane, in front-offsets
-  const CH = 0.09;                                     // end cheek thickness
+  // End cheeks are OFF by default: they close the bench in at both ends and make a
+  // 5 ft bench read as a booth. Everything sized `L - 2 * CH` (plinth, peg rail, the
+  // peg span) then runs the full length on its own.
+  const CH = p.cheeks ? 0.09 : 0;
 
   box(bk + (D - 0.16) / 2, 0, PL / 2, D - 0.16, L - 2 * CH, PL, paint);          // plinth, set back as a toe
   box(0.02, 0, SEAT - 0.06, D + 0.04, L, 0.12, paint, 0.015);                     // seat slab, nosed proud
@@ -1918,7 +1921,8 @@ function buildMudroomBench(p) {
   }
   box(bk + 0.10, 0, RAIL, 0.09, L - 2 * CH, 0.34, paint);                          // peg rail
   box(bk + 0.35 / 2, 0, SHELF + 0.04, 0.35, L, 0.08, paint, 0.01);                 // shelf
-  for (const sg of [-1, 1]) box(0, sg * (L / 2 - CH / 2), (SHELF + 0.08) / 2, D, CH, SHELF + 0.08, paint); // cheeks
+  if (p.cheeks)
+    for (const sg of [-1, 1]) box(0, sg * (L / 2 - CH / 2), (SHELF + 0.08) / 2, D, CH, SHELF + 0.08, paint);
 
   // Shaker pegs on the rail, angled out along the facing direction.
   const outward = new THREE.Vector3(-A[0], 0, -A[1]).normalize();
@@ -2507,7 +2511,45 @@ function buildSkylight(p) {
   return g;
 }
 
-const BUILDERS = { mudroom_bench: buildMudroomBench, recessed: buildRecessed, pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight,
+// A wall-hung FULL-LENGTH mirror — the one you check yourself in on the way out.
+// Built the way a real one is: a frame around a glass panel that sits BEHIND the
+// frame face on a thin backing board, so the frame throws a shadow line onto the
+// glass. A single flat plane on the wall reads as a sticker, not a mirror.
+// `at` is the centre of its (thin) footprint and `faces` the way it looks into the
+// room, same convention as the bench.
+function buildWallMirror(p) {
+  const ft = FT, g = new THREE.Group();
+  const A = DIR[p.faces || "N"], P = [-A[1], A[0]];
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
+  const box = (da, ds, y, dl, dw, hy, mat) => {
+    const [opx, opz, sx, sz] = pl(da, ds, dl, dw);
+    const m = new THREE.Mesh(new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft), mat);
+    m.position.copy(V(opx, opz, y));
+    m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  const paint = new THREE.MeshStandardMaterial({ color: col(p.paint || "chalk", 0xf8f5ef), roughness: 0.6 });
+  // NOT the vanity mirror's recipe (0xbfd0d6 / metalness 0.3 / roughness 0.05). There is
+  // no environment map in this scene, so a dark low-roughness metal has nothing to
+  // reflect and renders near-black: at vanity size, over a lit counter, that passes; at
+  // 2 x 5.5 ft on a wall facing AWAY from the window it reads as a slate panel. A pale,
+  // slightly rougher surface stands in for "reflecting an averagely-lit room", which is
+  // what a mirror this size actually shows.
+  const glass = new THREE.MeshStandardMaterial({ color: 0xe4ecef, roughness: 0.10, metalness: 0.0 });
+  const W = p.widthFt ?? 2.2, H = p.heightFt ?? 5.5, B = p.bottomFt ?? 0.9;
+  const FR = p.frameFt ?? 0.11, D = p.depthFt ?? 0.12;
+  const cy = B + H / 2, bk = -D / 2;                   // bk = the wall plane, in front-offsets
+
+  box(bk + 0.02, 0, cy, 0.04, W, H, paint);                          // backing board
+  box(bk + 0.07, 0, cy, 0.03, W - 2 * FR, H - 2 * FR, glass);        // glass, set behind the face
+  for (const sg of [-1, 1])                                          // stiles, full height
+    box(bk + D / 2, sg * (W - FR) / 2, cy, D, FR, H, paint);
+  for (const sg of [-1, 1])                                          // rails, between the stiles
+    box(bk + D / 2, 0, cy + sg * (H - FR) / 2, D, W - 2 * FR, FR, paint);
+  return g;
+}
+
+const BUILDERS = { mudroom_bench: buildMudroomBench, wall_mirror: buildWallMirror, recessed: buildRecessed, pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight,
   range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, open_shelves: buildOpenShelves, counter_stool: buildCounterStool, banquette: buildBanquette, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, bentwood_chair: buildBentwoodChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 // Re-export a few individual builders so the viewer can drop single procedural
 // pieces (e.g. patio furniture on the alt roof deck) without going through the
