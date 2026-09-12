@@ -125,7 +125,12 @@ const raw = await page.evaluate(() => {
     let p = o.parent, owned = false; while (p) { if (p.userData && p.userData.item) { owned = true; break; } p = p.parent; }
     if (owned) return;
     const mb = new B3().setFromObject(o); if (mb.isEmpty()) return;
-    loose.push([mb.min.x, mb.min.y, mb.min.z, mb.max.x, mb.max.y, mb.max.z]);
+    // Vertex count too. A bounding box cannot tell a swept MOULDING from a plain box —
+    // both measure the same — and "is this actually a profile" is precisely what a
+    // check on trim needs to answer. A BoxGeometry has 24; an extruded cove/ovolo
+    // section has hundreds.
+    const pos = o.geometry && o.geometry.getAttribute && o.geometry.getAttribute('position');
+    loose.push([mb.min.x, mb.min.y, mb.min.z, mb.max.x, mb.max.y, mb.max.z, pos ? pos.count : 0]);
   });
   // LIGHTS. Global, not folded into the item loop above: semiFlush and the attic
   // downlights hang off no userData.item, and they are the ones that were uncapped.
@@ -197,7 +202,7 @@ const P = raw.items.map(r => conv(r, r.floorY));
 // the same scene — so take it from a piece known to be in this room.
 const FY = (P.find(r => r.type === 'island') || P[0]).floorY;
 const L = raw.loose.map(a => ({ pxLo: -a[3] / FT, pxHi: -a[0] / FT, pzLo: -a[5] / FT, pzHi: -a[2] / FT,
-  yLo: (a[1] - FY) / FT, yHi: (a[4] - FY) / FT }));
+  yLo: (a[1] - FY) / FT, yHi: (a[4] - FY) / FT, nv: a[6] || 0 }));
 // NOTE ON BOXES: pxLo/pxHi/pzLo/pzHi come from Box3.setFromObject, which returns the box
 // OF THE GEOMETRY'S BOX after transform — so any mesh with its own rotation reports wider
 // than it is (a 40 mm post turned 45 deg measures 80 mm), and the item's yaw inflates it
@@ -480,43 +485,51 @@ if (gUps.length === 2) {
       `uppers break over the hood (${R(u2.yLo,1)} ft band)`);
   }
 }
-// WINDOWS TRIMMED: a MOULDED architrave, plus a head and stool MITRED back to the wall.
+// WINDOWS TRIMMED: SWEPT mouldings — a real cove-and-ovolo architrave, a nosed stool,
+// and both mitred back to the wall. Not stacked boxes pretending to be a profile.
 { const sy = 4.0 - 0.066, hy = 7.0 - 0.066;   // wall finish sits 0.02 m below the furniture datum
   const onWall = L.filter(m => m.pzLo < SWALL + 0.35 && m.pxLo > 0 && m.pxHi < 28);
+  // A BoxGeometry has 24 vertices. An extruded section with a cove and an ovolo has
+  // hundreds — and a bounding box cannot tell the two apart, which is why the collector
+  // records vertex counts. This is the assertion that "these are mouldings" rests on.
+  const MOULDED = 100;
 
-  // JAMBS. A flat casing is ONE box per jamb; a moulded one is a backband, a flat and
-  // a bead at three different projections. Counting boxes alone would pass on three
-  // identical flat boards laid side by side, so the depths are what is asserted.
+  // JAMBS: one swept member each, a casing width across, sill to head.
   const jambs = onWall.filter(m => Math.abs(m.yLo - sy) < 0.12 && Math.abs(m.yHi - hy) < 0.12
-    && (m.pxHi - m.pxLo) < 0.25);
-  A(jambs.length === 18, `three casing members at each of six jambs (${jambs.length})`);
-  const jd = [...new Set(jambs.map(m => R(m.pzHi - m.pzLo, 3)))].sort((u, v) => u - v);
-  A(jd.length >= 3, `moulded, not flat — ${jd.length} distinct projections (${jd.join(', ')})`);
+    && (m.pxHi - m.pxLo) > 0.25 && (m.pxHi - m.pxLo) < 0.45);
+  A(jambs.length === 6, `a jamb casing each side of three windows (${jambs.length})`);
+  A(jambs.every(m => m.nv >= MOULDED),
+    `swept profiles, not boxes — ${Math.min(...jambs.map(m => m.nv))} vertices each (a box is 24)`);
+  A(jambs.every(m => Math.abs((m.pxHi - m.pxLo) - 0.33) < 0.02), 'a 4 in casing');
 
-  // HEAD: the profile, and a stepped mitre at each end taking it back to the wall.
-  // The profile stacks THREE bands across the casing height, so only the lowest has
-  // yLo at the head line — anchoring on that found one band per window, not three.
-  const atHead = onWall.filter(m => m.yLo > hy - 0.05 && m.yHi < hy + 0.42);
-  const hProf = atHead.filter(m => (m.pxHi - m.pxLo) > 1.5);
-  const hMit = atHead.filter(m => (m.pxHi - m.pxLo) < 0.15);
-  A(hProf.length === 9, `a moulded head over each of the three windows (${hProf.length} members)`);
-  A(hMit.length === 18, `mitred returns at both ends of each head (${hMit.length} steps)`);
-  // The steps have to WALK the projection back, not just sit there.
-  A(new Set(hMit.map(m => R(m.pzHi - m.pzLo, 3))).size >= 3,
-    'the mitre steps back in stages rather than stopping square');
-  // Against the DEEPEST layer: the mitre steps back from the profile's proudest point,
-  // so comparing it to the shallowest layer fails on correct geometry.
-  A(Math.max(...hMit.map(m => m.pzHi - m.pzLo)) <= Math.max(...hProf.map(m => m.pzHi - m.pzLo)) + 0.01,
-    'and never stands prouder than the run it returns from');
+  // HEAD: the run, plus a RETURN at each end. A 45 deg mitre returns as far as the
+  // member stands proud, so the return's length has to equal its projection — that
+  // single relationship is what makes it a mitre rather than a stuck-on block.
+  const atHead = onWall.filter(m => Math.abs(m.yLo - hy) < 0.06 && m.yHi < hy + 0.42);
+  const hRun = atHead.filter(m => (m.pxHi - m.pxLo) > 1.5);
+  const hRet = atHead.filter(m => (m.pxHi - m.pxLo) < 0.3);
+  A(hRun.length === 3, `a moulded head over each window (${hRun.length})`);
+  A(hRet.length === 6, `mitred returns at both ends of each head (${hRet.length})`);
+  A(hRet.every(m => m.nv >= MOULDED), 'the returns carry the same section round the corner');
+  if (hRun.length && hRet.length) {
+    const proj = hRun[0].pzHi - hRun[0].pzLo;
+    A(hRet.every(m => Math.abs((m.pxHi - m.pxLo) - proj) < 0.02),
+      `each return runs back exactly as far as the head stands proud (${R(proj, 3)} ft) — a 45 deg mitre`);
+  }
 
-  // STOOL: the board, its nosing, and the same mitre at each horn.
-  const atSill = onWall.filter(m => Math.abs(m.yLo - sy) < 0.06 && m.yHi < sy + 0.2);
-  const sBoard = atSill.filter(m => (m.pxHi - m.pxLo) > 1.5);
-  const sMit = atSill.filter(m => (m.pxHi - m.pxLo) < 0.15);
-  A(sBoard.length === 3, `a stool at each of the three south windows (${sBoard.length})`);
-  A(sMit.length === 18, `mitred returns at both ends of each stool (${sMit.length} steps)`);
-  A(sBoard.every(m => (m.pzHi - m.pzLo) > Math.max(...jd)),
-    'the stool stands prouder than the casing, as a sill board does');
+  // STOOL: same again, and it stands prouder than the casing, as a sill board does.
+  const atSill = onWall.filter(m => Math.abs(m.yLo - sy) < 0.04 && m.yHi < sy + 0.16);
+  const sRun = atSill.filter(m => (m.pxHi - m.pxLo) > 1.5);
+  const sRet = atSill.filter(m => (m.pxHi - m.pxLo) < 0.3);
+  A(sRun.length === 3, `a stool at each window (${sRun.length})`);
+  A(sRet.length === 6, `mitred returns at both ends of each stool (${sRet.length})`);
+  A(sRun.every(m => m.nv >= MOULDED), 'the stool is nosed, not a square board');
+  if (sRun.length && sRet.length) {
+    const proj = sRun[0].pzHi - sRun[0].pzLo;
+    A(sRet.every(m => Math.abs((m.pxHi - m.pxLo) - proj) < 0.02),
+      `and returns exactly its own projection (${R(proj, 3)} ft)`);
+    A(proj > (jambs[0].pzHi - jambs[0].pzLo), 'the stool stands prouder than the casing');
+  }
 
   const aprons = L.filter(m => m.pzLo < SWALL + 0.35 && Math.abs(m.yHi - sy) < 0.05
     && (m.yHi - m.yLo) > 0.3 && (m.yHi - m.yLo) < 0.5
@@ -529,19 +542,19 @@ if (gUps.length === 2) {
 { const EW = 0.1458, sy = 3.5 - 0.066, cf = SWALL + 2.0;
   // The stool is the board itself; its horns now end in mitre steps, so it measures
   // shorter than the old square-cut slab that ran the full casing width past each jamb.
-  // Anchored on the SILL LINE and the projection: the moulded nosing and the apron
-  // below now run the same length as the board, and a span-only filter found all three.
-  const cased = L.filter(m => m.pxHi > EW - 0.05 && m.pxLo < EW + 0.35
-    && Math.abs(m.yLo - sy) < 0.03 && (m.pxHi - m.pxLo) > 0.2
+  // Anchored on the SILL LINE: the apron below runs the same length as the board.
+  const cased = L.filter(m => m.pxHi > EW - 0.05 && m.pxLo < EW + 0.4
+    && Math.abs(m.yLo - sy) < 0.04 && m.yHi < sy + 0.16
     && (m.pzHi - m.pzLo) > 2.4 && (m.pzHi - m.pzLo) < 3.4);
   A(cased.length === 1, `east window has a stool (${cased.length})`);
   if (cased.length) A(cased[0].pzLo > cf + 0.05,
     `its casing clears the countertop's east return by ${R((cased[0].pzLo - cf) * 12, 1)} in`);
-  // Three members per jamb now, each narrower than the single flat board they replace.
-  const posts = L.filter(m => m.pxHi > EW - 0.05 && m.pxLo < EW + 0.35
+  // One SWEPT member per jamb; its vertex count is what proves it is a moulding.
+  const posts = L.filter(m => m.pxHi > EW - 0.05 && m.pxLo < EW + 0.4
     && Math.abs(m.yLo - sy) < 0.14 && m.yHi > 6.7 && m.yHi < 7.1
-    && (m.pzHi - m.pzLo) > 0.04 && (m.pzHi - m.pzLo) < 0.25);
-  A(posts.length === 6, `a moulded jamb each side of the east window (${posts.length} members)`); }
+    && (m.pzHi - m.pzLo) > 0.25 && (m.pzHi - m.pzLo) < 0.45);
+  A(posts.length === 2, `a jamb casing each side of the east window (${posts.length})`);
+  A(posts.every(m => m.nv >= 100), 'both swept profiles, not boxes'); }
 
 // ============================================================ DINING CHAIRS
 // Cape Cod: painted frame, drop-in seat and an upholstered back in ticking stripe.
@@ -1030,17 +1043,12 @@ console.log('EXTENSION FIXTURES');
       { const BEW = -22.68785, DY = 0.066;      // interior face; loose meshes read DY low
         const onEast = (m) => m.pxLo > BEW - 0.05 && m.pxHi < BEW + 0.30
           && m.pzLo > -8.3 && m.pzHi < 3.9;
-        const posts = L.filter(m => onEast(m) && (m.pzHi - m.pzLo) < 0.25
+        const posts = L.filter(m => onEast(m) && (m.pzHi - m.pzLo) > 0.25 && (m.pzHi - m.pzLo) < 0.45
           && Math.abs(m.yLo - (3.0 - DY)) < 0.12 && m.yHi > 6.5);
-        A(posts.length === 6, `a moulded jamb each side of the bath window (${posts.length} members)`);
-        // Grouped, not listed: three members per jamb, and what matters is that each
-        // GROUP straddles its opening edge — the individual layer centres do not.
-        for (const [edge, keep] of [[-6.96, (v) => v < -5], [-3.96, (v) => v >= -5]]) {
-          const g = posts.filter(m => keep((m.pzLo + m.pzHi) / 2));
-          const lo = Math.min(...g.map(m => m.pzLo)), hi = Math.max(...g.map(m => m.pzHi));
-          A(g.length === 3 && Math.abs((lo + hi) / 2 - edge) < 0.05,
-            `jamb centred on ${edge} (${g.length} members, ${R((lo + hi) / 2, 2)})`);
-        }
+        A(posts.length === 2, `a jamb casing each side of the bath window (${posts.length})`);
+        A(posts.every(m => m.nv >= 100), 'both swept profiles, not boxes');
+        const at = posts.map(m => R((m.pzLo + m.pzHi) / 2, 2)).sort((u, v2) => u - v2);
+        A(JSON.stringify(at) === JSON.stringify([-6.96, -3.96]), `they land on the opening: ${at.join(', ')}`);
         const stool = L.filter(m => onEast(m) && (m.pzHi - m.pzLo) > 2.9
           && m.yHi > 3.0 - DY && m.yHi < 3.2);
         A(stool.length >= 1, `a stool at the sill (${stool.length})`);
