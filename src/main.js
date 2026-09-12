@@ -15,6 +15,7 @@ import { buildTileFloor } from "./tile-floor.js";
 import { buildFurniture, buildChair, buildRug, buildSofa } from "./furniture.js";
 import { buildWallFinish } from "./wall-finish.js";
 import { buildCeilings } from "./ceilings.js";
+import { consolidateStatic } from "./consolidate.js";
 import { createWalker } from "./pov.js";
 
 const BASE = import.meta.env.BASE_URL; // respects Vite `base` on GitHub Pages
@@ -835,6 +836,13 @@ async function main() {
   // Wider field of view for an immersive interior feel (a 50–60° lens reads as
   // "looking through a tube" once you're standing in a room); a small near
   // plane keeps nearby walls from clipping when you're close to them.
+  // camera-controls defaults to a 125 ms smoothing constant while dragging, so the
+  // camera trails the pointer by several frames — which reads as lag however fast
+  // the frames are, and was half of why panning felt sluggish. Track the pointer
+  // instead. `smoothTime` (0.2) is deliberately left alone: it governs the glide
+  // transitions between views, which SHOULD ease.
+  world.camera.controls.draggingSmoothTime = 0.04;
+
   const cam3 = world.camera.three;
   cam3.fov = 75;
   cam3.near = 0.05;
@@ -2198,6 +2206,7 @@ async function main() {
         const { grp, meshes } = leafParts(leafW, dirSign);
         if (!alongX) grp.rotation.y = -Math.PI / 2;   // local +X becomes world +Z
         pivot.add(grp);
+        pivot.userData.dynamic = true;          // live transform: consolidate.js skips it
         world.scene.three.add(pivot);
         const leaf = { pivot, openAngle, current: openAngle, unit, name: nm };
         for (const mesh of meshes) { mesh.userData.door = leaf; doorMeshes.push(mesh); }
@@ -2218,8 +2227,19 @@ async function main() {
         else mkLeaf(cx, hingeMax ? bx.max.z : bx.min.z, W, dir, sign * ang);
       }
     });
-    window.__eureka.doors = doors; // for the headless smoke test
+    window.__eureka.doors = doors;       // for the headless smoke test
+    window.__eureka.pickDoor = pickDoor; // debug handle: tools/frame-check.mjs asserts that
+                                         // a door hidden by consolidate.js is still pickable
   }
+
+  // --- collapse the static millwork into one mesh per material ------------
+  // Last, because it has to see everything: the door leaves above are the only
+  // subtree it must NOT bake, and they mark themselves `dynamic`. Anchored on the
+  // fragments model objects so a merged exterior lantern still rides its model
+  // when that model is repositioned. See consolidate.js for the measurements.
+  const anchors = [];
+  for (const [, m] of fragments.list) if (m.object) anchors.push(m.object);
+  window.__eureka.consolidated = consolidateStatic({ scene, anchors });
 
   // --- compass (see compass.js) -------------------------------------------
   setupCompass(world.camera.three, world.camera.controls);

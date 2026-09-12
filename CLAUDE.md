@@ -122,6 +122,25 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   end of init, so screenshots are unaffected. It is a flag rather than the default because
   a real GPU presents without that readback — this is a headless cost, and a visitor
   should watch the model appear rather than stare at a blank canvas.
+- **Panning cost is DRAW CALLS, and `src/consolidate.js` is what keeps it down.** The
+  ground floor is authored as ~1750 separate little meshes (every stile, cove and
+  baluster its own object, as the furniture rule requires), and three.js charges per
+  OBJECT: 1857 draw calls a frame and ~20-26 ms inside `render()` before the GPU drew a
+  pixel. A post-init pass merges the static millwork into one mesh per material and
+  **hides** the originals — 333 calls, ~7 ms. Hiding rather than deleting is the whole
+  trick: `Box3.expandByObject` and `Raycaster` both ignore `visible`, so
+  `kitchen-check.mjs` still measures the authored parts and double-tap still picks
+  doors, with no flag and no second code path. `tools/frame-check.mjs` guards it.
+  Anything with a live transform (door pivots, sliding chairs) marks itself
+  `userData.dynamic` and becomes its own merge anchor rather than being skipped.
+- **Three things that look like the cause of sluggish panning and measurably are not** —
+  all three were tried: `fragments.core.update(true)` on every camera `update` event
+  (0.4 ms SYNCHRONOUS, so not it — which is the same lesson as the bullet above about
+  not chasing `core.update`); material switching (deduplicating 275 materials to their
+  129 distinct looks moved `render()` by 0.2 ms, and forcing ONE shared material made it
+  *worse*); and the shadow map (`sun.shadow.autoUpdate` is already `false`). The other
+  half of "sluggish" is not frame rate at all: `camera-controls` defaults to
+  `draggingSmoothTime = 0.125`, so the camera trails the pointer by several frames.
 - **How to find this class of problem: use a Chrome trace, not stacks or micro-benchmarks.**
   `page.tracing.start({ categories: ['devtools.timeline','gpu','toplevel'] })`, then sum
   `dur` by event name. Three cheaper instruments all pointed the wrong way first: a CPU

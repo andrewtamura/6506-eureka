@@ -2666,6 +2666,12 @@ export async function buildFurniture({ scene, parent = scene, floorY, baseUrl, m
     root.traverse((m) => { if (m.isMesh) { m.userData.chair = entry; chairMeshes.push(m); } });
   }
 
+  // These two subtrees have LIVE transforms, so consolidate.js must leave them
+  // alone — baking a chair's matrix would nail it to the table, and a door's
+  // would freeze it at whatever angle it happened to be open.
+  for (const c of chairs) c.root.userData.dynamic = true;
+  for (const d of doorEntries) d.pivot.userData.dynamic = true;
+
   // Slide chairs between tucked-in and pulled-out, and swing doors open/closed
   // (both eased).
   (function animate() {
