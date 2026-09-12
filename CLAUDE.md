@@ -229,8 +229,19 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   is ~8.65 in, which doubles as the cove radius. In the profile, the quadratic's control
   point at `(Rc, 0)` is what makes the face CONCAVE from the room; `(0.012, H)` curves it
   the other way and reads as a bullnose.
+  **A cove is a HOLLOW: tangent to the wall where it springs, tangent to the ceiling
+  where it dies, so the quadratic's control point sits at the wall/ceiling corner
+  `(0.012, H)`.** Putting it at `(Rc, 0)` is the same quarter-round turned inside out — a
+  bullnose bulging into the room — and that is what shipped first, because in a render
+  the two look alike at a glance. A photographed corner settles it; so does the harness.
+  The entablature is scaled by `ENT_K` so the cove reads about as tall as the
+  frieze-and-crown below it (0.31 m each of the 0.61 m between head line and ceiling);
+  at full size the entablature took 0.39 m and the cove was the 8.65 in left over.
   `kitchen-check` proves it is a cove rather than a deeper flat band by VERTEX COUNT — a
-  `BoxGeometry` has 24, the swept section has 144. Scope the "stops at the stair" test to
+  `BoxGeometry` has 24, the swept section has 144 — and proves it curves the RIGHT WAY by
+  SOLID VOLUME, which is the only thing that separates a hollow from a bullnose of the
+  same bounding box: section/R² reads 0.203 for the cove and 0.837 flipped. The `loose`
+  list carries a per-mesh volume for exactly this. Scope the "stops at the stair" test to
   the WEST wall: the south wall's cove runs its full length and should, so an unscoped
   test just fails on it. And match coves to rooms by CENTRE-in-box, not overlap — the
   foyer's west wall and the dining room's east wall are the same line, so an overlap test

@@ -344,8 +344,16 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       //    height equals the frieze height. The crown runs on all four walls and
       //    miters at the corners, but BREAKS around full-height built-ins (`tall`),
       //    which run past the cornice; plain wall fills above each built-in instead.
-      const topperH = 0.03, bedH = 0.04, P5 = 0.127;   // topper / bed-mold / 5" projection (m)
-      const friezeH = 0.16, coveH = friezeH;   // frieze height == cove height (per spec)
+      // The 0.61 m between the head line and the ceiling is shared by the ENTABLATURE and
+      // the COVE above it, and the owner's photos show those reading about equal. At full
+      // size the entablature took 0.39 m and left the cove 8.65 in, which is why the cove
+      // looked like the leftover gap it was rather than a designed curve. ENT_K shrinks
+      // the whole assembly while keeping its own proportions exactly as approved —
+      // including `coveH === friezeH` and the crown's projection, which has to come down
+      // with its height or the profile stops being the same moulding.
+      const ENT_K = 0.795;                             // entablature 0.31 m, cove 0.30 m
+      const topperH = 0.03 * ENT_K, bedH = 0.04 * ENT_K, P5 = 0.127 * ENT_K;
+      const friezeH = 0.16 * ENT_K, coveH = friezeH;   // frieze height == cove height (per spec)
       const Hc = coveH + topperH;             // total crown height
       const friezeTop = headY + friezeH;      // frieze bottom sits on the opening head
       const crownB = friezeTop + bedH;        // crown springline (bottom of crown)
@@ -379,15 +387,19 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
           const up = new THREE.Vector3(0, 1, 0);
           const zAxis = new THREE.Vector3().crossVectors(Nw, up).normalize();
           const start = zAxis.dot(B.clone().sub(A)) >= 0 ? A : B;
+          // A cove is a HOLLOW: tangent to the WALL where it springs and tangent to the
+          // CEILING where it dies, so the control point sits at the intersection of
+          // those two tangents — the wall/ceiling corner, (0.012, H). The first cut put
+          // it at (Rc, 0), which is the same quarter-round turned inside out: horizontal
+          // where it leaves the wall and vertical where it meets the ceiling, i.e. a
+          // bullnose bulging INTO the room. At a glance in a render the two look alike;
+          // the photographed corner does not lie.
           const cove = new THREE.Shape();
-          cove.moveTo(0, 0);
-          cove.lineTo(0, H);        // back face, up the wall plane
-          cove.lineTo(Rc, H);       // across to where it meets the ceiling
-          // The control point at (Rc, 0) is what makes the face CONCAVE seen from the
-          // room; a control at (0.012, H) curves it the other way and reads as a
-          // bullnose. The bottom lands on 0.012 so it is flush with the field below.
-          cove.quadraticCurveTo(Rc, 0, 0.012, 0);
-          cove.lineTo(0, 0);
+          cove.moveTo(0.012, 0);                      // springs off the field's face
+          cove.quadraticCurveTo(0.012, H, Rc, H);     // the hollow
+          cove.lineTo(0, H);                          // back along the ceiling to the wall
+          cove.lineTo(0, 0);                          // down the wall plane
+          cove.lineTo(0.012, 0);
           const cgeo = new THREE.ExtrudeGeometry(cove, { depth: L, bevelEnabled: false, curveSegments: 10 });
           const cmesh = new THREE.Mesh(cgeo, field);
           cmesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(Nw, up, zAxis));

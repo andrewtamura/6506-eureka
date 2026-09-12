@@ -137,7 +137,28 @@ const raw = await page.evaluate(() => {
     // check on trim needs to answer. A BoxGeometry has 24; an extruded cove/ovolo
     // section has hundreds.
     const pos = o.geometry && o.geometry.getAttribute && o.geometry.getAttribute('position');
-    loose.push([mb.min.x, mb.min.y, mb.min.z, mb.max.x, mb.max.y, mb.max.z, pos ? pos.count : 0]);
+    // SOLID VOLUME too, the same divergence sum the item loop uses. A bounding box and a
+    // vertex count cannot tell a concave cove from a convex bullnose of the same size —
+    // and getting that backwards is exactly what shipped once. Their sections differ by
+    // 3.6x: a fillet is R^2(1 - pi/4), a quarter-disc is pi*R^2/4.
+    // Defensive: SOME mesh in the scene trips this sum, and one odd geometry must not
+    // take the whole measurement down. A zero volume is not silent — the cove assertions
+    // divide by it and fail loudly — so swallowing the throw cannot hide a real problem.
+    let lv = 0;
+    try {
+      if (pos && pos.count <= 60000) {
+        const gm = o.geometry, idx = gm.getIndex(), n = idx ? idx.count : pos.count;
+        const gx = (i) => { const j = idx ? idx.getX(i) : i; return [pos.getX(j), pos.getY(j), pos.getZ(j)]; };
+        for (let i = 0; i + 2 < n; i += 3) {
+          const a = gx(i), b = gx(i + 1), c = gx(i + 2);
+          if (!a || !b || !c) break;
+          lv += (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0])
+               + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6;
+        }
+      }
+    } catch (e) { lv = 0; }
+    loose.push([mb.min.x, mb.min.y, mb.min.z, mb.max.x, mb.max.y, mb.max.z, pos ? pos.count : 0,
+                Math.abs(lv)]);
   });
   // LIGHTS. Global, not folded into the item loop above: semiFlush and the attic
   // downlights hang off no userData.item, and they are the ones that were uncapped.
@@ -239,6 +260,7 @@ raw.doorLeaves = (raw.doorLeaves || []).map(d => ({ name: d.name, parts: d.parts
   pzLo: -d.zmax / FT, pzHi: -d.zmin / FT, pxLo: -d.xmax / FT, pxHi: -d.xmin / FT }));
 
 const R = (v, n = 4) => +v.toFixed(n);
+const R2 = (v) => +v.toFixed(3);
 let fail = 0; const A = (ok, m) => { if (!ok) fail++; console.log((ok ? '  PASS  ' : '  FAIL  ') + m); };
 const conv = (r, fy) => ({ ...r, pxLo: -r.max[0] / FT, pxHi: -r.min[0] / FT,
   pzLo: -r.max[2] / FT, pzHi: -r.min[2] / FT, yLo: (r.min[1] - fy) / FT, yHi: (r.max[1] - fy) / FT });
@@ -247,7 +269,7 @@ const P = raw.items.map(r => conv(r, r.floorY));
 // the same scene — so take it from a piece known to be in this room.
 const FY = (P.find(r => r.type === 'island') || P[0]).floorY;
 const L = raw.loose.map(a => ({ pxLo: -a[3] / FT, pxHi: -a[0] / FT, pzLo: -a[5] / FT, pzHi: -a[2] / FT,
-  yLo: (a[1] - FY) / FT, yHi: (a[4] - FY) / FT, nv: a[6] || 0 }));
+  yLo: (a[1] - FY) / FT, yHi: (a[4] - FY) / FT, nv: a[6] || 0, vol: (a[7] || 0) / (FT * FT * FT) }));
 // NOTE ON BOXES: pxLo/pxHi/pzLo/pzHi come from Box3.setFromObject, which returns the box
 // OF THE GEOMETRY'S BOX after transform — so any mesh with its own rotation reports wider
 // than it is (a 40 mm post turned 45 deg measures 80 mm), and the item's yaw inflates it
@@ -1462,7 +1484,7 @@ console.log('EXTENSION');
   if (raked[0]) {
     const r = raked[0];
     A(r.pzLo > -8.2 && r.pzHi < -1.8,
-      `it runs the flight, pz ${R(r.pzLo,2)}..${R(r.pzHi,2)} (the stair's -7.7..-2.16)`);
+      `it runs the flight, pz ${R(r.pzLo,2)}..${R(r.pzHi,2)} (inside the stair's reach)`);
     A(r.yLo > 3.2 && r.yLo < 4.2, `springing from the landing height (${R(r.yLo,2)} ft)`);
     A(r.yHi > 7.6 && r.yHi < 8.6, `and meeting the level crown line (${R(r.yHi,2)} ft)`);
   }
@@ -1496,7 +1518,10 @@ console.log('EXTENSION');
   // the flat band it replaced is the PROJECTION: a cove is ~0.72 ft deep where the band
   // was 0.012 m of skim, and that is the smaller of its two plan extents whichever wall
   // it is on.
-  const isCove = (m) => m.yLo > 8.1 && m.yLo < 8.35 && m.yHi > 8.85
+  // Springs at crownTop = headY + 0.31 m = 8.017 ft and dies at the 9 ft ceiling, both
+  // reading LOOSE_DY low. It used to spring at 8.28 — the entablature was shrunk (ENT_K)
+  // so the cove reads about as tall as the frieze-and-crown below it, per the photos.
+  const isCove = (m) => m.yLo > 7.85 && m.yLo < 8.15 && m.yHi > 8.85
     && Math.min(m.pxHi - m.pxLo, m.pzHi - m.pzLo) > 0.5;
   // Centre-in-box, not overlap: the foyer's west wall and the dining room's east wall
   // are the same line (x 15.0833), so an overlap test hands each room the other's cove.
@@ -1513,6 +1538,17 @@ console.log('EXTENSION');
     // BoxGeometry has 24 vertices, a swept section has hundreds.
     A(c.length > 0 && c.every(m => m.nv > 100),
       `${name}: swept, not a thicker flat band (${[...new Set(c.map(m => m.nv))].join(', ')} verts; a box is 24)`);
+    // ...and swept the RIGHT WAY ROUND. A hollow and a bullnose share a bounding box and
+    // a vertex count; only the solid volume separates them. Section area / R^2 is
+    // 1 - pi/4 = 0.215 for the fillet a cove is, and pi/4 = 0.785 for the quarter-disc
+    // it is not. The first cut of this shipped the bullnose.
+    for (const m of c) {
+      const R = Math.min(m.pxHi - m.pxLo, m.pzHi - m.pzLo);
+      const len = Math.max(m.pxHi - m.pxLo, m.pzHi - m.pzLo);
+      const k = m.vol / (R * R * len);
+      A(k > 0.13 && k < 0.32,
+        `${name}: hollow, not a bullnose (section/R\u00b2 = ${R2(k)}; a cove is 0.215, a bullnose 0.785)`);
+    }
   }
   // ...and specifically on the WEST wall, which is the one the stair breaks. Scoped to
   // that wall on purpose: the SOUTH wall's cove runs its full length and should, so an
