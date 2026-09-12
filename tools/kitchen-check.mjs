@@ -170,7 +170,26 @@ const raw = await page.evaluate(() => {
   // The ceiling plane, so the skylight wells can be checked against the thing they
   // actually have to meet rather than against their own nominal height.
   const ceilingY = window.__eureka.modelViews[0].box.max.y;
-  return { items, loose, doorLeaves, lights, ceilingY };
+  // SKYLIGHTS FOLLOW THE SUN. A skylight is daylight, not a lamp: its well light and
+  // its glazing's emissive must both be zero at midnight and full at noon. Held
+  // constant — which is how this started — the wells glowed at 2 a.m. Sampled by
+  // actually moving the time dial, because that is the thing that was wrong.
+  const skySample = () => {
+    const lit = [], emis = [];
+    window.__eureka.world.scene.three.traverse((o) => {
+      if (!o.userData || !o.userData.item || o.userData.item.type !== 'skylight') return;
+      o.traverse((c) => {
+        if (c.isLight) lit.push(c.intensity);
+        if (c.isMesh && c.material && c.material.transparent) emis.push(c.material.emissiveIntensity);
+      });
+    });
+    return { lit, emis };
+  };
+  const hourWas = 12;
+  window.__eureka.setHour(0);   const night = skySample();
+  window.__eureka.setHour(12);  const noon = skySample();
+  window.__eureka.setHour(hourWas);
+  return { items, loose, doorLeaves, lights, ceilingY, sky: { night, noon } };
 });
 await b.close();
   return raw;
@@ -1413,12 +1432,10 @@ console.log('EXTENSION');
   A(LI.every(l => l.decay === 2), `all decay physically (${[...new Set(LI.map(l => l.decay))].join('/')})`);
   // Each builder's default, in plan feet. A stray edit to one of these shows up here
   // rather than three rooms later in a screenshot.
-  // A SKYLIGHT IS NOT IN HERE ON PURPOSE — it is glazing, not a lamp. It used to carry
-  // a PointLight standing in for daylight down the well, which lit the scullery from a
-  // fixture no switch controlled and left the well glowing at midnight. Asserted
-  // positively below, because the loop here skips a type with no lights and a removal
-  // would otherwise pass silently.
-  const REACH = { recessed: 12, pendant: 10, sconce: 8, undercabinet: 8.5 };
+  // The skylight IS in here — it is daylight down the well, not a lamp — but what it is
+  // NOT allowed to be is constant. See the day/night assertions below; the loop here
+  // would skip a type with no lights at all, so neither check covers the other.
+  const REACH = { recessed: 12, pendant: 10, sconce: 8, undercabinet: 8.5, skylight: 16 };
   for (const [type, want] of Object.entries(REACH)) {
     const own = LI.filter(l => l.owner === type);
     if (!own.length) continue;
@@ -1426,8 +1443,15 @@ console.log('EXTENSION');
     A(ft.every(d => Math.abs(d - want) < 0.05),
       `${type} reaches ${want} ft (${[...new Set(ft.map(d => R(d, 2)))].join(', ')}) \u00d7${own.length}`);
   }
-  A(LI.filter(l => l.owner === 'skylight').length === 0,
-    `a skylight is glazing, not a light source (${LI.filter(l => l.owner === 'skylight').length} lights on skylights)`);
+  // Daylight, so it tracks the sun rather than the lamp scenes.
+  const sky = raw.sky || { night: { lit: [], emis: [] }, noon: { lit: [], emis: [] } };
+  A(sky.noon.lit.length === 3, `three skylight wells are lit by the sun (${sky.noon.lit.length})`);
+  A(sky.noon.lit.every(v => v > 0.5), `and lit at noon (${[...new Set(sky.noon.lit.map(v => R(v, 2)))].join(', ')})`);
+  A(sky.night.lit.every(v => v === 0),
+    `dark at midnight (${[...new Set(sky.night.lit.map(v => R(v, 3)))].join(', ') || 'none'}) — a well that glows at 2 a.m. is the bug this replaced`);
+  A(sky.noon.emis.every(v => v > 0.3) && sky.night.emis.every(v => v === 0),
+    `the glazing goes with it: ${[...new Set(sky.noon.emis.map(v => R(v, 2)))].join(', ')} at noon, ` +
+    `${[...new Set(sky.night.emis.map(v => R(v, 3)))].join(', ') || 'none'} at midnight`);
   // The generic per-room fixture and the attic downlights own no furniture item, so
   // main.js tags them — do NOT identify them by "has no owner", which also catches
   // every landscape light on the lot. (Those are finite already, and deliberately

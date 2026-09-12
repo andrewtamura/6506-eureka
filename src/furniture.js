@@ -2556,13 +2556,25 @@ function buildSkylight(p, ctx = {}) {
   // Glazing spans the FULL opening, so it laps the lining's 3 mm inset and sits on it
   // the way real glazing sits on a curb.
   quad([-W / 2, yS, D / 2], [W / 2, yS, D / 2], [W / 2, yN, -D / 2], [-W / 2, yN, -D / 2], glass);
-  // A skylight is GLAZING, not a lamp. It used to carry a PointLight stood in for
-  // daylight coming down the well, which meant the well glowed at midnight and the
-  // scullery was lit by three fixtures that no switch controlled. The room is daylit
-  // through its windows and lit after dark by its own fixtures; the skylight just
-  // shows sky.
+  // Sun down the well. This is DAYLIGHT, not a lamp, and the distinction is the whole
+  // point: it is driven by the sun's own daylight factor (see onTime in main.js), so it
+  // is full at noon and exactly zero at night. The version this replaces was a constant
+  // — which is why the wells glowed at midnight and the scullery was lit by three
+  // fixtures no switch controlled. Sitting just under the glazing, inside the wedge, it
+  // lights all four faces of the lining and spills onto the floor below, which is what
+  // a skylight does. Capped like the lamps (see buildRecessed): with no cutoff a
+  // daylight shaft lights the whole floor; 16 ft fills the room under the well and
+  // stops at its walls.
+  const light = new THREE.PointLight(0xeaf2ff, p.intensity ?? 2.2, (p.reachFt ?? 16) * ft, 2);
+  light.position.set(0, (yS + yN) / 2 - 0.06, 0);
+  light.userData.sunBase = p.intensity ?? 2.2;
+  light.intensity = 0;                // until the first onTime says otherwise
+  g.add(light);
+  // NOT registered as a fixture: the lamp scenes must not switch the sun off, and a
+  // skylight that went dark when you hit the lights would be wrong at noon.
   g.userData.fixtures = [];
   g.userData.skylightGlass = glass;   // the viewer scales its emissive with the sun
+  g.userData.skylightLight = light;   // ...and this with it
   return g;
 }
 
@@ -2631,6 +2643,7 @@ export async function buildFurniture({ scene, parent = scene, floorY, ceilingY, 
   const fixtures = [];      // { light, emissive, x, z } -> the viewer's lighting scenes
   const ceilingOpenings = [];  // skylight wells: the ceiling has to be cut for them
   const skylightGlass = [];    // skylight glazing materials: the viewer drives their emissive with the sun
+  const skylightLights = [];   // ...and the daylight coming down each well, with the same factor
   // The skylight lining has to start at the REAL ceiling underside, not at its nominal
   // height above this item's origin — see buildSkylight.
   const ctx = { floorY, ceilingY };
@@ -2649,6 +2662,7 @@ export async function buildFurniture({ scene, parent = scene, floorY, ceilingY, 
       const hw = ((it.widthFt ?? 2.0) * ft) / 2, hd = ((it.depthFt ?? 2.5) * ft) / 2;
       ceilingOpenings.push({ minX: x - hw, maxX: x + hw, minZ: z - hd, maxZ: z + hd });
       if (obj.userData.skylightGlass) skylightGlass.push(obj.userData.skylightGlass);
+      if (obj.userData.skylightLight) skylightLights.push(obj.userData.skylightLight);
     }
     if (obj.userData.doors) for (const d of obj.userData.doors) {  // collect hinged leaves (e.g. bathroom)
       doorEntries.push(d);
@@ -2732,5 +2746,5 @@ export async function buildFurniture({ scene, parent = scene, floorY, ceilingY, 
     const o = st.opening, [ax, az] = world(o.x1, o.z1), [bx, bz] = world(o.x2, o.z2);
     stairwellOpening = { minX: Math.min(ax, bx), maxX: Math.max(ax, bx), minZ: Math.min(az, bz), maxZ: Math.max(az, bz) };
   }
-  return { chairMeshes, stairwellOpening, doorMeshes, fixtures, ceilingOpenings, skylightGlass };
+  return { chairMeshes, stairwellOpening, doorMeshes, fixtures, ceilingOpenings, skylightGlass, skylightLights };
 }

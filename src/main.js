@@ -1679,8 +1679,13 @@ async function main() {
   // night. Held at a constant emissive it went on glowing at midnight, which read as
   // the skylight boxes being lit from inside. Not registered as a fixture, because a
   // skylight that went out when you switched the lamps off would be wrong at noon.
-  if (furniture?.skylightGlass?.length) onTime((day) => {
-    for (const m of furniture.skylightGlass) m.emissiveIntensity = (m.userData.skyBase ?? 0.85) * day;
+  // The glazing reads as bright sky, and the well below it is lit by the sun coming
+  // through — both scaled by the SAME daylight factor, so the pair stay consistent:
+  // full at noon, nothing at midnight. Held constant (which is how this started) the
+  // wells glowed at 2 a.m.
+  if (furniture?.skylightGlass?.length || furniture?.skylightLights?.length) onTime((day) => {
+    for (const m of furniture.skylightGlass || []) m.emissiveIntensity = (m.userData.skyBase ?? 0.85) * day;
+    for (const l of furniture.skylightLights || []) l.intensity = (l.userData.sunBase ?? 2.2) * day;
     invalidate();
   });
 
