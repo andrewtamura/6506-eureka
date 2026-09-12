@@ -39,8 +39,9 @@
       "pos": 9.5,
       "width": 3.0,
       "swing": "neg",
-      "doorStyle": "8lite",
-      "hinge": "min"
+      "doorStyle": "steel12",
+      "hinge": "min",
+      "noCasing": true
     }
   ],
   "windows": [],

@@ -54,7 +54,7 @@ def compute_paneling(ctx, rooms):
             # the end of the wall into the neighbour.
             def inside(a, b):
                 return min(b, hi) - max(a, lo) > 0.05
-            doors, wins, tall, trans, sides = [], [], [], [], []
+            doors, wins, tall, trans, sides, bare = [], [], [], [], [], []
             for r in rooms:
                 for d in r.get("doors", []):
                     if d["orient"] == orient and abs(d["fixed"] - fixed) < 0.3:
@@ -64,6 +64,11 @@ def compute_paneling(ctx, rooms):
                         # full-height built-in openings (a taller head) break the
                         # cornice rather than seating it on the head line.
                         (tall.append(span + [d["headFt"]]) if d.get("headFt") else doors.append(span))
+                        # A door set in a STEEL SCREEN is framed by the screen's own
+                        # mullions. The painted 4 in architrave would sit on top of slim
+                        # dark sections and wreck the whole point of them.
+                        if d.get("noCasing"):
+                            bare.append(span)
                 for wd in r.get("windows", []):
                     if wd.get("blind"):
                         continue   # no opening inside, so no interior casing/stool/apron
@@ -99,7 +104,7 @@ def compute_paneling(ctx, rooms):
                         # sits over open floor rather than over a counter, since a 2 ft 8 in
                         # board floating 25 in off the floor reads as a stray panel.
                         wins.append(span + [wd["sill"], bool(wd.get("plainBelow"))])
-            return doors, wins, tall, trans, sides
+            return doors, wins, tall, trans, sides, bare
 
         # plan px increases WEST and pz increases NORTH, so x1 is the EAST wall and
         # z1 the SOUTH one. `noCornice` names the sides where the entablature is
@@ -122,13 +127,13 @@ def compute_paneling(ctx, rooms):
             ("V", x1, z1, z2, x1 + half, [1, 0], "E"),
             ("V", x2, z1, z2, x2 - half, [-1, 0], "W"),
         ]:
-            doors, wins, tall, trans, sides = gather(orient, fixed, lo, hi)
+            doors, wins, tall, trans, sides, bare = gather(orient, fixed, lo, hi)
             ctx.paneling.append({
                 "along": "x" if orient == "H" else "z",
                 "at": round(face, 4), "normal": normal, "side": side,
                 "lo": round(lo, 3), "hi": round(hi, 3),
                 "doors": doors, "windows": wins, "tall": tall, "transoms": trans,
-                "sidelights": sides,
+                "sidelights": sides, "bareDoors": bare,
                 "noCornice": all_sides or side in no_cornice,
                 "noBattens": no_battens,
                 "wainscot": all_ws or side in wainscot,

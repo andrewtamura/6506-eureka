@@ -2875,9 +2875,14 @@ def add_glazed_frame(ctx, r, w, sill, head):
       sidelight stiles + a rail at the sill. No top rail: the transom's bar is already
                 the head member over it.
     """
-    TRIM = (0.93, 0.92, 0.88)
-    CW = w.get("frameFt", 0.33)                       # = casingFt
-    DEP = 0.148                                       # = the casing's 0.045 m projection
+    # STEEL: a Crittall-style screen — slim dark sections and mostly glass, subdivided
+    # into lites by muntins on the same thin section. Painted joinery casing is the
+    # default; steel is a different construction, not a recolour, so it takes its own
+    # width, depth and colour and adds a lite grid the joinery version has no use for.
+    steel = bool(w.get("steel"))
+    TRIM = (0.17, 0.18, 0.19) if steel else (0.93, 0.92, 0.88)
+    CW = w.get("frameFt", 0.06 if steel else 0.33)
+    DEP = w.get("frameDepFt", 0.10 if steel else 0.148)
     b = r["bounds"]
     pos, W = w["pos"], abs(w["width"])
     half = ctx.T / FT / 2
@@ -2916,9 +2921,21 @@ def add_glazed_frame(ctx, r, w, sill, head):
     # They were both just "stile", and anything keying on the name (tools/ifc_check.py)
     # then saw one member spanning both and could not check either.
     for x, side in zip(edges, ("stile E", "stile W")):
-        if not w.get("transom") and near_door(x):
+        if not w.get("transom") and near_door(x) and not steel:
             continue                                  # the door casing is the mullion
         bar(f"{w['name']} {side}", x, CW, sill, head)
+
+    # LITE GRID. Divisions are sized to a target pane and then evened out, so panes stay
+    # square-ish whatever the light's proportions instead of one axis stretching.
+    if steel:
+        lw = w.get("liteFt", 1.55)
+        cols = max(1, int(round(W / lw)))
+        rows = max(1, int(round((head - sill) / (lw * 1.35))))
+        for i in range(1, cols):
+            bar(f"{w['name']} muntin V{i}", edges[0] + i * W / cols, CW, sill, head)
+        for j in range(1, rows):
+            y = sill + j * (head - sill) / rows
+            bar(f"{w['name']} muntin H{j}", pos, W, y - CW / 2, y + CW / 2)
 
 
 def add_windows(ctx, r):

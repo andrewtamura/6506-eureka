@@ -1193,7 +1193,10 @@ console.log('EXTENSION');
   { const fr = raw.doorLeaves.filter(d => /Foyer -> Vestibule/.test(d.name));
     A(fr.length === 1, `one leaf, not a pair (${fr.length})`);
     if (fr.length === 1) {
-      A(fr[0].parts === 9, `8-lite leaf: ${fr[0].parts} members (2 stiles, 2 rails, pane, 4 muntins)`);
+      // steel12 -> 2 columns x 6 rows: 2 stiles, 2 rails, the pane, 1 vertical muntin
+      // and 5 horizontal. More lites than the 8-lite joinery doors on purpose — slim
+      // sections and many small panes is what makes it read as steel.
+      A(fr[0].parts === 11, `12-lite steel leaf: ${fr[0].parts} members (2 stiles, 2 rails, pane, 6 muntins)`);
       A(fr[0].pxHi - fr[0].pxLo < 0.4 && fr[0].pzHi - fr[0].pzLo > 2.8,
         'standing open, perpendicular to its wall');
       A(fr[0].pzLo < 10.1667 - 2.8, `swings into the FOYER, reaching pz ${R(fr[0].pzLo, 2)}`);

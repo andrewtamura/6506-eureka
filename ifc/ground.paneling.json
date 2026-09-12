@@ -31,6 +31,7 @@
       "tall": [],
       "transoms": [],
       "sidelights": [],
+      "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -55,6 +56,7 @@
       "tall": [],
       "transoms": [],
       "sidelights": [],
+      "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -83,6 +85,7 @@
       "tall": [],
       "transoms": [],
       "sidelights": [],
+      "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -102,6 +105,7 @@
       "tall": [],
       "transoms": [],
       "sidelights": [],
+      "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -126,6 +130,7 @@
       "tall": [],
       "transoms": [],
       "sidelights": [],
+      "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -158,6 +163,7 @@
       "tall": [],
       "transoms": [],
       "sidelights": [],
+      "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -177,6 +183,7 @@
       "tall": [],
       "transoms": [],
       "sidelights": [],
+      "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -209,6 +216,7 @@
       "tall": [],
       "transoms": [],
       "sidelights": [],
+      "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -241,6 +249,7 @@
       "tall": [],
       "transoms": [],
       "sidelights": [],
+      "bareDoors": [],
       "noCornice": false,
       "noBattens": false,
       "wainscot": false
@@ -273,6 +282,7 @@
       "tall": [],
       "transoms": [],
       "sidelights": [],
+      "bareDoors": [],
       "noCornice": false,
       "noBattens": false,
       "wainscot": false
@@ -297,6 +307,7 @@
       "tall": [],
       "transoms": [],
       "sidelights": [],
+      "bareDoors": [],
       "noCornice": false,
       "noBattens": false,
       "wainscot": false
@@ -329,6 +340,7 @@
       "tall": [],
       "transoms": [],
       "sidelights": [],
+      "bareDoors": [],
       "noCornice": false,
       "noBattens": false,
       "wainscot": false
@@ -353,18 +365,24 @@
       "tall": [],
       "transoms": [
         [
-          6.5,
-          12.5
+          4.646,
+          14.354
         ]
       ],
       "sidelights": [
         [
-          6.9,
-          7.835
+          4.646,
+          7.94
         ],
         [
-          11.165,
-          12.1
+          11.06,
+          14.354
+        ]
+      ],
+      "bareDoors": [
+        [
+          8.0,
+          11.0
         ]
       ],
       "noCornice": true,
@@ -396,6 +414,7 @@
         ]
       ],
       "sidelights": [],
+      "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -415,6 +434,7 @@
       "tall": [],
       "transoms": [],
       "sidelights": [],
+      "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -434,6 +454,7 @@
       "tall": [],
       "transoms": [],
       "sidelights": [],
+      "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -458,6 +479,7 @@
       "tall": [],
       "transoms": [],
       "sidelights": [],
+      "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -477,6 +499,7 @@
       "tall": [],
       "transoms": [],
       "sidelights": [],
+      "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -503,6 +526,7 @@
       "tall": [],
       "transoms": [],
       "sidelights": [],
+      "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -527,6 +551,7 @@
       "tall": [],
       "transoms": [],
       "sidelights": [],
+      "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -571,6 +596,7 @@
       ],
       "transoms": [],
       "sidelights": [],
+      "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -599,6 +625,7 @@
       "tall": [],
       "transoms": [],
       "sidelights": [],
+      "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": true
@@ -625,6 +652,7 @@
       "tall": [],
       "transoms": [],
       "sidelights": [],
+      "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -651,6 +679,7 @@
       "tall": [],
       "transoms": [],
       "sidelights": [],
+      "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
