@@ -2513,14 +2513,20 @@ function buildUnderCabinet(p) {
 // the well is a WEDGE — shallow at its south edge, deeper at its north. That is what
 // a skylight in a sloped roof actually looks like, and it is why these sit a couple
 // of feet off the south wall rather than literally over the windows.
-function buildSkylight(p) {
+function buildSkylight(p, ctx = {}) {
   const ft = FT, g = new THREE.Group();
   const W = (p.widthFt ?? 2.0) * ft, D = (p.depthFt ?? 2.5) * ft;
   const CEIL = (p.ceilFt ?? 9.0), PITCH = p.pitch ?? 0.45, DATUM = p.datumPz ?? -18.875;
   const roofY = (pz) => (CEIL + PITCH * (pz - DATUM)) * ft;
   const plaster = new THREE.MeshStandardMaterial({ color: 0xf6f3ec, roughness: 0.95, side: THREE.DoubleSide });
+  // The glazing is emissive so it reads as bright sky rather than a grey panel — but
+  // that has to FOLLOW THE SUN. Held at a constant 0.85 it went on glowing at midnight,
+  // which is what made the skylight boxes look lit from inside at night. The viewer
+  // scales it by the daylight factor (see `skylightGlass` below and onTime in main.js);
+  // this is just the full-daylight value.
   const glass = new THREE.MeshStandardMaterial({ color: 0xeaf3fb, emissive: 0xdfeeff, emissiveIntensity: 0.85,
     roughness: 0.1, transparent: true, opacity: 0.55, side: THREE.DoubleSide });
+  glass.userData.skyBase = 0.85;
   const quad = (a, b, c, d, mat) => {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute([...a, ...b, ...c, ...a, ...c, ...d], 3));
@@ -2528,20 +2534,47 @@ function buildSkylight(p) {
     g.add(new THREE.Mesh(geo, mat));
   };
   // local: +x is one side of the width, +z is SOUTH (world z = -pz)
-  const x0 = -W / 2, x1 = W / 2, zS = D / 2, zN = -D / 2;
-  const yC = CEIL * ft, yS = roofY((p.pz ?? 0) - (p.depthFt ?? 2.5) / 2), yN = roofY((p.pz ?? 0) + (p.depthFt ?? 2.5) / 2);
+  // The LINING starts at the ceiling's UNDERSIDE, not at the nominal ceiling height.
+  // `CEIL` is measured from this item's origin, and placed furniture is lifted
+  // FLOOR + 0.02 to keep it off the floor plane — so a lining drawn at CEIL * ft began
+  // 20 mm ABOVE the top of the 60 mm ceiling slab, and looking up the well you saw
+  // straight through that slot: the thin black line. Take the real ceiling from the
+  // caller instead of trusting the nominal height, and drop 3 mm past the underside so
+  // the joint cannot reopen if either datum shifts again.
+  const SLAB = 0.06;                                   // ceilings.js slab thickness
+  const originY = p.y != null ? p.y : (ctx.floorY ?? 0);
+  const yC = ctx.ceilingY != null ? (ctx.ceilingY - SLAB - originY - 0.003) : CEIL * ft;
+  // ...and set the lining 3 mm INSIDE the opening. Flush with the slab's cut edge the
+  // two faces are coplanar and z-fight; inside it, the lining is simply what you see.
+  const IN = 0.003;
+  const x0 = -W / 2 + IN, x1 = W / 2 - IN, zS = D / 2 - IN, zN = -D / 2 + IN;
+  const yS = roofY((p.pz ?? 0) - (p.depthFt ?? 2.5) / 2), yN = roofY((p.pz ?? 0) + (p.depthFt ?? 2.5) / 2);
   quad([x0, yC, zS], [x1, yC, zS], [x1, yS, zS], [x0, yS, zS], plaster);   // south jamb
   quad([x0, yC, zN], [x1, yC, zN], [x1, yN, zN], [x0, yN, zN], plaster);   // north jamb
   quad([x0, yC, zS], [x0, yC, zN], [x0, yN, zN], [x0, yS, zS], plaster);   // side jambs
   quad([x1, yC, zS], [x1, yC, zN], [x1, yN, zN], [x1, yS, zS], plaster);
-  quad([x0, yS, zS], [x1, yS, zS], [x1, yN, zN], [x0, yN, zN], glass);     // glazing, in the roof plane
-  // Daylight, so deliberately NOT registered with the lamp scenes — a skylight that
-  // went dark whenever the lamps did would be wrong at noon, which is when it matters.
-  // Capped like the lamps (see buildRecessed) — a daylight shaft with no cutoff lights
-  // the whole floor. 16 ft fills the room under the well and stops at its walls.
+  // Glazing spans the FULL opening, so it laps the lining's 3 mm inset and sits on it
+  // the way real glazing sits on a curb.
+  quad([-W / 2, yS, D / 2], [W / 2, yS, D / 2], [W / 2, yN, -D / 2], [-W / 2, yN, -D / 2], glass);
+  // Sun down the well. This is DAYLIGHT, not a lamp, and the distinction is the whole
+  // point: it is driven by the sun's own daylight factor (see onTime in main.js), so it
+  // is full at noon and exactly zero at night. The version this replaces was a constant
+  // — which is why the wells glowed at midnight and the scullery was lit by three
+  // fixtures no switch controlled. Sitting just under the glazing, inside the wedge, it
+  // lights all four faces of the lining and spills onto the floor below, which is what
+  // a skylight does. Capped like the lamps (see buildRecessed): with no cutoff a
+  // daylight shaft lights the whole floor; 16 ft fills the room under the well and
+  // stops at its walls.
   const light = new THREE.PointLight(0xeaf2ff, p.intensity ?? 2.2, (p.reachFt ?? 16) * ft, 2);
-  light.position.set(0, (yS + yN) / 2 - 0.06, 0); g.add(light);
+  light.position.set(0, (yS + yN) / 2 - 0.06, 0);
+  light.userData.sunBase = p.intensity ?? 2.2;
+  light.intensity = 0;                // until the first onTime says otherwise
+  g.add(light);
+  // NOT registered as a fixture: the lamp scenes must not switch the sun off, and a
+  // skylight that went dark when you hit the lights would be wrong at noon.
   g.userData.fixtures = [];
+  g.userData.skylightGlass = glass;   // the viewer scales its emissive with the sun
+  g.userData.skylightLight = light;   // ...and this with it
   return g;
 }
 
@@ -2594,7 +2627,7 @@ const SEAT_FRONT = 0.225;   // chair seat front is +0.225 m toward the table fro
 const TUCK = 0.08;          // pushed-in: seat front this far under the table edge
 const SIT = 0.22;           // pulled-out: this gap between seat front and table edge
 
-export async function buildFurniture({ scene, parent = scene, floorY, baseUrl,
+export async function buildFurniture({ scene, parent = scene, floorY, ceilingY, baseUrl,
                                       manifestFile = "furniture.json",
                                       // called whenever this module MOVES something, so the viewer can
                                       // render on demand instead of drawing frames nobody asked for
@@ -2609,12 +2642,17 @@ export async function buildFurniture({ scene, parent = scene, floorY, baseUrl,
   const doorMeshes = [];    // hinged leaf meshes for raycast picking (userData.fdoor -> entry)
   const fixtures = [];      // { light, emissive, x, z } -> the viewer's lighting scenes
   const ceilingOpenings = [];  // skylight wells: the ceiling has to be cut for them
+  const skylightGlass = [];    // skylight glazing materials: the viewer drives their emissive with the sun
+  const skylightLights = [];   // ...and the daylight coming down each well, with the same factor
+  // The skylight lining has to start at the REAL ceiling underside, not at its nominal
+  // height above this item's origin — see buildSkylight.
+  const ctx = { floorY, ceilingY };
 
   // Flat/static pieces first (rugs) so the table + chairs sit on top of them.
   for (const it of items) {
     if (it.type === "round_pedestal_table" || CHAIRS.has(it.type) || !BUILDERS[it.type]) continue;
     const [x, z] = world(it.px, it.pz);
-    const obj = BUILDERS[it.type](it);
+    const obj = BUILDERS[it.type](it, ctx);
     obj.position.set(x, it.y != null ? it.y : floorY, z);   // per-item height (e.g. a hung pendant)
     obj.userData.item = it;                                 // debug handle: the manifest entry behind this group
     if (it.rot) obj.rotation.y = (it.rot * Math.PI) / 180;  // e.g. a built-in facing into the room
@@ -2623,6 +2661,8 @@ export async function buildFurniture({ scene, parent = scene, floorY, baseUrl,
     if (it.type === "skylight") {
       const hw = ((it.widthFt ?? 2.0) * ft) / 2, hd = ((it.depthFt ?? 2.5) * ft) / 2;
       ceilingOpenings.push({ minX: x - hw, maxX: x + hw, minZ: z - hd, maxZ: z + hd });
+      if (obj.userData.skylightGlass) skylightGlass.push(obj.userData.skylightGlass);
+      if (obj.userData.skylightLight) skylightLights.push(obj.userData.skylightLight);
     }
     if (obj.userData.doors) for (const d of obj.userData.doors) {  // collect hinged leaves (e.g. bathroom)
       doorEntries.push(d);
@@ -2706,5 +2746,5 @@ export async function buildFurniture({ scene, parent = scene, floorY, baseUrl,
     const o = st.opening, [ax, az] = world(o.x1, o.z1), [bx, bz] = world(o.x2, o.z2);
     stairwellOpening = { minX: Math.min(ax, bx), maxX: Math.max(ax, bx), minZ: Math.min(az, bz), maxZ: Math.max(az, bz) };
   }
-  return { chairMeshes, stairwellOpening, doorMeshes, fixtures, ceilingOpenings };
+  return { chairMeshes, stairwellOpening, doorMeshes, fixtures, ceilingOpenings, skylightGlass, skylightLights };
 }

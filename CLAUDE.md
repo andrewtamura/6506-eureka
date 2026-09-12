@@ -205,6 +205,38 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   snapshot rather than going through `setFixtures`, so it cannot disturb that
   bookkeeping. Per-LEVEL culling is not the per-frame culling ruled out below: it is a
   rare, bucketed change costing one shader recompile on a level switch.
+- **Fixture lighting is a RADIO: one model lit at a time.** The Lighting menu is one row
+  per model (Auto / Lot / Ground / Second floor / Attic / All off) showing ● or ○, and
+  `selectLighting` in `src/main.js` is the only way in — everything goes off, then
+  exactly one thing comes on, so the buttons can never disagree with the scene. It is a
+  RENDERING constraint as much as a UI one: every visible light is evaluated in every
+  fragment shader, and the old default was "all of them" because `registerFixture` only
+  dims a level some scene has already spoken for and nothing ever had — which is why a
+  phone with the exhibits loaded reported 87 lights on. `selectLighting("auto")` is now
+  called at init so the default is applied rather than merely displayed. `kitchen-check`
+  drives the real control and counts what is lit per level.
+- **Time-of-day presets live in the SUN menu (`#lighting`), not in Lighting (`#scenes`).**
+  They move the sun, so they belong beside the dials; there are four (Morning, Afternoon,
+  Evening, Night) and each also picks the lighting that goes with that hour. `SHOT_SCENE`
+  in `tools/shot.mjs` searches BOTH containers for this reason — it looked only in
+  `#scenes` and would silently have matched nothing. Note Night now lights the LOT only,
+  so an interior night render needs `selectLighting('ground')` as well.
+- **A skylight is DAYLIGHT, not a lamp — and not a constant either.** Each scullery well
+  carries a PointLight under its glazing, and both that light and the glazing's emissive
+  are scaled by the sun's own `day` factor through `onTime` (`src/main.js`), so the well
+  is lit at noon and exactly zero at midnight. Held constant, which is how it started,
+  the wells glowed at 2 a.m. It is deliberately NOT registered as a fixture: the lamp
+  scenes must not switch the sun off, and a skylight that went dark when you hit the
+  lights would be wrong at noon. `kitchen-check` samples the time dial at 0 h and 12 h
+  and asserts both ends — the two cannot both pass on a constant.
+- **A skylight well's lining is positioned from the REAL ceiling, not its own height.**
+  `ceilFt` is measured from the item's origin and placed furniture is lifted
+  `FLOOR + 0.02`, so a lining drawn at `ceilFt` began 20 mm above the TOP of the 60 mm
+  ceiling slab — and looking up the well you saw straight through that slot as a thin
+  black line. `buildFurniture` passes `ceilingY` in; the lining starts 3 mm below the
+  slab's underside and 3 mm INSIDE the opening (flush with the slab's cut edge the two
+  faces are coplanar and z-fight). The harness measures it in world metres against the
+  real ceiling, and that guard was confirmed to fail on the old geometry.
 - **A phone is ~3.5x slower per draw call.** The device reported 304 calls in 22 ms
   (~72 us each) against ~20 us in this container. Scale any draw-call saving measured
   here up by about that much before deciding it is not worth doing.

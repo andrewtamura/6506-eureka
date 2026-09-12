@@ -167,7 +167,45 @@ const raw = await page.evaluate(() => {
       xmin = Math.min(xmin, bb.min.x); xmax = Math.max(xmax, bb.max.x); });
     doorLeaves.push({ name: d.name, parts: n, zmin, zmax, xmin, xmax });
   }
-  return { items, loose, doorLeaves, lights };
+  // The ceiling plane, so the skylight wells can be checked against the thing they
+  // actually have to meet rather than against their own nominal height.
+  const ceilingY = window.__eureka.modelViews[0].box.max.y;
+  // SKYLIGHTS FOLLOW THE SUN. A skylight is daylight, not a lamp: its well light and
+  // its glazing's emissive must both be zero at midnight and full at noon. Held
+  // constant — which is how this started — the wells glowed at 2 a.m. Sampled by
+  // actually moving the time dial, because that is the thing that was wrong.
+  const skySample = () => {
+    const lit = [], emis = [];
+    window.__eureka.world.scene.three.traverse((o) => {
+      if (!o.userData || !o.userData.item || o.userData.item.type !== 'skylight') return;
+      o.traverse((c) => {
+        if (c.isLight) lit.push(c.intensity);
+        if (c.isMesh && c.material && c.material.transparent) emis.push(c.material.emissiveIntensity);
+      });
+    });
+    return { lit, emis };
+  };
+  const hourWas = 12;
+  window.__eureka.setHour(0);   const night = skySample();
+  window.__eureka.setHour(12);  const noon = skySample();
+  window.__eureka.setHour(hourWas);
+  // ONE MODEL'S FIXTURES AT A TIME. Every visible light is evaluated in every fragment
+  // shader, so this is a rendering constraint as much as a UI one — and the default
+  // used to be "all of them", because registerFixture only dims a level some scene has
+  // spoken for. Drive the real control and count what is actually lit per level.
+  const litPerLevel = () => {
+    const n = {};
+    for (const f of window.__eureka.fixtures || [])
+      if (f.light.visible && f.light.intensity > 0) n[f.level] = (n[f.level] || 0) + 1;
+    return n;
+  };
+  const lighting = {};
+  for (const pick of ["auto", "exterior", "ground", "off"]) {
+    window.__eureka.selectLighting(pick);
+    lighting[pick] = { lit: litPerLevel(), says: window.__eureka.litModel() };
+  }
+  window.__eureka.selectLighting("auto");
+  return { items, loose, doorLeaves, lights, ceilingY, sky: { night, noon }, lighting };
 });
 await b.close();
   return raw;
@@ -877,6 +915,18 @@ console.log('WAINSCOT + LIGHTING');
     A(Math.abs((k.pxHi - k.pxLo) - 2.0) < 0.05, `2 ft wide, unchanged (${R(k.pxHi - k.pxLo, 2)})`);
     A(k.pzLo > SWALL + 1.1, `its well clears the galley uppers by ${R((k.pzLo - (SWALL + 1.1)) * 12, 1)} in`);
     A(NWALL - k.pzHi > 0.8, `${R((NWALL - k.pzHi) * 12, 1)} in of ceiling left at the north wall`);
+    // THE WELL HAS TO MEET THE CEILING. The lining is drawn from `ceilFt` above the
+    // item's own origin, and placed furniture is lifted FLOOR + 0.02 — so it used to
+    // start 20 mm above the TOP of the 60 mm slab and you could see straight through
+    // the slot, as a thin black line, looking up the well. Measured in world metres
+    // against the real ceiling, not against the nominal height that caused the bug.
+    const under = raw.ceilingY - 0.06;                 // ceilings.js slab thickness
+    const wellLo = raw.items.find(r => r.type === 'skylight'
+      && Math.abs(-r.max[0] / FT - k.pxLo) < 0.01).min[1];
+    A(wellLo <= under + 0.0005,
+      `its lining reaches the ceiling underside (${R((wellLo - under) * 1000, 1)} mm, must not be above it)`);
+    A(wellLo > under - 0.02,
+      `and does not dangle below it (${R((under - wellLo) * 1000, 1)} mm past)`);
     // The roof springs from the ceiling at the south eave and rises 0.45/ft north, so
     // the glazing must sit ABOVE the 9 ft ceiling or the well has no depth at all.
     A(k.yHi > 9.5, `glazing ${R((k.yHi - 9.0) * 12, 1)} in above the ceiling at its high edge`);
@@ -1398,6 +1448,9 @@ console.log('EXTENSION');
   A(LI.every(l => l.decay === 2), `all decay physically (${[...new Set(LI.map(l => l.decay))].join('/')})`);
   // Each builder's default, in plan feet. A stray edit to one of these shows up here
   // rather than three rooms later in a screenshot.
+  // The skylight IS in here — it is daylight down the well, not a lamp — but what it is
+  // NOT allowed to be is constant. See the day/night assertions below; the loop here
+  // would skip a type with no lights at all, so neither check covers the other.
   const REACH = { recessed: 12, pendant: 10, sconce: 8, undercabinet: 8.5, skylight: 16 };
   for (const [type, want] of Object.entries(REACH)) {
     const own = LI.filter(l => l.owner === type);
@@ -1406,6 +1459,29 @@ console.log('EXTENSION');
     A(ft.every(d => Math.abs(d - want) < 0.05),
       `${type} reaches ${want} ft (${[...new Set(ft.map(d => R(d, 2)))].join(', ')}) \u00d7${own.length}`);
   }
+  // ONE MODEL LIT AT A TIME. Asserted by driving the control and counting, not by
+  // reading the button labels — the whole point is that the scene agrees with them.
+  const LG = raw.lighting || {};
+  const levels = (o) => Object.keys(o.lit || {}).filter((k) => o.lit[k] > 0);
+  if (LG.ground) {
+    A(levels(LG.ground).join() === 'ground',
+      `lighting the ground floor lights ONLY the ground floor (${levels(LG.ground).join(', ') || 'nothing'})`);
+    A(levels(LG.exterior).join() === 'exterior',
+      `lighting the Lot lights ONLY the Lot (${levels(LG.exterior).join(', ') || 'nothing'})`);
+    A(levels(LG.off).length === 0, `"All off" leaves nothing lit (${levels(LG.off).join(', ') || 'nothing'})`);
+    A(Object.values(LG).every((o) => levels(o).length <= 1),
+      `never more than one model lit at once (${Object.entries(LG).map(([k, o]) => `${k}:${levels(o).length}`).join(' ')})`);
+  }
+
+  // Daylight, so it tracks the sun rather than the lamp scenes.
+  const sky = raw.sky || { night: { lit: [], emis: [] }, noon: { lit: [], emis: [] } };
+  A(sky.noon.lit.length === 3, `three skylight wells are lit by the sun (${sky.noon.lit.length})`);
+  A(sky.noon.lit.every(v => v > 0.5), `and lit at noon (${[...new Set(sky.noon.lit.map(v => R(v, 2)))].join(', ')})`);
+  A(sky.night.lit.every(v => v === 0),
+    `dark at midnight (${[...new Set(sky.night.lit.map(v => R(v, 3)))].join(', ') || 'none'}) — a well that glows at 2 a.m. is the bug this replaced`);
+  A(sky.noon.emis.every(v => v > 0.3) && sky.night.emis.every(v => v === 0),
+    `the glazing goes with it: ${[...new Set(sky.noon.emis.map(v => R(v, 2)))].join(', ')} at noon, ` +
+    `${[...new Set(sky.night.emis.map(v => R(v, 3)))].join(', ') || 'none'} at midnight`);
   // The generic per-room fixture and the attic downlights own no furniture item, so
   // main.js tags them — do NOT identify them by "has no owner", which also catches
   // every landscape light on the lot. (Those are finite already, and deliberately

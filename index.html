@@ -118,6 +118,11 @@
       font: 600 11px sans-serif; color: #334; cursor: pointer;
       box-shadow: 0 1px 4px rgba(0,0,0,0.12); }
     .view-btn:hover { background: #fff; }
+    /* A lit model in the Lighting menu. The rows are a radio group — one model's
+       fixtures on at a time — so the state has to be visible on every row, not
+       inferred from which button you pressed last. */
+    .view-btn.on { background: #2563c9; color: #fff; box-shadow: 0 1px 6px rgba(37,99,201,0.4); }
+    .view-btn.on:hover { background: #2c6ddc; }
     .page-link {
       display: inline-block; margin-top: 9px; font: 600 12px sans-serif;
       color: #2563c9; text-decoration: none; }
