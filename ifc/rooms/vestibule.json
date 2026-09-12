@@ -34,7 +34,7 @@
   "interior": {
     "flooring": {
       "material": "tile",
-      "pattern": "checker"
+      "pattern": "checkerboard"
     },
     "furniture": [
       {
