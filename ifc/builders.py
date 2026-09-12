@@ -2857,6 +2857,44 @@ def add_doors(ctx, r):
             ctx.door_meta[-1]["openDeg"] = float(d["openDeg"])
 
 
+def add_transom_frame(ctx, r, w, sill, head):
+    """The frame around a transom light, on the ROOM side of the wall.
+
+    Its job is the BAR: the horizontal member at the sill, which is what separates
+    the transom from the opening below. Without it the two openings are cut flush to
+    each other and read as one tall hole with a pane floating in the top of it.
+    Stiles and a head rail close the other three sides so it reads as a frame rather
+    than a lone stick.
+
+    Applied to the wall FACE and standing slightly proud, like the exterior entry's
+    casing (add_entry emits the same rail/bar/stile set outside). Proud rather than
+    flush so it casts a shadow line; shallow enough that a door leaf swinging in the
+    opening below never reaches it.
+    """
+    TRIM = (0.93, 0.92, 0.88)
+    CW = w.get("frameFt", 0.30)                       # casing width (ft)
+    DEP = 0.06                                        # projection off the wall face (ft)
+    b = r["bounds"]
+    pos, W = w["pos"], abs(w["width"])
+    half = ctx.T / FT / 2                             # half wall thickness, plan feet
+    orient = w["orient"]
+    if orient == "H":
+        # inward = toward the room: the wall is this room's north edge or its south one
+        inward = -1 if abs(w["fixed"] - max(b["z1"], b["z2"])) < 1e-6 else 1
+        face = w["fixed"] + inward * half             # interior face of the wall
+        cz = face + inward * DEP / 2
+        def bar(name, cx, wide, z0, z1):
+            pr = make_box(ctx, "IfcBuildingElementProxy", name, wide * FT, DEP * FT,
+                          (z1 - z0) * FT, ctx.X(cx), ctx.Y(cz), z0 * FT, color=TRIM)
+            run("spatial.assign_container", ctx.model, products=[pr],
+                relating_structure=ctx.storey)
+        bar(f"{w['name']} bar", pos, W + 2 * CW, sill - CW, sill)
+        bar(f"{w['name']} rail", pos, W + 2 * CW, head, head + CW)
+        for sx in (-1, 1):
+            bar(f"{w['name']} stile", pos + sx * (W + CW) / 2, CW, sill, head)
+    # V walls would mirror this on the x axis; the house has no V-wall transom.
+
+
 def add_windows(ctx, r):
     for w in r.get("windows", []):
         if w.get("blind"):
@@ -2882,3 +2920,5 @@ def add_windows(ctx, r):
                 f"its own `head` and carry `transom: true`.")
         cut_opening(ctx, "IfcWindow", w["name"], w["orient"], w["fixed"], w["pos"],
                     w["width"], w["sill"], head)
+        if w.get("transom"):
+            add_transom_frame(ctx, r, w, w["sill"], head)

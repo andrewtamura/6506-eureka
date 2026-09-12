@@ -1146,6 +1146,35 @@ console.log('EXTENSION');
   A(!!fd, 'front door leaf found');
   if (fd) A(fd.parts > 20, `six-panel with bolection molding: ${fd.parts} members (a flat slab is 1)`);
 
+  // TRANSOM over the front door, and the FRAME that separates it from the opening
+  // below. Without the frame the two openings are cut flush to each other and read as
+  // one tall hole with a pane floating in the top.
+  // The four trim members share a material, so fragments merges them into ONE mesh —
+  // they cannot be counted individually, but the union's extents still prove the frame:
+  // it has to start BELOW the glass (that is the bar) and end ABOVE it (the rail), and
+  // run wider than the opening (the stiles sit outboard of the jambs).
+  { const DY = 0.066;                       // loose meshes hang off FLOOR, items off FLOOR+0.02
+    const SILL = 7.0 - DY, HEAD = 8.6 - DY, FACE = 15.854;
+    // Bounded to the band that BRACKETS the glass. Unbounded this also matched the
+    // door's own casing, which runs from the floor to the head line and is both taller
+    // and wider — picking "the tallest" then measured that instead.
+    const wall = L.filter(m => Math.abs(m.pzHi - FACE) < 0.02 && m.pzLo > FACE - 0.2
+      && m.yLo > 6.0 && m.yLo < SILL && m.yHi > HEAD && m.yHi < 9.2
+      && (m.pxHi - m.pxLo) > 3.0 && (m.pxHi - m.pxLo) < 4.2);
+    A(wall.length >= 1, `transom frame on the wall face (${wall.length})`);
+    if (wall.length) {
+      const f = wall[0];
+      A(f.yLo < SILL - 0.1, `a bar below the glass at ${R((f.yLo + DY) * 12, 0)} in — this is what separates it from the door`);
+      A(f.yHi > HEAD + 0.1, `and a rail above it at ${R((f.yHi + DY) * 12, 0)} in`);
+      A((f.pxHi - f.pxLo) > 3.4, `${R(f.pxHi - f.pxLo, 2)} ft wide — stiles outboard of the 3 ft opening`);
+      A(FACE - f.pzLo > 0.03, `stands ${R((FACE - f.pzLo) * 12, 1)} in proud of the wall, so it throws a shadow line`);
+    }
+    // The glazing itself, bracketed by that frame.
+    const glass = L.filter(m => Math.abs(m.yLo - SILL) < 0.05 && Math.abs(m.yHi - HEAD) < 0.05
+      && m.pxLo > 7.4 && m.pxHi < 11.6);
+    A(glass.length >= 1, `transom glazed 7.0 to 8.6 ft, matching the exterior entry (${glass.length})`);
+  }
+
   // FRENCH PAIR into the foyer: 8-lite, and open as far as the wall physically allows.
   const fr = raw.doorLeaves.filter(d => /Foyer -> Vestibule/.test(d.name));
   A(fr.length === 2, `french pair into the foyer (${fr.length})`);
