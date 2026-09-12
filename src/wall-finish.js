@@ -80,6 +80,166 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     const tallX = tall.map((t) => [t[0], t[1]]);   // full-height built-in openings (e.g. the hutch)
     const caseInset = caseW / ft + 0.05; // feet — keep field/battens off the casing
 
+    // --- real mouldings, swept ----------------------------------------------------
+    // Stacked boxes cannot make a cove or an ovolo. These are PROFILES: a 2-D section
+    // drawn once and extruded along the run, the same way the cornice below is built.
+    //
+    // A section is drawn in (X = projection into the room, Y = across the member's
+    // width). `sweep` puts X on the wall normal, Y on whatever axis the member's width
+    // runs along, and extrudes down the third — so one profile serves a vertical jamb
+    // and a horizontal head without being redrawn.
+    // `ends` cuts the extrusion's caps at 45 deg instead of square. A straight extrude
+    // has flat caps perpendicular to the run, so butting a run against its return shows
+    // the CUT FACE at the corner — you see the section end-on, and the profile stops
+    // dead instead of turning. A real mitre is a 45 deg plane through the corner: the
+    // long point at the wall, the short point at the front, so the two faces meet edge
+    // to edge and the moulded face changes direction and runs back to the wall.
+    //
+    // With no bevel and one step, vertices exist only at z=0 and z=length, so the cut is
+    // a shear on the caps: SQUARE leaves it, IN pulls it to z=x, OUT to z=length-x
+    // (x being the profile's own projection, which is what makes the angle 45 deg).
+    // Cuts, as seen looking down on the member. BACK_* is the one a return wants: the
+    // LONG POINT AT THE FRONT and the short point at the wall, so the cut slopes
+    // backwards toward the wall and the return piece tucks in behind it. FWD_* slopes
+    // the other way — long point at the wall — which is what was here, and it presents
+    // the cut face outward where you can see it.
+    const SQUARE = 0, FWD_NEAR = 1, FWD_FAR = 2, BACK_NEAR = 3, BACK_FAR = 4;
+    const sweep = (shape, startPt, xAxis, yAxis, length, ends = [SQUARE, SQUARE], m = mill) => {
+      if (length < 0.004) return;
+      const zAxis = new THREE.Vector3().crossVectors(xAxis, yAxis).normalize();
+      const geo = new THREE.ExtrudeGeometry(shape, { depth: length, bevelEnabled: false, curveSegments: 8 });
+      const [nearCut, farCut] = ends;
+      if (nearCut || farCut) {
+        const pos = geo.getAttribute('position');
+        let pmax = 0;
+        for (let i = 0; i < pos.count; i++) pmax = Math.max(pmax, pos.getX(i));
+        for (let i = 0; i < pos.count; i++) {
+          const x = pos.getX(i), z = pos.getZ(i);
+          const cut = z > length / 2 ? farCut : nearCut;
+          if (cut === FWD_NEAR) pos.setZ(i, x);
+          else if (cut === FWD_FAR) pos.setZ(i, length - x);
+          else if (cut === BACK_NEAR) pos.setZ(i, pmax - x);
+          else if (cut === BACK_FAR) pos.setZ(i, length - pmax + x);
+        }
+        pos.needsUpdate = true;
+        geo.computeVertexNormals();
+      }
+      const mesh = new THREE.Mesh(geo, m);
+      mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
+        xAxis.clone().normalize(), yAxis.clone().normalize(), zAxis));
+      mesh.position.copy(startPt);
+      mesh.castShadow = true; mesh.receiveShadow = true;
+      scene.add(mesh);
+    };
+    const UP = new THREE.Vector3(0, 1, 0);
+    const cwf = caseW / ft;                                        // casing width, plan feet
+
+    // ARCHITRAVE: backband, fillet, COVE, fascia, OVOLO, then a bead dying into the
+    // opening. Outer edge at Y=0, opening edge at Y=caseW.
+    const casingShape = (() => {
+      const W = caseW, P = 0.030;
+      const sh = new THREE.Shape();
+      sh.moveTo(0, 0);
+      sh.lineTo(P, 0);                                            // backband, out from the wall
+      sh.lineTo(P, W * 0.20);                                     // its square face
+      sh.lineTo(P * 0.60, W * 0.22);                              // fillet, stepping in
+      sh.quadraticCurveTo(P * 0.40, W * 0.33, P * 0.58, W * 0.44); // COVE — concave
+      sh.lineTo(P * 0.66, W * 0.54);                              // fascia
+      sh.quadraticCurveTo(P * 0.97, W * 0.66, P * 0.60, W * 0.82); // OVOLO — convex
+      sh.quadraticCurveTo(P * 0.40, W * 0.90, P * 0.26, W);        // bead, dying in
+      sh.lineTo(0, W);
+      sh.lineTo(0, 0);
+      return sh;
+    })();
+    const CASE_P = 0.030;                                          // its max projection
+
+    // STOOL: a sill board, bullnosed at the front and undercut beneath.
+    // Slim: a stool is a ~2 in board with a nosed edge, not a rolled bar. At 0.085 x
+    // 0.042 the bullnose swallowed the whole section and it read as a tube.
+    const stoolShape = (() => {
+      const D = 0.055, T = 0.026;
+      const sh = new THREE.Shape();
+      sh.moveTo(0, 0);
+      sh.lineTo(D * 0.62, 0);
+      sh.quadraticCurveTo(D * 0.94, 0, D, T * 0.34);              // ogee under the nosing
+      sh.quadraticCurveTo(D, T * 0.86, D * 0.80, T);              // nosed over the top
+      sh.lineTo(0, T);
+      sh.lineTo(0, 0);
+      return sh;
+    })();
+    const STOOL_D = 0.055;
+
+    // APRON: a SPRUNG section, like crown — not a flat board laid on the wall. It seats
+    // on two surfaces, the wall behind it and the stool's underside above it, with the
+    // moulded face sweeping diagonally between them. That is what makes the mitre work:
+    // a sprung section cut at 45 deg meets its return along the whole diagonal, so the
+    // profile turns the corner and dies into the wall with no flat face anywhere. A
+    // flat back-face board has nothing to return INTO, which is why its "mitre" kept
+    // reading as a block stuck on the end.
+    // Shape coords here are (X = projection from the wall, Y = drop below the stool),
+    // Y running downward because the apron is swept flipped.
+    const apronShape = (() => {
+      const H = caseW, PJ = 0.050;
+      const sh = new THREE.Shape();
+      sh.moveTo(0, 0);                                            // wall, at the stool soffit
+      sh.lineTo(0, H);                                            // down the wall — the back seat
+      sh.lineTo(PJ * 0.16, H);                                    // bottom fillet
+      sh.quadraticCurveTo(PJ * 0.40, H * 0.88, PJ * 0.54, H * 0.58); // COVE, sweeping out and up
+      sh.quadraticCurveTo(PJ * 0.72, H * 0.34, PJ, H * 0.20);     // OGEE reversing into the soffit
+      sh.lineTo(PJ, H * 0.06);
+      sh.lineTo(PJ * 0.86, 0);                                    // top seat, under the stool
+      sh.lineTo(0, 0);
+      return sh;
+    })();
+    const APRON_P = 0.050;
+
+    // A run of moulding plus MITRED RETURNS: at each end the same section is swept
+    // perpendicular, so the profile wraps the corner and dies into the wall instead of
+    // stopping at a square cut that shows its section as a flat face.
+    const mouldH = (s0, s1, yLo, shape, proj, flip) => {
+      // The mitre EATS the last `proj` of the run at each end — s0..s1 is the finished
+      // length of the assembly, returns included. Swept the other way the returns hang
+      // off the ends and the member is 2 x proj longer than asked for, which is how a
+      // 3/4 in horn measured 1.93 in. (The box version had the same bug; sweeping the
+      // profile reintroduced it.)
+      const pf = proj / ft;
+      const A = P(s0), B = P(s1);
+      const along = B.clone().sub(A).setY(0).normalize();
+      const across = flip ? UP.clone().negate() : UP.clone();
+      // The RUN gets a 45 deg cut at each end — long point at the wall, short point at
+      // the front — so it now runs the assembly's full length and the mitre takes the
+      // material back, rather than the run being shortened and a block set beside it.
+      const zAxis = new THREE.Vector3().crossVectors(Nw, across).normalize();
+      const fwd = zAxis.dot(B.clone().sub(A)) >= 0;
+      const startPt = fwd ? A : B;
+      sweep(shape, new THREE.Vector3(startPt.x, floorY + yLo, startPt.z),
+            Nw, across, A.distanceTo(B), [BACK_NEAR, BACK_FAR]);
+      // The RETURN is the matching wedge: the same section, turned so its moulded face
+      // looks along the wall, swept from the wall out to the front, and cut at 45 deg on
+      // the face that meets the run. The two cut faces are the same plane, so the profile
+      // carries round the corner and dies into the wall.
+      for (const [endS, out] of [[s0, along.clone().negate()], [s1, along.clone()]]) {
+        // origin one projection INBOARD, with X running outward to the assembly's end
+        const originPlan = endS + (out.dot(along) > 0 ? -pf : pf);
+        const o = P(originPlan);
+        const base = new THREE.Vector3(o.x, floorY + yLo, o.z);
+        const zr = new THREE.Vector3().crossVectors(out, across).normalize();
+        // MATCHING cut: the return's 45 deg face has to lie in the same plane as the
+        // run's, which is the opposite assignment to the run's own — the wedge tucks in
+        // BEHIND the run's long front point, thick at the wall and dying at the front.
+        sweep(shape, zr.dot(Nw) >= 0 ? base : base.clone().add(Nw.clone().multiplyScalar(proj)),
+              out, across, proj, zr.dot(Nw) >= 0 ? [SQUARE, FWD_NEAR] : [FWD_FAR, SQUARE]);
+      }
+    };
+    const mouldV = (s, y0, y1, shape, sgn) => {
+      const C = P(s);
+      const along = new THREE.Vector3(dir.x, 0, dir.z).normalize().multiplyScalar(sgn);
+      const base = new THREE.Vector3(C.x, floorY + y0, C.z)
+        .add(along.clone().multiplyScalar(-caseW / 2));
+      const zAxis = new THREE.Vector3().crossVectors(Nw, along).normalize();
+      sweep(shape, zAxis.y >= 0 ? base : base.clone().setY(floorY + y1), Nw, along, y1 - y0);
+    };
+
     // 1) baseboard — minus doors + full-height built-ins (continuous under windows)
     for (const [a, b] of subtract(w.lo, w.hi, [...doors, ...tallX], 0.12)) band(a, b, 0, bbH, 0.05);
 
@@ -189,16 +349,39 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       for (const [a, b, th] of tall) band(a, b, th * ft, wallTop, 0.012, field);
     }
 
-    // 4) window casing: jambs (sill..head) + sill stool + apron
+    // 4) window casing: moulded jambs + HEAD + a stool with mitred returns + apron
     for (const [a, b, sill, plainBelow] of wins) {
       const sy = sill * ft;
-      post(a, sy, headY, caseW, 0.045); post(b, sy, headY, caseW, 0.045);
-      band(a - caseW / ft, b + caseW / ft, sy, sy + 0.04, 0.07);          // stool
-      // The apron is a 2" proud board the exact width of the window. Where the wall
-      // below is open floor rather than a counter it hangs 25" up with nothing under
-      // it and reads as a stray panel, so `plainBelow` drops it and the field and
-      // battens simply carry on to the stool.
-      if (!plainBelow) band(a, b, sy - 0.12, sy, 0.05);                    // apron
+      const lo = Math.min(a, b), hi = Math.max(a, b);
+      mouldV(lo, sy, headY, casingShape, +1); mouldV(hi, sy, headY, casingShape, -1);
+      // The head was missing on every window in the house — the same gap doors had,
+      // fixed for doors and never carried across. Two verticals and a stool with
+      // nothing over them reads as an unfinished opening. It returns past both jambs
+      // and MITRES back to the wall at each end rather than stopping square.
+      // HORN. Measured from the outboard edge of the CASING, not from the jamb — which
+      // is the mistake that made these overhang: the casing is centred on the jamb, so
+      // a horn of one casing width past the jamb is 2 in past the casing itself.
+      // Millwork practice puts the stool horn 3/4-1 in beyond the casing's outer edge,
+      // and a moulded (non-Craftsman) head caps it by about the same. Craftsman trim
+      // overhangs 1-3 in, but that is flat stock reading as a lintel — this is a
+      // cove-and-ovolo architrave, where a heavy overhang just looks slack.
+      const HORN = 0.75 / 12;                  // 3/4 in past the casing edge
+      const hOut = cwf / 2 + HORN;             // ...so, past the JAMB
+      mouldH(lo - hOut, hi + hOut, headY, casingShape, CASE_P, false);
+      // STOOL: a bullnosed sill board, mitred back to the wall at each horn.
+      mouldH(lo - hOut, hi + hOut, sy, stoolShape, STOOL_D, false);
+      // APRON: a length of the CASING stock run horizontally under the stool, inverted,
+      // and returned onto itself at both ends — which is what an apron is. It was the
+      // last flat board in the composition.
+      // Length: flush with the STOOL above it, so the two members die at the same plan
+      // position and their returns stack into one clean corner. Millwork practice is
+      // actually to stop the apron at the casing's outer edge and let the stool horn
+      // run 3/4 in proud of it — that is the detail this replaces, by request; the
+      // stepped corner it produces is correct but reads as a mistake here.
+      // Where the wall below is open floor rather than a counter the apron hangs 25 in
+      // up with nothing under it and reads as a stray panel, so `plainBelow` drops it
+      // and the field and battens simply carry on to the stool.
+      if (!plainBelow) mouldH(lo - hOut, hi + hOut, sy, apronShape, APRON_P, true);
     }
     // 5) door casing: jambs (floor..head) PLUS a head casing across the top. The head
     //    was missing everywhere — every cased door in the house had two verticals and
