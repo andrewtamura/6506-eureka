@@ -184,5 +184,28 @@ for wspec in specs:
         for v in mv:
             check(near(v[4], sill) and near(v[5], head), f'{label}: vertical muntin runs sill to head')
 
+# --- EVERY WINDOW IS TRIMMED -----------------------------------------------------
+# The trim program runs PER ROOM: a room without an `interior.paneling` block gets no
+# casing, no stool, no apron and no baseboard, and its windows are raw holes in the
+# plaster. Nothing downstream notices — the browser harness can only measure trim that
+# exists, so a whole room of untrimmed windows reads as zero failures. The sitting room
+# sat like that through every improvement made to the casing profile.
+#
+# Checked against the room files rather than the geometry, because that is where the
+# omission lives.
+print('\nEVERY WINDOW IS TRIMMED')
+model = json.load(open('ifc/model.json'))
+# A room can appear in several levels' lists (the extension rooms are carried by the
+# level-2 shell too), so walk the union rather than each level's list.
+stems = sorted({s for level in model['levels'] for s in level.get('rooms', [])})
+for stem in stems:
+    room = json.load(open(f'ifc/rooms/{stem}.json'))
+    wins = [w for w in room.get('windows', []) if not w.get('blind')]
+    if not wins:
+        continue
+    pan = (room.get('interior') or {}).get('paneling')
+    check(bool(pan), f"{stem}: {len(wins)} window(s), and a trim program to case them"
+                     + ('' if pan else ' — MISSING, they will be raw openings'))
+
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)
