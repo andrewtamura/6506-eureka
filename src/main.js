@@ -914,6 +914,13 @@ async function main() {
   const knob = el("circle", { r: "8", fill: "#f5b942", stroke: "#fff", "stroke-width": "2" });
   const label = el("text", { x: C, y: C + 4, "text-anchor": "middle", "font-size": "13", fill: "#445", "font-weight": "600" });
   dial.append(knob, label);
+  // Time-of-day PRESETS belong with the sun, not with the fixtures — they move the sun.
+  // Placed here, above the dials, but filled in later: the scenes they trigger need the
+  // fixture list, which does not exist until the models are loaded.
+  lightEl.appendChild(caption("Presets"));
+  const presetsEl = document.createElement("div");
+  presetsEl.style.cssText = "flex-basis:100%;display:flex;flex-wrap:wrap;gap:5px;justify-content:center";
+  lightEl.appendChild(presetsEl);
   lightEl.appendChild(caption("Time of day"));
   lightEl.appendChild(dial);
 
@@ -2035,13 +2042,6 @@ async function main() {
   // --- lighting scenes: presets that drive the sun (time of day) and the interior
   // light fixtures (on / off / dimmed) together, plus per-level fixture toggles.
   const scenesEl = document.getElementById("scenes");
-  const addScene = (label, fn) => {
-    const btn = document.createElement("button");
-    btn.className = "view-btn";
-    btn.textContent = label;
-    btn.addEventListener("click", async (e) => { await fn(e); invalidate(); });
-    scenesEl.appendChild(btn);
-  };
   // Set every fixture on `level` ("all" = every level) to `factor`x its nominal
   // brightness (0 = off, 1 = full, ~0.5 = dimmed); the glowing shade tracks it too.
   // `auto` marks a call made BY the photocell rather than by a person, so a manual
@@ -2082,30 +2082,77 @@ async function main() {
     if (extAuto) setFixtures("exterior", night, true);
   });
 
-  // Morning: early sun, fixtures off (daylight). Evening: low sun, fixtures on but
-  // dimmed for a warm glow. Night: sun down, landscape lights on + windows aglow.
-  scenesEl.appendChild(caption("Time of day"));
-  // Each scene hands the landscape back to the photocell rather than setting it by
-  // hand: at 7.5h the sun is well up (off), and at 19.3h / 21h it is down (on), so the
-  // sun already gives the right answer and one rule governs instead of two.
-  const timeScene = (h, interior, glow) => () => {
-    extAuto = true; apply(h); setFixtures("all", interior); setWindowGlow(glow);
+  // --- fixture lighting: ONE MODEL AT A TIME ------------------------------
+  // A radio group, not four independent switches. Two reasons it is worth enforcing
+  // rather than merely offering: you can see at a glance what is lit, and every VISIBLE
+  // light is evaluated in every fragment shader — with all four models lit a phone
+  // reported 87 lights on, so the ground floor was paying per-pixel for the Attic's
+  // fixtures. `auto` is the default and keeps the landscape photocell: dusk-to-dawn
+  // lanterns with no interior lit, which is the state the page has always opened in.
+  const LIGHTING = [
+    ["auto", "Auto", "Landscape lanterns follow the sun; no interior lit"],
+    ["exterior", "Lot", "Landscape lanterns pinned on, windows aglow"],
+    ["ground", "Ground floor", "Ground-floor fixtures"],
+    ["level2", "Second floor", "Second-floor fixtures"],
+    ["attic", "Attic", "Attic fixtures"],
+    ["off", "All off", "Every fixture off — daylight only"],
+  ];
+  let litModel = "auto";
+  const lightingBtns = new Map();
+  const paintLighting = () => {
+    for (const [id, btn] of lightingBtns) {
+      const on = id === litModel;
+      btn.classList.toggle("on", on);
+      btn.textContent = `${on ? "●" : "○"} ${LIGHTING.find((r) => r[0] === id)[1]}`;
+    }
   };
-  addScene("🌅 Morning", timeScene(7.5, 0, false));
-  addScene("🌆 Evening", timeScene(19.3, 0.6, false));
-  addScene("🌙 Night", timeScene(21, 0.75, true));
-  // Per-level fixture toggles (sun unchanged).
-  for (const [label, id] of [["Ground floor", "ground"], ["Second floor", "level2"], ["Attic", "attic"]]) {
-    scenesEl.appendChild(caption(label));
-    addScene("On", () => setFixtures(id, 1));
-    addScene("Off", () => setFixtures(id, 0));
+  // The constraint lives HERE, in one place: everything goes off first, then exactly
+  // one thing comes on. Anything that wants to light a model — a preset, a click, the
+  // harness — goes through this, so the buttons can never disagree with the scene.
+  const selectLighting = (id, factor = 1) => {
+    litModel = id;
+    extAuto = false;
+    setFixtures("all", 0);                       // clears every per-level override too
+    setWindowGlow(false);
+    if (id === "auto") { extAuto = true; setFixtures("exterior", nightFactor, true); }
+    else if (id === "exterior") { setFixtures("exterior", 1); setWindowGlow(true); }
+    else if (id !== "off") setFixtures(id, factor);
+    paintLighting();
+    invalidate();
+  };
+  scenesEl.appendChild(caption("Fixture lighting — one at a time"));
+  for (const [id, , title] of LIGHTING) {
+    const btn = document.createElement("button");
+    btn.className = "view-btn";
+    btn.title = title;
+    btn.addEventListener("click", () => selectLighting(id));
+    scenesEl.appendChild(btn);
+    lightingBtns.set(id, btn);
   }
-  // Auto is the default; On/Off pin the lights and take them off the photocell until
-  // Auto (or any time-of-day scene) hands them back.
-  scenesEl.appendChild(caption("Landscape"));
-  addScene("Auto", () => { extAuto = true; setFixtures("exterior", nightFactor, true); });
-  addScene("On", () => { setFixtures("exterior", 1); setWindowGlow(true); });
-  addScene("Off", () => { setFixtures("exterior", 0); setWindowGlow(false); });
+  // Apply the default rather than merely displaying it. Without this the buttons said
+  // "Auto" while every interior fixture sat at its authored brightness — registerFixture
+  // only dims a light if some scene has already spoken for its level, and until now
+  // nothing had. That is why a phone with the exhibits loaded reported 87 lights on.
+  selectLighting("auto");
+  window.__eureka.selectLighting = selectLighting;   // debug handle: kitchen-check drives it
+  window.__eureka.litModel = () => litModel;
+
+  // --- time-of-day presets, in the SUN menu -------------------------------
+  // They move the sun, so they belong beside the dials rather than beside the
+  // fixtures. Each also picks the lighting that goes with that hour, through
+  // selectLighting, so the radio above always reflects what you are looking at.
+  const addPreset = (label, fn) => {
+    const btn = document.createElement("button");
+    btn.className = "view-btn";
+    btn.textContent = label;
+    btn.addEventListener("click", () => { fn(); invalidate(); });
+    presetsEl.appendChild(btn);
+  };
+  const timeScene = (h, lighting, factor) => () => { apply(h); selectLighting(lighting, factor); };
+  addPreset("🌅 Morning", timeScene(7.5, "auto"));          // sun well up: photocell holds the lanterns off
+  addPreset("☀️ Afternoon", timeScene(14.5, "auto"));       // full daylight, nothing lit
+  addPreset("🌆 Evening", timeScene(19.3, "ground", 0.6));  // low sun, the ground floor warm and dimmed
+  addPreset("🌙 Night", timeScene(21, "exterior"));         // sun down: lanterns on, windows aglow
 
   // --- build swinging door overlays ---------------------------------------
   // Hide the baked IFC door panels (can't cheaply animate them) and overlay our

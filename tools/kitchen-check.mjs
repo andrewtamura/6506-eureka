@@ -189,7 +189,23 @@ const raw = await page.evaluate(() => {
   window.__eureka.setHour(0);   const night = skySample();
   window.__eureka.setHour(12);  const noon = skySample();
   window.__eureka.setHour(hourWas);
-  return { items, loose, doorLeaves, lights, ceilingY, sky: { night, noon } };
+  // ONE MODEL'S FIXTURES AT A TIME. Every visible light is evaluated in every fragment
+  // shader, so this is a rendering constraint as much as a UI one — and the default
+  // used to be "all of them", because registerFixture only dims a level some scene has
+  // spoken for. Drive the real control and count what is actually lit per level.
+  const litPerLevel = () => {
+    const n = {};
+    for (const f of window.__eureka.fixtures || [])
+      if (f.light.visible && f.light.intensity > 0) n[f.level] = (n[f.level] || 0) + 1;
+    return n;
+  };
+  const lighting = {};
+  for (const pick of ["auto", "exterior", "ground", "off"]) {
+    window.__eureka.selectLighting(pick);
+    lighting[pick] = { lit: litPerLevel(), says: window.__eureka.litModel() };
+  }
+  window.__eureka.selectLighting("auto");
+  return { items, loose, doorLeaves, lights, ceilingY, sky: { night, noon }, lighting };
 });
 await b.close();
   return raw;
@@ -1443,6 +1459,20 @@ console.log('EXTENSION');
     A(ft.every(d => Math.abs(d - want) < 0.05),
       `${type} reaches ${want} ft (${[...new Set(ft.map(d => R(d, 2)))].join(', ')}) \u00d7${own.length}`);
   }
+  // ONE MODEL LIT AT A TIME. Asserted by driving the control and counting, not by
+  // reading the button labels — the whole point is that the scene agrees with them.
+  const LG = raw.lighting || {};
+  const levels = (o) => Object.keys(o.lit || {}).filter((k) => o.lit[k] > 0);
+  if (LG.ground) {
+    A(levels(LG.ground).join() === 'ground',
+      `lighting the ground floor lights ONLY the ground floor (${levels(LG.ground).join(', ') || 'nothing'})`);
+    A(levels(LG.exterior).join() === 'exterior',
+      `lighting the Lot lights ONLY the Lot (${levels(LG.exterior).join(', ') || 'nothing'})`);
+    A(levels(LG.off).length === 0, `"All off" leaves nothing lit (${levels(LG.off).join(', ') || 'nothing'})`);
+    A(Object.values(LG).every((o) => levels(o).length <= 1),
+      `never more than one model lit at once (${Object.entries(LG).map(([k, o]) => `${k}:${levels(o).length}`).join(' ')})`);
+  }
+
   // Daylight, so it tracks the sun rather than the lamp scenes.
   const sky = raw.sky || { night: { lit: [], emis: [] }, noon: { lit: [], emis: [] } };
   A(sky.noon.lit.length === 3, `three skylight wells are lit by the sun (${sky.noon.lit.length})`);

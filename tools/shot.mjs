@@ -33,14 +33,16 @@ for (let i = 0; i < 180; i++) {
   if (await page.evaluate(() => !!document.querySelector('#level-switcher .view-btn, #level-switcher [data-id]') && !!window.__eureka)) break;
   await new Promise(r => setTimeout(r, 2000));
 }
-// SHOT_SCENE picks a "Time of day" button by name (morning / evening / night).
+// SHOT_SCENE picks a "Time of day" preset by name (morning / afternoon / evening / night).
 // This matters more than SHOT_HOUR: setHour is only a debug alias for the sun+season
 // placement, so on its own it makes a dark room with every lamp still OFF. The lamps
 // are driven by the scene buttons, which call setFixtures. To photograph light
 // falloff you need the scene; the hour alone proves nothing.
 const scene = (process.env.SHOT_SCENE || '').toLowerCase();
 if (scene) await page.evaluate((want) => {
-  const b = [...document.querySelectorAll('#scenes .view-btn')]
+  // Both menus: the time-of-day PRESETS now live in the sun menu (#lighting) beside the
+  // dials, because they move the sun; #scenes is the per-model fixture radio.
+  const b = [...document.querySelectorAll('#lighting .view-btn, #scenes .view-btn')]
     .find(el => el.textContent.toLowerCase().includes(want));
   if (b) b.click(); else console.warn('no scene button matching', want);
 }, scene);
