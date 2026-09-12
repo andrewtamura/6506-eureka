@@ -1529,8 +1529,14 @@ console.log('EXTENSION');
     const cx = (m.pxLo + m.pxHi) / 2, cz = (m.pzLo + m.pzHi) / 2;
     return cx > x0 && cx < x1 && cz > z0 && cz < z1;
   };
+  // All four coved rooms. The sitting and family rooms have NO entablature, so their
+  // cove springs straight off the plain wall — at the same height, because COVE_H is
+  // set to the corniced rooms' wallTop - crownTop so every coved room reads alike.
+  // They share the z = 0 wall, which centre-in-box separates.
   const ROOMS = [['foyer', 3.9167, 15.0833, -11.9167, 10.1667],
-                 ['dining', 15.0833, 31, 2, 16.0833]];
+                 ['dining', 15.0833, 31, 2, 16.0833],
+                 ['sitting', -12, 3.9167, 0, 16.0833],
+                 ['family', -12, 3.9167, -11.9167, 0]];
   for (const [name, x0, x1, z0, z1] of ROOMS) {
     const c = L.filter(m => isCove(m) && inRoom(m, x0, x1, z0, z1));
     A(c.length > 0, `${name}: the ceiling is coved (${c.length} runs off the crown)`);

@@ -229,6 +229,13 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   is ~8.65 in, which doubles as the cove radius. In the profile, the quadratic's control
   point at `(Rc, 0)` is what makes the face CONCAVE from the room; `(0.012, H)` curves it
   the other way and reads as a bullnose.
+  **A cove is independent of the entablature.** `coved` in a room's paneling turns it on
+  and is IMPLIED by a cornice; the sitting and family rooms carry `noCornice: true` and
+  `coved: true`, so their cove springs straight off the plain wall. `COVE_H` is set to
+  the corniced rooms' `wallTop - crownTop` so every coved room springs at the same
+  height and reads alike. Expect the uncorniced ones to read SOFTLY — with no crown
+  beneath it there is no shadow line to catch the curve, which is what a plain coved
+  ceiling actually looks like; measure it rather than hunting for it with the camera.
   **A cove is a HOLLOW: tangent to the wall where it springs, tangent to the ceiling
   where it dies, so the quadratic's control point sits at the wall/ceiling corner
   `(0.012, H)`.** Putting it at `(Rc, 0)` is the same quarter-round turned inside out — a

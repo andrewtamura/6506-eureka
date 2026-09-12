@@ -334,6 +334,39 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       }
     }
 
+    // A COVED CEILING is independent of the entablature. A corniced room springs it off
+    // the crown; a room with no entablature (the sitting and family rooms) springs it
+    // off the plain wall the same distance below the ceiling, so every coved room reads
+    // with the same curve. `coved` in the room's paneling turns it on, and is implied
+    // for any wall that carries a cornice.
+    const COVE_H = 0.30;                     // matches wallTop - crownTop in a corniced room
+    const sweepCove = (s0, s1, springY) => {
+      const H = wallTop - springY, Rc = H;
+      if (H < 0.02) return;
+      const A = P(s0), B = P(s1), L = A.distanceTo(B);
+      if (L < 0.02) return;
+      const up = new THREE.Vector3(0, 1, 0);
+      const zAxis = new THREE.Vector3().crossVectors(Nw, up).normalize();
+      const start = zAxis.dot(B.clone().sub(A)) >= 0 ? A : B;
+      // A cove is a HOLLOW: tangent to the WALL where it springs and tangent to the
+      // CEILING where it dies, so the control point sits at the intersection of those
+      // two tangents — the wall/ceiling corner, (0.012, H). Putting it at (Rc, 0) is the
+      // same quarter-round turned inside out — a bullnose bulging INTO the room — and
+      // that is what shipped first, because at a glance in a render the two look alike.
+      const cove = new THREE.Shape();
+      cove.moveTo(0.012, 0);                      // springs off the field's face
+      cove.quadraticCurveTo(0.012, H, Rc, H);     // the hollow
+      cove.lineTo(0, H);                          // back along the ceiling to the wall
+      cove.lineTo(0, 0);                          // down the wall plane
+      cove.lineTo(0.012, 0);
+      const cgeo = new THREE.ExtrudeGeometry(cove, { depth: L, bevelEnabled: false, curveSegments: 10 });
+      const cmesh = new THREE.Mesh(cgeo, field);
+      cmesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(Nw, up, zAxis));
+      cmesh.position.set(start.x, floorY + springY, start.z);
+      cmesh.castShadow = true; cmesh.receiveShadow = true;
+      scene.add(cmesh);
+    };
+
     // A wall can opt out of the entablature (`noCornice`) while keeping the rest of
     // the trim program — the crown, its frieze and bed mould, and the plain field
     // above them all belong to this block.
@@ -375,38 +408,11 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
         band(s0, s1, headY, friezeTop, 0.024);             // FRIEZE — sits on the opening head
         band(s0, s1, friezeTop, friezeTop + 0.018, 0.05);  // bed mold: lower bead
         band(s0, s1, friezeTop + 0.018, crownB, 0.058);    // bed mold: upper step
-        // COVED CEILING. Above the crown the plaster does not meet the ceiling at an
-        // arris — it curves out and turns into it, which is what both corniced rooms
-        // have. This replaces the flat band that used to fill crownTop..wallTop, so it
-        // inherits the cornice's spans for free: no cove over the foyer's stair break,
-        // which is right, because there is a stairwell void up there and no ceiling to
-        // curve into. The gap is ~8.65 in, which is also a believable cove radius.
-        {
-          const H = wallTop - crownTop, Rc = H;
-          const A = P(s0), B = P(s1), L = A.distanceTo(B);
-          const up = new THREE.Vector3(0, 1, 0);
-          const zAxis = new THREE.Vector3().crossVectors(Nw, up).normalize();
-          const start = zAxis.dot(B.clone().sub(A)) >= 0 ? A : B;
-          // A cove is a HOLLOW: tangent to the WALL where it springs and tangent to the
-          // CEILING where it dies, so the control point sits at the intersection of
-          // those two tangents — the wall/ceiling corner, (0.012, H). The first cut put
-          // it at (Rc, 0), which is the same quarter-round turned inside out: horizontal
-          // where it leaves the wall and vertical where it meets the ceiling, i.e. a
-          // bullnose bulging INTO the room. At a glance in a render the two look alike;
-          // the photographed corner does not lie.
-          const cove = new THREE.Shape();
-          cove.moveTo(0.012, 0);                      // springs off the field's face
-          cove.quadraticCurveTo(0.012, H, Rc, H);     // the hollow
-          cove.lineTo(0, H);                          // back along the ceiling to the wall
-          cove.lineTo(0, 0);                          // down the wall plane
-          cove.lineTo(0.012, 0);
-          const cgeo = new THREE.ExtrudeGeometry(cove, { depth: L, bevelEnabled: false, curveSegments: 10 });
-          const cmesh = new THREE.Mesh(cgeo, field);
-          cmesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(Nw, up, zAxis));
-          cmesh.position.set(start.x, floorY + crownTop, start.z);
-          cmesh.castShadow = true; cmesh.receiveShadow = true;
-          scene.add(cmesh);
-        }
+        // Above the crown the plaster curves into the ceiling rather than meeting it at
+        // an arris. Inside this loop, so it inherits the cornice's spans for free: no
+        // cove over the foyer's stair break, which is right — there is a stairwell void
+        // up there and no ceiling to curve into.
+        sweepCove(s0, s1, crownTop);
         const A = P(s0), B = P(s1), L = A.distanceTo(B);
         const up = new THREE.Vector3(0, 1, 0);
         const zAxis = new THREE.Vector3().crossVectors(Nw, up).normalize(); // right-handed third axis
@@ -464,8 +470,13 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       // With no entablature the field has to carry on from the head line to the
       // ceiling itself — the band that normally fills above the crown lives inside
       // the block above, so without this the wall is bare from 7'0" up.
-      for (const [s0, s1] of subtract(w.lo, w.hi, [...tallX, ...trans], 0, 0.05))
-        band(s0, s1, headY, wallTop, 0.012, field);
+      // A room with no entablature can still be coved (the sitting and family rooms are):
+      // the field then stops at the cove's spring line instead of running to the ceiling.
+      const fieldTop = w.coved ? wallTop - COVE_H : wallTop;
+      for (const [s0, s1] of subtract(w.lo, w.hi, [...tallX, ...trans], 0, 0.05)) {
+        band(s0, s1, headY, fieldTop, 0.012, field);
+        if (w.coved) sweepCove(s0, s1, fieldTop);
+      }
       for (const [a, b, th] of tall) band(a, b, th * ft, wallTop, 0.012, field);
     }
 
