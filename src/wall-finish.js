@@ -189,10 +189,15 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       for (const [a, b, th] of tall) band(a, b, th * ft, wallTop, 0.012, field);
     }
 
-    // 4) window casing: jambs (sill..head) + sill stool + apron
+    // 4) window casing: jambs (sill..head) + HEAD + sill stool + apron
     for (const [a, b, sill, plainBelow] of wins) {
       const sy = sill * ft;
       post(a, sy, headY, caseW, 0.045); post(b, sy, headY, caseW, 0.045);
+      // The head was missing on every window in the house — the same gap doors had,
+      // fixed for doors and never carried across. Two verticals and a stool with
+      // nothing over them reads as an unfinished opening. Returns over both jambs,
+      // exactly as the door head does below.
+      band(Math.min(a, b) - caseW / ft, Math.max(a, b) + caseW / ft, headY, headY + caseW, 0.045);
       band(a - caseW / ft, b + caseW / ft, sy, sy + 0.04, 0.07);          // stool
       // The apron is a 2" proud board the exact width of the window. Where the wall
       // below is open floor rather than a counter it hangs 25" up with nothing under

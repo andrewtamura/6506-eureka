@@ -491,6 +491,16 @@ if (gUps.length === 2) {
     && Math.abs(m.yLo - sy) < 0.12 && m.yHi > 6.7 && m.yHi < 7.1
     && (m.pxHi - m.pxLo) > 0.25 && (m.pxHi - m.pxLo) < 0.45);
   A(posts.length === 6, `two casing posts at each of the three windows (${posts.length})`);
+  // HEADS. Windows had jambs, a stool and an apron and NOTHING over them — the same gap
+  // doors had, fixed for doors and never carried across, which is how every window in
+  // the house shipped unfinished. Filter on PROJECTION: a head casing stands 0.148 ft
+  // proud where the plain field above the head line is 0.039 and just as wide.
+  const heads = L.filter(m => m.pzLo < SWALL + 0.35 && m.pxLo > 0 && m.pxHi < 28
+    && Math.abs(m.yLo - (7.0 - 0.066)) < 0.08 && (m.pzHi - m.pzLo) > 0.1
+    && (m.pxHi - m.pxLo) > 2.4 && (m.pxHi - m.pxLo) < 3.2);
+  A(heads.length === 3, `a head casing over each of the three windows (${heads.length})`);
+  if (heads.length) A(heads.every(m => (m.pxHi - m.pxLo) > 2.6),
+    `returning over both jambs — ${R(Math.min(...heads.map(m => m.pxHi - m.pxLo)), 2)} ft over a 2 ft window`);
   const aprons = L.filter(m => m.pzLo < SWALL + 0.35 && Math.abs(m.yHi - sy) < 0.05
     && (m.yHi - m.yLo) > 0.3 && (m.yHi - m.yLo) < 0.5
     && (m.pxHi - m.pxLo) > 1.8 && (m.pxHi - m.pxLo) < 2.3);
