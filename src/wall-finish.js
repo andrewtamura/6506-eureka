@@ -283,7 +283,15 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       // fixed for doors and never carried across. Two verticals and a stool with
       // nothing over them reads as an unfinished opening. It returns past both jambs
       // and MITRES back to the wall at each end rather than stopping square.
-      const hOut = cwf;                        // horn past each jamb, as the door head returns
+      // HORN. Measured from the outboard edge of the CASING, not from the jamb — which
+      // is the mistake that made these overhang: the casing is centred on the jamb, so
+      // a horn of one casing width past the jamb is 2 in past the casing itself.
+      // Millwork practice puts the stool horn 3/4-1 in beyond the casing's outer edge,
+      // and a moulded (non-Craftsman) head caps it by about the same. Craftsman trim
+      // overhangs 1-3 in, but that is flat stock reading as a lintel — this is a
+      // cove-and-ovolo architrave, where a heavy overhang just looks slack.
+      const HORN = 0.75 / 12;                  // 3/4 in past the casing edge
+      const hOut = cwf / 2 + HORN;             // ...so, past the JAMB
       mouldH(lo - hOut, hi + hOut, headY, casingShape, CASE_P, false);
       // STOOL: a bullnosed sill board, mitred back to the wall at each horn.
       mouldH(lo - hOut, hi + hOut, sy, stoolShape, STOOL_D, false);

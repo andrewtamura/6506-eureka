@@ -501,6 +501,16 @@ if (gUps.length === 2) {
   A(jambs.every(m => m.nv >= MOULDED),
     `swept profiles, not boxes — ${Math.min(...jambs.map(m => m.nv))} vertices each (a box is 24)`);
   A(jambs.every(m => Math.abs((m.pxHi - m.pxLo) - 0.33) < 0.02), 'a 4 in casing');
+  // HORN PROPORTION. Millwork practice measures the horn from the CASING's outboard
+  // edge, not the jamb — 3/4 to 1 in past it for a stool, about the same for a moulded
+  // head. Measuring from the jamb instead is what left these overhanging by 2 in.
+  // (Craftsman trim does overhang 1-3 in, but that is flat stock reading as a lintel.)
+  const HORN = (run, name) => {
+    if (!run.length || !jambs.length) return;
+    const caseEdge = 2.0 + (jambs[0].pxHi - jambs[0].pxLo);        // 2 ft window + both half-casings
+    const past = ((run[0].pxHi - run[0].pxLo) - caseEdge) / 2 * 12;
+    A(past > 0.5 && past < 1.25, `${name} horn ${R(past, 2)} in past the casing edge (3/4-1 in)`);
+  };
 
   // HEAD: the run, plus a RETURN at each end. A 45 deg mitre returns as far as the
   // member stands proud, so the return's length has to equal its projection — that
@@ -509,6 +519,7 @@ if (gUps.length === 2) {
   const hRun = atHead.filter(m => (m.pxHi - m.pxLo) > 1.5);
   const hRet = atHead.filter(m => (m.pxHi - m.pxLo) < 0.3);
   A(hRun.length === 3, `a moulded head over each window (${hRun.length})`);
+  HORN(hRun, 'head');
   A(hRet.length === 6, `mitred returns at both ends of each head (${hRet.length})`);
   A(hRet.every(m => m.nv >= MOULDED), 'the returns carry the same section round the corner');
   if (hRun.length && hRet.length) {
@@ -522,6 +533,7 @@ if (gUps.length === 2) {
   const sRun = atSill.filter(m => (m.pxHi - m.pxLo) > 1.5);
   const sRet = atSill.filter(m => (m.pxHi - m.pxLo) < 0.3);
   A(sRun.length === 3, `a stool at each window (${sRun.length})`);
+  HORN(sRun, 'stool');
   A(sRet.length === 6, `mitred returns at both ends of each stool (${sRet.length})`);
   A(sRun.every(m => m.nv >= MOULDED), 'the stool is nosed, not a square board');
   if (sRun.length && sRet.length) {
