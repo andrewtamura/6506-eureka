@@ -305,13 +305,15 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       // APRON: a length of the CASING stock run horizontally under the stool, inverted,
       // and returned onto itself at both ends — which is what an apron is. It was the
       // last flat board in the composition.
-      // Its length is the distance across the OUTSIDE EDGES of the side casings: the
-      // long point of each mitre lands where the casing's outer edge meets it. Running
-      // it the width of the window (as it did) stops it short of the casing above.
+      // Length: flush with the STOOL above it, so the two members die at the same plan
+      // position and their returns stack into one clean corner. Millwork practice is
+      // actually to stop the apron at the casing's outer edge and let the stool horn
+      // run 3/4 in proud of it — that is the detail this replaces, by request; the
+      // stepped corner it produces is correct but reads as a mistake here.
       // Where the wall below is open floor rather than a counter the apron hangs 25 in
       // up with nothing under it and reads as a stray panel, so `plainBelow` drops it
       // and the field and battens simply carry on to the stool.
-      if (!plainBelow) mouldH(lo - cwf / 2, hi + cwf / 2, sy, casingShape, CASE_P, true);
+      if (!plainBelow) mouldH(lo - hOut, hi + hOut, sy, casingShape, CASE_P, true);
     }
     // 5) door casing: jambs (floor..head) PLUS a head casing across the top. The head
     //    was missing everywhere — every cased door in the house had two verticals and

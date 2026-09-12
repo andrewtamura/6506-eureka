@@ -561,14 +561,20 @@ if (gUps.length === 2) {
   A(aRun.every(m => m.nv >= MOULDED), 'a moulded section, not a flat board');
   A(aRun.every(m => Math.abs((m.yHi - m.yLo) - 0.33) < 0.02),
     'the same 4 in stock as the casing');
-  // Per window: each apron's own ends against the jambs FLANKING IT. Taking the
-  // extremes across all three windows instead compared one apron to the whole wall.
+  // Per window, and against the STOOL directly above it — the two have to die at the
+  // same plan position or the corner steps. Comparing extremes across all three windows
+  // instead compared one apron to the whole wall.
+  const ends = (r, ret) => {
+    const near = ret.filter(m => Math.abs(m.pxLo - r.pxHi) < 0.02 || Math.abs(m.pxHi - r.pxLo) < 0.02);
+    return [Math.min(r.pxLo, ...near.map(m => m.pxLo)), Math.max(r.pxHi, ...near.map(m => m.pxHi))];
+  };
   for (const r of aRun) {
-    const near = aRet.filter(m => Math.abs(m.pxLo - r.pxHi) < 0.02 || Math.abs(m.pxHi - r.pxLo) < 0.02);
-    const lo = Math.min(r.pxLo, ...near.map(m => m.pxLo));
-    const hi = Math.max(r.pxHi, ...near.map(m => m.pxHi));
-    A(jambs.some(j => Math.abs(j.pxLo - lo) < 0.02) && jambs.some(j => Math.abs(j.pxHi - hi) < 0.02),
-      `apron flush with its casing's outer edges (${R(lo, 3)}..${R(hi, 3)})`);
+    const [lo, hi] = ends(r, aRet);
+    const above = sRun.find(m => Math.abs((m.pxLo + m.pxHi) / 2 - (lo + hi) / 2) < 0.2);
+    if (!above) { A(false, 'apron has a stool above it'); continue; }
+    const [sLo, sHi] = ends(above, sRet);
+    A(Math.abs(lo - sLo) < 0.02 && Math.abs(hi - sHi) < 0.02,
+      `apron dies flush with the stool above it (${R(lo, 3)}..${R(hi, 3)} vs ${R(sLo, 3)}..${R(sHi, 3)})`);
   }
 }
 
