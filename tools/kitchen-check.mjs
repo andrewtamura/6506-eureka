@@ -1175,6 +1175,39 @@ console.log('EXTENSION');
     A(glass.length >= 1, `transom glazed 7.0 to 8.6 ft, matching the exterior entry (${glass.length})`);
   }
 
+  // DOOR CASING round the front door. The vestibule had no trim program at all, so the
+  // opening was a raw reveal under a framed transom. Casing projects ~0.15 ft where the
+  // plaster field projects 0.012, which is what tells the two apart.
+  { const DY = 0.066, FACE = 15.854, HEAD = 7.0 - DY;
+    const onWall = L.filter(m => m.pzHi > FACE - 0.02 && m.pzLo < FACE + 0.1 && m.pxLo > 7.2 && m.pxHi < 12.2);
+    const jambs = onWall.filter(m => (m.pxHi - m.pxLo) < 0.5 && m.yLo < 0.1 && Math.abs(m.yHi - HEAD) < 0.06
+      && (m.pzHi - m.pzLo) > 0.1 && (m.pzHi - m.pzLo) < 0.25);
+    A(jambs.length === 2, `two casing jambs on the front door (${jambs.length})`);
+    if (jambs.length === 2) {
+      const at = jambs.map(m => (m.pxLo + m.pxHi) / 2).sort((u, v) => u - v);
+      A(Math.abs(at[0] - 8) < 0.1 && Math.abs(at[1] - 11) < 0.1,
+        `landing on the jambs: ${at.map(v => R(v, 2)).join(', ')}`);
+    }
+    const head = onWall.filter(m => (m.pxHi - m.pxLo) > 3.2 && Math.abs(m.yLo - HEAD) < 0.06
+      && (m.pzHi - m.pzLo) > 0.1);
+    A(head.length === 1, `a head casing over it (${head.length})`);
+    if (head.length) A(head[0].pxHi - head[0].pxLo > 3.4,
+      `returning over both jambs — ${R(head[0].pxHi - head[0].pxLo, 2)} ft over a 3 ft opening`);
+    // REGRESSION GUARD. With `noCornice` the field carries from the head line to the
+    // ceiling, subtracting only full-height built-ins. Giving the vestibule a trim
+    // program therefore PLASTERED OVER the transom — the glass went opaque and the only
+    // sign was a render. Nothing thin (field depth 0.012) may cross the opening up there.
+    // Depths on this wall, in FEET: field 0.039, transom glazing and frame 0.060,
+    // casing 0.148. `band(..., 0.012, field)` in wall-finish.js is 0.012 METRES, and a
+    // threshold written in the wrong unit made this guard vacuous — it passed with the
+    // bug deliberately reintroduced. Widening it then caught the GLAZING instead, which
+    // also crosses the opening. 0.05 is the only window that isolates the field.
+    const plaster = L.filter(m => m.pzHi > FACE - 0.02 && m.pzLo < FACE + 0.1
+      && (m.pzHi - m.pzLo) < 0.05 && m.yLo > HEAD - 0.05 && m.yHi > HEAD + 0.5
+      && m.pxLo < 8.2 && m.pxHi > 10.8);
+    A(plaster.length === 0, `the field is cut around the transom, not plastered over it (${plaster.length})`);
+  }
+
   // FRENCH PAIR into the foyer: 8-lite, and open as far as the wall physically allows.
   const fr = raw.doorLeaves.filter(d => /Foyer -> Vestibule/.test(d.name));
   A(fr.length === 2, `french pair into the foyer (${fr.length})`);

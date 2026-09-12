@@ -60,6 +60,11 @@
         "heightFt": 5.5,
         "bottomFt": 1.5
       }
-    ]
+    ],
+    "paneling": {
+      "baseboard": 10,
+      "noCornice": true,
+      "battens": false
+    }
   }
 }

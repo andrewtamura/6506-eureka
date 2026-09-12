@@ -67,6 +67,10 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       mesh.rotation.y = rotY; scene.add(mesh);
     };
     const doors = w.doors || [], wins = w.windows || [], tall = w.tall || [];
+    // Transoms carry their own frame and get no casing, stool or apron — but they are
+    // still holes, and the band that fills from the head line to the ceiling has to be
+    // cut around them or the glass is plastered over.
+    const trans = w.transoms || [];
     const winX = wins.map((q) => [q[0], q[1]]);
     const tallX = tall.map((t) => [t[0], t[1]]);   // full-height built-in openings (e.g. the hutch)
     const caseInset = caseW / ft + 0.05; // feet — keep field/battens off the casing
@@ -174,7 +178,8 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       // With no entablature the field has to carry on from the head line to the
       // ceiling itself — the band that normally fills above the crown lives inside
       // the block above, so without this the wall is bare from 7'0" up.
-      for (const [s0, s1] of subtract(w.lo, w.hi, tallX, 0, 0.05)) band(s0, s1, headY, wallTop, 0.012, field);
+      for (const [s0, s1] of subtract(w.lo, w.hi, [...tallX, ...trans], 0, 0.05))
+        band(s0, s1, headY, wallTop, 0.012, field);
       for (const [a, b, th] of tall) band(a, b, th * ft, wallTop, 0.012, field);
     }
 
