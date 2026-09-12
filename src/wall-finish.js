@@ -103,7 +103,13 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     // backwards toward the wall and the return piece tucks in behind it. FWD_* slopes
     // the other way — long point at the wall — which is what was here, and it presents
     // the cut face outward where you can see it.
-    const SQUARE = 0, FWD_NEAR = 1, FWD_FAR = 2, BACK_NEAR = 3, BACK_FAR = 4;
+    // FRAME_* is a different cut again: a picture-frame mitre, in the plane OF THE WALL
+    // rather than the plane containing the projection. It is what joins a door's head to
+    // its jambs — the two meet at 45 deg at each top corner and the architrave runs
+    // round the opening with no overhang at all. Sheared by the section's WIDTH
+    // coordinate (its Y) where BACK_*/FWD_* shear by its projection (its X).
+    const SQUARE = 0, FWD_NEAR = 1, FWD_FAR = 2, BACK_NEAR = 3, BACK_FAR = 4,
+          FRAME_NEAR = 5, FRAME_FAR = 6, FRAME_TOP = 7, FRAME_TOP_N = 8;
     const sweep = (shape, startPt, xAxis, yAxis, length, ends = [SQUARE, SQUARE], m = mill) => {
       if (length < 0.004) return;
       const zAxis = new THREE.Vector3().crossVectors(xAxis, yAxis).normalize();
@@ -111,15 +117,25 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       const [nearCut, farCut] = ends;
       if (nearCut || farCut) {
         const pos = geo.getAttribute('position');
-        let pmax = 0;
-        for (let i = 0; i < pos.count; i++) pmax = Math.max(pmax, pos.getX(i));
+        let pmax = 0, wmax = 0;
         for (let i = 0; i < pos.count; i++) {
-          const x = pos.getX(i), z = pos.getZ(i);
+          pmax = Math.max(pmax, pos.getX(i));
+          wmax = Math.max(wmax, pos.getY(i));
+        }
+        for (let i = 0; i < pos.count; i++) {
+          const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
           const cut = z > length / 2 ? farCut : nearCut;
           if (cut === FWD_NEAR) pos.setZ(i, x);
           else if (cut === FWD_FAR) pos.setZ(i, length - x);
           else if (cut === BACK_NEAR) pos.setZ(i, pmax - x);
           else if (cut === BACK_FAR) pos.setZ(i, length - pmax + x);
+          else if (cut === FRAME_NEAR) pos.setZ(i, wmax - y);
+          else if (cut === FRAME_FAR) pos.setZ(i, length - wmax + y);
+          else if (cut === FRAME_TOP) pos.setZ(i, length - y);
+          // Same mitre on a jamb swept DOWNWARD, where z counts from the top: the cut
+          // lands on the near cap and runs the other way. Using FRAME_TOP there drove
+          // the near cap to the far end and collapsed the jamb to a stub.
+          else if (cut === FRAME_TOP_N) pos.setZ(i, y);
         }
         pos.needsUpdate = true;
         geo.computeVertexNormals();
@@ -231,13 +247,38 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
               out, across, proj, zr.dot(Nw) >= 0 ? [SQUARE, FWD_NEAR] : [FWD_FAR, SQUARE]);
       }
     };
-    const mouldV = (s, y0, y1, shape, sgn) => {
+    const mouldV = (s, y0, y1, shape, sgn, topCut = SQUARE) => {
       const C = P(s);
       const along = new THREE.Vector3(dir.x, 0, dir.z).normalize().multiplyScalar(sgn);
       const base = new THREE.Vector3(C.x, floorY + y0, C.z)
         .add(along.clone().multiplyScalar(-caseW / 2));
       const zAxis = new THREE.Vector3().crossVectors(Nw, along).normalize();
-      sweep(shape, zAxis.y >= 0 ? base : base.clone().setY(floorY + y1), Nw, along, y1 - y0);
+      const up = zAxis.y >= 0;
+      const downCut = topCut === FRAME_TOP ? FRAME_TOP_N : topCut;
+      sweep(shape, up ? base : base.clone().setY(floorY + y1), Nw, along, y1 - y0,
+            up ? [SQUARE, topCut] : [downCut, SQUARE]);
+    };
+
+    // A door's architrave: three pieces MITRED to each other at the top corners, so it
+    // runs round the opening as one frame. No horns — the head stops dead on the jambs'
+    // outer edges. (A window's head is different: it caps a stool whose horns run past
+    // the casing, so it overhangs on purpose.)
+    const mouldFrame = (lo, hi, shape) => {
+      const half = cwf / 2, top = headY + caseW;
+      mouldV(lo, 0, top, shape, +1, FRAME_TOP);
+      mouldV(hi, 0, top, shape, -1, FRAME_TOP);
+      // The head is swept from the TOP DOWN so its section runs the same way round as
+      // the jambs': backband on the OUTSIDE of the frame, bead next to the opening. Swept
+      // upward from the head line the profile comes out mirrored — backband against the
+      // opening — and then no cut can make the bands continue across the corner, because
+      // the two pieces do not present the same section to the joint. That is what makes
+      // a geometrically exact mitre still read as misaligned.
+      const A = P(lo - half), B = P(hi + half);
+      const across = UP.clone().negate();
+      const zAxis = new THREE.Vector3().crossVectors(Nw, across).normalize();
+      const startPt = zAxis.dot(B.clone().sub(A)) >= 0 ? A : B;
+      sweep(shape, new THREE.Vector3(startPt.x, floorY + top, startPt.z),
+            Nw, across, A.distanceTo(B), [FRAME_TOP_N, FRAME_TOP]);
     };
 
     // 1) baseboard — minus doors + full-height built-ins (continuous under windows)
@@ -367,7 +408,12 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       // cove-and-ovolo architrave, where a heavy overhang just looks slack.
       const HORN = 0.75 / 12;                  // 3/4 in past the casing edge
       const hOut = cwf / 2 + HORN;             // ...so, past the JAMB
-      mouldH(lo - hOut, hi + hOut, headY, casingShape, CASE_P, false);
+      // Swept from the top down, so the head's section runs the same way round as the
+      // jambs' — backband OUTERMOST, bead next to the glass. Swept upward from the head
+      // line it comes out mirrored, with the heavy backband sitting right on the glass
+      // and the bead at the top, which is the wrong way up for an architrave. (The same
+      // inversion is what stopped the door's mitre corners reading as continuous.)
+      mouldH(lo - hOut, hi + hOut, headY + caseW, casingShape, CASE_P, true);
       // STOOL: a bullnosed sill board, mitred back to the wall at each horn.
       mouldH(lo - hOut, hi + hOut, sy, stoolShape, STOOL_D, false);
       // APRON: a length of the CASING stock run horizontally under the stool, inverted,
@@ -383,19 +429,25 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       // and the field and battens simply carry on to the stool.
       if (!plainBelow) mouldH(lo - hOut, hi + hOut, sy, apronShape, APRON_P, true);
     }
-    // 5) door casing: jambs (floor..head) PLUS a head casing across the top. The head
-    //    was missing everywhere — every cased door in the house had two verticals and
-    //    nothing over them, which is what left trimmed doorways still reading unfinished.
+    // 5) door casing: the same moulded section as the windows, run as a MITRED
+    //    ARCHITRAVE round the opening — head and jambs meeting at 45 deg at the top
+    //    corners, no horns. It was a flat board with the head overhanging each jamb by
+    //    a casing width, which is a window detail (it caps a stool) borrowed where it
+    //    does not belong.
     for (const [a, b] of doors) {
       if (bare.some(([ba, bb]) => Math.abs(ba - a) < 0.01 && Math.abs(bb - b) < 0.01)) continue;
-      post(a, 0, headY, caseW, 0.045); post(b, 0, headY, caseW, 0.045);
-      const lo = Math.min(a, b) - caseW / ft, hi = Math.max(a, b) + caseW / ft;
+      const lo = Math.min(a, b), hi = Math.max(a, b);
       // Where a TRANSOM spans this door, its bar is already the head member across the
       // whole composition — a door with sidelights needs one continuous head, not a
-      // short casing over the leaf and a longer bar in the same plane fighting it.
+      // short casing over the leaf and a longer bar in the same plane fighting it. The
+      // jambs still run, they just stop at the head line with nothing mitred onto them.
       const spanned = trans.some(([ta, tb]) =>
-        Math.min(ta, tb) <= Math.min(a, b) + 0.01 && Math.max(ta, tb) >= Math.max(a, b) - 0.01);
-      if (!spanned) band(lo, hi, headY, headY + caseW, 0.045);   // head, returning over both jambs
+        Math.min(ta, tb) <= lo + 0.01 && Math.max(ta, tb) >= hi - 0.01);
+      if (spanned) {
+        mouldV(lo, 0, headY, casingShape, +1); mouldV(hi, 0, headY, casingShape, -1);
+      } else {
+        mouldFrame(lo, hi, casingShape);
+      }
     }
   }
 }
