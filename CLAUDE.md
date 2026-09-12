@@ -256,6 +256,45 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   test just fails on it. And match coves to rooms by CENTRE-in-box, not overlap — the
   foyer's west wall and the dining room's east wall are the same line, so an overlap test
   hands each room the other's cove.
+- **Battens are suppressed PER SIDE with `noBattens`** (True for the room, or a list of
+  sides — the same shape as `noCornice` / `wainscot` / `coved`). `battens: false` is the
+  older room-wide form and still works. Named `noBattens` because `battens: ["N"]` would
+  read as "battens ON the north wall", the opposite of what it means.
+  The foyer's north wall is the steel screen and carries none: it should read as glazing.
+  That screen is glazed to the FINISHED FLOOR (sill 0, no curb), so `sides` carries each
+  sidelight's SILL and the baseboard subtracts only the floor-height ones — a raised-sill
+  sidelight still keeps its board underneath. `add_glazed_frame` puts the bottom member ON
+  the floor when the sill is below its own section, rather than below the glass line,
+  which at sill 0 would have put it under the slab.
+  **A batten could cross a SIDELIGHT and did.** The loop stops a batten at a sill only for
+  members of `wins`, and `compute_paneling` files sidelights under `sides` (own frame, no
+  casing), which is consulted only for jamb CLEARANCE — so a batten landing mid-sidelight
+  was neither stopped nor skipped and ran floor-to-head over the glass. Five of them did,
+  on the foyer screen. `sides` is in the skip test now.
+  When asserting a batten's ABSENCE, key on its SECTION — 0.0254 m across the wall by a
+  0.03 m projection — and require BOTH extents. A loose "narrow and tall" filter also
+  catches field panels (0.012 m), casing jambs (0.33 ft) and the screen's own mullions,
+  which is how a first cut reported five battens that were nothing of the kind. Pair the
+  absence with a PRESENCE check using the same filter on a wall that should be battened:
+  that is what proves the filter finds battens at all, rather than the trim program having
+  quietly stopped running.
+- **A door set into a glazed SCREEN derives its grid from the screen, not from a lite
+  count.** `doorStyle: "steel"` plus `screen: {sillFt, liteFt}` in the door's spec makes
+  `leafParts` compute the SAME division `add_glazed_frame` computes for the sidelights
+  beside it, so the horizontals cross the mullion. With `steel12` the leaf had five
+  horizontals of its own at 1.41/2.50/3.58/4.67/5.75 ft against the sidelights' two at
+  2.889/4.944 — nothing lined up. Every member is the muntin section (0.018 m): an
+  interior partition carries no structural framing, so there are no fat stiles or rails,
+  and the leaf's outer verticals and horizontals ARE its stiles and rails.
+  The door and its sidelights live in DIFFERENT room files, so `ifc_check.py` asserts
+  they share a sill and a lite size — nothing else stops them drifting apart, and when
+  they drift the only symptom is lines that stop crossing.
+  When checking this, note the leaf's pivot sits on the FLOOR while the harness's datum
+  is an item at `FLOOR + 0.02`, so a leaf measured against that datum reads 0.066 ft low
+  — the same LOOSE_DY offset, from a different cause. Measure the leaf in its own frame.
+  Doors default to OPEN, so a screen has to be closed before it can be judged: no
+  committed tool does that, and the render that matters is `unit.open = false` plus a
+  few seconds for the ease to settle.
 - **A room with a cornice cannot carry glazing above the head line.** The frieze seats
   directly ON `headFt` and the crown tops out ~1.3 ft above it, so a transom over a door
   drives straight through frieze, bed mould and crown. Giving the foyer a trim program

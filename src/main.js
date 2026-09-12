@@ -2225,7 +2225,7 @@ async function main() {
         // `steel<n>` is the same divided-light layout in Crittall section: slim dark
         // members instead of painted joinery, so the leaf reads as part of a steel
         // screen rather than a wooden door dropped into one.
-        const sm = /^steel(\d+)$/.exec(style);
+        const sm = /^steel(\d*)$/.exec(style);
         const lm = /^(\d+)lite$/.exec(style) || sm;
         const rows = lm && +lm[1] >= 2 && +lm[1] % 2 === 0 ? +lm[1] / 2 : 0;
         // HALF-MOON: a slab with a true half-round hole cut in it (Shape + hole, so the
@@ -2288,6 +2288,37 @@ async function main() {
             put(u0 + du * 0.45, u1 - du * 0.45, y1 - INS * 0.8, y1 - INS * 0.45, doorMat, th * 1.3);
             put(u0 + du * 0.45, u0 + du * 0.8, y0 + INS * 0.45, y1 - INS * 0.45, doorMat, th * 1.3);
             put(u1 - du * 0.8, u1 - du * 0.45, y0 + INS * 0.45, y1 - INS * 0.45, doorMat, th * 1.3);
+          }
+          return { grp, meshes };
+        }
+        // A door set INTO A GLAZED SCREEN is not a door in a frame — it is one panel of
+        // the partition, and it only reads that way if its lite grid continues the
+        // screen's and every member is the same slim section as the muntins. `screen`
+        // carries the screen's sill and target lite size, so the door derives the SAME
+        // grid the sidelights derive in add_glazed_frame rather than being told a lite
+        // count that happens not to line up: with `steel12` the door's five horizontals
+        // sat at 0.43/0.76/1.09/1.42/1.75 m and the sidelights' two at 0.88/1.51, so
+        // nothing crossed the mullion.
+        if (sm && m.screen) {
+          const FT = 0.3048;
+          const lw = (m.screen.liteFt ?? 1.55) * FT;
+          const sillY = (m.screen.sillFt ?? 0) * FT;
+          const MU = 0.018;                         // the only section in the whole screen
+          const cols = Math.max(1, Math.round(leafW / lw));
+          const rowsUp = Math.max(1, Math.round((sy - sillY) / (lw * 1.35)));
+          const hm = MU / leafW;
+          put(0, 1, 0, sy, doorGlass, th * 0.3);    // one pane; the grid sits in front of it
+          for (let i = 0; i <= cols; i++) {         // verticals — the outer two ARE the stiles
+            const u = Math.min(Math.max(i / cols, hm / 2), 1 - hm / 2);
+            put(u - hm / 2, u + hm / 2, 0, sy, steelMat, th * 0.62);
+          }
+          const ys = [0];
+          if (sillY > MU) ys.push(sillY);           // the screen's sill line, carried across
+          for (let j = 1; j < rowsUp; j++) ys.push(sillY + (j * (sy - sillY)) / rowsUp);
+          ys.push(sy);
+          for (const y of ys) {                     // horizontals — the outer two ARE the rails
+            const c = Math.min(Math.max(y, MU / 2), sy - MU / 2);
+            put(0, 1, c - MU / 2, c + MU / 2, steelMat, th * 0.62);
           }
           return { grp, meshes };
         }

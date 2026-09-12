@@ -541,11 +541,13 @@
       "sidelights": [
         [
           4.646,
-          7.94
+          7.94,
+          0.0
         ],
         [
           11.06,
-          14.354
+          14.354,
+          0.0
         ]
       ],
       "bareDoors": [
@@ -555,7 +557,7 @@
         ]
       ],
       "noCornice": false,
-      "noBattens": false,
+      "noBattens": true,
       "wainscot": false,
       "coved": true,
       "corniceBreaks": [],
@@ -651,11 +653,13 @@
       "sidelights": [
         [
           4.646,
-          7.94
+          7.94,
+          0.0
         ],
         [
           11.06,
-          14.354
+          14.354,
+          0.0
         ]
       ],
       "bareDoors": [

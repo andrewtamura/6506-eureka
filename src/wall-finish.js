@@ -282,7 +282,12 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     };
 
     // 1) baseboard — minus doors + full-height built-ins (continuous under windows)
-    for (const [a, b] of subtract(w.lo, w.hi, [...doors, ...tallX], 0.12)) band(a, b, 0, bbH, 0.05);
+    // A sidelight glazed to the FINISHED FLOOR takes no baseboard across it — the board
+    // would run over the bottom of the glass, the same way the battens were running over
+    // the middle of it. One with a raised sill keeps its baseboard, which is why `sides`
+    // carries the sill rather than this subtracting every sidelight.
+    const lowSides = sides.filter((sd) => (sd[2] ?? 99) * ft < bbH).map(([a, b]) => [a, b]);
+    for (const [a, b] of subtract(w.lo, w.hi, [...doors, ...tallX, ...lowSides], 0.12)) band(a, b, 0, bbH, 0.05);
 
     // 2) board-and-batten field: the BOARD (flat backing) is continuous across the
     //    whole wall, corner to corner — full height (bbH..head) everywhere except
@@ -308,6 +313,13 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     for (let g = w.noBattens ? w.hi : w.lo + BATTEN_SPACING_FT; g < w.hi - 0.05; g += BATTEN_SPACING_FT) {
       if ([...doors, ...tallX].some(([a, b]) => g > Math.min(a, b) && g < Math.max(a, b))) continue; // in a doorway / built-in
       if (openings.some(([oa, ob]) => Math.abs(g - oa) < battenClear || Math.abs(g - ob) < battenClear)) continue; // would touch a jamb
+      // A SIDELIGHT is glass, so a batten cannot cross it. The `wins` loop below stops a
+      // batten at a window's sill, but sidelights are filed under `sides` (they carry
+      // their own frame and take no casing), and `sides` is consulted only for jamb
+      // clearance above — so a batten landing mid-sidelight was neither stopped nor
+      // skipped and ran floor-to-head over the glass. That is what put five battens
+      // across the foyer's screen.
+      if (sides.some(([a, b]) => g > Math.min(a, b) && g < Math.max(a, b))) continue;
       let yTop = headY; // under a window the batten stops at the sill
       for (const [a, b, sill] of wins) { if (g > Math.min(a, b) && g < Math.max(a, b)) { yTop = sill * ft; break; } }
       if (yTop - bbH < 0.25) continue; // skip stubby battens (e.g. under a low sill)

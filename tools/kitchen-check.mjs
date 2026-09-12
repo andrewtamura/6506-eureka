@@ -181,12 +181,20 @@ const raw = await page.evaluate(() => {
   for (const d of window.__eureka.doors || []) {
     d.pivot.updateMatrixWorld(true);
     let zmin = 1e9, zmax = -1e9, xmin = 1e9, xmax = -1e9, n = 0;
+    // Each member's own SECTION and its height up the leaf, measured in the leaf's own
+    // frame (the pivot sits on the floor). A screen door has to be checked on where its
+    // lines land and how thick they are, not on how many pieces it has.
+    const members = [];
+    const baseY = d.pivot.position.y;
     d.pivot.traverse(o => { if (!isPart(o)) return; n++;
       const gg = o.geometry; gg.computeBoundingBox();
       const bb = gg.boundingBox.clone(); bb.applyMatrix4(o.matrixWorld);
       zmin = Math.min(zmin, bb.min.z); zmax = Math.max(zmax, bb.max.z);
-      xmin = Math.min(xmin, bb.min.x); xmax = Math.max(xmax, bb.max.x); });
-    doorLeaves.push({ name: d.name, parts: n, zmin, zmax, xmin, xmax });
+      xmin = Math.min(xmin, bb.min.x); xmax = Math.max(xmax, bb.max.x);
+      const p = gg.parameters || {};
+      members.push({ w: p.width ?? 0, h: p.height ?? 0,
+                     yc: (bb.min.y + bb.max.y) / 2 - baseY }); });
+    doorLeaves.push({ name: d.name, parts: n, zmin, zmax, xmin, xmax, members });
   }
   // The ceiling plane, so the skylight wells can be checked against the thing they
   // actually have to meet rather than against their own nominal height.
@@ -256,8 +264,11 @@ if (FROM) {
   writeFileSync(CACHE, JSON.stringify({ takenAt: new Date().toISOString(), inputs: stamp, raw }));
   console.log(`(measurement cached to ${CACHE} — re-assert it with --from)`);
 }
+// NOTE: this rebuilds the object field by field, so anything added to the collector
+// has to be carried across here too or it silently vanishes — `members` did.
 raw.doorLeaves = (raw.doorLeaves || []).map(d => ({ name: d.name, parts: d.parts,
-  pzLo: -d.zmax / FT, pzHi: -d.zmin / FT, pxLo: -d.xmax / FT, pxHi: -d.xmin / FT }));
+  pzLo: -d.zmax / FT, pzHi: -d.zmin / FT, pxLo: -d.xmax / FT, pxHi: -d.xmin / FT,
+  members: d.members || [] }));
 
 const R = (v, n = 4) => +v.toFixed(n);
 const R2 = (v) => +v.toFixed(3);
@@ -1417,7 +1428,31 @@ console.log('EXTENSION');
       // steel12 -> 2 columns x 6 rows: 2 stiles, 2 rails, the pane, 1 vertical muntin
       // and 5 horizontal. More lites than the 8-lite joinery doors on purpose — slim
       // sections and many small panes is what makes it read as steel.
-      A(fr[0].parts === 11, `12-lite steel leaf: ${fr[0].parts} members (2 stiles, 2 rails, pane, 6 muntins)`);
+      // THE DOOR IS ONE PANEL OF THE SCREEN, not a door in a frame. Two things make it
+      // read that way, and both are asserted on the BUILT leaf rather than on a lite
+      // count — a count cannot tell you whether the lines land anywhere sensible.
+      const mem = (fr[0].members || []).map(m => ({ w: m.w / FT, h: m.h / FT, yc: m.yc / FT }));
+      // 1) the horizontals sit on the SIDELIGHTS' lines. add_glazed_frame divides
+      //    sill..head by round((head-sill)/(liteFt*1.35)) = 3, giving 2.333 and 4.667;
+      //    the leaf derives the same grid from `screen` in the door's spec, plus the
+      //    sill line itself and the floor and head. With `steel12` it had five
+      //    horizontals of its own at 1.41/2.50/3.58/4.67/5.75 ft and crossed none of them.
+      const horiz = mem.filter(m => m.w > 1.0 && m.h < 0.25).map(m => R(m.yc, 2)).sort((a, b) => a - b);
+      // Glazed to the FINISHED FLOOR, so the screen's datum is 0 and the three rows
+      // divide the whole 7 ft: 2.333 and 4.667. There is no separate sill line any more
+      // — it coincides with the floor rail, which is the point of dropping the curb.
+      const want = [0, 2.333, 4.667];
+      A(horiz.length === want.length + 1,
+        `the leaf has one horizontal per screen line plus the head (${horiz.length})`);
+      for (const y of want) A(horiz.some(h => Math.abs(h - y) < 0.05),
+        `a horizontal on the screen's ${y} ft line (${horiz.join(', ')})`);
+      // 2) every member is the MUNTIN section — an interior partition carries no
+      //    structural framing, so there are no fat stiles or rails. The leaf used to
+      //    have 0.05 m stiles and a 0.10 m bottom rail against 0.018 m muntins.
+      const sect = mem.filter(m => m.w > 0.001 && m.h > 0.001)
+        .map(m => R(Math.min(m.w, m.h), 3)).filter(v => v < 0.5);
+      A(sect.length > 0 && Math.max(...sect) - Math.min(...sect) < 0.01,
+        `every member is one section — no structural framing (${[...new Set(sect)].join(', ')} ft)`);
       A(fr[0].pxHi - fr[0].pxLo < 0.4 && fr[0].pzHi - fr[0].pzLo > 2.8,
         'standing open, perpendicular to its wall');
       A(fr[0].pzLo < 10.1667 - 2.8, `swings into the FOYER, reaching pz ${R(fr[0].pzLo, 2)}`);
@@ -1507,6 +1542,54 @@ console.log('EXTENSION');
   const battensUnder = west.filter(m => m.pzHi < -3 && m.yLo > 0.5 && m.yHi > 2.5 && (m.pzHi - m.pzLo) < 0.25);
   A(battensUnder.length > 0, `and so do the battens (${battensUnder.length})`);
 }
+
+// THE FOYER'S SCREEN WALL IS GLAZING, NOT PANELLING. Its north wall carries the steel
+// screen, and the battens were running straight across the sidelights: the batten loop
+// stops a batten at a sill only for members of `wins`, and compute_paneling files
+// sidelights under `sides`, which is consulted only for jamb CLEARANCE. So a batten
+// landing mid-sidelight was neither stopped nor skipped and ran floor-to-head over the
+// glass. Asserted as an ABSENCE, so it is paired with a presence check on another wall —
+// on its own it would pass just as happily if the trim program stopped running at all.
+{
+  console.log('\nFOYER SCREEN WALL');
+  // A batten is a `post`: BATTEN_W = 0.0254 m across the wall (0.083 ft) by a 0.03 m
+  // projection (0.098 ft), running baseboard to head. BOTH extents have to match or the
+  // filter also catches field panels (0.012 m thick), casing jambs (0.33 ft) and the
+  // screen's own mullions — which is exactly what it did at first, reporting five
+  // "battens" that were nothing of the kind.
+  const NFACE = 10.1667 - 0.22915;              // foyer z2 minus half a wall = 9.9375
+  const WFACE = 15.0833 - 0.22915;
+  const near = (v, want, tol = 0.03) => Math.abs(v - want) < tol;
+  const tall = (m) => (m.yHi - m.yLo) > 3;
+  // on an x-running wall the batten's width is in px and its projection in pz; on a
+  // z-running wall the two swap.
+  const battenX = (m) => tall(m) && near(m.pxHi - m.pxLo, 0.083) && near(m.pzHi - m.pzLo, 0.098);
+  const battenZ = (m) => tall(m) && near(m.pzHi - m.pzLo, 0.083) && near(m.pxHi - m.pxLo, 0.098);
+  const north = L.filter(m => battenX(m) && near((m.pzLo + m.pzHi) / 2, NFACE, 0.15)
+    && m.pxLo > 3.8 && m.pxHi < 15.2);
+  A(north.length === 0,
+    `no battens across the glazed screen (${north.length}${north.length ? ' at px ' + north.map(m => R((m.pxLo + m.pxHi) / 2, 2)).join(', ') : ''})`);
+  // The presence half: the SAME filter, on a wall that should be battened. Without this
+  // the absence above would pass just as happily if the trim program stopped running —
+  // and it is what shows the filter really does identify a batten.
+  const west = L.filter(m => battenZ(m) && near((m.pxLo + m.pxHi) / 2, WFACE, 0.15)
+    && m.pzLo > -12 && m.pzHi < 10.3);
+  A(west.length > 0,
+    `...and the same filter still finds them on the foyer's west wall (${west.length})`);
+
+  // The glazing reaches the FINISHED FLOOR now, so a baseboard would run across the
+  // bottom of the glass — the same fault as the battens, one band lower. `sides` carries
+  // each sidelight's sill so only the floor-height ones are subtracted; a raised-sill
+  // sidelight still keeps its baseboard.
+  const SIDELIGHTS = [[4.646, 7.940], [11.060, 14.354]];
+  const baseRuns = L.filter(m => m.yLo < 0.1 && (m.yHi - m.yLo) > 0.6 && (m.yHi - m.yLo) < 1.0
+    && near((m.pzLo + m.pzHi) / 2, NFACE, 0.2) && m.pxLo > 3.8 && m.pxHi < 15.2);
+  const across = baseRuns.filter(m =>
+    SIDELIGHTS.some(([a, b]) => Math.min(m.pxHi, b) - Math.max(m.pxLo, a) > 0.1));
+  A(across.length === 0, `no baseboard across the glazing (${across.length} of ${baseRuns.length} runs)`);
+  A(baseRuns.length > 0, `...but the wall's end returns still have one (${baseRuns.length} runs)`);
+}
+
 
 // COVED CEILINGS. Both rooms that carry the cornice curve the plaster out of the wall
 // and into the ceiling rather than meeting it at an arris. The cove REPLACES the flat

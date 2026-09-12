@@ -39,9 +39,13 @@
       "pos": 9.5,
       "width": 3.0,
       "swing": "neg",
-      "doorStyle": "steel12",
+      "doorStyle": "steel",
       "hinge": "min",
-      "noCasing": true
+      "noCasing": true,
+      "screen": {
+        "sillFt": 0.0,
+        "liteFt": 1.55
+      }
     }
   ],
   "windows": [],
@@ -89,7 +93,10 @@
             "y1": 3.69
           }
         ]
-      }
+      },
+      "noBattens": [
+        "N"
+      ]
     }
   }
 }

@@ -36,7 +36,7 @@
       "fixed": 10.1667,
       "pos": 6.293,
       "width": 3.294,
-      "sill": 0.833,
+      "sill": 0.0,
       "head": 7.0,
       "sidelight": true,
       "abutsDoor": [
@@ -52,7 +52,7 @@
       "fixed": 10.1667,
       "pos": 12.707,
       "width": 3.294,
-      "sill": 0.833,
+      "sill": 0.0,
       "head": 7.0,
       "sidelight": true,
       "abutsDoor": [
