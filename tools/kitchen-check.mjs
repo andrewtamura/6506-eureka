@@ -1510,19 +1510,16 @@ console.log('EXTENSION');
   const west = L.filter(onWest);
   A(west.length > 0, `the foyer's west wall carries wall finish at all (${west.length} members)`);
 
-  // 1) the RAKED crown: one SLOPING MOULDING beside the upper flight. It has to be
-  // told apart from the big plain field panels, which are also tall and long — the
-  // moulding PROJECTS ~5 in from the wall, a field band is 0.04 ft of skim.
+  // 1) NO RAKED CROWN beside the flight. One was built here and then removed: it runs
+  // pz -7.69..-2.20, which is entirely SOUTH of the under-stair box's end wall at
+  // pz -0.40 — i.e. sealed inside the enclosure, invisible from the foyer, and (with a
+  // powder room going in there) a raking crown inside a WC. That is also why no camera
+  // could ever be got onto it. Asserted as an absence so it cannot come back unnoticed.
+  // A raking moulding PROJECTS ~5 in from the wall; the big plain field panels are also
+  // tall and long but are 0.04 ft of skim, which is what this filter separates.
   const proud = (m) => (m.pxHi - m.pxLo) > 0.2;
   const raked = west.filter(m => proud(m) && (m.yHi - m.yLo) > 3 && (m.pzHi - m.pzLo) > 4);
-  A(raked.length === 1, `one raked crown climbs beside the stair (${raked.length})`);
-  if (raked[0]) {
-    const r = raked[0];
-    A(r.pzLo > -8.2 && r.pzHi < -1.8,
-      `it runs the flight, pz ${R(r.pzLo,2)}..${R(r.pzHi,2)} (inside the stair's reach)`);
-    A(r.yLo > 3.2 && r.yLo < 4.2, `springing from the landing height (${R(r.yLo,2)} ft)`);
-    A(r.yHi > 7.6 && r.yHi < 8.6, `and meeting the level crown line (${R(r.yHi,2)} ft)`);
-  }
+  A(raked.length === 0, `no raked crown sealed inside the under-stair box (${raked.length})`);
 
   // 2) the LEVEL crown runs the north end and STOPS SHORT of the stair. Asserted on the
   // southernmost crown member, not on "is there one south of X" — the level run is a
@@ -1583,11 +1580,14 @@ console.log('EXTENSION');
   // cannot derive those two faces from the room's bounds — they are authored as
   // `extraWalls`. Measured on the crown band (springline 7.575 to top 8.184, LOOSE_DY low).
   const crownBand = (m) => m.yLo > 7.4 && m.yLo < 7.8 && m.yHi > 8.0 && m.yHi < 8.4;
-  const onBoxFace = L.filter(m => crownBand(m) && near((m.pzLo + m.pzHi) / 2, -0.40, 0.35)
-    && m.pxLo > 11.2 && m.pxHi < 15.3 && (m.pxHi - m.pxLo) > 2.5);
+  // Windows widened at the corner end of each: an OUTSIDE corner makes every member run
+  // PAST the wall line by its own projection (see the mitre block below), so the north
+  // run starts west of px 11.4833 and the return ends north of pz -0.40.
+  const onBoxFace = L.filter(m => crownBand(m) && near((m.pzLo + m.pzHi) / 2, -0.30, 0.45)
+    && m.pxLo > 11.0 && m.pxHi < 15.3 && (m.pxHi - m.pxLo) > 2.5);
   A(onBoxFace.length > 0, `the crown runs across the box's north face (${onBoxFace.length} runs)`);
-  const onReturn = L.filter(m => crownBand(m) && near((m.pxLo + m.pxHi) / 2, 11.48, 0.45)
-    && m.pzLo > -1.4 && m.pzHi < -0.2 && (m.pzHi - m.pzLo) > 0.2);
+  const onReturn = L.filter(m => crownBand(m) && near((m.pxLo + m.pxHi) / 2, 11.28, 0.45)
+    && m.pzLo > -1.4 && m.pzHi < 0.2 && (m.pzHi - m.pzLo) > 0.2);
   A(onReturn.length > 0, `...and returns round the outside corner (${onReturn.length} runs)`);
   // and the west wall's own crown now STOPS at the box rather than running behind it
   const westCrown = L.filter(m => crownBand(m) && near((m.pxLo + m.pxHi) / 2, 14.65, 0.35)
@@ -1595,6 +1595,37 @@ console.log('EXTENSION');
   const southMostW = westCrown.length ? Math.min(...westCrown.map(m => m.pzLo)) : -99;
   A(westCrown.length > 0 && southMostW > -0.9,
     `the west wall's crown stops at the box (southernmost pz ${R(southMostW, 2)}, box face -0.40)`);
+
+  // THE OUTSIDE CORNER IS MITRED. The INSIDE corner at the west wall needs nothing —
+  // each run's square end hides behind its neighbour. The OUTSIDE one at (px 11.4833,
+  // pz -0.40) is the opposite: both runs turn AWAY from the room, so a square cut leaves
+  // both end faces staring out with a P5-square notch between them. That is the fault the
+  // owner saw. The fix is two things, and both are asserted here because either alone
+  // still reads wrong: every member REACHES past the wall line by its own projection
+  // (that is where the neighbour's front face is), and the crown is SHEARED so its long
+  // point is at the FRONT, which is what makes the profile turn.
+  const P5 = 0.127 * (((9.5 - 7.0) / 2 * FT) / 0.39) / FT;   // crown projection, plan feet
+  const boxCrownN = onBoxFace.reduce((a, m) => (a && a.pxLo < m.pxLo ? a : m), null);
+  const boxCrownE = onReturn.reduce((a, m) => (a && a.pzHi > m.pzHi ? a : m), null);
+  A(boxCrownN && near(boxCrownN.pxLo, 11.4833 - P5, 0.03),
+    `the north run reaches past the corner by its own projection (pxLo ${R(boxCrownN.pxLo, 3)}, want ${R(11.4833 - P5, 3)})`);
+  A(boxCrownE && near(boxCrownE.pzHi, -0.40 + P5, 0.03),
+    `...and the east return reaches the same point (pzHi ${R(boxCrownE.pzHi, 3)}, want ${R(-0.40 + P5, 3)})`);
+  // THE SHEAR, which a bounding box CANNOT see — a square-cut run extended by P5 has
+  // exactly the same one. Solid VOLUME separates them: the mitre eats a wedge off the
+  // end, so a mitred run is lighter than a square cut of its own length. The section is
+  // not derivable from the box (the profile is a cove, not a rectangle), so take it from
+  // an unmitred crown run in the same room — the west wall's — as volume per foot. That
+  // reference is also what proves the comparison is against a real crown section rather
+  // than an arbitrary number.
+  const refRun = westCrown.reduce((a, m) => (a && (a.pzHi - a.pzLo) > (m.pzHi - m.pzLo) ? a : m), null);
+  const sectA = refRun ? refRun.vol / (refRun.pzHi - refRun.pzLo) : 0;   // sq ft of section
+  for (const [m, len, nm] of [[boxCrownN, boxCrownN && boxCrownN.pxHi - boxCrownN.pxLo, 'north run'],
+                              [boxCrownE, boxCrownE && boxCrownE.pzHi - boxCrownE.pzLo, 'east return']]) {
+    const square = sectA * len;
+    A(sectA > 0 && m.vol < square * 0.98 && m.vol > square * 0.5,
+      `the ${nm} is MITRED, not square-cut (${R(m.vol, 4)} cu ft against ${R(square, 4)} for a square end)`);
+  }
 
   // The glazing reaches the FINISHED FLOOR now, so a baseboard would run across the
   // bottom of the glass — the same fault as the battens, one band lower. `sides` carries

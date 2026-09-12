@@ -186,6 +186,10 @@ def compute_paneling(ctx, rooms):
                 "noBattens": bool(ew.get("noBattens", True)),
                 "wainscot": bool(ew.get("wainscot", False)),
                 "coved": bool(ew.get("coved", True)),
+                # an OUTSIDE corner at that end: the run reaches past the wall line by
+                # its own projection and the crown is mitred to turn.
+                "mitreLo": bool(ew.get("mitreLo", False)),
+                "mitreHi": bool(ew.get("mitreHi", False)),
                 "corniceBreaks": [], "rakedCornice": [],
             })
 

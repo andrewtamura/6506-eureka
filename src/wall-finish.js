@@ -420,10 +420,21 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       // head line to the ceiling over the break, the same as a `noCornice` wall.
       const brk = (w.corniceBreaks || []).map(([a, b]) => [Math.min(a, b), Math.max(a, b)]);
       for (const [a, b] of brk) band(a, b, headY, wallTop, 0.012, field);
+      // OUTSIDE (convex) CORNER. An inside corner needs nothing — each run's square end is
+      // hidden behind its neighbour. An outside one is the opposite: the runs turn AWAY
+      // from the room, so square ends leave both cut faces staring out and the profiles
+      // never meet. Every member has to reach the corner, which means running PAST the
+      // wall line by its own projection — the neighbour's face is that far out — and the
+      // crown has to be mitred so the moulding actually turns.
+      const mLo = !!w.mitreLo, mHi = !!w.mitreHi;
+      const ext = (a, b, d) => [
+        mLo && Math.abs(a - w.lo) < 1e-6 ? a - d / ft : a,
+        mHi && Math.abs(b - w.hi) < 1e-6 ? b + d / ft : b,
+      ];
       for (const [s0, s1] of subtract(w.lo, w.hi, [...tallX, ...brk], 0, 0.05)) {
-        band(s0, s1, headY, friezeTop, 0.024);             // FRIEZE — sits on the opening head
-        band(s0, s1, friezeTop, friezeTop + 0.018, 0.05);  // bed mold: lower bead
-        band(s0, s1, friezeTop + 0.018, crownB, 0.058);    // bed mold: upper step
+        { const [a, b] = ext(s0, s1, 0.024); band(a, b, headY, friezeTop, 0.024); }             // FRIEZE
+        { const [a, b] = ext(s0, s1, 0.05);  band(a, b, friezeTop, friezeTop + 0.018, 0.05); }  // bed: bead
+        { const [a, b] = ext(s0, s1, 0.058); band(a, b, friezeTop + 0.018, crownB, 0.058); }    // bed: step
         // Above the crown the plaster curves into the ceiling rather than meeting it at
         // an arris. Inside this loop, so it inherits the cornice's spans for free: no
         // cove over the foyer's stair break, which is right — there is a stairwell void
@@ -434,10 +445,12 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
         // into. `coved` is true for every ordinary corniced wall, so this changes
         // nothing elsewhere.
         if (w.coved) sweepCove(s0, s1, crownTop);
-        const A = P(s0), B = P(s1), L = A.distanceTo(B);
+        const [c0, c1] = ext(s0, s1, P5);          // the crown reaches the corner too
+        const A = P(c0), B = P(c1), L = A.distanceTo(B);
         const up = new THREE.Vector3(0, 1, 0);
         const zAxis = new THREE.Vector3().crossVectors(Nw, up).normalize(); // right-handed third axis
-        const start = zAxis.dot(B.clone().sub(A)) >= 0 ? A : B;             // so the span runs s0..s1
+        const fwd = zAxis.dot(B.clone().sub(A)) >= 0;
+        const start = fwd ? A : B;                                          // so the span runs c0..c1
         const shape = new THREE.Shape();
         shape.moveTo(0, 0);
         shape.lineTo(0, 0.016);                                  // bottom fillet (fascia) at wall
@@ -447,6 +460,23 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
         shape.lineTo(0, Hc);                                     // top face back to wall
         shape.lineTo(0, 0);                                      // down the wall (back face)
         const geo = new THREE.ExtrudeGeometry(shape, { depth: L, bevelEnabled: false });
+        // MITRE the extended end(s). With no bevel and one step the extrusion has vertices
+        // only at z=0 and z=L, so the cut is a shear on the cap — the same trick `sweep`
+        // uses for the casing. An OUTSIDE corner puts the LONG POINT AT THE FRONT (max X
+        // of the profile) and the short point at the wall, so the two runs meet front to
+        // front and the moulding turns; the inside-corner cut is the other way round and
+        // would leave a wedge missing here.
+        const mitreAt0 = fwd ? mLo : mHi, mitreAtL = fwd ? mHi : mLo;
+        if (mitreAt0 || mitreAtL) {
+          const pos = geo.getAttribute('position');
+          for (let i2 = 0; i2 < pos.count; i2++) {
+            const x = pos.getX(i2), z = pos.getZ(i2);
+            if (z < L / 2) { if (mitreAt0) pos.setZ(i2, P5 - x); }
+            else if (mitreAtL) pos.setZ(i2, L - P5 + x);
+          }
+          pos.needsUpdate = true;
+          geo.computeVertexNormals();
+        }
         const crown = new THREE.Mesh(geo, crownMat);
         crown.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(Nw, up, zAxis));
         crown.position.set(start.x, floorY + crownB, start.z);

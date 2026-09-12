@@ -644,6 +644,8 @@
       "noBattens": true,
       "wainscot": false,
       "coved": true,
+      "mitreLo": true,
+      "mitreHi": false,
       "corniceBreaks": [],
       "rakedCornice": []
     },
@@ -667,6 +669,8 @@
       "noBattens": true,
       "wainscot": false,
       "coved": false,
+      "mitreLo": false,
+      "mitreHi": true,
       "corniceBreaks": [],
       "rakedCornice": []
     },
