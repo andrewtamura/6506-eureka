@@ -133,16 +133,25 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   doors, with no flag and no second code path. `tools/frame-check.mjs` guards it.
   Anything with a live transform (door pivots, sliding chairs) marks itself
   `userData.dynamic` and becomes its own merge anchor rather than being skipped.
-  **Never merge a fragments model's own meshes.** It hides them with `setVisible` and
-  recolours them with `highlight` AFTER the pass runs, so a merged copy would keep
-  drawing the old appearance and clicking a wall would silently stop highlighting it.
-  Our furniture parented under those models IS safe and is identified by the
-  `userData.item` group each placed item sits under. `frame-check` asserts a highlight
-  actually changes the picture, because no geometry check would catch this.
+  **A fragments model's own meshes are merged too** (`includeModels`), which is only
+  possible because SELECTION HIGHLIGHTING WAS REMOVED — `model.highlight` recolours by
+  giving an element its own material, and a merged copy would keep drawing the old
+  colour. If highlighting ever comes back, this has to come out with it. Two things
+  were checked first and are worth not re-deriving: the library does NOT touch its
+  meshes after load (measured across hard panning, dollying and every level switch —
+  1473 meshes, 366 visible, zero churn), and the `setVisible` calls that hide door and
+  opening geometry all run during init, before the pass. Model-owned meshes group by
+  material LOOK rather than material object (63 objects across 304 meshes are only 28
+  distinct looks); OUR meshes deliberately do NOT, because several builders mutate a
+  shared material in place — the ceilings' plan-view toggle, the lighting scenes — and
+  collapsing two look-alikes would let such a change leak across.
+  Tap-to-inspect still works: fragments raycasts against its own data, not the scene
+  meshes. `frame-check` asserts that, because hiding them would otherwise have killed
+  it silently.
   The pass runs a second time off `exhibitsReady` for the Second Floor and Attic —
   hung off it at the END of init, not where the promise is created: under `?solo` that
   promise resolves in 20 s, long before init finishes, and an earlier version merged
-  the scene before the doors existed. Full scene: 879 draw calls down to 649.
+  the scene before the doors existed. Full scene: 879 draw calls down to 600.
 - **The renderer runs ON DEMAND (`mode = 0`), not every tick.** It used to draw a frame
   per update tick forever — ~15 ms of CPU with nothing moving, which on a laptop means
   heat, then throttling, which makes everything feel sluggish including panning. Frames

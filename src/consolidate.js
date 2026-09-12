@@ -44,16 +44,31 @@ const mergeable = (m) =>
  *                 after load. A merged mesh is parented to its anchor and its
  *                 vertices baked relative to it, so a later move still carries it.
  */
-export function consolidateStatic({ scene, anchors = [] }) {
+// Two meshes can share a merged geometry only if they present the same material. For
+// OUR meshes that means the same material OBJECT — several builders mutate a shared
+// material in place (the ceilings' plan-view toggle, the lighting scenes), and merging
+// two look-alike materials into one would let such a change leak across. A fragments
+// model's materials are mutated by nobody now that highlighting is gone, so those can
+// be grouped by LOOK instead, which is a much bigger collapse: 63 material objects
+// across its 304 visible meshes turn out to be only 28 distinct looks.
+const LOOK = (m) => JSON.stringify([m.type, m.color?.getHex(), m.roughness, m.metalness,
+  m.transparent, m.opacity, m.side, m.emissive?.getHex(), m.map?.uuid ?? 0,
+  m.flatShading, m.vertexColors, m.depthWrite]);
+
+export function consolidateStatic({ scene, anchors = [], includeModels = false }) {
   const t0 = performance.now();
   const anchorSet = new Set(anchors);
   scene.updateMatrixWorld(true);
-  // A fragments model OWNS its meshes: it hides them with setVisible and recolours
-  // them with highlight, and it does both AFTER this pass has run. Merge one and the
-  // merged copy keeps drawing the old appearance, so clicking a wall would stop
-  // highlighting it. Our own furniture is parented under those models too (the
-  // exterior lanterns, every exhibit's furniture), and that IS safe to merge — it is
-  // identifiable because each placed item sits under a group carrying userData.item.
+  // A fragments model USED to own its meshes in a way that ruled merging them out: it
+  // recoloured them one at a time for selection highlighting, and a merged copy would
+  // have kept drawing the old colour. With highlighting gone, the only question left is
+  // whether the library still adds or reveals meshes after load — measured across hard
+  // panning, dollying and every level switch, the set does not move at all (1473 meshes,
+  // 366 visible, zero churn), and the setVisible calls that hide door and opening
+  // geometry all run during init, before this pass. So `includeModels` merges them too.
+  // Our own furniture parented under those models (the exterior lanterns, every
+  // exhibit's furniture) is still distinguished, because it is grouped by material
+  // OBJECT rather than by look — see LOOK above.
   const modelRoots = new Set(anchors);
 
   // group key: everything that changes how the mesh is DRAWN must match, or the
@@ -72,9 +87,10 @@ export function consolidateStatic({ scene, anchors = [] }) {
     // inside it is safe and the merged child rides the pivot exactly as the
     // originals did. That is the largest remaining block: 246 meshes.
     const a = (anchorSet.has(o) || o.userData?.dynamic) ? o : anchor;
-    if (o.isMesh && !o.isInstancedMesh && o.visible && ours &&
+    if (o.isMesh && !o.isInstancedMesh && o.visible && (ours || includeModels) &&
         mergeable(o.material) && o.geometry?.getAttribute("position")) {
-      const key = `${a.uuid}|${o.material.uuid}|${+o.castShadow}${+o.receiveShadow}` +
+      const mk = ours ? o.material.uuid : LOOK(o.material);
+      const key = `${a.uuid}|${mk}|${+o.castShadow}${+o.receiveShadow}` +
                   `|${o.layers.mask}|${o.renderOrder}`;
       let g = groups.get(key);
       if (!g) groups.set(key, (g = { anchor: a, mesh: o, list: [] }));

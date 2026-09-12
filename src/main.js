@@ -1428,16 +1428,15 @@ async function main() {
   window.__eureka = { components, world, fragments, model, loaded: true };
 
   // --- selection + properties --------------------------------------------
-  const HIGHLIGHT = {
-    color: new THREE.Color(0xffa500),
-    renderedFaces: FRAGS.RenderedFaces.TWO,
-    opacity: 1,
-    transparent: false,
-  };
+  // Tapping an element still names it in the panel; it is no longer RECOLOURED.
+  // model.highlight recolours by giving the element its own material, which is the
+  // one thing that forces consolidate.js to leave a fragments model's meshes alone
+  // (a merged copy would keep drawing the old colour). It also cost a forced
+  // fragments.core.update on every single click. Dropped on the owner's call.
   let selected = null;
 
-  async function clearSelection() {
-    if (selected != null) { await model.resetHighlight([selected]); selected = null; }
+  function clearSelection() {
+    selected = null;
     propsTitle.textContent = "Selection";
     propsBody.innerHTML = PROPS_HINT;
     propsEl.classList.remove("open"); // collapse the menu when nothing is picked
@@ -1465,11 +1464,9 @@ async function main() {
 
   async function selectAt(lx, ly) {
     const hit = await raycastSurface(lx, ly);
-    await clearSelection();
+    clearSelection();
     if (!hit) return;
     selected = hit.localId;
-    await model.highlight([selected], HIGHLIGHT);
-    await fragments.core.update(true);
     const [data] = await model.getItemsData([selected], {
       attributesDefault: true,
       relationsDefault: { attributes: true, relations: false },
@@ -1954,7 +1951,7 @@ async function main() {
       mv = modelViews.find((v) => v.id === id);
     }
     if (!mv) return;
-    await clearSelection();
+    clearSelection();
     overviewControls();
     frameModel(liveBox(mv), transition);
     setActiveLevel(id);
@@ -2288,7 +2285,7 @@ async function main() {
   // when that model is repositioned. See consolidate.js for the measurements.
   const anchors = [];
   for (const [, m] of fragments.list) if (m.object) anchors.push(m.object);
-  window.__eureka.consolidated = consolidateStatic({ scene, anchors });
+  window.__eureka.consolidated = consolidateStatic({ scene, anchors, includeModels: true });
 
   // The exhibits arrive later — with the lazy stream, much later — so their geometry
   // misses the pass above: 879 draw calls for the full scene against 332 for the ground
@@ -2301,7 +2298,7 @@ async function main() {
   // geometry has to ride it.
   exhibitsReady.then(() => {
     const roots = exhibitModels.map(({ model: m }) => m.object).filter(Boolean);
-    window.__eureka.consolidatedExhibits = consolidateStatic({ scene, anchors: roots });
+    window.__eureka.consolidatedExhibits = consolidateStatic({ scene, anchors: roots, includeModels: true });
     levelsStreaming = false;               // everything has landed: stop re-baking on rest
     refreshShadow();
     invalidate();

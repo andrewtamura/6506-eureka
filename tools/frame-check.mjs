@@ -31,9 +31,10 @@ const URL = process.env.CHECK_URL ||
 // Budgets. Headroom is deliberate: these catch a STRUCTURAL regression (someone
 // adds 800 unmerged meshes, or the consolidate pass silently stops running), not
 // a few parts here or there.
-const MAX_CALLS = FULL ? 700 : 500;      // ground: 332 merged / 1857 before. full: 636 / 879 before
-const MAX_MESHES = FULL ? 820 : 500;    // meshes in the scene and drawable
+const MAX_CALLS = FULL ? 680 : 420;      // ground: 333 merged / 1857 before. full: 613 / 879 before
+const MAX_MESHES = FULL ? 700 : 420;    // meshes in the scene and drawable
 const MIN_ABSORBED = FULL ? 2500 : 1400;// authored meshes the merge swallowed
+const MAX_FRAG_LOOSE = FULL ? 250 : 120;// model-owned meshes still drawing separately
 
 const b = await puppeteer.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
   args: ['--use-gl=swiftshader', '--no-sandbox', '--enable-unsafe-swiftshader'], protocolTimeout: 900000 });
@@ -103,31 +104,33 @@ const m = await page.evaluate(async () => {
                                         (-p.y * 0.5 + 0.5) * dom.clientHeight) };
     }
   }
-  // Selecting an element recolours it through model.highlight, which acts on the
-  // AUTHORED fragments meshes. If consolidate ever merges one of those, the merged
-  // copy keeps drawing the old colour and clicking a wall silently stops highlighting
-  // it — a regression no geometry check would catch. Prove the frame actually changes.
-  let highlight = null;
+  // Selection highlighting is gone from the viewer, which is what lets consolidate
+  // merge a fragments model's own meshes. Assert that it actually does: count the
+  // visible, unmerged meshes still owned by a model. Before, every one of them drew
+  // separately because each carried its own material so it could be recoloured.
+  const fragRoots = new Set();
+  for (const [, m] of window.__eureka.fragments.list) if (m.object) fragRoots.add(m.object);
+  let fragLoose = 0;
+  const fwalk = (o, inFrag) => {
+    const f = inFrag || fragRoots.has(o);
+    if (o.isMesh && f && o.visible && !o.userData.merged) fragLoose++;
+    for (const c of o.children) fwalk(c, f);
+  };
+  fwalk(s, false);
+
+  // Tapping an element still names it in the properties panel, and that goes through
+  // model.raycast. If fragments picked against the SCENE meshes, hiding them behind a
+  // merged copy would have killed tap-to-inspect outright — so prove it still hits.
+  let inspect = null;
   try {
     const model = window.__eureka.model;
-    const ids = Object.values(await model.getItemsOfCategories([/IFCWALL/])).flat().slice(0, 12);
-    if (ids.length) {
-      const shot = () => { r3.render(s, cam);
-        const gl = r3.getContext(), px = new Uint8Array(4 * 64 * 64);
-        gl.readPixels(dom0.width / 2 - 32, dom0.height / 2 - 32, 64, 64, gl.RGBA, gl.UNSIGNED_BYTE, px);
-        let h = 0; for (let i = 0; i < px.length; i += 4) h = (h * 31 + px[i] + px[i + 1] * 3 + px[i + 2] * 7) | 0;
-        return h; };
-      const before = shot();
-      await model.highlight(ids, { color: { isColor: true, r: 1, g: 0, b: 1 }, opacity: 1, transparent: false, renderedFaces: 0 });
-      await window.__eureka.fragments.core.update(true);
-      const after = shot();
-      await model.resetHighlight(ids);
-      await window.__eureka.fragments.core.update(true);
-      highlight = { ids: ids.length, changed: before !== after };
-    }
-  } catch (e) { highlight = { error: String(e).slice(0, 120) }; }
+    const dom = r3.domElement;
+    const mouse = new window.THREE.Vector2(dom.clientWidth / 2, dom.clientHeight / 2);
+    const hit = await model.raycast({ camera: cam, mouse, dom });
+    inspect = { hit: !!hit, id: hit ? hit.localId : null };
+  } catch (e) { inspect = { hit: false, error: String(e).slice(0, 120) }; }
 
-  return { ms: frameMs, calls: drawCalls, triangles: tris, highlight,
+  return { ms: frameMs, calls: drawCalls, triangles: tris, fragLoose, inspect,
            visible, hidden, pickable, ...window.__eureka.consolidated,
            absorbed: (window.__eureka.consolidated?.absorbed || 0) +
                      (window.__eureka.consolidatedExhibits?.absorbed || 0),
@@ -161,6 +164,7 @@ console.log(`  consolidate pass         ${m.buildMs} ms at init`);
 console.log(`  render()                 ${m.ms} ms/frame  (swiftshader; indicative only)`);
 console.log(`  renderer mode            ${demand.mode === 0 ? 'MANUAL (on demand)' : 'AUTO'}`);
 console.log(`  frames drawn: idle 2 s   ${demand.idleFrames}   while panning  ${demand.movingFrames}`);
+console.log(`  model-owned meshes still drawing separately  ${m.fragLoose}`);
 
 if (REPORT) process.exit(0);
 let bad = 0;
@@ -171,8 +175,10 @@ A(m.visible <= MAX_MESHES, `${m.visible} drawable meshes (budget ${MAX_MESHES})`
 A(m.absorbed >= MIN_ABSORBED, `the merge absorbed ${m.absorbed} authored meshes (at least ${MIN_ABSORBED})`);
 A(m.hidden >= MIN_ABSORBED, `the originals are still in the scene, hidden (${m.hidden}) — kitchen-check measures them`);
 A(m.frozen > 1000, `static transforms frozen (${m.frozen})`);
-A(m.highlight && m.highlight.changed,
-  `selecting an element still recolours it (${m.highlight ? (m.highlight.error || m.highlight.ids + ' walls') : 'no result'}) — consolidate left fragments' own meshes alone`);
+A(m.inspect && m.inspect.hit,
+  `tap-to-inspect still resolves an element (${m.inspect ? (m.inspect.error || 'localId ' + m.inspect.id) : 'no result'}) — fragments picks against its own data, not the hidden meshes`);
+A(m.fragLoose <= MAX_FRAG_LOOSE,
+  `fragments geometry is merged too (${m.fragLoose} model-owned meshes still drawing, budget ${MAX_FRAG_LOOSE})`);
 A(demand.mode === 0, `renderer is in MANUAL mode — frames drawn on demand, not every tick`);
 A(demand.idleFrames <= 8, `idle costs only the safety heartbeat (${demand.idleFrames} frames in 2 s)`);
 A(demand.movingFrames >= 10, `panning still draws (${demand.movingFrames} frames over 30 camera steps)`);
