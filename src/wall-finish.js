@@ -80,6 +80,52 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     const tallX = tall.map((t) => [t[0], t[1]]);   // full-height built-in openings (e.g. the hutch)
     const caseInset = caseW / ft + 0.05; // feet — keep field/battens off the casing
 
+    // --- moulded architrave -----------------------------------------------------
+    // A flat board reads as a flat board. A real casing is a BACKBAND at the outer
+    // edge, a flat field, and a bead next to the opening — three planes at three
+    // depths, so the trim catches light in steps. band() and post() both project
+    // outward FROM the wall face, so stacking depths gives the steps for free.
+    const CASE_P = [[0.30, 0.064], [0.48, 0.042], [0.22, 0.056]];  // [share of caseW, depth m], outer -> inner
+    const cwf = caseW / ft;                                        // casing width in plan feet
+
+    // Vertical jamb centred on `s`; `sgn` points from the outer edge toward the opening.
+    const archV = (s, y0, y1, sgn) => {
+      let off = -sgn * cwf / 2;
+      for (const [share, d] of CASE_P) {
+        const wd = share * cwf;
+        post(s + off + sgn * wd / 2, y0, y1, wd * ft, d);
+        off += sgn * wd;
+      }
+    };
+    // Horizontal run from s0..s1 occupying yLo..yLo+caseW; `up` true puts the backband
+    // at the TOP (a head), false at the bottom (a stool nosing).
+    const archH = (s0, s1, yLo, up) => {
+      let off = 0;
+      for (const [share, d] of CASE_P) {
+        const h = share * caseW;
+        const y = up ? yLo + caseW - off - h : yLo + off;
+        band(s0, s1, y, y + h, d);
+        off += h;
+      }
+    };
+    // MITRED RETURN: the profile turns the corner at the end of a run and dies back
+    // into the wall, instead of stopping at a square cut that shows its section. A
+    // 45 deg mitre runs back as far as it stands proud, so the steps walk the
+    // projection to nothing over exactly that distance.
+    //
+    // The return eats the LAST `run` of the member, it does not extend past it: band()
+    // boxes all start at the wall face, so a shallow box at the end cannot cut the deep
+    // one behind it. The main run therefore has to stop short and the steps fill in.
+    // Drawn the other way round, the trim simply grew longer with a staircase on the end.
+    const mitreEnd = (sEnd, sgn, yLo, yHi, depth) => {
+      const run = depth / ft;
+      for (let i = 0; i < 3; i++) {
+        const d = depth * (i + 1) / 4;                    // shallowest at the very end
+        band(sEnd + sgn * i * run / 3, sEnd + sgn * (i + 1) * run / 3, yLo, yHi, d);
+      }
+      return run;
+    };
+
     // 1) baseboard — minus doors + full-height built-ins (continuous under windows)
     for (const [a, b] of subtract(w.lo, w.hi, [...doors, ...tallX], 0.12)) band(a, b, 0, bbH, 0.05);
 
@@ -189,16 +235,25 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       for (const [a, b, th] of tall) band(a, b, th * ft, wallTop, 0.012, field);
     }
 
-    // 4) window casing: jambs (sill..head) + HEAD + sill stool + apron
+    // 4) window casing: moulded jambs + HEAD + a stool with mitred returns + apron
     for (const [a, b, sill, plainBelow] of wins) {
       const sy = sill * ft;
-      post(a, sy, headY, caseW, 0.045); post(b, sy, headY, caseW, 0.045);
+      const lo = Math.min(a, b), hi = Math.max(a, b);
+      archV(lo, sy, headY, +1); archV(hi, sy, headY, -1);                 // jambs, moulded
       // The head was missing on every window in the house — the same gap doors had,
       // fixed for doors and never carried across. Two verticals and a stool with
-      // nothing over them reads as an unfinished opening. Returns over both jambs,
-      // exactly as the door head does below.
-      band(Math.min(a, b) - caseW / ft, Math.max(a, b) + caseW / ft, headY, headY + caseW, 0.045);
-      band(a - caseW / ft, b + caseW / ft, sy, sy + 0.04, 0.07);          // stool
+      // nothing over them reads as an unfinished opening. It returns past both jambs
+      // and MITRES back to the wall at each end rather than stopping square.
+      const hOut = cwf;                        // horn past each jamb, as the door head returns
+      const hRun = mitreEnd(lo - hOut, +1, headY, headY + caseW, 0.064)
+                 + (mitreEnd(hi + hOut, -1, headY, headY + caseW, 0.064), 0);
+      archH(lo - hOut + hRun, hi + hOut - hRun, headY, true);             // profile between the mitres
+      // STOOL: a projecting sill board, nosed, and mitred back to the wall at the horns.
+      const sTop = sy + 0.04, sD = 0.075;
+      const sRun = mitreEnd(lo - hOut, +1, sy, sTop, sD)
+                 + (mitreEnd(hi + hOut, -1, sy, sTop, sD), 0);
+      band(lo - hOut + sRun, hi + hOut - sRun, sy, sTop, sD);             // the board
+      archH(lo - hOut + sRun, hi + hOut - sRun, sy - 0.055, false);       // moulded nosing under it
       // The apron is a 2" proud board the exact width of the window. Where the wall
       // below is open floor rather than a counter it hangs 25" up with nothing under
       // it and reads as a stray panel, so `plainBelow` drops it and the field and

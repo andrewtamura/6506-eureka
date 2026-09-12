@@ -480,44 +480,68 @@ if (gUps.length === 2) {
       `uppers break over the hood (${R(u2.yLo,1)} ft band)`);
   }
 }
-// WINDOWS TRIMMED: casing posts, a stool and an apron at each opening
-{ const sy = 4.0 - 0.066;                       // the wall finish sits 0.02 m below the furniture datum
-  const trim = L.filter(m => m.pzLo < SWALL + 0.35 && m.pxLo > 0 && m.pxHi < 28
-    && m.yHi > sy - 0.1 && m.yHi < sy + 0.2 && (m.pxHi - m.pxLo) > 2.4 && (m.pxHi - m.pxLo) < 3.2);
-  A(trim.length === 3, `a stool at each of the three south windows (${trim.length})`);
-  // A casing post is 4 in wide and runs SILL to HEAD. Battens are 1 in wide and start at
-  // the baseboard, so width alone let 180 of them through — the check verified nothing.
-  const posts = L.filter(m => m.pzLo < SWALL + 0.35
-    && Math.abs(m.yLo - sy) < 0.12 && m.yHi > 6.7 && m.yHi < 7.1
-    && (m.pxHi - m.pxLo) > 0.25 && (m.pxHi - m.pxLo) < 0.45);
-  A(posts.length === 6, `two casing posts at each of the three windows (${posts.length})`);
-  // HEADS. Windows had jambs, a stool and an apron and NOTHING over them — the same gap
-  // doors had, fixed for doors and never carried across, which is how every window in
-  // the house shipped unfinished. Filter on PROJECTION: a head casing stands 0.148 ft
-  // proud where the plain field above the head line is 0.039 and just as wide.
-  const heads = L.filter(m => m.pzLo < SWALL + 0.35 && m.pxLo > 0 && m.pxHi < 28
-    && Math.abs(m.yLo - (7.0 - 0.066)) < 0.08 && (m.pzHi - m.pzLo) > 0.1
-    && (m.pxHi - m.pxLo) > 2.4 && (m.pxHi - m.pxLo) < 3.2);
-  A(heads.length === 3, `a head casing over each of the three windows (${heads.length})`);
-  if (heads.length) A(heads.every(m => (m.pxHi - m.pxLo) > 2.6),
-    `returning over both jambs — ${R(Math.min(...heads.map(m => m.pxHi - m.pxLo)), 2)} ft over a 2 ft window`);
+// WINDOWS TRIMMED: a MOULDED architrave, plus a head and stool MITRED back to the wall.
+{ const sy = 4.0 - 0.066, hy = 7.0 - 0.066;   // wall finish sits 0.02 m below the furniture datum
+  const onWall = L.filter(m => m.pzLo < SWALL + 0.35 && m.pxLo > 0 && m.pxHi < 28);
+
+  // JAMBS. A flat casing is ONE box per jamb; a moulded one is a backband, a flat and
+  // a bead at three different projections. Counting boxes alone would pass on three
+  // identical flat boards laid side by side, so the depths are what is asserted.
+  const jambs = onWall.filter(m => Math.abs(m.yLo - sy) < 0.12 && Math.abs(m.yHi - hy) < 0.12
+    && (m.pxHi - m.pxLo) < 0.25);
+  A(jambs.length === 18, `three casing members at each of six jambs (${jambs.length})`);
+  const jd = [...new Set(jambs.map(m => R(m.pzHi - m.pzLo, 3)))].sort((u, v) => u - v);
+  A(jd.length >= 3, `moulded, not flat — ${jd.length} distinct projections (${jd.join(', ')})`);
+
+  // HEAD: the profile, and a stepped mitre at each end taking it back to the wall.
+  // The profile stacks THREE bands across the casing height, so only the lowest has
+  // yLo at the head line — anchoring on that found one band per window, not three.
+  const atHead = onWall.filter(m => m.yLo > hy - 0.05 && m.yHi < hy + 0.42);
+  const hProf = atHead.filter(m => (m.pxHi - m.pxLo) > 1.5);
+  const hMit = atHead.filter(m => (m.pxHi - m.pxLo) < 0.15);
+  A(hProf.length === 9, `a moulded head over each of the three windows (${hProf.length} members)`);
+  A(hMit.length === 18, `mitred returns at both ends of each head (${hMit.length} steps)`);
+  // The steps have to WALK the projection back, not just sit there.
+  A(new Set(hMit.map(m => R(m.pzHi - m.pzLo, 3))).size >= 3,
+    'the mitre steps back in stages rather than stopping square');
+  // Against the DEEPEST layer: the mitre steps back from the profile's proudest point,
+  // so comparing it to the shallowest layer fails on correct geometry.
+  A(Math.max(...hMit.map(m => m.pzHi - m.pzLo)) <= Math.max(...hProf.map(m => m.pzHi - m.pzLo)) + 0.01,
+    'and never stands prouder than the run it returns from');
+
+  // STOOL: the board, its nosing, and the same mitre at each horn.
+  const atSill = onWall.filter(m => Math.abs(m.yLo - sy) < 0.06 && m.yHi < sy + 0.2);
+  const sBoard = atSill.filter(m => (m.pxHi - m.pxLo) > 1.5);
+  const sMit = atSill.filter(m => (m.pxHi - m.pxLo) < 0.15);
+  A(sBoard.length === 3, `a stool at each of the three south windows (${sBoard.length})`);
+  A(sMit.length === 18, `mitred returns at both ends of each stool (${sMit.length} steps)`);
+  A(sBoard.every(m => (m.pzHi - m.pzLo) > Math.max(...jd)),
+    'the stool stands prouder than the casing, as a sill board does');
+
   const aprons = L.filter(m => m.pzLo < SWALL + 0.35 && Math.abs(m.yHi - sy) < 0.05
     && (m.yHi - m.yLo) > 0.3 && (m.yHi - m.yLo) < 0.5
     && (m.pxHi - m.pxLo) > 1.8 && (m.pxHi - m.pxLo) < 2.3);
-  A(aprons.length === 3, `an apron under each window (${aprons.length})`); }
+  A(aprons.length === 3, `an apron under each window (${aprons.length})`);
+}
 
 // EAST WINDOW. Its casing runs 4 in past the opening, and a wall-centred window would
 // have put that on top of the countertop's east return — which is why it sits north.
 { const EW = 0.1458, sy = 3.5 - 0.066, cf = SWALL + 2.0;
+  // The stool is the board itself; its horns now end in mitre steps, so it measures
+  // shorter than the old square-cut slab that ran the full casing width past each jamb.
+  // Anchored on the SILL LINE and the projection: the moulded nosing and the apron
+  // below now run the same length as the board, and a span-only filter found all three.
   const cased = L.filter(m => m.pxHi > EW - 0.05 && m.pxLo < EW + 0.35
-    && m.yHi > sy - 0.1 && m.yHi < sy + 0.25 && (m.pzHi - m.pzLo) > 2.9 && (m.pzHi - m.pzLo) < 3.4);
+    && Math.abs(m.yLo - sy) < 0.03 && (m.pxHi - m.pxLo) > 0.2
+    && (m.pzHi - m.pzLo) > 2.4 && (m.pzHi - m.pzLo) < 3.4);
   A(cased.length === 1, `east window has a stool (${cased.length})`);
   if (cased.length) A(cased[0].pzLo > cf + 0.05,
     `its casing clears the countertop's east return by ${R((cased[0].pzLo - cf) * 12, 1)} in`);
+  // Three members per jamb now, each narrower than the single flat board they replace.
   const posts = L.filter(m => m.pxHi > EW - 0.05 && m.pxLo < EW + 0.35
     && Math.abs(m.yLo - sy) < 0.14 && m.yHi > 6.7 && m.yHi < 7.1
-    && (m.pzHi - m.pzLo) > 0.25 && (m.pzHi - m.pzLo) < 0.45);
-  A(posts.length === 2, `two casing posts on the east window (${posts.length})`); }
+    && (m.pzHi - m.pzLo) > 0.04 && (m.pzHi - m.pzLo) < 0.25);
+  A(posts.length === 6, `a moulded jamb each side of the east window (${posts.length} members)`); }
 
 // ============================================================ DINING CHAIRS
 // Cape Cod: painted frame, drop-in seat and an upholstered back in ticking stripe.
@@ -1006,12 +1030,18 @@ console.log('EXTENSION FIXTURES');
       { const BEW = -22.68785, DY = 0.066;      // interior face; loose meshes read DY low
         const onEast = (m) => m.pxLo > BEW - 0.05 && m.pxHi < BEW + 0.30
           && m.pzLo > -8.3 && m.pzHi < 3.9;
-        const posts = L.filter(m => onEast(m) && (m.pzHi - m.pzLo) < 0.45
+        const posts = L.filter(m => onEast(m) && (m.pzHi - m.pzLo) < 0.25
           && Math.abs(m.yLo - (3.0 - DY)) < 0.12 && m.yHi > 6.5);
-        A(posts.length === 2, `two casing jambs on the bath window (${posts.length})`);
-        const at = posts.map(m => R((m.pzLo + m.pzHi) / 2, 2)).sort((u, v2) => u - v2);
-        A(JSON.stringify(at) === JSON.stringify([-6.96, -3.96]), `they land on the opening: ${at.join(', ')}`);
-        const stool = L.filter(m => onEast(m) && (m.pzHi - m.pzLo) > 3.4
+        A(posts.length === 6, `a moulded jamb each side of the bath window (${posts.length} members)`);
+        // Grouped, not listed: three members per jamb, and what matters is that each
+        // GROUP straddles its opening edge — the individual layer centres do not.
+        for (const [edge, keep] of [[-6.96, (v) => v < -5], [-3.96, (v) => v >= -5]]) {
+          const g = posts.filter(m => keep((m.pzLo + m.pzHi) / 2));
+          const lo = Math.min(...g.map(m => m.pzLo)), hi = Math.max(...g.map(m => m.pzHi));
+          A(g.length === 3 && Math.abs((lo + hi) / 2 - edge) < 0.05,
+            `jamb centred on ${edge} (${g.length} members, ${R((lo + hi) / 2, 2)})`);
+        }
+        const stool = L.filter(m => onEast(m) && (m.pzHi - m.pzLo) > 2.9
           && m.yHi > 3.0 - DY && m.yHi < 3.2);
         A(stool.length >= 1, `a stool at the sill (${stool.length})`);
         const apron = L.filter(m => onEast(m) && (m.pzHi - m.pzLo) > 2.8 && (m.pzHi - m.pzLo) < 3.3
