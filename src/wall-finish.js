@@ -356,7 +356,14 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       // RIGHT-HANDED basis (X->interior normal, Y->up, Z->normal x up) so the
       // rotation is valid on all four walls; the extrusion starts from whichever
       // span end lies in the +Z direction.
-      for (const [s0, s1] of subtract(w.lo, w.hi, tallX, 0, 0.05)) {
+      // A CORNICE BREAK is a span where the crown alone stops — a stair soffit cutting
+      // across. Unlike a `tall` span it does not touch the baseboard, field, battens or
+      // chair rail, which run on underneath (see the photos of the foyer: the
+      // board-and-batten continues right under the stair). Plain field fills from the
+      // head line to the ceiling over the break, the same as a `noCornice` wall.
+      const brk = (w.corniceBreaks || []).map(([a, b]) => [Math.min(a, b), Math.max(a, b)]);
+      for (const [a, b] of brk) band(a, b, headY, wallTop, 0.012, field);
+      for (const [s0, s1] of subtract(w.lo, w.hi, [...tallX, ...brk], 0, 0.05)) {
         band(s0, s1, headY, friezeTop, 0.024);             // FRIEZE — sits on the opening head
         band(s0, s1, friezeTop, friezeTop + 0.018, 0.05);  // bed mold: lower bead
         band(s0, s1, friezeTop + 0.018, crownB, 0.058);    // bed mold: upper step
@@ -381,6 +388,39 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       }
       // plain wall above each full-height built-in (from its head up to the ceiling)
       for (const [a, b, th] of tall) band(a, b, th * ft, wallTop, 0.012, field);
+      // RAKED CROWN. Where the stair soffit comes down, the level cornice returns and
+      // the crown climbs the rake beside the flight — the detail in the foyer photos.
+      // Same profile as the level run; the only difference is the basis it is extruded
+      // along. The level crown uses (Nw, up, along); a rake swaps `up` for the axis
+      // perpendicular to the SLOPING direction within the wall plane, so the section
+      // stays square to the moulding rather than shearing.
+      for (const r of w.rakedCornice || []) {
+        const s0 = r.pz0 ?? r.px0, s1 = r.pz1 ?? r.px1;
+        const A = P(s0), B = P(s1);
+        const y0 = floorY + r.y0 * ft, y1 = floorY + r.y1 * ft;
+        const along = new THREE.Vector3(B.x - A.x, (y1 - y0) / 1, B.z - A.z).normalize();
+        // perpendicular to the run, in the wall plane, pointing up
+        const upR = new THREE.Vector3().crossVectors(along, Nw).normalize();
+        if (upR.y < 0) { upR.negate(); }
+        const zR = new THREE.Vector3().crossVectors(Nw, upR).normalize();
+        // extrude from whichever end lies in +zR, so the run goes s0..s1
+        const fwd = zR.dot(new THREE.Vector3(B.x - A.x, y1 - y0, B.z - A.z)) >= 0;
+        const start = fwd ? A : B, startY = fwd ? y0 : y1;
+        const L = Math.hypot(B.x - A.x, y1 - y0, B.z - A.z);
+        const shape = new THREE.Shape();
+        shape.moveTo(0, 0);
+        shape.lineTo(0, 0.016);
+        shape.quadraticCurveTo(0, coveH, 0.08, coveH);
+        shape.lineTo(P5, Hc - 0.012);
+        shape.lineTo(P5, Hc);
+        shape.lineTo(0, Hc);
+        shape.lineTo(0, 0);
+        const geo = new THREE.ExtrudeGeometry(shape, { depth: L, bevelEnabled: false });
+        const crown = new THREE.Mesh(geo, crownMat);
+        crown.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(Nw, upR, zR));
+        crown.position.set(start.x, startY, start.z);
+        scene.add(crown);
+      }
     } else {
       // With no entablature the field has to carry on from the head line to the
       // ceiling itself — the band that normally fills above the crown lives inside

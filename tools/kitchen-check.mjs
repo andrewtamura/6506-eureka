@@ -1437,6 +1437,55 @@ console.log('EXTENSION');
 // NOTE ON SCOPE: this runs under `?solo=ground`, so it sees ground-floor lights only.
 // The attic's 12 spots and level 2's semi-flushes need one run with
 // CHECK_URL=http://localhost:5173/ — see CLAUDE.md on dropping `?solo`.
+// FOYER TRIM. The foyer had no trim program at all until now — no `interior.paneling`,
+// so compute_paneling skipped it. It carries the dining room's, with the crown broken
+// around the staircase and a raked run climbing beside the upper flight.
+// Measured from the BUILT wall-finish meshes (the `loose` list), which read LOOSE_DY low.
+{
+  console.log('\nFOYER TRIM');
+  const DY = 0.066;
+  const WWALL = 14.8541;                 // the foyer's west wall face, in plan feet
+  // A west-wall member runs along z, so its px extent is only its projection (~5 in).
+  // Without that last clause the SOUTH wall's crown — 11 ft of px, ending at this very
+  // corner — is caught too, and reports the level crown reaching pz -11.69.
+  const onWest = (m) => m.pxHi > WWALL - 0.55 && m.pxLo < WWALL + 0.05
+    && (m.pxHi - m.pxLo) < 0.7 && m.pzLo > -12.1 && m.pzHi < 10.4;
+  const west = L.filter(onWest);
+  A(west.length > 0, `the foyer's west wall carries wall finish at all (${west.length} members)`);
+
+  // 1) the RAKED crown: one SLOPING MOULDING beside the upper flight. It has to be
+  // told apart from the big plain field panels, which are also tall and long — the
+  // moulding PROJECTS ~5 in from the wall, a field band is 0.04 ft of skim.
+  const proud = (m) => (m.pxHi - m.pxLo) > 0.2;
+  const raked = west.filter(m => proud(m) && (m.yHi - m.yLo) > 3 && (m.pzHi - m.pzLo) > 4);
+  A(raked.length === 1, `one raked crown climbs beside the stair (${raked.length})`);
+  if (raked[0]) {
+    const r = raked[0];
+    A(r.pzLo > -8.2 && r.pzHi < -1.8,
+      `it runs the flight, pz ${R(r.pzLo,2)}..${R(r.pzHi,2)} (the stair's -7.7..-2.16)`);
+    A(r.yLo > 3.2 && r.yLo < 4.2, `springing from the landing height (${R(r.yLo,2)} ft)`);
+    A(r.yHi > 7.6 && r.yHi < 8.6, `and meeting the level crown line (${R(r.yHi,2)} ft)`);
+  }
+
+  // 2) the LEVEL crown runs the north end and STOPS SHORT of the stair. Asserted on the
+  // southernmost crown member, not on "is there one south of X" — the level run is a
+  // single span from the break to the north wall, so a "none past X" test would pass
+  // just as happily with the break removed, and prove nothing.
+  const crown = west.filter(m => proud(m) && m.yLo > 7.4 && m.yHi < 8.5 && (m.yHi - m.yLo) < 1);
+  A(crown.length > 0, `the level cornice runs the north end (${crown.length} members)`);
+  const southMost = crown.length ? Math.min(...crown.map(m => m.pzLo)) : -99;
+  A(southMost > -3,
+    `and stops short of the stair (southernmost at pz ${R(southMost,2)}; unbroken it would reach -11.92)`);
+
+  // 3) ...but the BOARD-AND-BATTEN carries on underneath, which is the whole reason a
+  // `tall` span was not used for the break: tallX kills the base and battens too.
+  const baseRun = west.filter(m => m.yLo < 0.1 && m.yHi > 0.6 && m.yHi < 1.0
+    && m.pzLo < -6 && m.pzHi > -4);
+  A(baseRun.length > 0, `the baseboard runs straight under the stair (${baseRun.length} run)`);
+  const battensUnder = west.filter(m => m.pzHi < -3 && m.yLo > 0.5 && m.yHi > 2.5 && (m.pzHi - m.pzLo) < 0.25);
+  A(battensUnder.length > 0, `and so do the battens (${battensUnder.length})`);
+}
+
 {
   const LI = raw.lights || [];
   console.log('\nLIGHT FALLOFF');

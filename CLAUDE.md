@@ -221,6 +221,21 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   in `tools/shot.mjs` searches BOTH containers for this reason — it looked only in
   `#scenes` and would silently have matched nothing. Note Night now lights the LOT only,
   so an interior night render needs `selectLighting('ground')` as well.
+- **Breaking a cornice is NOT the same as a `tall` span.** `tallX` is subtracted from the
+  baseboard, field, battens AND chair rail as well as the crown — right for a
+  floor-to-ceiling built-in, wrong for a staircase, where the board-and-batten has to run
+  on underneath. `corniceBreaks` (per side, plan-feet spans) suppresses the crown only and
+  fills plain field from the head line to the ceiling, and `rakedCornice` sweeps the same
+  crown profile up a slope beside the flight. Both are set in the room's
+  `interior.paneling` and emitted per wall by `compute_paneling`.
+  The foyer's numbers come from the BUILT stair, not from `stairLayout`'s
+  eastOffset/northOffset signs, which are easy to get backwards: run 1 is against the
+  EAST wall climbing south, run 2 against the WEST climbing north through the void, and
+  run 2's soffit is `y = 7.94 + 0.769*(pz + 2.6)` ft, crossing the 8.28 ft crown top at
+  pz -2.16. Measure the stair meshes rather than re-deriving this.
+  One trap when asserting west-wall trim: filter on the member's px EXTENT (a west-wall
+  run is only its ~5 in projection wide), or the SOUTH wall's crown — 11 ft of px ending
+  at that very corner — is caught too and reports the level crown reaching pz -11.69.
 - **A skylight is DAYLIGHT, not a lamp — and not a constant either.** Each scullery well
   carries a PointLight under its glazing, and both that light and the glazing's emissive
   are scaled by the sun's own `day` factor through `onTime` (`src/main.js`), so the well
