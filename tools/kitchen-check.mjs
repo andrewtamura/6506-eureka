@@ -1486,6 +1486,44 @@ console.log('EXTENSION');
   A(battensUnder.length > 0, `and so do the battens (${battensUnder.length})`);
 }
 
+// COVED CEILINGS. Both rooms that carry the cornice curve the plaster out of the wall
+// and into the ceiling rather than meeting it at an arris. The cove REPLACES the flat
+// band that used to fill crownTop..wallTop, so it inherits the cornice's spans — which
+// is why the foyer gets none over the stair break.
+{
+  console.log('\nCOVED CEILINGS');
+  // crownTop 8.28 ft and wallTop 9.0, both reading LOOSE_DY low. The giveaway against
+  // the flat band it replaced is the PROJECTION: a cove is ~0.72 ft deep where the band
+  // was 0.012 m of skim, and that is the smaller of its two plan extents whichever wall
+  // it is on.
+  const isCove = (m) => m.yLo > 8.1 && m.yLo < 8.35 && m.yHi > 8.85
+    && Math.min(m.pxHi - m.pxLo, m.pzHi - m.pzLo) > 0.5;
+  // Centre-in-box, not overlap: the foyer's west wall and the dining room's east wall
+  // are the same line (x 15.0833), so an overlap test hands each room the other's cove.
+  const inRoom = (m, x0, x1, z0, z1) => {
+    const cx = (m.pxLo + m.pxHi) / 2, cz = (m.pzLo + m.pzHi) / 2;
+    return cx > x0 && cx < x1 && cz > z0 && cz < z1;
+  };
+  const ROOMS = [['foyer', 3.9167, 15.0833, -11.9167, 10.1667],
+                 ['dining', 15.0833, 31, 2, 16.0833]];
+  for (const [name, x0, x1, z0, z1] of ROOMS) {
+    const c = L.filter(m => isCove(m) && inRoom(m, x0, x1, z0, z1));
+    A(c.length > 0, `${name}: the ceiling is coved (${c.length} runs off the crown)`);
+    // THE assertion that distinguishes a cove from simply a deeper flat band: a
+    // BoxGeometry has 24 vertices, a swept section has hundreds.
+    A(c.length > 0 && c.every(m => m.nv > 100),
+      `${name}: swept, not a thicker flat band (${[...new Set(c.map(m => m.nv))].join(', ')} verts; a box is 24)`);
+  }
+  // ...and specifically on the WEST wall, which is the one the stair breaks. Scoped to
+  // that wall on purpose: the SOUTH wall's cove runs its full length and should, so an
+  // unscoped "nothing south of pz -3" test just fails on it.
+  const westCove = L.filter(m => isCove(m) && inRoom(m, 3.9167, 15.0833, -11.9167, 10.1667)
+    && (m.pxLo + m.pxHi) / 2 > 14.3);
+  const southMostCove = westCove.length ? Math.min(...westCove.map(m => m.pzLo)) : 0;
+  A(westCove.length > 0 && southMostCove > -3,
+    `foyer: the west wall's cove stops at the stair like its cornice (southernmost pz ${R(southMostCove, 2)})`);
+}
+
 {
   const LI = raw.lights || [];
   console.log('\nLIGHT FALLOFF');

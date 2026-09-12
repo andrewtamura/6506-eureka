@@ -367,7 +367,34 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
         band(s0, s1, headY, friezeTop, 0.024);             // FRIEZE — sits on the opening head
         band(s0, s1, friezeTop, friezeTop + 0.018, 0.05);  // bed mold: lower bead
         band(s0, s1, friezeTop + 0.018, crownB, 0.058);    // bed mold: upper step
-        band(s0, s1, crownTop, wallTop, 0.012, field);     // plain wall above the cornice, up to the ceiling
+        // COVED CEILING. Above the crown the plaster does not meet the ceiling at an
+        // arris — it curves out and turns into it, which is what both corniced rooms
+        // have. This replaces the flat band that used to fill crownTop..wallTop, so it
+        // inherits the cornice's spans for free: no cove over the foyer's stair break,
+        // which is right, because there is a stairwell void up there and no ceiling to
+        // curve into. The gap is ~8.65 in, which is also a believable cove radius.
+        {
+          const H = wallTop - crownTop, Rc = H;
+          const A = P(s0), B = P(s1), L = A.distanceTo(B);
+          const up = new THREE.Vector3(0, 1, 0);
+          const zAxis = new THREE.Vector3().crossVectors(Nw, up).normalize();
+          const start = zAxis.dot(B.clone().sub(A)) >= 0 ? A : B;
+          const cove = new THREE.Shape();
+          cove.moveTo(0, 0);
+          cove.lineTo(0, H);        // back face, up the wall plane
+          cove.lineTo(Rc, H);       // across to where it meets the ceiling
+          // The control point at (Rc, 0) is what makes the face CONCAVE seen from the
+          // room; a control at (0.012, H) curves it the other way and reads as a
+          // bullnose. The bottom lands on 0.012 so it is flush with the field below.
+          cove.quadraticCurveTo(Rc, 0, 0.012, 0);
+          cove.lineTo(0, 0);
+          const cgeo = new THREE.ExtrudeGeometry(cove, { depth: L, bevelEnabled: false, curveSegments: 10 });
+          const cmesh = new THREE.Mesh(cgeo, field);
+          cmesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(Nw, up, zAxis));
+          cmesh.position.set(start.x, floorY + crownTop, start.z);
+          cmesh.castShadow = true; cmesh.receiveShadow = true;
+          scene.add(cmesh);
+        }
         const A = P(s0), B = P(s1), L = A.distanceTo(B);
         const up = new THREE.Vector3(0, 1, 0);
         const zAxis = new THREE.Vector3().crossVectors(Nw, up).normalize(); // right-handed third axis

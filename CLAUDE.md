@@ -221,6 +221,20 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   in `tools/shot.mjs` searches BOTH containers for this reason — it looked only in
   `#scenes` and would silently have matched nothing. Note Night now lights the LOT only,
   so an interior night render needs `selectLighting('ground')` as well.
+- **A corniced ceiling is COVED, and the cove is a wall-finish member, not a ceiling one.**
+  Above the crown the plaster curves out and turns into the ceiling. It replaces the flat
+  band that used to fill `crownTop..wallTop` in `src/wall-finish.js`, which is why it
+  needs no generator change, no manifest and no IFC regen — and why it inherits the
+  cornice's spans for free, so the foyer gets none over its stair break. The gap it fills
+  is ~8.65 in, which doubles as the cove radius. In the profile, the quadratic's control
+  point at `(Rc, 0)` is what makes the face CONCAVE from the room; `(0.012, H)` curves it
+  the other way and reads as a bullnose.
+  `kitchen-check` proves it is a cove rather than a deeper flat band by VERTEX COUNT — a
+  `BoxGeometry` has 24, the swept section has 144. Scope the "stops at the stair" test to
+  the WEST wall: the south wall's cove runs its full length and should, so an unscoped
+  test just fails on it. And match coves to rooms by CENTRE-in-box, not overlap — the
+  foyer's west wall and the dining room's east wall are the same line, so an overlap test
+  hands each room the other's cove.
 - **A room with a cornice cannot carry glazing above the head line.** The frieze seats
   directly ON `headFt` and the crown tops out ~1.3 ft above it, so a transom over a door
   drives straight through frieze, bed mould and crown. Giving the foyer a trim program
