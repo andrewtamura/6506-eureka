@@ -304,6 +304,26 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   wall's ALONG-EXTENT as well as its line: the dining room's north wall and the
   vestibule's share z = 16.0833, and without the span test the front door's transom, 20 ft
   away over a `noCornice` room, was reported as running through the dining room's cornice.
+- **`extraWalls` carries trim onto faces the room's bounds cannot describe.**
+  `compute_paneling` derives exactly four walls from a room box, so anything the VIEWER
+  builds — the under-stair box, whose north face and short east return both want the
+  crown — is invisible to it. A room's `interior.paneling.extraWalls` appends records of
+  the same shape (along / at / lo / hi / normal / side plus the per-wall flags) with empty
+  opening lists, so `wall-finish` treats them like any other wall and needs no change.
+  The cove is gated on `w.coved` inside the cornice loop for this: the under-stair box's
+  east return sits on the well wall, whose head RAKES from 9.6 ft down to 8.2 over the
+  next 2 ft, so it can carry the crown but not a cove that would float above the wall it
+  should die into. Keep that return SHORT (6 in) — at 14 in it reads as a run of moulding
+  fighting the rake rather than as the crown turning a corner and stopping.
+- **THE UNDER-STAIR SPACE IS AN ENCLOSED BOX, and the raked cornice was inside it.**
+  `addFullStair` builds a well-side wall (px 11.48, raking head) and a full-height end
+  wall at pz -0.40, so the space under the upper flight is closed off from the foyer. The
+  `rakedCornice` added to the foyer's west wall ran pz -7.69..-2.20 — entirely south of
+  that end wall, i.e. inside the closet, invisible from the room it was meant to be seen
+  from. That is also why no camera could ever frame it. Removed; the crown wraps the box
+  instead. Measured headroom in the box (ray cast up on a 0.2 ft grid): 3 ft 7 in wide by
+  6 ft 11 in long, 8 ft+ at the north end, crossing 6 ft 8 in at pz -4.3, with 18.7 sq ft
+  above 6 ft 8 in — comfortably a powder room.
 - **Breaking a cornice is NOT the same as a `tall` span.** `tallX` is subtracted from the
   baseboard, field, battens AND chair rail as well as the crown — right for a
   floor-to-ceiling built-in, wrong for a staircase, where the board-and-batten has to run

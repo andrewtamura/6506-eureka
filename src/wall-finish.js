@@ -428,7 +428,12 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
         // an arris. Inside this loop, so it inherits the cornice's spans for free: no
         // cove over the foyer's stair break, which is right — there is a stairwell void
         // up there and no ceiling to curve into.
-        sweepCove(s0, s1, crownTop);
+        // Gated: a wall whose TOP rakes away — the short return around the under-stair
+        // box, where the well wall's head falls from 10 ft to 4 — carries the crown but
+        // cannot carry a cove, which would float above the wall it is supposed to die
+        // into. `coved` is true for every ordinary corniced wall, so this changes
+        // nothing elsewhere.
+        if (w.coved) sweepCove(s0, s1, crownTop);
         const A = P(s0), B = P(s1), L = A.distanceTo(B);
         const up = new THREE.Vector3(0, 1, 0);
         const zAxis = new THREE.Vector3().crossVectors(Nw, up).normalize(); // right-handed third axis

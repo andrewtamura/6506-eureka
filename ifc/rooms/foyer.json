@@ -80,22 +80,41 @@
         "W": [
           [
             -11.9167,
-            -2.2
+            -0.4
           ]
-        ]
-      },
-      "rakedCornice": {
-        "W": [
-          {
-            "pz0": -2.2,
-            "y0": 7.641,
-            "pz1": -7.32,
-            "y1": 3.69
-          }
         ]
       },
       "noBattens": [
         "N"
+      ],
+      "extraWalls": [
+        {
+          "side": "S",
+          "along": "x",
+          "at": -0.4,
+          "lo": 11.4833,
+          "hi": 15.0833,
+          "normal": [
+            0,
+            1
+          ],
+          "noBattens": true,
+          "coved": true
+        },
+        {
+          "side": "E",
+          "along": "z",
+          "at": 11.4833,
+          "lo": -0.9,
+          "hi": -0.4,
+          "normal": [
+            -1,
+            0
+          ],
+          "noBattens": true,
+          "coved": false,
+          "_note": "short return round the outside corner; the well wall's head falls from 9.6 to 8.2 ft over the next 2 ft"
+        }
       ]
     }
   }

@@ -619,17 +619,56 @@
       "corniceBreaks": [
         [
           -11.917,
-          -2.2
+          -0.4
         ]
       ],
-      "rakedCornice": [
-        {
-          "pz0": -2.2,
-          "y0": 7.641,
-          "pz1": -7.32,
-          "y1": 3.69
-        }
-      ]
+      "rakedCornice": []
+    },
+    {
+      "along": "x",
+      "at": -0.4,
+      "normal": [
+        0,
+        1
+      ],
+      "side": "S",
+      "lo": 11.483,
+      "hi": 15.083,
+      "doors": [],
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [],
+      "bareDoors": [],
+      "noCornice": false,
+      "noBattens": true,
+      "wainscot": false,
+      "coved": true,
+      "corniceBreaks": [],
+      "rakedCornice": []
+    },
+    {
+      "along": "z",
+      "at": 11.4833,
+      "normal": [
+        -1,
+        0
+      ],
+      "side": "E",
+      "lo": -0.9,
+      "hi": -0.4,
+      "doors": [],
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [],
+      "bareDoors": [],
+      "noCornice": false,
+      "noBattens": true,
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "x",

@@ -1577,6 +1577,25 @@ console.log('EXTENSION');
   A(west.length > 0,
     `...and the same filter still finds them on the foyer's west wall (${west.length})`);
 
+  // THE CROWN WRAPS THE UNDER-STAIR BOX. Coming south along the west wall it meets the
+  // box's north face (an INSIDE corner), runs across it, turns an OUTSIDE corner onto the
+  // east face and terminates. The box is built by the stair builder, so compute_paneling
+  // cannot derive those two faces from the room's bounds — they are authored as
+  // `extraWalls`. Measured on the crown band (springline 7.575 to top 8.184, LOOSE_DY low).
+  const crownBand = (m) => m.yLo > 7.4 && m.yLo < 7.8 && m.yHi > 8.0 && m.yHi < 8.4;
+  const onBoxFace = L.filter(m => crownBand(m) && near((m.pzLo + m.pzHi) / 2, -0.40, 0.35)
+    && m.pxLo > 11.2 && m.pxHi < 15.3 && (m.pxHi - m.pxLo) > 2.5);
+  A(onBoxFace.length > 0, `the crown runs across the box's north face (${onBoxFace.length} runs)`);
+  const onReturn = L.filter(m => crownBand(m) && near((m.pxLo + m.pxHi) / 2, 11.48, 0.45)
+    && m.pzLo > -1.4 && m.pzHi < -0.2 && (m.pzHi - m.pzLo) > 0.2);
+  A(onReturn.length > 0, `...and returns round the outside corner (${onReturn.length} runs)`);
+  // and the west wall's own crown now STOPS at the box rather than running behind it
+  const westCrown = L.filter(m => crownBand(m) && near((m.pxLo + m.pxHi) / 2, 14.65, 0.35)
+    && (m.pzHi - m.pzLo) > (m.pxHi - m.pxLo));
+  const southMostW = westCrown.length ? Math.min(...westCrown.map(m => m.pzLo)) : -99;
+  A(westCrown.length > 0 && southMostW > -0.9,
+    `the west wall's crown stops at the box (southernmost pz ${R(southMostW, 2)}, box face -0.40)`);
+
   // The glazing reaches the FINISHED FLOOR now, so a baseboard would run across the
   // bottom of the glass — the same fault as the battens, one band lower. `sides` carries
   // each sidelight's sill so only the floor-height ones are subtracted; a raised-sill

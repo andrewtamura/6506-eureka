@@ -170,6 +170,25 @@ def compute_paneling(ctx, rooms):
                 "rakedCornice": raked.get(side, []),
             })
 
+        # EXTRA WALLS: faces the four-sided derivation cannot see, because they belong to
+        # something the VIEWER builds — the under-stair box, whose north face and short
+        # east return both want the crown. Same record shape, with no openings, so
+        # wall-finish treats them like any other wall and needs no change.
+        for ew in pan.get("extraWalls", []):
+            ctx.paneling.append({
+                "along": ew["along"], "at": round(ew["at"], 4),
+                "normal": ew["normal"], "side": ew.get("side", "X"),
+                "lo": round(min(ew["lo"], ew["hi"]), 3),
+                "hi": round(max(ew["lo"], ew["hi"]), 3),
+                "doors": [], "windows": [], "tall": [], "transoms": [],
+                "sidelights": [], "bareDoors": [],
+                "noCornice": bool(ew.get("noCornice", False)),
+                "noBattens": bool(ew.get("noBattens", True)),
+                "wainscot": bool(ew.get("wainscot", False)),
+                "coved": bool(ew.get("coved", True)),
+                "corniceBreaks": [], "rakedCornice": [],
+            })
+
 
 def emit_stairwells(ctx, rooms, up=True, wall_top=None, roof=None):
     """Re-emit each room's staircase as a viewer "stairwell2" item so an upper
