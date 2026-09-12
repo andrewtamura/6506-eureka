@@ -2855,6 +2855,11 @@ def add_doors(ctx, r):
         # jamb by at least the leaf width; where it does not, this is how far it goes.
         if d.get("openDeg") is not None:
             ctx.door_meta[-1]["openDeg"] = float(d["openDeg"])
+        # A door set into a glazed SCREEN derives its lite grid from the screen rather
+        # than from a lite count, so the horizontals cross the mullion. Same two numbers
+        # add_glazed_frame uses for the sidelights beside it.
+        if d.get("screen"):
+            ctx.door_meta[-1]["screen"] = d["screen"]
 
 
 def add_glazed_frame(ctx, r, w, sill, head):

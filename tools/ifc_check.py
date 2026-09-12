@@ -253,5 +253,36 @@ for stem, room in rooms_g.items():
                          f"{head_ft} ft line, through {hit[0][0]}'s cornice")
 check(bad == 0, f"no glazing runs up through a cornice ({len(corniced)} corniced walls checked)")
 
+# --- A DOOR IN A SCREEN SHARES THE SCREEN'S GRID -----------------------------------
+# The leaf derives its lite grid from `screen` in the door's own spec, and the sidelights
+# beside it from their own `sill`/`liteFt`. Those are in DIFFERENT room files — the foyer
+# door and the vestibule's sidelights — so nothing stops them drifting apart, and when
+# they do the horizontals simply stop crossing the mullion. Checked here because it is a
+# relationship between two specs; the browser harness can only see the result.
+print('\nDOOR SHARES ITS SCREEN\'S GRID')
+model_s = json.load(open('ifc/model.json'))
+stems_s = sorted({s for level in model_s['levels'] for s in level.get('rooms', [])})
+rooms_s = {s: json.load(open(f'ifc/rooms/{s}.json')) for s in stems_s}
+screened = 0
+for stem, room in rooms_s.items():
+    for d in room.get('doors', []):
+        sc = d.get('screen')
+        if not sc:
+            continue
+        screened += 1
+        # every sidelight on the same wall line, from any room
+        mates = [w for r in rooms_s.values() for w in r.get('windows', [])
+                 if w.get('sidelight') and w['orient'] == d['orient']
+                 and abs(w['fixed'] - d['fixed']) < 0.3]
+        check(bool(mates), f"{d['name']}: sits in a screen ({len(mates)} sidelight(s) on its wall)")
+        for w in mates:
+            check(abs(w['sill'] - sc.get('sillFt', -1)) < 0.01,
+                  f"{d['name']} vs {w['name']}: same sill "
+                  f"({sc.get('sillFt')} vs {w['sill']}) — the screen's bottom line")
+            check(abs(w.get('liteFt', 1.55) - sc.get('liteFt', -1)) < 0.01,
+                  f"{d['name']} vs {w['name']}: same lite size "
+                  f"({sc.get('liteFt')} vs {w.get('liteFt')}) — so both divide alike")
+check(screened > 0, f'a glazed screen with a door in it exists to check ({screened})')
+
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)

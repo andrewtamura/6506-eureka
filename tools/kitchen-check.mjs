@@ -181,12 +181,20 @@ const raw = await page.evaluate(() => {
   for (const d of window.__eureka.doors || []) {
     d.pivot.updateMatrixWorld(true);
     let zmin = 1e9, zmax = -1e9, xmin = 1e9, xmax = -1e9, n = 0;
+    // Each member's own SECTION and its height up the leaf, measured in the leaf's own
+    // frame (the pivot sits on the floor). A screen door has to be checked on where its
+    // lines land and how thick they are, not on how many pieces it has.
+    const members = [];
+    const baseY = d.pivot.position.y;
     d.pivot.traverse(o => { if (!isPart(o)) return; n++;
       const gg = o.geometry; gg.computeBoundingBox();
       const bb = gg.boundingBox.clone(); bb.applyMatrix4(o.matrixWorld);
       zmin = Math.min(zmin, bb.min.z); zmax = Math.max(zmax, bb.max.z);
-      xmin = Math.min(xmin, bb.min.x); xmax = Math.max(xmax, bb.max.x); });
-    doorLeaves.push({ name: d.name, parts: n, zmin, zmax, xmin, xmax });
+      xmin = Math.min(xmin, bb.min.x); xmax = Math.max(xmax, bb.max.x);
+      const p = gg.parameters || {};
+      members.push({ w: p.width ?? 0, h: p.height ?? 0,
+                     yc: (bb.min.y + bb.max.y) / 2 - baseY }); });
+    doorLeaves.push({ name: d.name, parts: n, zmin, zmax, xmin, xmax, members });
   }
   // The ceiling plane, so the skylight wells can be checked against the thing they
   // actually have to meet rather than against their own nominal height.
@@ -256,8 +264,11 @@ if (FROM) {
   writeFileSync(CACHE, JSON.stringify({ takenAt: new Date().toISOString(), inputs: stamp, raw }));
   console.log(`(measurement cached to ${CACHE} — re-assert it with --from)`);
 }
+// NOTE: this rebuilds the object field by field, so anything added to the collector
+// has to be carried across here too or it silently vanishes — `members` did.
 raw.doorLeaves = (raw.doorLeaves || []).map(d => ({ name: d.name, parts: d.parts,
-  pzLo: -d.zmax / FT, pzHi: -d.zmin / FT, pxLo: -d.xmax / FT, pxHi: -d.xmin / FT }));
+  pzLo: -d.zmax / FT, pzHi: -d.zmin / FT, pxLo: -d.xmax / FT, pxHi: -d.xmin / FT,
+  members: d.members || [] }));
 
 const R = (v, n = 4) => +v.toFixed(n);
 const R2 = (v) => +v.toFixed(3);
@@ -1417,7 +1428,28 @@ console.log('EXTENSION');
       // steel12 -> 2 columns x 6 rows: 2 stiles, 2 rails, the pane, 1 vertical muntin
       // and 5 horizontal. More lites than the 8-lite joinery doors on purpose — slim
       // sections and many small panes is what makes it read as steel.
-      A(fr[0].parts === 11, `12-lite steel leaf: ${fr[0].parts} members (2 stiles, 2 rails, pane, 6 muntins)`);
+      // THE DOOR IS ONE PANEL OF THE SCREEN, not a door in a frame. Two things make it
+      // read that way, and both are asserted on the BUILT leaf rather than on a lite
+      // count — a count cannot tell you whether the lines land anywhere sensible.
+      const mem = (fr[0].members || []).map(m => ({ w: m.w / FT, h: m.h / FT, yc: m.yc / FT }));
+      // 1) the horizontals sit on the SIDELIGHTS' lines. add_glazed_frame divides
+      //    sill..head by round((head-sill)/(liteFt*1.35)) = 3, giving 2.889 and 4.944;
+      //    the leaf derives the same grid from `screen` in the door's spec, plus the
+      //    sill line itself and the floor and head. With `steel12` it had five
+      //    horizontals of its own at 1.41/2.50/3.58/4.67/5.75 ft and crossed none of them.
+      const horiz = mem.filter(m => m.w > 1.0 && m.h < 0.25).map(m => R(m.yc, 2)).sort((a, b) => a - b);
+      const want = [0, 0.833, 2.889, 4.944];
+      A(horiz.length === want.length + 1,
+        `the leaf has one horizontal per screen line plus the head (${horiz.length})`);
+      for (const y of want) A(horiz.some(h => Math.abs(h - y) < 0.05),
+        `a horizontal on the screen's ${y} ft line (${horiz.join(', ')})`);
+      // 2) every member is the MUNTIN section — an interior partition carries no
+      //    structural framing, so there are no fat stiles or rails. The leaf used to
+      //    have 0.05 m stiles and a 0.10 m bottom rail against 0.018 m muntins.
+      const sect = mem.filter(m => m.w > 0.001 && m.h > 0.001)
+        .map(m => R(Math.min(m.w, m.h), 3)).filter(v => v < 0.5);
+      A(sect.length > 0 && Math.max(...sect) - Math.min(...sect) < 0.01,
+        `every member is one section — no structural framing (${[...new Set(sect)].join(', ')} ft)`);
       A(fr[0].pxHi - fr[0].pxLo < 0.4 && fr[0].pzHi - fr[0].pzLo > 2.8,
         'standing open, perpendicular to its wall');
       A(fr[0].pzLo < 10.1667 - 2.8, `swings into the FOYER, reaching pz ${R(fr[0].pzLo, 2)}`);
