@@ -80,7 +80,10 @@ def compute_paneling(ctx, rooms):
                             sw = abs(wd["width"])
                             sspan = [round(wd["pos"] - sw / 2, 3), round(wd["pos"] + sw / 2, 3)]
                             if inside(*sspan):
-                                sides.append(sspan)
+                                # the sill too: a sidelight glazed to the FLOOR must not
+                                # have a baseboard run across it, and one with a raised
+                                # sill still should.
+                                sides.append(sspan + [wd["sill"]])
                         continue
                     if wd.get("transom"):
                         # A transom carries its own frame (add_transom_frame) and sits on

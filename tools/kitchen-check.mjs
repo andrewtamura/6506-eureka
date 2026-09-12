@@ -1433,12 +1433,15 @@ console.log('EXTENSION');
       // count — a count cannot tell you whether the lines land anywhere sensible.
       const mem = (fr[0].members || []).map(m => ({ w: m.w / FT, h: m.h / FT, yc: m.yc / FT }));
       // 1) the horizontals sit on the SIDELIGHTS' lines. add_glazed_frame divides
-      //    sill..head by round((head-sill)/(liteFt*1.35)) = 3, giving 2.889 and 4.944;
+      //    sill..head by round((head-sill)/(liteFt*1.35)) = 3, giving 2.333 and 4.667;
       //    the leaf derives the same grid from `screen` in the door's spec, plus the
       //    sill line itself and the floor and head. With `steel12` it had five
       //    horizontals of its own at 1.41/2.50/3.58/4.67/5.75 ft and crossed none of them.
       const horiz = mem.filter(m => m.w > 1.0 && m.h < 0.25).map(m => R(m.yc, 2)).sort((a, b) => a - b);
-      const want = [0, 0.833, 2.889, 4.944];
+      // Glazed to the FINISHED FLOOR, so the screen's datum is 0 and the three rows
+      // divide the whole 7 ft: 2.333 and 4.667. There is no separate sill line any more
+      // — it coincides with the floor rail, which is the point of dropping the curb.
+      const want = [0, 2.333, 4.667];
       A(horiz.length === want.length + 1,
         `the leaf has one horizontal per screen line plus the head (${horiz.length})`);
       for (const y of want) A(horiz.some(h => Math.abs(h - y) < 0.05),
@@ -1573,6 +1576,18 @@ console.log('EXTENSION');
     && m.pzLo > -12 && m.pzHi < 10.3);
   A(west.length > 0,
     `...and the same filter still finds them on the foyer's west wall (${west.length})`);
+
+  // The glazing reaches the FINISHED FLOOR now, so a baseboard would run across the
+  // bottom of the glass — the same fault as the battens, one band lower. `sides` carries
+  // each sidelight's sill so only the floor-height ones are subtracted; a raised-sill
+  // sidelight still keeps its baseboard.
+  const SIDELIGHTS = [[4.646, 7.940], [11.060, 14.354]];
+  const baseRuns = L.filter(m => m.yLo < 0.1 && (m.yHi - m.yLo) > 0.6 && (m.yHi - m.yLo) < 1.0
+    && near((m.pzLo + m.pzHi) / 2, NFACE, 0.2) && m.pxLo > 3.8 && m.pxHi < 15.2);
+  const across = baseRuns.filter(m =>
+    SIDELIGHTS.some(([a, b]) => Math.min(m.pxHi, b) - Math.max(m.pxLo, a) > 0.1));
+  A(across.length === 0, `no baseboard across the glazing (${across.length} of ${baseRuns.length} runs)`);
+  A(baseRuns.length > 0, `...but the wall's end returns still have one (${baseRuns.length} runs)`);
 }
 
 

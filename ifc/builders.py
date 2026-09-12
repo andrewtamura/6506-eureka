@@ -2921,7 +2921,11 @@ def add_glazed_frame(ctx, r, w, sill, head):
     else:                                             # sidelight: a sill, no top rail
         lo = edges[0] - (0 if near_door(edges[0]) else CW)
         hi = edges[1] + (0 if near_door(edges[1]) else CW)
-        bar(f"{w['name']} sill", (lo + hi) / 2, hi - lo, sill - CW, sill)
+        # Glazed to the FINISHED FLOOR there is no curb to sit under: the bottom member
+        # rests ON the floor instead of below the glass line, which for sill 0 would put
+        # it under the slab. Matches the door leaf, whose floor rail also sits at 0.
+        z0 = sill - CW if sill >= CW else 0.0
+        bar(f"{w['name']} sill", (lo + hi) / 2, hi - lo, z0, z0 + CW)
     # Named per side: plan px increases WEST, so the lower edge is the EAST stile.
     # They were both just "stile", and anything keying on the name (tools/ifc_check.py)
     # then saw one member spanning both and could not check either.

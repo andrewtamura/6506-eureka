@@ -261,6 +261,11 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   older room-wide form and still works. Named `noBattens` because `battens: ["N"]` would
   read as "battens ON the north wall", the opposite of what it means.
   The foyer's north wall is the steel screen and carries none: it should read as glazing.
+  That screen is glazed to the FINISHED FLOOR (sill 0, no curb), so `sides` carries each
+  sidelight's SILL and the baseboard subtracts only the floor-height ones — a raised-sill
+  sidelight still keeps its board underneath. `add_glazed_frame` puts the bottom member ON
+  the floor when the sill is below its own section, rather than below the glass line,
+  which at sill 0 would have put it under the slab.
   **A batten could cross a SIDELIGHT and did.** The loop stops a batten at a sill only for
   members of `wins`, and `compute_paneling` files sidelights under `sides` (own frame, no
   casing), which is consulted only for jamb CLEARANCE — so a batten landing mid-sidelight

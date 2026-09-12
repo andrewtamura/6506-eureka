@@ -282,7 +282,12 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     };
 
     // 1) baseboard — minus doors + full-height built-ins (continuous under windows)
-    for (const [a, b] of subtract(w.lo, w.hi, [...doors, ...tallX], 0.12)) band(a, b, 0, bbH, 0.05);
+    // A sidelight glazed to the FINISHED FLOOR takes no baseboard across it — the board
+    // would run over the bottom of the glass, the same way the battens were running over
+    // the middle of it. One with a raised sill keeps its baseboard, which is why `sides`
+    // carries the sill rather than this subtracting every sidelight.
+    const lowSides = sides.filter((sd) => (sd[2] ?? 99) * ft < bbH).map(([a, b]) => [a, b]);
+    for (const [a, b] of subtract(w.lo, w.hi, [...doors, ...tallX, ...lowSides], 0.12)) band(a, b, 0, bbH, 0.05);
 
     // 2) board-and-batten field: the BOARD (flat backing) is continuous across the
     //    whole wall, corner to corner — full height (bbH..head) everywhere except
