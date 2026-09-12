@@ -29,12 +29,56 @@
       "sill": 7.33,
       "head": 8.67,
       "transom": true
+    },
+    {
+      "name": "Sidelight - Foyer E",
+      "orient": "H",
+      "fixed": 10.1667,
+      "pos": 6.293,
+      "width": 3.294,
+      "sill": 0.833,
+      "head": 7.0,
+      "sidelight": true,
+      "abutsDoor": [
+        8.0,
+        11.0
+      ],
+      "steel": true,
+      "liteFt": 1.55
+    },
+    {
+      "name": "Sidelight - Foyer W",
+      "orient": "H",
+      "fixed": 10.1667,
+      "pos": 12.707,
+      "width": 3.294,
+      "sill": 0.833,
+      "head": 7.0,
+      "sidelight": true,
+      "abutsDoor": [
+        8.0,
+        11.0
+      ],
+      "steel": true,
+      "liteFt": 1.55
+    },
+    {
+      "name": "Transom - Foyer",
+      "orient": "H",
+      "fixed": 10.1667,
+      "pos": 9.5,
+      "width": 9.708,
+      "sill": 7.06,
+      "head": 8.67,
+      "transom": true,
+      "steel": true,
+      "liteFt": 1.55
     }
   ],
   "interior": {
     "flooring": {
       "material": "tile",
-      "pattern": "checker"
+      "pattern": "checkerboard"
     },
     "furniture": [
       {

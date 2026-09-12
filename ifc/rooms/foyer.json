@@ -33,14 +33,15 @@
       "opening": true
     },
     {
-      "name": "Foyer -> Vestibule (french)",
+      "name": "Foyer -> Vestibule",
       "orient": "H",
       "fixed": 10.1667,
       "pos": 9.5,
-      "width": 6.0,
-      "swing": "pos",
-      "doorStyle": "8lite",
-      "openDeg": 140
+      "width": 3.0,
+      "swing": "neg",
+      "doorStyle": "steel12",
+      "hinge": "min",
+      "noCasing": true
     }
   ],
   "windows": [],

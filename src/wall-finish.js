@@ -71,6 +71,11 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     // still holes, and the band that fills from the head line to the ceiling has to be
     // cut around them or the glass is plastered over.
     const trans = w.transoms || [];
+    // Sidelights are the same idea one band lower: their own frame, no casing, but
+    // still holes the field below the head line has to be cut around.
+    const sides = w.sidelights || [];
+    // Doors framed by something else (a steel screen's own mullions) take no casing.
+    const bare = w.bareDoors || [];
     const winX = wins.map((q) => [q[0], q[1]]);
     const tallX = tall.map((t) => [t[0], t[1]]);   // full-height built-in openings (e.g. the hutch)
     const caseInset = caseW / ft + 0.05; // feet — keep field/battens off the casing
@@ -83,8 +88,9 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     //    the openings, plus a continuous strip under each window (bbH..sill). It
     //    runs right up to the opening edges (the casing overlays it), so there are
     //    no gaps next to the trim.
-    const openings = [...doors, ...winX, ...tallX].map(([a, b]) => [Math.min(a, b), Math.max(a, b)]);
-    for (const [a, b] of subtract(w.lo, w.hi, [...doors, ...winX, ...tallX], 0, 0.02)) band(a, b, bbH, headY, 0.012, field);
+    const openings = [...doors, ...winX, ...tallX, ...sides].map(([a, b]) => [Math.min(a, b), Math.max(a, b)]);
+    for (const [a, b] of subtract(w.lo, w.hi, [...doors, ...winX, ...tallX, ...sides], 0, 0.02))
+      band(a, b, bbH, headY, 0.012, field);
     for (const [a, b, sill] of wins) {
       const sy = sill * ft; if (sy - bbH < 0.06) continue;
       band(a, b, bbH, sy, 0.012, field);
@@ -198,9 +204,15 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     //    was missing everywhere — every cased door in the house had two verticals and
     //    nothing over them, which is what left trimmed doorways still reading unfinished.
     for (const [a, b] of doors) {
+      if (bare.some(([ba, bb]) => Math.abs(ba - a) < 0.01 && Math.abs(bb - b) < 0.01)) continue;
       post(a, 0, headY, caseW, 0.045); post(b, 0, headY, caseW, 0.045);
       const lo = Math.min(a, b) - caseW / ft, hi = Math.max(a, b) + caseW / ft;
-      band(lo, hi, headY, headY + caseW, 0.045);       // head, returning over both jambs
+      // Where a TRANSOM spans this door, its bar is already the head member across the
+      // whole composition — a door with sidelights needs one continuous head, not a
+      // short casing over the leaf and a longer bar in the same plane fighting it.
+      const spanned = trans.some(([ta, tb]) =>
+        Math.min(ta, tb) <= Math.min(a, b) + 0.01 && Math.max(ta, tb) >= Math.max(a, b) - 0.01);
+      if (!spanned) band(lo, hi, headY, headY + caseW, 0.045);   // head, returning over both jambs
     }
   }
 }

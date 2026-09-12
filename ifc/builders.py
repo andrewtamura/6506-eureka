@@ -2857,37 +2857,37 @@ def add_doors(ctx, r):
             ctx.door_meta[-1]["openDeg"] = float(d["openDeg"])
 
 
-def add_transom_frame(ctx, r, w, sill, head):
-    """The frame around a transom light, on the ROOM side of the wall.
+def add_glazed_frame(ctx, r, w, sill, head):
+    """Frame a fixed light — a TRANSOM over an opening, or a SIDELIGHT beside one —
+    on the ROOM side of the wall.
 
-    Sized and positioned to line up with the DOOR CASING below it, because the two
-    are one composition and reading them as one is the whole point:
+    Sized off the same `casingFt` the wall-finish trim program uses, at the same
+    projection, with stiles CENTRED on the opening edges the way post() centres a
+    door casing. A door with sidelights and a transom is one composition, and the
+    only way it reads as one is if every member is the same width and depth and the
+    verticals line up.
 
-      * the same casing width (`casingFt`), so nothing steps in or out;
-      * stiles CENTRED on the opening edges, the convention `post()` uses in
-        wall-finish.js, so the verticals run unbroken from floor to transom head;
-      * NO bar of its own where a door sits directly below. That door's head casing
-        already lands on the masonry between the two openings and IS the transom bar.
-        Drawing both stacked two bands totalling 7-1/2 in of trim at the head.
-
-    This only works because the transom sill sits a casing-width ABOVE the door head,
-    leaving real wall between them. With both at 7 ft there is nothing to bear on and
-    the head casing covers the bottom of the glass.
+    Which members each kind gets:
+      transom   bar below + stiles + rail above. The bar is the single head member
+                across the WHOLE composition, which is why wall-finish suppresses the
+                door's own head casing wherever a transom spans it — otherwise the two
+                stack, or worse land co-planar and z-fight.
+      sidelight stiles + a rail at the sill. No top rail: the transom's bar is already
+                the head member over it.
     """
-    TRIM = (0.93, 0.92, 0.88)
-    CW = w.get("frameFt", 0.33)                       # = casingFt, the door's architrave
-    DEP = 0.06                                        # projection off the wall face (ft)
+    # STEEL: a Crittall-style screen — slim dark sections and mostly glass, subdivided
+    # into lites by muntins on the same thin section. Painted joinery casing is the
+    # default; steel is a different construction, not a recolour, so it takes its own
+    # width, depth and colour and adds a lite grid the joinery version has no use for.
+    steel = bool(w.get("steel"))
+    TRIM = (0.17, 0.18, 0.19) if steel else (0.93, 0.92, 0.88)
+    CW = w.get("frameFt", 0.06 if steel else 0.33)
+    DEP = w.get("frameDepFt", 0.10 if steel else 0.148)
     b = r["bounds"]
     pos, W = w["pos"], abs(w["width"])
     half = ctx.T / FT / 2
     if w["orient"] != "H":
-        return                                        # V-wall transoms would mirror this
-    # Is there a door under this transom? Then its head casing is the bar.
-    lo, hi = pos - W / 2, pos + W / 2
-    door_below = any(
-        d["orient"] == "H" and abs(d["fixed"] - w["fixed"]) < 0.3
-        and min(d["pos"] + abs(d["width"]) / 2, hi) - max(d["pos"] - abs(d["width"]) / 2, lo) > 0.05
-        for d in r.get("doors", []))
+        return                                        # V walls would mirror this
     inward = -1 if abs(w["fixed"] - max(b["z1"], b["z2"])) < 1e-6 else 1
     face = w["fixed"] + inward * half
     cz = face + inward * DEP / 2
@@ -2898,11 +2898,44 @@ def add_transom_frame(ctx, r, w, sill, head):
         run("spatial.assign_container", ctx.model, products=[pr],
             relating_structure=ctx.storey)
 
-    if not door_below:
+    # `abutsDoor` is the [lo, hi] plan-x of a door this light sits beside. That door's
+    # CASING JAMB is already the mullion between them, so the stile on that side is
+    # skipped — drawn, the two land co-planar in the same colour at the same depth and
+    # z-fight. It also clamps the sill, which otherwise runs its casing return straight
+    # across the bottom of the doorway. The door is authored in the neighbouring room's
+    # file, so this cannot be discovered from `r` and has to be stated.
+    door = w.get("abutsDoor")
+    edges = [pos - W / 2, pos + W / 2]
+
+    def near_door(x):
+        return door is not None and min(abs(x - door[0]), abs(x - door[1])) < 0.4
+
+    if w.get("transom"):
         bar(f"{w['name']} bar", pos, W + 2 * CW, sill - CW, sill)
-    bar(f"{w['name']} rail", pos, W + 2 * CW, head, head + CW)
-    for sx in (-1, 1):                                # centred on the jambs, like post()
-        bar(f"{w['name']} stile", pos + sx * W / 2, CW, sill, head)
+        bar(f"{w['name']} rail", pos, W + 2 * CW, head, head + CW)
+    else:                                             # sidelight: a sill, no top rail
+        lo = edges[0] - (0 if near_door(edges[0]) else CW)
+        hi = edges[1] + (0 if near_door(edges[1]) else CW)
+        bar(f"{w['name']} sill", (lo + hi) / 2, hi - lo, sill - CW, sill)
+    # Named per side: plan px increases WEST, so the lower edge is the EAST stile.
+    # They were both just "stile", and anything keying on the name (tools/ifc_check.py)
+    # then saw one member spanning both and could not check either.
+    for x, side in zip(edges, ("stile E", "stile W")):
+        if not w.get("transom") and near_door(x) and not steel:
+            continue                                  # the door casing is the mullion
+        bar(f"{w['name']} {side}", x, CW, sill, head)
+
+    # LITE GRID. Divisions are sized to a target pane and then evened out, so panes stay
+    # square-ish whatever the light's proportions instead of one axis stretching.
+    if steel:
+        lw = w.get("liteFt", 1.55)
+        cols = max(1, int(round(W / lw)))
+        rows = max(1, int(round((head - sill) / (lw * 1.35))))
+        for i in range(1, cols):
+            bar(f"{w['name']} muntin V{i}", edges[0] + i * W / cols, CW, sill, head)
+        for j in range(1, rows):
+            y = sill + j * (head - sill) / rows
+            bar(f"{w['name']} muntin H{j}", pos, W, y - CW / 2, y + CW / 2)
 
 
 def add_windows(ctx, r):
@@ -2919,6 +2952,8 @@ def add_windows(ctx, r):
         # opening it belongs to, so it authors its own head. Without this carve-out a
         # transom with sill == head_ft came out ZERO HEIGHT, and both it and its opening
         # then failed to produce geometry at all — a silently missing window, not an error.
+        # A transom authors its own head (it sits ABOVE the uniform head line); a
+        # sidelight runs up TO that line like everything else, so it keeps the default.
         head = w["head"] if w.get("transom") else ctx.head_ft
         if head <= w["sill"]:
             # Loud, because the quiet version cost a debugging round: a zero-height
@@ -2930,5 +2965,5 @@ def add_windows(ctx, r):
                 f"its own `head` and carry `transom: true`.")
         cut_opening(ctx, "IfcWindow", w["name"], w["orient"], w["fixed"], w["pos"],
                     w["width"], w["sill"], head)
-        if w.get("transom"):
-            add_transom_frame(ctx, r, w, w["sill"], head)
+        if w.get("transom") or w.get("sidelight"):
+            add_glazed_frame(ctx, r, w, w["sill"], head)

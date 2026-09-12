@@ -1,7 +1,15 @@
 #!/usr/bin/env python
-"""Assert the lot's setbacks and street frontage against the GENERATED geometry.
+"""Assert GENERATOR-built geometry against the .ifc files it just wrote.
 
-    /tmp/ifcvenv/bin/python tools/lot_check.py
+    /tmp/ifcvenv/bin/python tools/ifc_check.py
+
+Covers the lot (setbacks, street frontage) and the glazed door compositions
+(transom and sidelight frames). Both are things tools/kitchen-check.mjs cannot see
+properly: it measures the BUILT MESHES in the viewer, and fragments merges IFC
+products that share a material into one mesh — so a four-member transom frame
+reads as a single box, and which boxes merge changes as soon as anything nearby is
+added. Those assertions were rewritten three times chasing that. Members are
+individually addressable here and stay that way.
 
 The lot bands are IFC entities, not viewer meshes, so this measures the .ifc files
 that generate_ifc.py just wrote rather than the numbers that went into them. Three
@@ -20,6 +28,9 @@ traps cost a pass each while this was being written, all of them worth keeping:
 """
 import sys
 import numpy as np
+import glob
+import json
+
 import ifcopenshell
 import ifcopenshell.geom
 
@@ -109,6 +120,69 @@ check(near(wall_face, 16.3125), f'primary north wall face at pz {wall_face:.4f}'
 yard = rw - wall_face
 check(near(yard, 10.0), f'CLEAR NORTH YARD is 10 ft, wall face to retaining wall ({yard:.4f})')
 check(near(north - rw, 10 / 12), f'retaining wall is 10 in thick, outer face on the line ({north - rw:.4f})')
+
+
+# --- GLAZED DOOR COMPOSITIONS ---------------------------------------------------
+# Driven off what the ROOM FILES author, not off hard-coded sizes. The first version
+# asserted the joinery numbers (0.33 casing, 0.148 deep) and every one of them failed
+# the moment the foyer screen became steel — which is correct geometry failing a test
+# that had baked in one construction. What actually has to hold is that the generated
+# members agree with the spec and with EACH OTHER: one section throughout, stiles on
+# the glass edges, rails meeting the glass.
+print('\nGLAZED DOOR COMPOSITIONS')
+specs = []
+for rf in sorted(glob.glob('ifc/rooms/*.json')):
+    for wspec in json.load(open(rf)).get('windows', []):
+        if wspec.get('transom') or wspec.get('sidelight'):
+            specs.append(wspec)
+G = extents(gnd, lambda nm, p: ('Transom' in nm or 'Sidelight' in nm) and not nm.startswith('Opening'))
+
+for wspec in specs:
+    nm = wspec['name']
+    steel = bool(wspec.get('steel'))
+    CW = wspec.get('frameFt', 0.06 if steel else 0.33)
+    DEP = wspec.get('frameDepFt', 0.10 if steel else 0.148)
+    lo, hi = wspec['pos'] - abs(wspec['width']) / 2, wspec['pos'] + abs(wspec['width']) / 2
+    sill, head = wspec['sill'], wspec['head']
+    glass = G.get(nm)
+    parts = {k: v for k, v in G.items() if k.startswith(nm + ' ')}
+    label = f"{nm} [{'steel' if steel else 'joinery'}]"
+    check(glass and near(glass[0], lo) and near(glass[1], hi)
+          and near(glass[4], sill) and near(glass[5], head),
+          f'{label}: glazed as authored, {lo:.3f}..{hi:.3f} x {sill:.2f}..{head:.2f}')
+    check(parts, f'{label}: framed ({len(parts)} members)')
+    if not parts:
+        continue
+    # ONE section throughout: every member is CW in its thin axis and DEP deep.
+    bad = [k for k, v in parts.items()
+           if not near(v[3] - v[2], DEP)
+           or not (near(v[1] - v[0], CW) or near(v[5] - v[4], CW))]
+    check(not bad, f'{label}: every member is one {CW} ft section, {DEP} ft deep'
+                   + ('' if not bad else f' — off: {", ".join(sorted(bad))}'))
+    # Rails meet the glass they bound.
+    for key, edge, desc in (('bar', sill, 'bar tops out at the glass sill'),
+                            ('sill', sill, 'sill tops out at the glass'),
+                            ('rail', head, 'rail starts at the glass head')):
+        v = parts.get(f'{nm} {key}')
+        if v is None:
+            continue
+        check(near(v[5], edge) or near(v[4], edge), f'{label}: {desc} ({edge:.3f})')
+    # Stiles sit on the glass edges and run its full height.
+    stiles = [v for k, v in parts.items() if ' stile ' in k]
+    check(stiles, f'{label}: {len(stiles)} stile(s)')
+    for v in stiles:
+        mid = (v[0] + v[1]) / 2
+        check(min(abs(mid - lo), abs(mid - hi)) < 1e-3, f'{label}: stile on a glass edge ({mid:.3f})')
+        check(near(v[4], sill) and near(v[5], head), f'{label}: stile runs the full height')
+    # Steel is a LITE GRID, which is the whole point of it — thin lines, many panes.
+    if steel:
+        mv = [v for k, v in parts.items() if ' muntin V' in k]
+        mh = [v for k, v in parts.items() if ' muntin H' in k]
+        check(mv or mh, f'{label}: subdivided into lites ({len(mv)} vertical, {len(mh)} horizontal)')
+        panes = (len(mv) + 1) * (len(mh) + 1)
+        check(panes >= 4, f'{label}: {panes} panes')
+        for v in mv:
+            check(near(v[4], sill) and near(v[5], head), f'{label}: vertical muntin runs sill to head')
 
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)

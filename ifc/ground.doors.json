@@ -18,11 +18,10 @@
     "style": "8lite"
   },
   {
-    "name": "Foyer -> Vestibule (french)",
+    "name": "Foyer -> Vestibule",
     "hingeMax": false,
-    "swingSign": 1,
-    "style": "8lite",
-    "openDeg": 140.0
+    "swingSign": -1,
+    "style": "steel12"
   },
   {
     "name": "Front Door",

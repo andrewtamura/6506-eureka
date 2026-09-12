@@ -2047,6 +2047,8 @@ async function main() {
     // same trick ifc/builders.py uses (`panelc`): it is what makes the panelling read in
     // flat light instead of dissolving into one brown rectangle.
     const doorPanel = new THREE.MeshLambertMaterial({ color: 0x7d5c40 });
+    // Crittall section: near-black, to match the screen's frame in ifc/builders.py.
+    const steelMat = new THREE.MeshLambertMaterial({ color: 0x2b2d30 });
     // Glazing for a divided-light leaf. depthWrite off so the muntins and whatever is
     // beyond the door both read through it.
     const doorGlass = new THREE.MeshLambertMaterial({ color: 0xc6d7da, transparent: true,
@@ -2102,7 +2104,11 @@ async function main() {
         };
         // "<n>lite" -> two columns by n/2 rows. Parsed, not enumerated, so 8lite and
         // 10lite are the same code path and a new count needs none.
-        const lm = /^(\d+)lite$/.exec(style);
+        // `steel<n>` is the same divided-light layout in Crittall section: slim dark
+        // members instead of painted joinery, so the leaf reads as part of a steel
+        // screen rather than a wooden door dropped into one.
+        const sm = /^steel(\d+)$/.exec(style);
+        const lm = /^(\d+)lite$/.exec(style) || sm;
         const rows = lm && +lm[1] >= 2 && +lm[1] % 2 === 0 ? +lm[1] / 2 : 0;
         // HALF-MOON: a slab with a true half-round hole cut in it (Shape + hole, so the
         // light is actually open rather than a disc laid on a solid door), a glazed
@@ -2168,16 +2174,20 @@ async function main() {
           return { grp, meshes };
         }
         if (!rows) { put(0, 1, 0, sy, doorMat); return { grp, meshes }; }
-        const ST = Math.min(0.11, leafW * 0.14), BR = 0.30, TR = 0.11, MU = 0.032;
+        // Steel runs slimmer everywhere and keeps only a token bottom rail, which is
+        // what "mostly glazing, very thin lite lines" means in section.
+        const mat = sm ? steelMat : doorMat;
+        const ST = sm ? 0.05 : Math.min(0.11, leafW * 0.14);
+        const BR = sm ? 0.10 : 0.30, TR = sm ? 0.05 : 0.11, MU = sm ? 0.018 : 0.032;
         const us = ST / leafW, ue = 1 - us, gy0 = BR, gy1 = sy - TR;
-        put(0, us, 0, sy, doorMat); put(ue, 1, 0, sy, doorMat);           // stiles
-        put(us, ue, 0, BR, doorMat); put(us, ue, gy1, sy, doorMat);       // bottom and top rails
+        put(0, us, 0, sy, mat); put(ue, 1, 0, sy, mat);                   // stiles
+        put(us, ue, 0, BR, mat); put(us, ue, gy1, sy, mat);               // bottom and top rails
         put(us, ue, gy0, gy1, doorGlass, th * 0.3);                       // glazing
         const um = (us + ue) / 2, hm = MU / leafW;
-        put(um - hm / 2, um + hm / 2, gy0, gy1, doorMat, th * 0.62);      // 1 vertical -> 2 cols
+        put(um - hm / 2, um + hm / 2, gy0, gy1, mat, th * 0.62);          // 1 vertical -> 2 cols
         for (let i = 1; i < rows; i++) {                                  // rows-1 horizontal
           const y = gy0 + (gy1 - gy0) * i / rows;
-          put(us, ue, y - MU / 2, y + MU / 2, doorMat, th * 0.62);
+          put(us, ue, y - MU / 2, y + MU / 2, mat, th * 0.62);
         }
         return { grp, meshes };
       };
