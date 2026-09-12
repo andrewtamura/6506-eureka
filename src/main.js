@@ -15,6 +15,8 @@ import { buildTileFloor } from "./tile-floor.js";
 import { buildFurniture, buildChair, buildRug, buildSofa } from "./furniture.js";
 import { buildWallFinish } from "./wall-finish.js";
 import { buildCeilings } from "./ceilings.js";
+import { consolidateStatic } from "./consolidate.js";
+import { setupPerf, applyDprOverride } from "./perf.js";
 import { createWalker } from "./pov.js";
 
 const BASE = import.meta.env.BASE_URL; // respects Vite `base` on GitHub Pages
@@ -828,6 +830,27 @@ async function main() {
   const NORENDER = new URLSearchParams(location.search).get("norender") === "1";
   if (NORENDER) world.renderer.enabled = false;
 
+  // `?perf=1` puts a HUD in the corner: fps, CPU ms inside render(), REAL GPU ms where
+  // the browser offers a timer query, draw calls, triangles, programs, mesh and light
+  // counts, and the pixel ratio. It exists because the headless harness can measure the
+  // CPU side of a frame exactly and the GPU side not at all — see src/perf.js. `?dpr=<n>`
+  // overrides the pixel ratio so the fill-rate question can be answered by looking.
+  const PERF = new URLSearchParams(location.search).get("perf") === "1";
+
+  // RENDER ON DEMAND. The renderer defaults to AUTO — a frame every update tick,
+  // forever, whether or not anything moved. On the full scene that is ~15 ms of CPU
+  // per frame of permanent load, which on a laptop means heat, then throttling, which
+  // makes everything feel sluggish including the panning we just fixed. That Open's
+  // SimpleRenderer has a MANUAL mode built in (`mode = 0`: render only when
+  // `needsUpdate`, cleared after each frame), so this is a hook rather than a rewrite.
+  //
+  // Switched on at the END of init, not here: while the model is still building, a
+  // visitor should watch it appear, and AUTO is exactly right for that. `?always=1`
+  // forces AUTO back on — the escape hatch if some source of change is ever missed,
+  // because the failure mode of missing one is a stale frame.
+  const ALWAYS = new URLSearchParams(location.search).get("always") === "1";
+  const invalidate = () => { world.renderer.needsUpdate = true; };
+
   world.scene.setup();
   const scene = world.scene.three;
   await world.camera.controls.setLookAt(18, 14, 18, 0, 1.5, 0);
@@ -835,6 +858,13 @@ async function main() {
   // Wider field of view for an immersive interior feel (a 50–60° lens reads as
   // "looking through a tube" once you're standing in a room); a small near
   // plane keeps nearby walls from clipping when you're close to them.
+  // camera-controls defaults to a 125 ms smoothing constant while dragging, so the
+  // camera trails the pointer by several frames — which reads as lag however fast
+  // the frames are, and was half of why panning felt sluggish. Track the pointer
+  // instead. `smoothTime` (0.2) is deliberately left alone: it governs the glide
+  // transitions between views, which SHOULD ease.
+  world.camera.controls.draggingSmoothTime = 0.04;
+
   const cam3 = world.camera.three;
   cam3.fov = 75;
   cam3.near = 0.05;
@@ -894,7 +924,7 @@ async function main() {
     knob.setAttribute("cy", C - RR * Math.cos(a));
     label.textContent = fmtHour(h);
   };
-  const apply = (h) => { hour = ((h % 24) + 24) % 24; setTime(hour); place(hour); };
+  const apply = (h) => { hour = ((h % 24) + 24) % 24; setTime(hour); place(hour); invalidate(); };
   const fromPointer = (e) => {
     const r = dial.getBoundingClientRect();
     const px = (e.clientX - r.left) / r.width * SZ - C, py = (e.clientY - r.top) / r.height * SZ - C;
@@ -946,6 +976,7 @@ async function main() {
     setSeason(TILT * Math.cos(a));      // +tilt at top (summer), -tilt at bottom (winter)
     placeSeason(a);
     refreshShadow();
+    invalidate();
   };
   const seasonFromPointer = (e) => {
     const r = sdial.getBoundingClientRect();
@@ -978,14 +1009,27 @@ async function main() {
   // don't visibly stream/pop in while the camera is still moving — the model is
   // small enough to draw in full. (update() without force streams progressively,
   // which is what caused the pop-in.)
-  world.camera.controls.addEventListener("rest", () => { fragments.core.update(true); refreshShadow(); });
-  world.camera.controls.addEventListener("update", () => fragments.core.update(true));
+  // `rest` also re-bakes the shadow map, but ONLY while geometry is still arriving.
+  // The shadow camera is pinned to the MODEL box (focusShadow, called once), so it has
+  // no dependence on the viewer camera and a bake cannot change because you panned —
+  // what CAN change it is the core.update on the line above bringing new geometry in.
+  // The bake is a whole extra scene pass into a 2048^2 depth map: +5.1 ms, which DOUBLES
+  // the frame, fired at the exact moment you stop dragging. Once loading is done it is
+  // pure waste. The dials and the season change still re-bake; they move the sun.
+  let levelsStreaming = true;              // cleared once every level has landed
+  world.camera.controls.addEventListener("rest", () => {
+    fragments.core.update(true);
+    if (levelsStreaming) refreshShadow();
+    invalidate();
+  });
+  world.camera.controls.addEventListener("update", () => { fragments.core.update(true); invalidate(); });
 
   // When a model is added, attach it to the camera + scene.
   fragments.list.onItemSet.add(({ value: model }) => {
     model.useCamera(world.camera.three);
     world.scene.three.add(model.object);
     fragments.core.update(true);
+    invalidate();
   });
 
   // --- IFC loader ---------------------------------------------------------
@@ -1205,7 +1249,7 @@ async function main() {
     // grid/west offset). The exterior is handled separately below; ground has
     // its own full build. floorY=0 = this level's finish floor (slab top).
     if (lvl.id !== "exterior" && lvl.manifests?.furniture) {
-      const ef = await buildFurniture({ scene, parent: m.object, floorY: 0, baseUrl: BASE, manifestFile: lvl.manifests.furniture + VER });
+      const ef = await buildFurniture({ scene, parent: m.object, floorY: 0, baseUrl: BASE, manifestFile: lvl.manifests.furniture + VER, invalidate });
       if (ef?.doorMeshes) furnitureDoorMeshes.push(...ef.doorMeshes);
     }
     // hardwood floor (instanced planks), same as the ground floor; floorY is this
@@ -1384,16 +1428,15 @@ async function main() {
   window.__eureka = { components, world, fragments, model, loaded: true };
 
   // --- selection + properties --------------------------------------------
-  const HIGHLIGHT = {
-    color: new THREE.Color(0xffa500),
-    renderedFaces: FRAGS.RenderedFaces.TWO,
-    opacity: 1,
-    transparent: false,
-  };
+  // Tapping an element still names it in the panel; it is no longer RECOLOURED.
+  // model.highlight recolours by giving the element its own material, which is the
+  // one thing that forces consolidate.js to leave a fragments model's meshes alone
+  // (a merged copy would keep drawing the old colour). It also cost a forced
+  // fragments.core.update on every single click. Dropped on the owner's call.
   let selected = null;
 
-  async function clearSelection() {
-    if (selected != null) { await model.resetHighlight([selected]); selected = null; }
+  function clearSelection() {
+    selected = null;
     propsTitle.textContent = "Selection";
     propsBody.innerHTML = PROPS_HINT;
     propsEl.classList.remove("open"); // collapse the menu when nothing is picked
@@ -1421,11 +1464,9 @@ async function main() {
 
   async function selectAt(lx, ly) {
     const hit = await raycastSurface(lx, ly);
-    await clearSelection();
+    clearSelection();
     if (!hit) return;
     selected = hit.localId;
-    await model.highlight([selected], HIGHLIGHT);
-    await fragments.core.update(true);
     const [data] = await model.getItemsData([selected], {
       attributesDefault: true,
       relationsDefault: { attributes: true, relations: false },
@@ -1623,12 +1664,12 @@ async function main() {
   await buildTileFloor({ scene, model, fragments, floorY: FLOOR, baseUrl: BASE, manifestFile: groundManifests.tiles + VER });
 
   // --- soft furniture as procedural meshes (see furniture.js) -------------
-  const furniture = await buildFurniture({ scene, floorY: FLOOR + 0.02, baseUrl: BASE, manifestFile: groundManifests.furniture + VER });
+  const furniture = await buildFurniture({ scene, floorY: FLOOR + 0.02, baseUrl: BASE, manifestFile: groundManifests.furniture + VER, invalidate });
   if (furniture?.doorMeshes) furnitureDoorMeshes.push(...furniture.doorMeshes);
   // Exterior fixtures (entry pendant lanterns) parent to the exterior model so
   // they inherit its offset; heights come per-item from the manifest.
   if (exteriorModel && exteriorLvl)
-    await buildFurniture({ scene, parent: exteriorModel.object, floorY: 0, baseUrl: BASE, manifestFile: exteriorLvl.manifests.furniture + VER });
+    await buildFurniture({ scene, parent: exteriorModel.object, floorY: 0, baseUrl: BASE, manifestFile: exteriorLvl.manifests.furniture + VER, invalidate });
 
   // --- board-and-batten wall finish + baseboards (see wall-finish.js) -----
   await buildWallFinish({ scene, floorY: FLOOR, ceilingY: modelBox.max.y, baseUrl: BASE, manifestFile: groundManifests.paneling + VER });
@@ -1642,6 +1683,7 @@ async function main() {
   // see into the attic from outside/above).
   setPlanView = (plan) => {
     baseSetPlanView(plan);
+    invalidate();
     for (const mat of [...povCeilingMats, ...exhibitCeilingMats]) {
       mat.transparent = plan;
       mat.opacity = plan ? (mat.userData._planOpacity ?? 0.45) : 1.0;
@@ -1715,7 +1757,16 @@ async function main() {
   // of it is on screen at the landing view. Streaming them behind a finished, usable
   // page turns a ~290 s wait into a ~15 s one. Anything that needs them awaits
   // `exhibitsReady` — the switcher tabs and the walker registration below.
+  // ...and not started until asked for. Streaming them costs ~130 s of solid CPU
+  // AFTER the page is already usable, competing with the panning the visitor is
+  // doing right then. So: kick it off on the first click on an exhibit tab, or 20 s
+  // in, whichever comes first. The 20 s fallback is what keeps every existing tool
+  // working unchanged — they await `exhibitsReady` and it still resolves on its own.
+  let kickExhibits;
+  const exhibitsRequested = new Promise((res) => { kickExhibits = res; });
+  setTimeout(() => kickExhibits(), 20000);
   const exhibitsReady = (async () => {
+    await exhibitsRequested;
     for (const lvl of levelsCfg) {
       if (lvl.id === groundLevel.id || lvl.id === exteriorLvl?.id) continue;
       if (SOLO && lvl.id !== SOLO) continue;
@@ -1724,6 +1775,7 @@ async function main() {
     }
   })();
   window.__eureka.exhibitsReady = exhibitsReady;  // debug handle: awaited by the check harness
+  window.__eureka.loadExhibits = () => kickExhibits();  // debug handle: start the stream now
   {
     // Title each view with a flat label laid on the grid in FRONT of it (North =
     // world -Z), set well clear of the building and oriented to read upright from
@@ -1765,7 +1817,7 @@ async function main() {
 
     viewBox.expandByScalar(1.0);   // headroom so the titles never touch the frame edge
     await fragments.core.update(true);
-    refreshShadow();
+    if (levelsStreaming) refreshShadow();  // see the `rest` listener: camera moves can't change it
   }
 
   // Glide the camera to a new pose by interpolating the eye + look-at point as
@@ -1852,6 +1904,7 @@ async function main() {
       if (Math.abs(d.current - target) > 1e-3) {
         d.current += (target - d.current) * 0.2; // ease toward target
         d.pivot.rotation.y = d.current;
+        invalidate();                            // a swinging door is a reason to draw
       }
     }
     requestAnimationFrame(animateDoors);
@@ -1890,14 +1943,15 @@ async function main() {
   // the pinch/scroll "back out" gesture, so they all stay in sync.
   const focusLevel = async (id, transition = true) => {
     let mv = modelViews.find((v) => v.id === id);
-    if (!mv) {                                  // still streaming in — wait for it
+    if (!mv) {                                  // not built yet — ask for it, then wait
+      kickExhibits();
       setStatus("Loading level…");
       await exhibitsReady;
       setStatus("");
       mv = modelViews.find((v) => v.id === id);
     }
     if (!mv) return;
-    await clearSelection();
+    clearSelection();
     overviewControls();
     frameModel(liveBox(mv), transition);
     setActiveLevel(id);
@@ -1949,7 +2003,7 @@ async function main() {
     const btn = document.createElement("button");
     btn.className = "view-btn";
     btn.textContent = label;
-    btn.addEventListener("click", fn);
+    btn.addEventListener("click", async (e) => { await fn(e); invalidate(); });
     viewsEl.appendChild(btn);
   };
   for (const lvl of levelsCfg) {
@@ -1968,7 +2022,7 @@ async function main() {
     const btn = document.createElement("button");
     btn.className = "view-btn";
     btn.textContent = label;
-    btn.addEventListener("click", fn);
+    btn.addEventListener("click", async (e) => { await fn(e); invalidate(); });
     scenesEl.appendChild(btn);
   };
   // Set every fixture on `level` ("all" = every level) to `factor`x its nominal
@@ -2198,6 +2252,7 @@ async function main() {
         const { grp, meshes } = leafParts(leafW, dirSign);
         if (!alongX) grp.rotation.y = -Math.PI / 2;   // local +X becomes world +Z
         pivot.add(grp);
+        pivot.userData.dynamic = true;          // live transform: consolidate.js skips it
         world.scene.three.add(pivot);
         const leaf = { pivot, openAngle, current: openAngle, unit, name: nm };
         for (const mesh of meshes) { mesh.userData.door = leaf; doorMeshes.push(mesh); }
@@ -2218,7 +2273,76 @@ async function main() {
         else mkLeaf(cx, hingeMax ? bx.max.z : bx.min.z, W, dir, sign * ang);
       }
     });
-    window.__eureka.doors = doors; // for the headless smoke test
+    window.__eureka.doors = doors;       // for the headless smoke test
+    window.__eureka.pickDoor = pickDoor; // debug handle: tools/frame-check.mjs asserts that
+                                         // a door hidden by consolidate.js is still pickable
+  }
+
+  // --- collapse the static millwork into one mesh per material ------------
+  // Last, because it has to see everything: the door leaves above are the only
+  // subtree it must NOT bake, and they mark themselves `dynamic`. Anchored on the
+  // fragments model objects so a merged exterior lantern still rides its model
+  // when that model is repositioned. See consolidate.js for the measurements.
+  const anchors = [];
+  for (const [, m] of fragments.list) if (m.object) anchors.push(m.object);
+  window.__eureka.consolidated = consolidateStatic({ scene, anchors, includeModels: true });
+
+  // The exhibits arrive later — with the lazy stream, much later — so their geometry
+  // misses the pass above: 879 draw calls for the full scene against 332 for the ground
+  // floor alone. Merge them when they land. Hung off exhibitsReady HERE rather than
+  // where that promise is created, so it cannot run before init has finished building
+  // everything (in ?solo the promise resolves in 20 s, well before init is done, and an
+  // earlier version of this merged the scene before the doors existed). The pass skips
+  // userData.merged, so the ground floor is not touched twice, and each exhibit model
+  // object is an ANCHOR — a fragments model is repositioned after load, and merged
+  // geometry has to ride it.
+  exhibitsReady.then(() => {
+    const roots = exhibitModels.map(({ model: m }) => m.object).filter(Boolean);
+    window.__eureka.consolidatedExhibits = consolidateStatic({ scene, anchors: roots, includeModels: true });
+    levelsStreaming = false;               // everything has landed: stop re-baking on rest
+    refreshShadow();
+    invalidate();
+  });
+
+  // Everything is built and on screen: stop drawing frames nobody asked for.
+  // A safety net rather than a bare switch — a slow heartbeat means that if some
+  // source of change is ever missed, the symptom is a frame up to half a second
+  // stale rather than a viewer that appears frozen. 2 fps idle against 60 is still
+  // a ~30x cut in idle load.
+  window.__eureka.invalidate = invalidate;
+  // Every UI control in the sidebar changes the picture one way or another — the
+  // lighting scenes, the level tabs, the dials. Rather than hunting each handler,
+  // invalidate on any pointer or key event over the page: it costs one boolean and
+  // it means an interaction is never the thing that goes stale.
+  for (const ev of ["pointerdown", "pointerup", "pointermove", "wheel", "keydown", "change", "input"])
+    window.addEventListener(ev, invalidate, { passive: true, capture: true });
+  if (!ALWAYS) {
+    world.renderer.mode = 0;                 // MANUAL: render only when needsUpdate
+    invalidate();
+    setInterval(invalidate, 500);
+    window.addEventListener("resize", invalidate);
+  }
+
+  // The HUD is built on FIRST use, not at startup: setupPerf wraps renderer.render to
+  // time it, and an instrument nobody asked for should not be in the hot path. After
+  // that the button just shows and hides it. `?perf=1` still starts it open.
+  {
+    const btn = document.getElementById("perf-toggle");
+    let perf = null;
+    const paint = () => { btn.textContent = perf && perf.visible() ? "Hide performance HUD" : "Performance HUD"; };
+    const toggle = (on) => {
+      // Decide the target state BEFORE building it — build-then-flip made the first
+      // click create the HUD and hide it in the same breath.
+      const want = on === undefined ? !(perf && perf.visible()) : on;
+      if (!perf) { applyDprOverride(world); perf = setupPerf({ world, scene, getExtra: () => window.__eureka.consolidated }); }
+      perf.setVisible(want);
+      paint();
+      invalidate();                 // render on demand: give the HUD a frame to report
+    };
+    btn.addEventListener("click", () => toggle());
+    window.__eureka.togglePerf = toggle;   // debug handle: tools/frame-check drives it
+    paint();
+    if (PERF) toggle(true);
   }
 
   // --- compass (see compass.js) -------------------------------------------

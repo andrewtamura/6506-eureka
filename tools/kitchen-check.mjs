@@ -85,6 +85,13 @@ if (!(process.env.CHECK_URL || '').includes('solo=') && process.env.CHECK_URL) {
 }
 const raw = await page.evaluate(() => {
   const B3 = window.__eureka.modelViews[0].box.constructor;
+  // src/consolidate.js adds one merged render mesh per material and hides the
+  // authored parts it swallowed. The merged meshes are a RENDERING artifact, not
+  // members of anything, so every count and every volume below has to skip them —
+  // otherwise an 8-lite door leaf reports 10 members and a merged trim run reads
+  // as a cornice. The hidden originals are still measured: Box3.expandByObject has
+  // no visibility check, which is exactly why they are hidden rather than deleted.
+  const isPart = (m) => m.isMesh && !(m.userData && m.userData.merged);
   const items = [], loose = [];
   window.__eureka.world.scene.three.traverse(o => {
     const it = o.userData && o.userData.item;
@@ -92,7 +99,7 @@ const raw = await page.evaluate(() => {
     o.updateMatrixWorld(true);
     const bb = new B3().setFromObject(o); if (bb.isEmpty()) return;
     const parts = [];
-    o.traverse(m => { if (!m.isMesh) return; const mb = new B3().setFromObject(m);
+    o.traverse(m => { if (!isPart(m)) return; const mb = new B3().setFromObject(m);
       parts.push([mb.min.x, mb.min.y, mb.min.z, mb.max.x, mb.max.y, mb.max.z]); });
     const mvols = [];   // filled alongside the volume pass below, one per mesh, in order
     // A rotated item's world AABB is not its size — a 1.5 ft square chair turned 45 deg
@@ -100,7 +107,7 @@ const raw = await page.evaluate(() => {
     // solid volume of its geometry, which is the only honest way to say "dainty".
     const invM = o.matrixWorld.clone().invert(); const lb = new B3();
     let vol = 0;
-    o.traverse(m => { if (!m.isMesh) return;
+    o.traverse(m => { if (!isPart(m)) return;
       const gm = m.geometry; gm.computeBoundingBox();
       lb.union(gm.boundingBox.clone().applyMatrix4(invM.clone().multiply(m.matrixWorld)));
       const pos = gm.getAttribute('position'); if (!pos || pos.count > 60000) return;
@@ -115,13 +122,13 @@ const raw = await page.evaluate(() => {
       lw: lb.max.x - lb.min.x, ld: lb.max.z - lb.min.z, vol: Math.abs(vol), mvols,
       min: [bb.min.x, bb.min.y, bb.min.z], max: [bb.max.x, bb.max.y, bb.max.z], parts,
       top: (() => { let best = null, area = -1;
-        o.traverse(m => { if (!m.isMesh) return; const mb = new B3().setFromObject(m);
+        o.traverse(m => { if (!isPart(m)) return; const mb = new B3().setFromObject(m);
           const a = (mb.max.x - mb.min.x) * (mb.max.z - mb.min.z);
           if (a > area) { area = a; best = mb.max.y; } }); return best; })() });
   });
   // wall-finish meshes carry no userData.item
   window.__eureka.world.scene.three.traverse(o => {
-    if (!o.isMesh) return;
+    if (!isPart(o)) return;
     let p = o.parent, owned = false; while (p) { if (p.userData && p.userData.item) { owned = true; break; } p = p.parent; }
     if (owned) return;
     const mb = new B3().setFromObject(o); if (mb.isEmpty()) return;
@@ -153,7 +160,7 @@ const raw = await page.evaluate(() => {
   for (const d of window.__eureka.doors || []) {
     d.pivot.updateMatrixWorld(true);
     let zmin = 1e9, zmax = -1e9, xmin = 1e9, xmax = -1e9, n = 0;
-    d.pivot.traverse(o => { if (!o.isMesh) return; n++;
+    d.pivot.traverse(o => { if (!isPart(o)) return; n++;
       const gg = o.geometry; gg.computeBoundingBox();
       const bb = gg.boundingBox.clone(); bb.applyMatrix4(o.matrixWorld);
       zmin = Math.min(zmin, bb.min.z); zmax = Math.max(zmax, bb.max.z);

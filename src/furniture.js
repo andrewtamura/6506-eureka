@@ -2594,7 +2594,11 @@ const SEAT_FRONT = 0.225;   // chair seat front is +0.225 m toward the table fro
 const TUCK = 0.08;          // pushed-in: seat front this far under the table edge
 const SIT = 0.22;           // pulled-out: this gap between seat front and table edge
 
-export async function buildFurniture({ scene, parent = scene, floorY, baseUrl, manifestFile = "furniture.json" }) {
+export async function buildFurniture({ scene, parent = scene, floorY, baseUrl,
+                                      manifestFile = "furniture.json",
+                                      // called whenever this module MOVES something, so the viewer can
+                                      // render on demand instead of drawing frames nobody asked for
+                                      invalidate = () => {} }) {
   let data;
   try { data = await (await fetch(`${baseUrl}${manifestFile}`)).json(); } catch (e) { return { chairMeshes: [], doorMeshes: [], fixtures: [], ceilingOpenings: [] }; }
   const { ft = 0.3048, xs = -1, zs = 1, items = [] } = data || {};
@@ -2666,6 +2670,12 @@ export async function buildFurniture({ scene, parent = scene, floorY, baseUrl, m
     root.traverse((m) => { if (m.isMesh) { m.userData.chair = entry; chairMeshes.push(m); } });
   }
 
+  // These two subtrees have LIVE transforms, so consolidate.js must leave them
+  // alone — baking a chair's matrix would nail it to the table, and a door's
+  // would freeze it at whatever angle it happened to be open.
+  for (const c of chairs) c.root.userData.dynamic = true;
+  for (const d of doorEntries) d.pivot.userData.dynamic = true;
+
   // Slide chairs between tucked-in and pulled-out, and swing doors open/closed
   // (both eased).
   (function animate() {
@@ -2674,6 +2684,7 @@ export async function buildFurniture({ scene, parent = scene, floorY, baseUrl, m
       if (c.current.distanceToSquared(target) > 1e-6) {
         c.current.lerp(target, 0.2);
         c.root.position.copy(c.current);
+        invalidate();
       }
     }
     for (const d of doorEntries) {
@@ -2681,6 +2692,7 @@ export async function buildFurniture({ scene, parent = scene, floorY, baseUrl, m
       if (Math.abs(d.current - target) > 1e-3) {
         d.current += (target - d.current) * 0.2;
         d.pivot.rotation.y = d.current;
+        invalidate();
       }
     }
     requestAnimationFrame(animate);
