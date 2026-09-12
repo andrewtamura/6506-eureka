@@ -1146,33 +1146,52 @@ console.log('EXTENSION');
   A(!!fd, 'front door leaf found');
   if (fd) A(fd.parts > 20, `six-panel with bolection molding: ${fd.parts} members (a flat slab is 1)`);
 
-  // TRANSOM over the front door, and the FRAME that separates it from the opening
-  // below. Without the frame the two openings are cut flush to each other and read as
-  // one tall hole with a pane floating in the top.
-  // The four trim members share a material, so fragments merges them into ONE mesh —
-  // they cannot be counted individually, but the union's extents still prove the frame:
-  // it has to start BELOW the glass (that is the bar) and end ABOVE it (the rail), and
-  // run wider than the opening (the stiles sit outboard of the jambs).
-  { const DY = 0.066;                       // loose meshes hang off FLOOR, items off FLOOR+0.02
-    const SILL = 7.0 - DY, HEAD = 8.6 - DY, FACE = 15.854;
-    // Bounded to the band that BRACKETS the glass. Unbounded this also matched the
-    // door's own casing, which runs from the floor to the head line and is both taller
-    // and wider — picking "the tallest" then measured that instead.
-    const wall = L.filter(m => Math.abs(m.pzHi - FACE) < 0.02 && m.pzLo > FACE - 0.2
-      && m.yLo > 6.0 && m.yLo < SILL && m.yHi > HEAD && m.yHi < 9.2
-      && (m.pxHi - m.pxLo) > 3.0 && (m.pxHi - m.pxLo) < 4.2);
-    A(wall.length >= 1, `transom frame on the wall face (${wall.length})`);
-    if (wall.length) {
-      const f = wall[0];
-      A(f.yLo < SILL - 0.1, `a bar below the glass at ${R((f.yLo + DY) * 12, 0)} in — this is what separates it from the door`);
-      A(f.yHi > HEAD + 0.1, `and a rail above it at ${R((f.yHi + DY) * 12, 0)} in`);
-      A((f.pxHi - f.pxLo) > 3.4, `${R(f.pxHi - f.pxLo, 2)} ft wide — stiles outboard of the 3 ft opening`);
-      A(FACE - f.pzLo > 0.03, `stands ${R((FACE - f.pzLo) * 12, 1)} in proud of the wall, so it throws a shadow line`);
+  // TRANSOM over the front door. It sits a CASING WIDTH above the door head, on real
+  // wall, so the door's head casing lands on that masonry and IS the transom bar. With
+  // both at 7 ft there was nothing to bear on: the frame drew its own bar, the head
+  // casing drew another right above it, and the two stacked 7-1/2 in of trim while the
+  // head casing covered the bottom of the glass.
+  //
+  // The GLAZING PANE is not separately visible here — the IfcWindow does not survive
+  // into `loose` as its own mesh, and an earlier version of this block matched the
+  // frame and reported it as the glass. What IS measurable is the frame bounding it,
+  // and since the frame's inner faces are the glass boundary that pins the same thing.
+  { const DY = 0.066, FACE = 15.854;
+    const SILL = 7.33 - DY, HEAD = 8.67 - DY;
+    const onWall = L.filter(m => m.pzHi > FACE - 0.02 && m.pzLo < FACE + 0.1
+      && m.pxLo > 7.2 && m.pxHi < 12.2);
+    // ONE band between the door head and the glass, not two, and its top is the sill.
+    const bands = onWall.filter(m => (m.pxHi - m.pxLo) > 3.2 && m.yLo > 6.5 && m.yHi < SILL + 0.06
+      && (m.pzHi - m.pzLo) > 0.1);
+    A(bands.length === 1, `one band between door and glass — the head casing IS the transom bar (${bands.length})`);
+    if (bands.length === 1) {
+      A(Math.abs(bands[0].yHi - SILL) < 0.06, `it tops out at the glass sill, ${R((bands[0].yHi + DY) * 12, 1)} in`);
+      A(Math.abs((bands[0].yHi - bands[0].yLo) - 0.33) < 0.04, 'one casing width deep, not two');
     }
-    // The glazing itself, bracketed by that frame.
-    const glass = L.filter(m => Math.abs(m.yLo - SILL) < 0.05 && Math.abs(m.yHi - HEAD) < 0.05
-      && m.pxLo > 7.4 && m.pxHi < 11.6);
-    A(glass.length >= 1, `transom glazed 7.0 to 8.6 ft, matching the exterior entry (${glass.length})`);
+    // The stiles merge into one mesh (shared material), so they cannot be counted —
+    // but the union's edges are their outer faces, and those have to match the door
+    // casing jambs exactly or the verticals step where the two meet.
+    // Depth-bounded on BOTH sides: the casing projects 0.148, but the open door leaf is
+    // also narrow and floor-to-head, and at 0.394 deep it was silently making this three.
+    const jambs = onWall.filter(m => (m.pxHi - m.pxLo) < 0.5 && m.yLo < 0.1
+      && (m.pzHi - m.pzLo) > 0.1 && (m.pzHi - m.pzLo) < 0.25);
+    const frame = onWall.filter(m => Math.abs(m.yLo - SILL) < 0.06 && Math.abs(m.yHi - HEAD) < 0.06);
+    A(frame.length === 1, `transom frame spanning the glass (${frame.length})`);
+    if (frame.length === 1 && jambs.length === 2) {
+      const jLo = Math.min(...jambs.map(m => m.pxLo)), jHi = Math.max(...jambs.map(m => m.pxHi));
+      A(Math.abs(frame[0].pxLo - jLo) < 0.02 && Math.abs(frame[0].pxHi - jHi) < 0.02,
+        `its stiles sit exactly on the door casing jambs (${R(frame[0].pxLo, 3)}/${R(frame[0].pxHi, 3)} vs ${R(jLo, 3)}/${R(jHi, 3)})`);
+      A(Math.abs((frame[0].yHi - frame[0].yLo) - 1.34) < 0.04,
+        `${R(frame[0].yHi - frame[0].yLo, 2)} ft of glass between bar and rail`);
+    }
+    // ...and the head rail matches the head casing's width exactly, so nothing steps.
+    const rail = onWall.filter(m => (m.pxHi - m.pxLo) > 3.2 && m.yLo > HEAD - 0.06);
+    A(rail.length === 1, `a head rail above the glass (${rail.length})`);
+    if (rail.length === 1 && bands.length === 1) {
+      A(Math.abs((rail[0].pxHi - rail[0].pxLo) - (bands[0].pxHi - bands[0].pxLo)) < 0.02,
+        `rail and head casing the same width, ${R(rail[0].pxHi - rail[0].pxLo, 2)} ft — no step`);
+      A(rail[0].yHi > 8.9, `rail meets the 9 ft ceiling (${R((rail[0].yHi + DY) * 12, 1)} in)`);
+    }
   }
 
   // DOOR CASING round the front door. The vestibule had no trim program at all, so the

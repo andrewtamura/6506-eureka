@@ -2860,39 +2860,49 @@ def add_doors(ctx, r):
 def add_transom_frame(ctx, r, w, sill, head):
     """The frame around a transom light, on the ROOM side of the wall.
 
-    Its job is the BAR: the horizontal member at the sill, which is what separates
-    the transom from the opening below. Without it the two openings are cut flush to
-    each other and read as one tall hole with a pane floating in the top of it.
-    Stiles and a head rail close the other three sides so it reads as a frame rather
-    than a lone stick.
+    Sized and positioned to line up with the DOOR CASING below it, because the two
+    are one composition and reading them as one is the whole point:
 
-    Applied to the wall FACE and standing slightly proud, like the exterior entry's
-    casing (add_entry emits the same rail/bar/stile set outside). Proud rather than
-    flush so it casts a shadow line; shallow enough that a door leaf swinging in the
-    opening below never reaches it.
+      * the same casing width (`casingFt`), so nothing steps in or out;
+      * stiles CENTRED on the opening edges, the convention `post()` uses in
+        wall-finish.js, so the verticals run unbroken from floor to transom head;
+      * NO bar of its own where a door sits directly below. That door's head casing
+        already lands on the masonry between the two openings and IS the transom bar.
+        Drawing both stacked two bands totalling 7-1/2 in of trim at the head.
+
+    This only works because the transom sill sits a casing-width ABOVE the door head,
+    leaving real wall between them. With both at 7 ft there is nothing to bear on and
+    the head casing covers the bottom of the glass.
     """
     TRIM = (0.93, 0.92, 0.88)
-    CW = w.get("frameFt", 0.30)                       # casing width (ft)
+    CW = w.get("frameFt", 0.33)                       # = casingFt, the door's architrave
     DEP = 0.06                                        # projection off the wall face (ft)
     b = r["bounds"]
     pos, W = w["pos"], abs(w["width"])
-    half = ctx.T / FT / 2                             # half wall thickness, plan feet
-    orient = w["orient"]
-    if orient == "H":
-        # inward = toward the room: the wall is this room's north edge or its south one
-        inward = -1 if abs(w["fixed"] - max(b["z1"], b["z2"])) < 1e-6 else 1
-        face = w["fixed"] + inward * half             # interior face of the wall
-        cz = face + inward * DEP / 2
-        def bar(name, cx, wide, z0, z1):
-            pr = make_box(ctx, "IfcBuildingElementProxy", name, wide * FT, DEP * FT,
-                          (z1 - z0) * FT, ctx.X(cx), ctx.Y(cz), z0 * FT, color=TRIM)
-            run("spatial.assign_container", ctx.model, products=[pr],
-                relating_structure=ctx.storey)
+    half = ctx.T / FT / 2
+    if w["orient"] != "H":
+        return                                        # V-wall transoms would mirror this
+    # Is there a door under this transom? Then its head casing is the bar.
+    lo, hi = pos - W / 2, pos + W / 2
+    door_below = any(
+        d["orient"] == "H" and abs(d["fixed"] - w["fixed"]) < 0.3
+        and min(d["pos"] + abs(d["width"]) / 2, hi) - max(d["pos"] - abs(d["width"]) / 2, lo) > 0.05
+        for d in r.get("doors", []))
+    inward = -1 if abs(w["fixed"] - max(b["z1"], b["z2"])) < 1e-6 else 1
+    face = w["fixed"] + inward * half
+    cz = face + inward * DEP / 2
+
+    def bar(name, cx, wide, z0, z1):
+        pr = make_box(ctx, "IfcBuildingElementProxy", name, wide * FT, DEP * FT,
+                      (z1 - z0) * FT, ctx.X(cx), ctx.Y(cz), z0 * FT, color=TRIM)
+        run("spatial.assign_container", ctx.model, products=[pr],
+            relating_structure=ctx.storey)
+
+    if not door_below:
         bar(f"{w['name']} bar", pos, W + 2 * CW, sill - CW, sill)
-        bar(f"{w['name']} rail", pos, W + 2 * CW, head, head + CW)
-        for sx in (-1, 1):
-            bar(f"{w['name']} stile", pos + sx * (W + CW) / 2, CW, sill, head)
-    # V walls would mirror this on the x axis; the house has no V-wall transom.
+    bar(f"{w['name']} rail", pos, W + 2 * CW, head, head + CW)
+    for sx in (-1, 1):                                # centred on the jambs, like post()
+        bar(f"{w['name']} stile", pos + sx * W / 2, CW, sill, head)
 
 
 def add_windows(ctx, r):
