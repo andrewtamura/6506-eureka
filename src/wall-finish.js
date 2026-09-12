@@ -160,6 +160,30 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     })();
     const STOOL_D = 0.055;
 
+    // APRON: a SPRUNG section, like crown — not a flat board laid on the wall. It seats
+    // on two surfaces, the wall behind it and the stool's underside above it, with the
+    // moulded face sweeping diagonally between them. That is what makes the mitre work:
+    // a sprung section cut at 45 deg meets its return along the whole diagonal, so the
+    // profile turns the corner and dies into the wall with no flat face anywhere. A
+    // flat back-face board has nothing to return INTO, which is why its "mitre" kept
+    // reading as a block stuck on the end.
+    // Shape coords here are (X = projection from the wall, Y = drop below the stool),
+    // Y running downward because the apron is swept flipped.
+    const apronShape = (() => {
+      const H = caseW, PJ = 0.050;
+      const sh = new THREE.Shape();
+      sh.moveTo(0, 0);                                            // wall, at the stool soffit
+      sh.lineTo(0, H);                                            // down the wall — the back seat
+      sh.lineTo(PJ * 0.16, H);                                    // bottom fillet
+      sh.quadraticCurveTo(PJ * 0.40, H * 0.88, PJ * 0.54, H * 0.58); // COVE, sweeping out and up
+      sh.quadraticCurveTo(PJ * 0.72, H * 0.34, PJ, H * 0.20);     // OGEE reversing into the soffit
+      sh.lineTo(PJ, H * 0.06);
+      sh.lineTo(PJ * 0.86, 0);                                    // top seat, under the stool
+      sh.lineTo(0, 0);
+      return sh;
+    })();
+    const APRON_P = 0.050;
+
     // A run of moulding plus MITRED RETURNS: at each end the same section is swept
     // perpendicular, so the profile wraps the corner and dies into the wall instead of
     // stopping at a square cut that shows its section as a flat face.
@@ -345,7 +369,7 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       // Where the wall below is open floor rather than a counter the apron hangs 25 in
       // up with nothing under it and reads as a stray panel, so `plainBelow` drops it
       // and the field and battens simply carry on to the stool.
-      if (!plainBelow) mouldH(lo - hOut, hi + hOut, sy, casingShape, CASE_P, true);
+      if (!plainBelow) mouldH(lo - hOut, hi + hOut, sy, apronShape, APRON_P, true);
     }
     // 5) door casing: jambs (floor..head) PLUS a head casing across the top. The head
     //    was missing everywhere — every cased door in the house had two verticals and

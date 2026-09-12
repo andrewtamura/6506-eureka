@@ -561,6 +561,19 @@ if (gUps.length === 2) {
   A(aRun.every(m => m.nv >= MOULDED), 'a moulded section, not a flat board');
   A(aRun.every(m => Math.abs((m.yHi - m.yLo) - 0.33) < 0.02),
     'the same 4 in stock as the casing');
+  // SPRUNG, like crown: the section seats on the wall behind AND the stool's soffit
+  // above, with the moulded face sweeping diagonally between. That is what lets the
+  // 45 deg mitre meet its return along the whole diagonal and turn the corner. A
+  // flat-backed board has nothing to return INTO — its "mitre" can only ever read as a
+  // block stuck on the end, which is what it did.
+  // A sprung section projects LESS than it drops; a flat board would project about
+  // nothing at all and a square one would match. Checking the ratio catches a
+  // silent revert to either.
+  if (aRun.length) {
+    const drop = aRun[0].yHi - aRun[0].yLo, proj = aRun[0].pzHi - aRun[0].pzLo;
+    A(proj > 0.10 && proj < drop * 0.75,
+      `sprung — projects ${R(proj * 12, 1)} in over a ${R(drop * 12, 1)} in drop`);
+  }
   // Per window, and against the STOOL directly above it — the two have to die at the
   // same plan position or the corner steps. Comparing extremes across all three windows
   // instead compared one apron to the whole wall.
