@@ -29,6 +29,44 @@
       "sill": 7.33,
       "head": 8.67,
       "transom": true
+    },
+    {
+      "name": "Sidelight - Foyer E",
+      "orient": "H",
+      "fixed": 10.1667,
+      "pos": 7.3675,
+      "width": 0.935,
+      "sill": 0.833,
+      "head": 7.0,
+      "sidelight": true,
+      "abutsDoor": [
+        8.0,
+        11.0
+      ]
+    },
+    {
+      "name": "Sidelight - Foyer W",
+      "orient": "H",
+      "fixed": 10.1667,
+      "pos": 11.6325,
+      "width": 0.935,
+      "sill": 0.833,
+      "head": 7.0,
+      "sidelight": true,
+      "abutsDoor": [
+        8.0,
+        11.0
+      ]
+    },
+    {
+      "name": "Transom - Foyer",
+      "orient": "H",
+      "fixed": 10.1667,
+      "pos": 9.5,
+      "width": 6.0,
+      "sill": 7.33,
+      "head": 8.67,
+      "transom": true
     }
   ],
   "interior": {

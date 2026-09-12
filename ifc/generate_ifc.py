@@ -54,7 +54,7 @@ def compute_paneling(ctx, rooms):
             # the end of the wall into the neighbour.
             def inside(a, b):
                 return min(b, hi) - max(a, lo) > 0.05
-            doors, wins, tall, trans = [], [], [], []
+            doors, wins, tall, trans, sides = [], [], [], [], []
             for r in rooms:
                 for d in r.get("doors", []):
                     if d["orient"] == orient and abs(d["fixed"] - fixed) < 0.3:
@@ -67,6 +67,16 @@ def compute_paneling(ctx, rooms):
                 for wd in r.get("windows", []):
                     if wd.get("blind"):
                         continue   # no opening inside, so no interior casing/stool/apron
+                    if wd.get("sidelight"):
+                        # Same deal as a transom, one band lower: its own frame, no
+                        # casing/stool/apron, but still a hole the field must be cut
+                        # around — this one in the band BELOW the head line.
+                        if wd["orient"] == orient and abs(wd["fixed"] - fixed) < 0.3:
+                            sw = abs(wd["width"])
+                            sspan = [round(wd["pos"] - sw / 2, 3), round(wd["pos"] + sw / 2, 3)]
+                            if inside(*sspan):
+                                sides.append(sspan)
+                        continue
                     if wd.get("transom"):
                         # A transom carries its own frame (add_transom_frame) and sits on
                         # a door head, so the window program would both double the casing
@@ -89,7 +99,7 @@ def compute_paneling(ctx, rooms):
                         # sits over open floor rather than over a counter, since a 2 ft 8 in
                         # board floating 25 in off the floor reads as a stray panel.
                         wins.append(span + [wd["sill"], bool(wd.get("plainBelow"))])
-            return doors, wins, tall, trans
+            return doors, wins, tall, trans, sides
 
         # plan px increases WEST and pz increases NORTH, so x1 is the EAST wall and
         # z1 the SOUTH one. `noCornice` names the sides where the entablature is
@@ -112,12 +122,13 @@ def compute_paneling(ctx, rooms):
             ("V", x1, z1, z2, x1 + half, [1, 0], "E"),
             ("V", x2, z1, z2, x2 - half, [-1, 0], "W"),
         ]:
-            doors, wins, tall, trans = gather(orient, fixed, lo, hi)
+            doors, wins, tall, trans, sides = gather(orient, fixed, lo, hi)
             ctx.paneling.append({
                 "along": "x" if orient == "H" else "z",
                 "at": round(face, 4), "normal": normal, "side": side,
                 "lo": round(lo, 3), "hi": round(hi, 3),
                 "doors": doors, "windows": wins, "tall": tall, "transoms": trans,
+                "sidelights": sides,
                 "noCornice": all_sides or side in no_cornice,
                 "noBattens": no_battens,
                 "wainscot": all_ws or side in wainscot,

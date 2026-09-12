@@ -1146,53 +1146,12 @@ console.log('EXTENSION');
   A(!!fd, 'front door leaf found');
   if (fd) A(fd.parts > 20, `six-panel with bolection molding: ${fd.parts} members (a flat slab is 1)`);
 
-  // TRANSOM over the front door. It sits a CASING WIDTH above the door head, on real
-  // wall, so the door's head casing lands on that masonry and IS the transom bar. With
-  // both at 7 ft there was nothing to bear on: the frame drew its own bar, the head
-  // casing drew another right above it, and the two stacked 7-1/2 in of trim while the
-  // head casing covered the bottom of the glass.
-  //
-  // The GLAZING PANE is not separately visible here — the IfcWindow does not survive
-  // into `loose` as its own mesh, and an earlier version of this block matched the
-  // frame and reported it as the glass. What IS measurable is the frame bounding it,
-  // and since the frame's inner faces are the glass boundary that pins the same thing.
-  { const DY = 0.066, FACE = 15.854;
-    const SILL = 7.33 - DY, HEAD = 8.67 - DY;
-    const onWall = L.filter(m => m.pzHi > FACE - 0.02 && m.pzLo < FACE + 0.1
-      && m.pxLo > 7.2 && m.pxHi < 12.2);
-    // ONE band between the door head and the glass, not two, and its top is the sill.
-    const bands = onWall.filter(m => (m.pxHi - m.pxLo) > 3.2 && m.yLo > 6.5 && m.yHi < SILL + 0.06
-      && (m.pzHi - m.pzLo) > 0.1);
-    A(bands.length === 1, `one band between door and glass — the head casing IS the transom bar (${bands.length})`);
-    if (bands.length === 1) {
-      A(Math.abs(bands[0].yHi - SILL) < 0.06, `it tops out at the glass sill, ${R((bands[0].yHi + DY) * 12, 1)} in`);
-      A(Math.abs((bands[0].yHi - bands[0].yLo) - 0.33) < 0.04, 'one casing width deep, not two');
-    }
-    // The stiles merge into one mesh (shared material), so they cannot be counted —
-    // but the union's edges are their outer faces, and those have to match the door
-    // casing jambs exactly or the verticals step where the two meet.
-    // Depth-bounded on BOTH sides: the casing projects 0.148, but the open door leaf is
-    // also narrow and floor-to-head, and at 0.394 deep it was silently making this three.
-    const jambs = onWall.filter(m => (m.pxHi - m.pxLo) < 0.5 && m.yLo < 0.1
-      && (m.pzHi - m.pzLo) > 0.1 && (m.pzHi - m.pzLo) < 0.25);
-    const frame = onWall.filter(m => Math.abs(m.yLo - SILL) < 0.06 && Math.abs(m.yHi - HEAD) < 0.06);
-    A(frame.length === 1, `transom frame spanning the glass (${frame.length})`);
-    if (frame.length === 1 && jambs.length === 2) {
-      const jLo = Math.min(...jambs.map(m => m.pxLo)), jHi = Math.max(...jambs.map(m => m.pxHi));
-      A(Math.abs(frame[0].pxLo - jLo) < 0.02 && Math.abs(frame[0].pxHi - jHi) < 0.02,
-        `its stiles sit exactly on the door casing jambs (${R(frame[0].pxLo, 3)}/${R(frame[0].pxHi, 3)} vs ${R(jLo, 3)}/${R(jHi, 3)})`);
-      A(Math.abs((frame[0].yHi - frame[0].yLo) - 1.34) < 0.04,
-        `${R(frame[0].yHi - frame[0].yLo, 2)} ft of glass between bar and rail`);
-    }
-    // ...and the head rail matches the head casing's width exactly, so nothing steps.
-    const rail = onWall.filter(m => (m.pxHi - m.pxLo) > 3.2 && m.yLo > HEAD - 0.06);
-    A(rail.length === 1, `a head rail above the glass (${rail.length})`);
-    if (rail.length === 1 && bands.length === 1) {
-      A(Math.abs((rail[0].pxHi - rail[0].pxLo) - (bands[0].pxHi - bands[0].pxLo)) < 0.02,
-        `rail and head casing the same width, ${R(rail[0].pxHi - rail[0].pxLo, 2)} ft — no step`);
-      A(rail[0].yHi > 8.9, `rail meets the 9 ft ceiling (${R((rail[0].yHi + DY) * 12, 1)} in)`);
-    }
-  }
+  // TRANSOM and SIDELIGHT FRAMES are asserted in tools/ifc_check.py, not here.
+  // They are IFC products, and fragments merges products sharing a material into one
+  // mesh: a four-member frame arrives as a single box, and WHICH boxes merge changes
+  // the moment anything nearby is added. These assertions were rewritten three times
+  // chasing that before the checks moved to where the members are addressable.
+  // What stays here is what the VIEWER draws — the wall-finish casing below.
 
   // DOOR CASING round the front door. The vestibule had no trim program at all, so the
   // opening was a raw reveal under a framed transom. Casing projects ~0.15 ft where the
@@ -1207,11 +1166,12 @@ console.log('EXTENSION');
       A(Math.abs(at[0] - 8) < 0.1 && Math.abs(at[1] - 11) < 0.1,
         `landing on the jambs: ${at.map(v => R(v, 2)).join(', ')}`);
     }
+    // No head casing: a transom spans this door, so wall-finish suppresses it and the
+    // transom's BAR is the single head member (see ifc_check.py). Two in the same plane
+    // is what the doubled trim was.
     const head = onWall.filter(m => (m.pxHi - m.pxLo) > 3.2 && Math.abs(m.yLo - HEAD) < 0.06
-      && (m.pzHi - m.pzLo) > 0.1);
-    A(head.length === 1, `a head casing over it (${head.length})`);
-    if (head.length) A(head[0].pxHi - head[0].pxLo > 3.4,
-      `returning over both jambs — ${R(head[0].pxHi - head[0].pxLo, 2)} ft over a 3 ft opening`);
+      && (m.pzHi - m.pzLo) > 0.1 && (m.pzHi - m.pzLo) < 0.2 && m.yHi < HEAD + 0.4);
+    A(head.length === 0, `no doubled head casing under the transom bar (${head.length})`);
     // REGRESSION GUARD. With `noCornice` the field carries from the head line to the
     // ceiling, subtracting only full-height built-ins. Giving the vestibule a trim
     // program therefore PLASTERED OVER the transom — the glass went opaque and the only
@@ -1227,22 +1187,17 @@ console.log('EXTENSION');
     A(plaster.length === 0, `the field is cut around the transom, not plastered over it (${plaster.length})`);
   }
 
-  // FRENCH PAIR into the foyer: 8-lite, and open as far as the wall physically allows.
-  const fr = raw.doorLeaves.filter(d => /Foyer -> Vestibule/.test(d.name));
-  A(fr.length === 2, `french pair into the foyer (${fr.length})`);
-  for (const d of fr) A(d.parts === 9, `8-lite leaf: ${d.parts} members (2 stiles, 2 rails, pane, 4 muntins)`);
-  if (fr.length === 2) {
-    // The leaves swing back toward their own wall until the tips meet the side walls.
-    // A 36 in leaf would need 36 in of return to lie FLAT and the foyer gives 28.2, so
-    // this is the real limit, not a chosen angle — assert the clearance, not the degrees.
-    const tipE = Math.min(...fr.map(d => d.pxLo)), tipW = Math.max(...fr.map(d => d.pxHi));
-    A(tipE >= VE - 0.01, `east leaf stops at the side wall (${R(tipE, 3)} vs ${VE})`);
-    A(tipW <= VW + 0.01, `west leaf stops at the side wall (${R(tipW, 3)} vs ${VW})`);
-    // ...and are genuinely swung back, not standing perpendicular at 90 deg, which is
-    // what "open only half way" looked like: at 90 deg a leaf reaches 3 ft into the foyer.
-    const intoFoyer = Math.max(...fr.map(d => 10.1667 - d.pzLo));
-    A(intoFoyer < 2.2, `swung back against the wall — ${R(intoFoyer, 2)} ft into the foyer, not 3.0`);
-  }
+  // The foyer door: a SINGLE 8-lite leaf flanked by sidelights, replacing the french
+  // pair. It swings into the FOYER — the vestibule is 5 ft 6 in deep and a leaf opening
+  // into it lands across the walk from the front door, which is where it first went.
+  { const fr = raw.doorLeaves.filter(d => /Foyer -> Vestibule/.test(d.name));
+    A(fr.length === 1, `one leaf, not a pair (${fr.length})`);
+    if (fr.length === 1) {
+      A(fr[0].parts === 9, `8-lite leaf: ${fr[0].parts} members (2 stiles, 2 rails, pane, 4 muntins)`);
+      A(fr[0].pxHi - fr[0].pxLo < 0.4 && fr[0].pzHi - fr[0].pzLo > 2.8,
+        'standing open, perpendicular to its wall');
+      A(fr[0].pzLo < 10.1667 - 2.8, `swings into the FOYER, reaching pz ${R(fr[0].pzLo, 2)}`);
+    } }
 
   // BENCH on the EAST wall, MIRROR on the WEST wall — facing each other.
   { const b = ves.find(r => r.type === 'mudroom_bench');

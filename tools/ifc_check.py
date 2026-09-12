@@ -1,7 +1,15 @@
 #!/usr/bin/env python
-"""Assert the lot's setbacks and street frontage against the GENERATED geometry.
+"""Assert GENERATOR-built geometry against the .ifc files it just wrote.
 
-    /tmp/ifcvenv/bin/python tools/lot_check.py
+    /tmp/ifcvenv/bin/python tools/ifc_check.py
+
+Covers the lot (setbacks, street frontage) and the glazed door compositions
+(transom and sidelight frames). Both are things tools/kitchen-check.mjs cannot see
+properly: it measures the BUILT MESHES in the viewer, and fragments merges IFC
+products that share a material into one mesh — so a four-member transom frame
+reads as a single box, and which boxes merge changes as soon as anything nearby is
+added. Those assertions were rewritten three times chasing that. Members are
+individually addressable here and stay that way.
 
 The lot bands are IFC entities, not viewer meshes, so this measures the .ifc files
 that generate_ifc.py just wrote rather than the numbers that went into them. Three
@@ -109,6 +117,65 @@ check(near(wall_face, 16.3125), f'primary north wall face at pz {wall_face:.4f}'
 yard = rw - wall_face
 check(near(yard, 10.0), f'CLEAR NORTH YARD is 10 ft, wall face to retaining wall ({yard:.4f})')
 check(near(north - rw, 10 / 12), f'retaining wall is 10 in thick, outer face on the line ({north - rw:.4f})')
+
+
+# --- GLAZED DOOR COMPOSITIONS ---------------------------------------------------
+# A door, its casing, any sidelights and any transom are ONE composition. It only
+# reads as one if every member shares a width and depth and the verticals line up,
+# so the assertions are about agreement between members, not absolute sizes.
+print('\nGLAZED DOOR COMPOSITIONS')
+CW, DEP = 0.33, 0.148            # casingFt, and the casing's 0.045 m projection
+G = extents(gnd, lambda nm, p: ('Transom' in nm or 'Sidelight' in nm) and not nm.startswith('Opening'))
+
+
+def members(prefix, suffix):
+    return [(k, v) for k, v in G.items() if k.startswith(prefix) and k.endswith(suffix)]
+
+
+for door, tname, opening in (('front door', 'Transom - Front Door', (8.0, 11.0)),
+                             ('foyer door', 'Transom - Foyer', (6.5, 12.5))):
+    bar = G.get(f'{tname} bar')
+    rail = G.get(f'{tname} rail')
+    glass = G.get(tname)
+    stiles = [v for k, v in G.items() if k.startswith(tname) and ' stile ' in k]
+    check(bar and rail and glass and len(stiles) == 2,
+          f'{door}: transom has a bar, two stiles, a rail and glazing')
+    if not (bar and rail and glass and len(stiles) == 2):
+        continue
+    # One head member, a casing deep, sitting on the door head and carrying the sill.
+    check(near(bar[5] - bar[4], CW) and near(rail[5] - rail[4], CW),
+          f'{door}: bar and rail are one casing width ({bar[5] - bar[4]:.3f} / {rail[5] - rail[4]:.3f})')
+    check(near(bar[1] - bar[0], rail[1] - rail[0]),
+          f'{door}: bar and rail the same width, {bar[1] - bar[0]:.3f} ft — no step')
+    check(near(bar[5], glass[4]), f'{door}: the bar tops out at the glass sill ({bar[5]:.3f})')
+    check(near(rail[4], glass[5]), f'{door}: the rail starts at the glass head ({rail[4]:.3f})')
+    # Stiles centred on the glass edges, the way post() centres a door casing.
+    for v in stiles:
+        mid = (v[0] + v[1]) / 2
+        check(min(abs(mid - glass[0]), abs(mid - glass[1])) < 1e-3,
+              f'{door}: stile centred on a glass edge ({mid:.3f})')
+    check(all(near(v[5] - v[4], glass[5] - glass[4]) for v in stiles),
+          f'{door}: stiles run the full height of the glass')
+    check(all(near(v[3] - v[2], DEP) for v in [bar, rail] + stiles),
+          f'{door}: every member projects one casing depth ({DEP})')
+
+# SIDELIGHTS flanking the foyer door. Their INNER stile is deliberately absent — the
+# door's casing jamb is the mullion there, and drawing both lands two identical boxes
+# co-planar. So each sidelight has exactly ONE stile, on its outer edge.
+for side, inner in (('Sidelight - Foyer E', 8.0), ('Sidelight - Foyer W', 11.0)):
+    glass, sill = G.get(side), G.get(f'{side} sill')
+    stiles = [v for k, v in G.items() if k.startswith(side) and ' stile ' in k]
+    check(glass and sill and len(stiles) == 1,
+          f'{side}: glazing, a sill and ONE stile ({len(stiles)} stiles — the door casing is the other mullion)')
+    if not (glass and sill and len(stiles) == 1):
+        continue
+    mid = (stiles[0][0] + stiles[0][1]) / 2
+    check(abs(mid - inner) > 1.0, f'{side}: its stile is the OUTER one ({mid:.3f}, door edge {inner})')
+    check(near(sill[5], glass[4]), f'{side}: sill tops out at the glass ({sill[5]:.3f})')
+    # The sill must not run its casing return across the bottom of the doorway.
+    lo, hi = min(sill[0], sill[1]), max(sill[0], sill[1])
+    check(lo >= 6.4 and hi <= 12.6 and not (lo < 11.0 < hi and lo < 8.0),
+          f'{side}: sill stops at the door, {lo:.3f}..{hi:.3f}')
 
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)
