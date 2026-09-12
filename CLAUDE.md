@@ -133,14 +133,58 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   doors, with no flag and no second code path. `tools/frame-check.mjs` guards it.
   Anything with a live transform (door pivots, sliding chairs) marks itself
   `userData.dynamic` and becomes its own merge anchor rather than being skipped.
+  **Never merge a fragments model's own meshes.** It hides them with `setVisible` and
+  recolours them with `highlight` AFTER the pass runs, so a merged copy would keep
+  drawing the old appearance and clicking a wall would silently stop highlighting it.
+  Our furniture parented under those models IS safe and is identified by the
+  `userData.item` group each placed item sits under. `frame-check` asserts a highlight
+  actually changes the picture, because no geometry check would catch this.
+  The pass runs a second time off `exhibitsReady` for the Second Floor and Attic —
+  hung off it at the END of init, not where the promise is created: under `?solo` that
+  promise resolves in 20 s, long before init finishes, and an earlier version merged
+  the scene before the doors existed. Full scene: 879 draw calls down to 649.
+- **The renderer runs ON DEMAND (`mode = 0`), not every tick.** It used to draw a frame
+  per update tick forever — ~15 ms of CPU with nothing moving, which on a laptop means
+  heat, then throttling, which makes everything feel sluggish including panning. Frames
+  now come from `invalidate()`: the camera events, the two animation loops, the dials,
+  new models, and any pointer/key event. Two deliberate safeguards, because the failure
+  mode of missing a source is a viewer that looks FROZEN: a 500 ms heartbeat (so the
+  worst case is a stale frame, not a dead one) and `?always=1` to force AUTO back. AUTO
+  is kept during init on purpose — a visitor should watch the model appear.
+- **Don't re-bake the shadow map when the camera stops.** `focusShadow` pins the shadow
+  camera to the MODEL box, so panning cannot change the shadow — but `rest` used to fire
+  `refreshShadow()` anyway, costing a whole extra scene pass into a 2048² map: **+5.1 ms,
+  doubling the frame, at the exact moment you stop dragging**. It is gated on
+  `levelsStreaming` now, since the `core.update` on that same listener CAN bring in new
+  geometry while levels are still arriving. The dials still re-bake; they move the sun.
+- **Exhibits stream on demand.** They cost ~130 s of solid CPU *after* the page is
+  usable, competing with the panning the visitor is doing right then. The stream starts
+  on the first click on an exhibit tab, or 20 s in, whichever comes first — the 20 s
+  fallback is what keeps every existing tool working unchanged, since they just await
+  `exhibitsReady`. `window.__eureka.loadExhibits()` starts it immediately.
+- **`?perf=1` is the only way to see the GPU side.** The harness measures CPU exactly —
+  `render()` is synchronous JS — and the GPU **not at all**: swiftshader queues fragment
+  work and returns from `render()` before any of it runs, and it runs at
+  `devicePixelRatio` 1 while a retina laptop runs at 2 with antialiasing (4x the pixels).
+  So a fill-rate question CANNOT be answered from here; two measurements that said "no
+  change" (1/16 the pixels, and 22 point lights switched off) are INCONCLUSIVE, not
+  negative. `src/perf.js` puts fps, CPU ms, draw calls, triangles, programs, mesh and
+  light counts, and the pixel ratio in the corner of the real browser, plus
+  `EXT_disjoint_timer_query_webgl2` for true GPU ms where the machine offers it.
+  `?dpr=<n>` overrides the pixel ratio so the fill-rate question is answered by looking.
+- **`node tools/trace.mjs [--pan] [--full]`** is the committed version of the Chrome-trace
+  recipe below. It kept getting rebuilt in the scratchpad.
 - **Three things that look like the cause of sluggish panning and measurably are not** —
   all three were tried: `fragments.core.update(true)` on every camera `update` event
   (0.4 ms SYNCHRONOUS, so not it — which is the same lesson as the bullet above about
   not chasing `core.update`); material switching (deduplicating 275 materials to their
   129 distinct looks moved `render()` by 0.2 ms, and forcing ONE shared material made it
-  *worse*); and the shadow map (`sun.shadow.autoUpdate` is already `false`). The other
-  half of "sluggish" is not frame rate at all: `camera-controls` defaults to
-  `draggingSmoothTime = 0.125`, so the camera trails the pointer by several frames.
+  *worse*); and per-frame light culling — switching off all 22 point lights moved the
+  frame by 0.2 ms, and toggling a light's `visible` changes the light count in the
+  shader and forces a PROGRAM RECOMPILE (18 → 29 programs), so it would trade a cost we
+  do not have for a stutter we do not want. The other half of "sluggish" is not frame
+  rate at all: `camera-controls` defaults to `draggingSmoothTime = 0.125`, so the camera
+  trails the pointer by several frames.
 - **How to find this class of problem: use a Chrome trace, not stacks or micro-benchmarks.**
   `page.tracing.start({ categories: ['devtools.timeline','gpu','toplevel'] })`, then sum
   `dur` by event name. Three cheaper instruments all pointed the wrong way first: a CPU

@@ -48,20 +48,31 @@ export function consolidateStatic({ scene, anchors = [] }) {
   const t0 = performance.now();
   const anchorSet = new Set(anchors);
   scene.updateMatrixWorld(true);
+  // A fragments model OWNS its meshes: it hides them with setVisible and recolours
+  // them with highlight, and it does both AFTER this pass has run. Merge one and the
+  // merged copy keeps drawing the old appearance, so clicking a wall would stop
+  // highlighting it. Our own furniture is parented under those models too (the
+  // exterior lanterns, every exhibit's furniture), and that IS safe to merge — it is
+  // identifiable because each placed item sits under a group carrying userData.item.
+  const modelRoots = new Set(anchors);
 
   // group key: everything that changes how the mesh is DRAWN must match, or the
   // merge would quietly relight/reshadow its members. Layers matter especially —
   // the exterior massing sits on layer 2 to pick up the sky fill that interiors
   // must not get.
   const groups = new Map();
-  const walk = (o, anchor) => {
+  const walk = (o, anchor, ours = true) => {
     if (o.userData?.merged) return;
+    // entering a fragments model puts us on the library's turf; a userData.item group
+    // inside it puts us back on ours
+    if (modelRoots.has(o)) ours = false;
+    else if (o.userData?.item) ours = true;
     // An animated subtree (a door leaf, a sliding chair) is not skipped — it
     // becomes its own anchor. Its parts don't move relative to IT, so merging
     // inside it is safe and the merged child rides the pivot exactly as the
     // originals did. That is the largest remaining block: 246 meshes.
     const a = (anchorSet.has(o) || o.userData?.dynamic) ? o : anchor;
-    if (o.isMesh && !o.isInstancedMesh && o.visible &&
+    if (o.isMesh && !o.isInstancedMesh && o.visible && ours &&
         mergeable(o.material) && o.geometry?.getAttribute("position")) {
       const key = `${a.uuid}|${o.material.uuid}|${+o.castShadow}${+o.receiveShadow}` +
                   `|${o.layers.mask}|${o.renderOrder}`;
@@ -69,7 +80,7 @@ export function consolidateStatic({ scene, anchors = [] }) {
       if (!g) groups.set(key, (g = { anchor: a, mesh: o, list: [] }));
       g.list.push(o);
     }
-    for (const c of o.children) walk(c, a);
+    for (const c of o.children) walk(c, a, ours);
   };
   walk(scene, scene);
 
@@ -117,6 +128,9 @@ export function consolidateStatic({ scene, anchors = [] }) {
   // merge. Skip the anchors: a fragments model IS still repositioned.
   let frozen = 0;
   const freeze = (o) => {
+    // Never inside a fragments model: it streams geometry and writes its own
+    // matrices, and freezing those would strand a mesh at a stale transform.
+    if (modelRoots.has(o)) return;
     // A pivot/chair root still has its transform written every frame, and a
     // fragments model is still repositioned after load. Leave both, and their
     // children with them — there are few, and a merged child under a live parent

@@ -20,14 +20,20 @@
 import puppeteer from 'puppeteer';
 
 const REPORT = process.argv.includes('--report');
-const URL = process.env.CHECK_URL || 'http://localhost:5173/?solo=ground&norender=1';
+// --full drops ?solo and waits for the exhibits, which is the case that actually
+// regressed: consolidateStatic runs at the end of init, but the Second Floor and Attic
+// stream in ~130 s LATER, so without a second pass their geometry is never merged and
+// the scene the owner really pans costs 879 draw calls instead of 333.
+const FULL = process.argv.includes('--full');
+const URL = process.env.CHECK_URL ||
+  (FULL ? 'http://localhost:5173/?norender=1' : 'http://localhost:5173/?solo=ground&norender=1');
 
 // Budgets. Headroom is deliberate: these catch a STRUCTURAL regression (someone
 // adds 800 unmerged meshes, or the consolidate pass silently stops running), not
 // a few parts here or there.
-const MAX_CALLS = 500;     // 333 as merged; 1857 before
-const MAX_MESHES = 450;    // visible, drawable meshes (360 as merged, 1960 before)
-const MIN_ABSORBED = 1500; // authored meshes the merge actually swallowed (1734)
+const MAX_CALLS = FULL ? 700 : 500;      // ground: 332 merged / 1857 before. full: 636 / 879 before
+const MAX_MESHES = FULL ? 820 : 500;    // meshes in the scene and drawable
+const MIN_ABSORBED = FULL ? 2500 : 1400;// authored meshes the merge swallowed
 
 const b = await puppeteer.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
   args: ['--use-gl=swiftshader', '--no-sandbox', '--enable-unsafe-swiftshader'], protocolTimeout: 900000 });
@@ -39,19 +45,34 @@ for (let i = 0; i < 180; i++) {
   if (await page.evaluate(() => !!window.__eureka?.consolidated)) break;
   await new Promise(r => setTimeout(r, 2000));
 }
+if (FULL) {
+  for (let i = 0; i < 300; i++) {
+    if (await page.evaluate(() => !!window.__eureka.exhibitsReady).catch(() => false)) break;
+    await new Promise(r => setTimeout(r, 2000));
+  }
+  await page.evaluate(() => window.__eureka.exhibitsReady);
+  await new Promise(r => setTimeout(r, 15000));   // the exhibit consolidate pass
+}
 await page.evaluate(() => document.querySelector('#level-switcher [data-id="ground"]')?.click());
 await new Promise(r => setTimeout(r, 8000));
 await page.evaluate(() => window.__eureka.setPlanView?.(false));
 await new Promise(r => setTimeout(r, 2000));
 
-const m = await page.evaluate(() => {
+const m = await page.evaluate(async () => {
   const w = window.__eureka.world, s = w.scene.three, r3 = w.renderer.three, cam = w.camera.three;
+  const dom0 = r3.domElement;
   let visible = 0, hidden = 0, dynamic = 0;
   s.traverse(o => { if (!o.isMesh) return; o.visible ? visible++ : hidden++;
     if (o.userData?.dynamic) dynamic++; });
   for (let i = 0; i < 3; i++) r3.render(s, cam);
   const t = performance.now();
   for (let i = 0; i < 12; i++) r3.render(s, cam);
+  // Snapshot BOTH numbers here. The probes below move the camera and stall on a
+  // readPixels, so reading them at return time reported a 4.8 SECOND frame and a
+  // draw-call count taken from two feet in front of a door.
+  const frameMs = +((performance.now() - t) / 12).toFixed(1);
+  const drawCalls = r3.info.render.calls;
+  const tris = r3.info.render.triangles;
 
   // Double-tapping a door raycasts against the AUTHORED meshes, which
   // consolidate.js has hidden. three's Raycaster has no visibility check, so that
@@ -82,8 +103,52 @@ const m = await page.evaluate(() => {
                                         (-p.y * 0.5 + 0.5) * dom.clientHeight) };
     }
   }
-  return { ms: +((performance.now() - t) / 12).toFixed(1), calls: r3.info.render.calls,
-           visible, hidden, pickable, ...window.__eureka.consolidated };
+  // Selecting an element recolours it through model.highlight, which acts on the
+  // AUTHORED fragments meshes. If consolidate ever merges one of those, the merged
+  // copy keeps drawing the old colour and clicking a wall silently stops highlighting
+  // it — a regression no geometry check would catch. Prove the frame actually changes.
+  let highlight = null;
+  try {
+    const model = window.__eureka.model;
+    const ids = Object.values(await model.getItemsOfCategories([/IFCWALL/])).flat().slice(0, 12);
+    if (ids.length) {
+      const shot = () => { r3.render(s, cam);
+        const gl = r3.getContext(), px = new Uint8Array(4 * 64 * 64);
+        gl.readPixels(dom0.width / 2 - 32, dom0.height / 2 - 32, 64, 64, gl.RGBA, gl.UNSIGNED_BYTE, px);
+        let h = 0; for (let i = 0; i < px.length; i += 4) h = (h * 31 + px[i] + px[i + 1] * 3 + px[i + 2] * 7) | 0;
+        return h; };
+      const before = shot();
+      await model.highlight(ids, { color: { isColor: true, r: 1, g: 0, b: 1 }, opacity: 1, transparent: false, renderedFaces: 0 });
+      await window.__eureka.fragments.core.update(true);
+      const after = shot();
+      await model.resetHighlight(ids);
+      await window.__eureka.fragments.core.update(true);
+      highlight = { ids: ids.length, changed: before !== after };
+    }
+  } catch (e) { highlight = { error: String(e).slice(0, 120) }; }
+
+  return { ms: frameMs, calls: drawCalls, triangles: tris, highlight,
+           visible, hidden, pickable, ...window.__eureka.consolidated,
+           absorbed: (window.__eureka.consolidated?.absorbed || 0) +
+                     (window.__eureka.consolidatedExhibits?.absorbed || 0),
+           merged: (window.__eureka.consolidated?.merged || 0) +
+                   (window.__eureka.consolidatedExhibits?.merged || 0) };
+});
+// RENDER ON DEMAND. Measured against the real update loop, not by calling render()
+// ourselves: idle should cost only the safety heartbeat, and moving the camera should
+// cost real frames. The failure mode of this feature is a viewer that looks frozen, so
+// it is worth asserting in both directions.
+const demand = await page.evaluate(async () => {
+  const r = window.__eureka.world.renderer;
+  const n = () => window.__eureka.world.renderer.three.info.render.frame;
+  const wait = (ms) => new Promise((res) => setTimeout(res, ms));
+  const mode = r.mode;
+  const a = n(); await wait(2000); const idle = n() - a;          // untouched
+  const b2 = n();
+  const c = window.__eureka.world.camera.controls;
+  for (let i = 0; i < 30; i++) { c.rotate(0.01, 0, false); await new Promise(rr => requestAnimationFrame(rr)); }
+  const moving = n() - b2;
+  return { mode, idleFrames: idle, movingFrames: moving };
 });
 await b.close();
 
@@ -94,6 +159,8 @@ console.log(`  merged meshes            ${m.merged}  absorbing ${m.absorbed}`);
 console.log(`  frozen transforms        ${m.frozen}`);
 console.log(`  consolidate pass         ${m.buildMs} ms at init`);
 console.log(`  render()                 ${m.ms} ms/frame  (swiftshader; indicative only)`);
+console.log(`  renderer mode            ${demand.mode === 0 ? 'MANUAL (on demand)' : 'AUTO'}`);
+console.log(`  frames drawn: idle 2 s   ${demand.idleFrames}   while panning  ${demand.movingFrames}`);
 
 if (REPORT) process.exit(0);
 let bad = 0;
@@ -104,6 +171,11 @@ A(m.visible <= MAX_MESHES, `${m.visible} drawable meshes (budget ${MAX_MESHES})`
 A(m.absorbed >= MIN_ABSORBED, `the merge absorbed ${m.absorbed} authored meshes (at least ${MIN_ABSORBED})`);
 A(m.hidden >= MIN_ABSORBED, `the originals are still in the scene, hidden (${m.hidden}) — kitchen-check measures them`);
 A(m.frozen > 1000, `static transforms frozen (${m.frozen})`);
+A(m.highlight && m.highlight.changed,
+  `selecting an element still recolours it (${m.highlight ? (m.highlight.error || m.highlight.ids + ' walls') : 'no result'}) — consolidate left fragments' own meshes alone`);
+A(demand.mode === 0, `renderer is in MANUAL mode — frames drawn on demand, not every tick`);
+A(demand.idleFrames <= 8, `idle costs only the safety heartbeat (${demand.idleFrames} frames in 2 s)`);
+A(demand.movingFrames >= 10, `panning still draws (${demand.movingFrames} frames over 30 camera steps)`);
 A(m.pickable && m.pickable.hit,
   `a hidden door leaf is still pickable (${m.pickable ? m.pickable.hiddenParts : 0} hidden parts) — double-tap still opens doors`);
 console.log(bad ? `\n${bad} CHECK(S) FAILED` : '\nALL CHECKS PASSED');
