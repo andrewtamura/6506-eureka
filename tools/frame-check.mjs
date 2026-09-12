@@ -155,6 +155,25 @@ const hud = await page.evaluate(async () => {
   return { button: true, before, on, off };
 });
 
+// The HUD's benchmark drives the renderer into AUTO on purpose — it is the only way to
+// see GPU cost on a browser with no timer query — so the thing that MUST hold is that it
+// puts the mode back. Leaving it in AUTO would silently undo render-on-demand and
+// nothing else here would notice. Also check the lights control restores exactly what it
+// switched off.
+const bench = await page.evaluate(async () => {
+  window.__eureka.togglePerf(true);
+  await new Promise(r => setTimeout(r, 300));
+  const perf = window.__eureka.perf;
+  const modeBefore = window.__eureka.world.renderer.mode;
+  const r = await perf.benchmark(2);
+  const modeAfter = window.__eureka.world.renderer.mode;
+  const before = perf.lightsOn();
+  const dim = perf.dimOtherLevels();
+  const undim = perf.dimOtherLevels();
+  window.__eureka.togglePerf(false);
+  return { modeBefore, modeAfter, ...r, lights: { before, dimmed: dim.lightsOn, restored: undim.lightsOn } };
+});
+
 // RENDER ON DEMAND. Measured against the real update loop, not by calling render()
 // ourselves: idle should cost only the safety heartbeat, and moving the camera should
 // cost real frames. The failure mode of this feature is a viewer that looks frozen, so
@@ -184,6 +203,8 @@ console.log(`  renderer mode            ${demand.mode === 0 ? 'MANUAL (on demand
 console.log(`  frames drawn: idle 2 s   ${demand.idleFrames}   while panning  ${demand.movingFrames}`);
 console.log(`  model-owned meshes still drawing separately  ${m.fragLoose}`);
 console.log(`  perf HUD                 ${hud.button ? (hud.before.exists ? 'built at startup' : 'built on first use') : 'NO BUTTON'}`);
+console.log(`  benchmark                ${bench.fps.toFixed(1)} fps flat out, ${bench.frameMs.toFixed(1)} ms/frame = ${bench.cpuMs.toFixed(1)} cpu + ${bench.other.toFixed(1)} other`);
+console.log(`  lights                   ${bench.lights.before} on -> ${bench.lights.dimmed} dimmed -> ${bench.lights.restored} restored`);
 
 if (REPORT) process.exit(0);
 let bad = 0;
@@ -200,6 +221,14 @@ A(hud.button && hud.on.shown && /draw calls/.test(hud.on.text) && /Hide/.test(hu
   `the button shows the HUD and says so (${hud.button ? hud.on.label : '—'})`);
 A(hud.button && !hud.off.shown && !/Hide/.test(hud.off.label),
   `and hides it again (${hud.button ? hud.off.label : '—'})`);
+A(bench.modeAfter === bench.modeBefore,
+  `the benchmark puts the renderer mode back (${bench.modeBefore} -> ${bench.modeAfter}) — leaving it in AUTO would undo render-on-demand`);
+A(bench.frames >= 2 && bench.fps > 0,
+  `the benchmark measures frames actually drawn (${bench.frames} in 2 s)`);
+A(bench.lights.restored === bench.lights.before,
+  `the lights control restores exactly what it switched off (${bench.lights.before} -> ${bench.lights.dimmed} -> ${bench.lights.restored})`);
+if (FULL) A(bench.lights.dimmed < bench.lights.before,
+  `dimming the other levels removes real lights (${bench.lights.before} -> ${bench.lights.dimmed})`);
 A(m.inspect && m.inspect.hit,
   `tap-to-inspect still resolves an element (${m.inspect ? (m.inspect.error || 'localId ' + m.inspect.id) : 'no result'}) — fragments picks against its own data, not the hidden meshes`);
 A(m.fragLoose <= MAX_FRAG_LOOSE,

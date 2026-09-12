@@ -1499,6 +1499,7 @@ async function main() {
   const FLOOR = modelBox.min.y + 0.2; // floor surface (slab top) in world Y
   let setPlanView = () => {};          // assigned once ceilings exist (POV opaque / plan transparent)
   let setActiveLevel = () => {};       // assigned once the level switcher is built (highlights the current level)
+  let activeLevelId = null;            // the level currently framed — perf.js dims the OTHERS to measure light cost
   const EYE = 1.63;                    // eye height for a 5'8" person (~1.63 m)
   const LOOK_DIST = 0.05;              // orbit radius indoors: ~0 so you spin in place
   const ROOM_INSET = 0.55;             // keep the standing point this far from walls (m)
@@ -1964,6 +1965,7 @@ async function main() {
   const switcherEl = document.getElementById("level-switcher");
   const SHORT = { exterior: "Lot", ground: "Ground", level2: "2nd", attic: "Attic" };
   setActiveLevel = (id) => {
+    activeLevelId = id;
     for (const b of switcherEl.querySelectorAll("[data-id]")) b.classList.toggle("active", b.dataset.id === id);
   };
   const makeTab = (id, label, title) => {
@@ -2013,6 +2015,7 @@ async function main() {
   }
   if (hasAlt) addView("Alternative Lot", () => focusLevel("exterior-alt", true));
   window.__eureka.focusLevel = focusLevel;     // debug handle: frame a level (render harness)
+  window.__eureka.activeLevel = () => activeLevelId;   // debug handle: perf.js lights control
   window.__eureka.modelViews = modelViews;     // debug handle: [{id,label,box}] (render harness)
 
   // --- lighting scenes: presets that drive the sun (time of day) and the interior
@@ -2334,8 +2337,14 @@ async function main() {
       // Decide the target state BEFORE building it — build-then-flip made the first
       // click create the HUD and hide it in the same breath.
       const want = on === undefined ? !(perf && perf.visible()) : on;
-      if (!perf) { applyDprOverride(world); perf = setupPerf({ world, scene, getExtra: () => window.__eureka.consolidated }); }
+      if (!perf) { applyDprOverride(world); perf = setupPerf({ world, scene, getExtra: () => {
+        // BOTH passes — the HUD used to report only the first, so a phone showed
+        // "merged 159 from 2167" when the true total is 238 from 2919.
+        const a = window.__eureka.consolidated || {}, b = window.__eureka.consolidatedExhibits || {};
+        return { merged: (a.merged || 0) + (b.merged || 0), absorbed: (a.absorbed || 0) + (b.absorbed || 0) };
+      } }); }
       perf.setVisible(want);
+      window.__eureka.perf = perf;   // debug handle: tools/frame-check drives benchmark + lights
       paint();
       invalidate();                 // render on demand: give the HUD a frame to report
     };
