@@ -121,6 +121,23 @@ def compute_paneling(ctx, rooms):
         ws = pan.get("wainscot")
         all_ws = ws is True
         wainscot = set() if all_ws else {sd.upper() for sd in (ws or [])}
+        # `corniceBreaks` suppresses the CROWN ONLY over named spans of a side, in plan
+        # feet: {"W": [[-11.92, -2.16]]}. The existing way to break a cornice is a `tall`
+        # span, but tallX is subtracted from the baseboard, field, battens AND chair rail
+        # too — right for a floor-to-ceiling built-in, wrong for a staircase, where the
+        # board-and-batten has to run on underneath. Plain field fills from the head line
+        # to the ceiling over the break, exactly as a `noCornice` wall does.
+        breaks = pan.get("corniceBreaks") or {}
+        # `rakedCornice` is the other half of the same detail: where a stair soffit cuts
+        # across, the crown returns and climbs the rake. Per side, a list of
+        # {pz0,y0,pz1,y1} (or px0/px1 on an N/S wall) in plan feet.
+        raked = pan.get("rakedCornice") or {}
+        # `coved` turns on the coved ceiling. It is IMPLIED by a cornice (the crown
+        # springs it), so this only has to be set for a room with `noCornice` that is
+        # coved anyway — the sitting and family rooms.
+        cv = pan.get("coved")
+        all_cv = cv is True
+        coved = set() if all_cv else {sd.upper() for sd in (cv or [])}
         for orient, fixed, lo, hi, face, normal, side in [
             ("H", z1, x1, x2, z1 + half, [0, 1], "S"),
             ("H", z2, x1, x2, z2 - half, [0, -1], "N"),
@@ -137,6 +154,9 @@ def compute_paneling(ctx, rooms):
                 "noCornice": all_sides or side in no_cornice,
                 "noBattens": no_battens,
                 "wainscot": all_ws or side in wainscot,
+                "coved": not (all_sides or side in no_cornice) or all_cv or side in coved,
+                "corniceBreaks": [[round(a, 3), round(b, 3)] for a, b in breaks.get(side, [])],
+                "rakedCornice": raked.get(side, []),
             })
 
 

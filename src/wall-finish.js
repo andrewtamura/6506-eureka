@@ -334,6 +334,44 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       }
     }
 
+    // A COVED CEILING is independent of the entablature. A corniced room springs it off
+    // the crown; a room with no entablature (the sitting and family rooms) springs it
+    // off the plain wall the same distance below the ceiling, so every coved room reads
+    // with the same curve. `coved` in the room's paneling turns it on, and is implied
+    // for any wall that carries a cornice.
+    // The band between the 7 ft head line and the ceiling is shared EQUALLY by the
+    // ENTABLATURE and the COVE above it — that is the ratio the owner's photographed
+    // corners show. Derived rather than hard-coded so it survives a change of ceiling
+    // height: at 9'0" that was 12 in each, at 9'6" it is 15 in each.
+    const CEIL_BAND = wallTop - headY;
+    const COVE_H = CEIL_BAND / 2;
+    const sweepCove = (s0, s1, springY) => {
+      const H = wallTop - springY, Rc = H;
+      if (H < 0.02) return;
+      const A = P(s0), B = P(s1), L = A.distanceTo(B);
+      if (L < 0.02) return;
+      const up = new THREE.Vector3(0, 1, 0);
+      const zAxis = new THREE.Vector3().crossVectors(Nw, up).normalize();
+      const start = zAxis.dot(B.clone().sub(A)) >= 0 ? A : B;
+      // A cove is a HOLLOW: tangent to the WALL where it springs and tangent to the
+      // CEILING where it dies, so the control point sits at the intersection of those
+      // two tangents — the wall/ceiling corner, (0.012, H). Putting it at (Rc, 0) is the
+      // same quarter-round turned inside out — a bullnose bulging INTO the room — and
+      // that is what shipped first, because at a glance in a render the two look alike.
+      const cove = new THREE.Shape();
+      cove.moveTo(0.012, 0);                      // springs off the field's face
+      cove.quadraticCurveTo(0.012, H, Rc, H);     // the hollow
+      cove.lineTo(0, H);                          // back along the ceiling to the wall
+      cove.lineTo(0, 0);                          // down the wall plane
+      cove.lineTo(0.012, 0);
+      const cgeo = new THREE.ExtrudeGeometry(cove, { depth: L, bevelEnabled: false, curveSegments: 10 });
+      const cmesh = new THREE.Mesh(cgeo, field);
+      cmesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(Nw, up, zAxis));
+      cmesh.position.set(start.x, floorY + springY, start.z);
+      cmesh.castShadow = true; cmesh.receiveShadow = true;
+      scene.add(cmesh);
+    };
+
     // A wall can opt out of the entablature (`noCornice`) while keeping the rest of
     // the trim program — the crown, its frieze and bed mould, and the plain field
     // above them all belong to this block.
@@ -344,8 +382,15 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       //    height equals the frieze height. The crown runs on all four walls and
       //    miters at the corners, but BREAKS around full-height built-ins (`tall`),
       //    which run past the cornice; plain wall fills above each built-in instead.
-      const topperH = 0.03, bedH = 0.04, P5 = 0.127;   // topper / bed-mold / 5" projection (m)
-      const friezeH = 0.16, coveH = friezeH;   // frieze height == cove height (per spec)
+      // The cove used to be whatever the entablature left over — 8.65 in against its
+      // 15.4 — which is why it read as a gap rather than a designed curve. Now they
+      // split the band; see CEIL_BAND above. The crown's projection scales with its
+      // height or the profile stops being the same moulding.
+      // ...so the entablature scales to whatever half the band is. Its own proportions
+      // are fixed (0.39 m at full size) and ENT_K keeps them.
+      const ENT_K = COVE_H / 0.39;
+      const topperH = 0.03 * ENT_K, bedH = 0.04 * ENT_K, P5 = 0.127 * ENT_K;
+      const friezeH = 0.16 * ENT_K, coveH = friezeH;   // frieze height == cove height (per spec)
       const Hc = coveH + topperH;             // total crown height
       const friezeTop = headY + friezeH;      // frieze bottom sits on the opening head
       const crownB = friezeTop + bedH;        // crown springline (bottom of crown)
@@ -356,11 +401,22 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       // RIGHT-HANDED basis (X->interior normal, Y->up, Z->normal x up) so the
       // rotation is valid on all four walls; the extrusion starts from whichever
       // span end lies in the +Z direction.
-      for (const [s0, s1] of subtract(w.lo, w.hi, tallX, 0, 0.05)) {
+      // A CORNICE BREAK is a span where the crown alone stops — a stair soffit cutting
+      // across. Unlike a `tall` span it does not touch the baseboard, field, battens or
+      // chair rail, which run on underneath (see the photos of the foyer: the
+      // board-and-batten continues right under the stair). Plain field fills from the
+      // head line to the ceiling over the break, the same as a `noCornice` wall.
+      const brk = (w.corniceBreaks || []).map(([a, b]) => [Math.min(a, b), Math.max(a, b)]);
+      for (const [a, b] of brk) band(a, b, headY, wallTop, 0.012, field);
+      for (const [s0, s1] of subtract(w.lo, w.hi, [...tallX, ...brk], 0, 0.05)) {
         band(s0, s1, headY, friezeTop, 0.024);             // FRIEZE — sits on the opening head
         band(s0, s1, friezeTop, friezeTop + 0.018, 0.05);  // bed mold: lower bead
         band(s0, s1, friezeTop + 0.018, crownB, 0.058);    // bed mold: upper step
-        band(s0, s1, crownTop, wallTop, 0.012, field);     // plain wall above the cornice, up to the ceiling
+        // Above the crown the plaster curves into the ceiling rather than meeting it at
+        // an arris. Inside this loop, so it inherits the cornice's spans for free: no
+        // cove over the foyer's stair break, which is right — there is a stairwell void
+        // up there and no ceiling to curve into.
+        sweepCove(s0, s1, crownTop);
         const A = P(s0), B = P(s1), L = A.distanceTo(B);
         const up = new THREE.Vector3(0, 1, 0);
         const zAxis = new THREE.Vector3().crossVectors(Nw, up).normalize(); // right-handed third axis
@@ -381,12 +437,50 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       }
       // plain wall above each full-height built-in (from its head up to the ceiling)
       for (const [a, b, th] of tall) band(a, b, th * ft, wallTop, 0.012, field);
+      // RAKED CROWN. Where the stair soffit comes down, the level cornice returns and
+      // the crown climbs the rake beside the flight — the detail in the foyer photos.
+      // Same profile as the level run; the only difference is the basis it is extruded
+      // along. The level crown uses (Nw, up, along); a rake swaps `up` for the axis
+      // perpendicular to the SLOPING direction within the wall plane, so the section
+      // stays square to the moulding rather than shearing.
+      for (const r of w.rakedCornice || []) {
+        const s0 = r.pz0 ?? r.px0, s1 = r.pz1 ?? r.px1;
+        const A = P(s0), B = P(s1);
+        const y0 = floorY + r.y0 * ft, y1 = floorY + r.y1 * ft;
+        const along = new THREE.Vector3(B.x - A.x, (y1 - y0) / 1, B.z - A.z).normalize();
+        // perpendicular to the run, in the wall plane, pointing up
+        const upR = new THREE.Vector3().crossVectors(along, Nw).normalize();
+        if (upR.y < 0) { upR.negate(); }
+        const zR = new THREE.Vector3().crossVectors(Nw, upR).normalize();
+        // extrude from whichever end lies in +zR, so the run goes s0..s1
+        const fwd = zR.dot(new THREE.Vector3(B.x - A.x, y1 - y0, B.z - A.z)) >= 0;
+        const start = fwd ? A : B, startY = fwd ? y0 : y1;
+        const L = Math.hypot(B.x - A.x, y1 - y0, B.z - A.z);
+        const shape = new THREE.Shape();
+        shape.moveTo(0, 0);
+        shape.lineTo(0, 0.016);
+        shape.quadraticCurveTo(0, coveH, 0.08, coveH);
+        shape.lineTo(P5, Hc - 0.012);
+        shape.lineTo(P5, Hc);
+        shape.lineTo(0, Hc);
+        shape.lineTo(0, 0);
+        const geo = new THREE.ExtrudeGeometry(shape, { depth: L, bevelEnabled: false });
+        const crown = new THREE.Mesh(geo, crownMat);
+        crown.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(Nw, upR, zR));
+        crown.position.set(start.x, startY, start.z);
+        scene.add(crown);
+      }
     } else {
       // With no entablature the field has to carry on from the head line to the
       // ceiling itself — the band that normally fills above the crown lives inside
       // the block above, so without this the wall is bare from 7'0" up.
-      for (const [s0, s1] of subtract(w.lo, w.hi, [...tallX, ...trans], 0, 0.05))
-        band(s0, s1, headY, wallTop, 0.012, field);
+      // A room with no entablature can still be coved (the sitting and family rooms are):
+      // the field then stops at the cove's spring line instead of running to the ceiling.
+      const fieldTop = w.coved ? wallTop - COVE_H : wallTop;
+      for (const [s0, s1] of subtract(w.lo, w.hi, [...tallX, ...trans], 0, 0.05)) {
+        band(s0, s1, headY, fieldTop, 0.012, field);
+        if (w.coved) sweepCove(s0, s1, fieldTop);
+      }
       for (const [a, b, th] of tall) band(a, b, th * ft, wallTop, 0.012, field);
     }
 

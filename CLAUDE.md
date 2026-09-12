@@ -221,6 +221,65 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   in `tools/shot.mjs` searches BOTH containers for this reason — it looked only in
   `#scenes` and would silently have matched nothing. Note Night now lights the LOT only,
   so an interior night render needs `selectLighting('ground')` as well.
+- **A corniced ceiling is COVED, and the cove is a wall-finish member, not a ceiling one.**
+  Above the crown the plaster curves out and turns into the ceiling. It replaces the flat
+  band that used to fill `crownTop..wallTop` in `src/wall-finish.js`, which is why it
+  needs no generator change, no manifest and no IFC regen — and why it inherits the
+  cornice's spans for free, so the foyer gets none over its stair break. The gap it fills
+  is ~8.65 in, which doubles as the cove radius. In the profile, the quadratic's control
+  point at `(Rc, 0)` is what makes the face CONCAVE from the room; `(0.012, H)` curves it
+  the other way and reads as a bullnose.
+  **A cove is independent of the entablature.** `coved` in a room's paneling turns it on
+  and is IMPLIED by a cornice; the sitting and family rooms carry `noCornice: true` and
+  `coved: true`, so their cove springs straight off the plain wall. `COVE_H` is set to
+  the corniced rooms' `wallTop - crownTop` so every coved room springs at the same
+  height and reads alike. Expect the uncorniced ones to read SOFTLY — with no crown
+  beneath it there is no shadow line to catch the curve, which is what a plain coved
+  ceiling actually looks like; measure it rather than hunting for it with the camera.
+  **A cove is a HOLLOW: tangent to the wall where it springs, tangent to the ceiling
+  where it dies, so the quadratic's control point sits at the wall/ceiling corner
+  `(0.012, H)`.** Putting it at `(Rc, 0)` is the same quarter-round turned inside out — a
+  bullnose bulging into the room — and that is what shipped first, because in a render
+  the two look alike at a glance. A photographed corner settles it; so does the harness.
+  **The entablature and the cove SPLIT the band between the head line and the ceiling**,
+  which is the ratio the photographed corners show. Both are derived from
+  `CEIL_BAND = wallTop - headY` rather than hard-coded, so they survive a change of
+  ceiling height: at 9'0" that was 12 in each, at 9'6" it is 15 in each. Originally the
+  entablature took a fixed 0.39 m and the cove was the 8.65 in left over, which is why
+  it read as a gap rather than a designed curve.
+  `kitchen-check` proves it is a cove rather than a deeper flat band by VERTEX COUNT — a
+  `BoxGeometry` has 24, the swept section has 144 — and proves it curves the RIGHT WAY by
+  SOLID VOLUME, which is the only thing that separates a hollow from a bullnose of the
+  same bounding box: section/R² reads 0.203 for the cove and 0.837 flipped. The `loose`
+  list carries a per-mesh volume for exactly this. Scope the "stops at the stair" test to
+  the WEST wall: the south wall's cove runs its full length and should, so an unscoped
+  test just fails on it. And match coves to rooms by CENTRE-in-box, not overlap — the
+  foyer's west wall and the dining room's east wall are the same line, so an overlap test
+  hands each room the other's cove.
+- **A room with a cornice cannot carry glazing above the head line.** The frieze seats
+  directly ON `headFt` and the crown tops out ~1.3 ft above it, so a transom over a door
+  drives straight through frieze, bed mould and crown. Giving the foyer a trim program
+  did exactly that to the steel screen's full-width transom (7.06-8.67). The screen now
+  stops at 7.0 ft — two sidelights and the door, nothing glazed above — and
+  `tools/ifc_check.py` asserts it for every corniced wall. That check has to match on the
+  wall's ALONG-EXTENT as well as its line: the dining room's north wall and the
+  vestibule's share z = 16.0833, and without the span test the front door's transom, 20 ft
+  away over a `noCornice` room, was reported as running through the dining room's cornice.
+- **Breaking a cornice is NOT the same as a `tall` span.** `tallX` is subtracted from the
+  baseboard, field, battens AND chair rail as well as the crown — right for a
+  floor-to-ceiling built-in, wrong for a staircase, where the board-and-batten has to run
+  on underneath. `corniceBreaks` (per side, plan-feet spans) suppresses the crown only and
+  fills plain field from the head line to the ceiling, and `rakedCornice` sweeps the same
+  crown profile up a slope beside the flight. Both are set in the room's
+  `interior.paneling` and emitted per wall by `compute_paneling`.
+  The foyer's numbers come from the BUILT stair, not from `stairLayout`'s
+  eastOffset/northOffset signs, which are easy to get backwards: run 1 is against the
+  EAST wall climbing south, run 2 against the WEST climbing north through the void, and
+  run 2's soffit is `y = 7.94 + 0.769*(pz + 2.6)` ft, crossing the 8.28 ft crown top at
+  pz -2.16. Measure the stair meshes rather than re-deriving this.
+  One trap when asserting west-wall trim: filter on the member's px EXTENT (a west-wall
+  run is only its ~5 in projection wide), or the SOUTH wall's crown — 11 ft of px ending
+  at that very corner — is caught too and reports the level crown reaching pz -11.69.
 - **A skylight is DAYLIGHT, not a lamp — and not a constant either.** Each scullery well
   carries a PointLight under its glazing, and both that light and the glazing's emissive
   are scaled by the sun's own `day` factor through `onTime` (`src/main.js`), so the well
@@ -237,6 +296,16 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   slab's underside and 3 mm INSIDE the opening (flush with the slab's cut edge the two
   faces are coplanar and z-fight). The harness measures it in world metres against the
   real ceiling, and that guard was confirmed to fail on the old geometry.
+- **`wallHeight` (finished floor-to-ceiling, 9.5) and `storyHeight` (floor-to-floor, 10)
+  are INDEPENDENT** in `ifc/model.json`. Raising `wallHeight` alone is interior-only
+  while `wallHeight + slabThickness` still fits inside `storyHeight` — nothing outside
+  moves, and the foyer stair keeps its `floorToFloor: 10` and its 15 risers. Past about
+  9'9" the story height has to rise too, which re-cuts the exterior massing, the eaves,
+  the upper floors and the stair.
+  To tell a REAL geometry change from the generator's GUID/timestamp churn, diff the
+  sorted multiset of decimal literals in each `.ifc` before and after: raising the
+  ceiling moved `ground` by exactly one value (2.7432 -> 2.8956) and left `attic`
+  bit-identical in coordinates, so only the files that really moved need committing.
 - **A phone is ~3.5x slower per draw call.** The device reported 304 calls in 22 ms
   (~72 us each) against ~20 us in this container. Scale any draw-call saving measured
   here up by about that much before deciding it is not worth doing.

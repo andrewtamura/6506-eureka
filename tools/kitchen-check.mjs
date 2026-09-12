@@ -137,7 +137,28 @@ const raw = await page.evaluate(() => {
     // check on trim needs to answer. A BoxGeometry has 24; an extruded cove/ovolo
     // section has hundreds.
     const pos = o.geometry && o.geometry.getAttribute && o.geometry.getAttribute('position');
-    loose.push([mb.min.x, mb.min.y, mb.min.z, mb.max.x, mb.max.y, mb.max.z, pos ? pos.count : 0]);
+    // SOLID VOLUME too, the same divergence sum the item loop uses. A bounding box and a
+    // vertex count cannot tell a concave cove from a convex bullnose of the same size —
+    // and getting that backwards is exactly what shipped once. Their sections differ by
+    // 3.6x: a fillet is R^2(1 - pi/4), a quarter-disc is pi*R^2/4.
+    // Defensive: SOME mesh in the scene trips this sum, and one odd geometry must not
+    // take the whole measurement down. A zero volume is not silent — the cove assertions
+    // divide by it and fail loudly — so swallowing the throw cannot hide a real problem.
+    let lv = 0;
+    try {
+      if (pos && pos.count <= 60000) {
+        const gm = o.geometry, idx = gm.getIndex(), n = idx ? idx.count : pos.count;
+        const gx = (i) => { const j = idx ? idx.getX(i) : i; return [pos.getX(j), pos.getY(j), pos.getZ(j)]; };
+        for (let i = 0; i + 2 < n; i += 3) {
+          const a = gx(i), b = gx(i + 1), c = gx(i + 2);
+          if (!a || !b || !c) break;
+          lv += (a[0] * (b[1] * c[2] - b[2] * c[1]) - a[1] * (b[0] * c[2] - b[2] * c[0])
+               + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6;
+        }
+      }
+    } catch (e) { lv = 0; }
+    loose.push([mb.min.x, mb.min.y, mb.min.z, mb.max.x, mb.max.y, mb.max.z, pos ? pos.count : 0,
+                Math.abs(lv)]);
   });
   // LIGHTS. Global, not folded into the item loop above: semiFlush and the attic
   // downlights hang off no userData.item, and they are the ones that were uncapped.
@@ -239,6 +260,7 @@ raw.doorLeaves = (raw.doorLeaves || []).map(d => ({ name: d.name, parts: d.parts
   pzLo: -d.zmax / FT, pzHi: -d.zmin / FT, pxLo: -d.xmax / FT, pxHi: -d.xmin / FT }));
 
 const R = (v, n = 4) => +v.toFixed(n);
+const R2 = (v) => +v.toFixed(3);
 let fail = 0; const A = (ok, m) => { if (!ok) fail++; console.log((ok ? '  PASS  ' : '  FAIL  ') + m); };
 const conv = (r, fy) => ({ ...r, pxLo: -r.max[0] / FT, pxHi: -r.min[0] / FT,
   pzLo: -r.max[2] / FT, pzHi: -r.min[2] / FT, yLo: (r.min[1] - fy) / FT, yHi: (r.max[1] - fy) / FT });
@@ -247,7 +269,7 @@ const P = raw.items.map(r => conv(r, r.floorY));
 // the same scene — so take it from a piece known to be in this room.
 const FY = (P.find(r => r.type === 'island') || P[0]).floorY;
 const L = raw.loose.map(a => ({ pxLo: -a[3] / FT, pxHi: -a[0] / FT, pzLo: -a[5] / FT, pzHi: -a[2] / FT,
-  yLo: (a[1] - FY) / FT, yHi: (a[4] - FY) / FT, nv: a[6] || 0 }));
+  yLo: (a[1] - FY) / FT, yHi: (a[4] - FY) / FT, nv: a[6] || 0, vol: (a[7] || 0) / (FT * FT * FT) }));
 // NOTE ON BOXES: pxLo/pxHi/pzLo/pzHi come from Box3.setFromObject, which returns the box
 // OF THE GEOMETRY'S BOX after transform — so any mesh with its own rotation reports wider
 // than it is (a 40 mm post turned 45 deg measures 80 mm), and the item's yaw inflates it
@@ -1437,6 +1459,121 @@ console.log('EXTENSION');
 // NOTE ON SCOPE: this runs under `?solo=ground`, so it sees ground-floor lights only.
 // The attic's 12 spots and level 2's semi-flushes need one run with
 // CHECK_URL=http://localhost:5173/ — see CLAUDE.md on dropping `?solo`.
+// FOYER TRIM. The foyer had no trim program at all until now — no `interior.paneling`,
+// so compute_paneling skipped it. It carries the dining room's, with the crown broken
+// around the staircase and a raked run climbing beside the upper flight.
+// Measured from the BUILT wall-finish meshes (the `loose` list), which read LOOSE_DY low.
+{
+  console.log('\nFOYER TRIM');
+  const DY = 0.066;
+  const WWALL = 14.8541;                 // the foyer's west wall face, in plan feet
+  // A west-wall member runs along z, so its px extent is only its projection (~5 in).
+  // Without that last clause the SOUTH wall's crown — 11 ft of px, ending at this very
+  // corner — is caught too, and reports the level crown reaching pz -11.69.
+  const onWest = (m) => m.pxHi > WWALL - 0.55 && m.pxLo < WWALL + 0.05
+    && (m.pxHi - m.pxLo) < 0.7 && m.pzLo > -12.1 && m.pzHi < 10.4;
+  const west = L.filter(onWest);
+  A(west.length > 0, `the foyer's west wall carries wall finish at all (${west.length} members)`);
+
+  // 1) the RAKED crown: one SLOPING MOULDING beside the upper flight. It has to be
+  // told apart from the big plain field panels, which are also tall and long — the
+  // moulding PROJECTS ~5 in from the wall, a field band is 0.04 ft of skim.
+  const proud = (m) => (m.pxHi - m.pxLo) > 0.2;
+  const raked = west.filter(m => proud(m) && (m.yHi - m.yLo) > 3 && (m.pzHi - m.pzLo) > 4);
+  A(raked.length === 1, `one raked crown climbs beside the stair (${raked.length})`);
+  if (raked[0]) {
+    const r = raked[0];
+    A(r.pzLo > -8.2 && r.pzHi < -1.8,
+      `it runs the flight, pz ${R(r.pzLo,2)}..${R(r.pzHi,2)} (inside the stair's reach)`);
+    A(r.yLo > 3.2 && r.yLo < 4.2, `springing from the landing height (${R(r.yLo,2)} ft)`);
+    A(r.yHi > 7.6 && r.yHi < 8.6, `and meeting the level crown line (${R(r.yHi,2)} ft)`);
+  }
+
+  // 2) the LEVEL crown runs the north end and STOPS SHORT of the stair. Asserted on the
+  // southernmost crown member, not on "is there one south of X" — the level run is a
+  // single span from the break to the north wall, so a "none past X" test would pass
+  // just as happily with the break removed, and prove nothing.
+  const crown = west.filter(m => proud(m) && m.yLo > 7.4 && m.yHi < 8.5 && (m.yHi - m.yLo) < 1);
+  A(crown.length > 0, `the level cornice runs the north end (${crown.length} members)`);
+  const southMost = crown.length ? Math.min(...crown.map(m => m.pzLo)) : -99;
+  A(southMost > -3,
+    `and stops short of the stair (southernmost at pz ${R(southMost,2)}; unbroken it would reach -11.92)`);
+
+  // 3) ...but the BOARD-AND-BATTEN carries on underneath, which is the whole reason a
+  // `tall` span was not used for the break: tallX kills the base and battens too.
+  const baseRun = west.filter(m => m.yLo < 0.1 && m.yHi > 0.6 && m.yHi < 1.0
+    && m.pzLo < -6 && m.pzHi > -4);
+  A(baseRun.length > 0, `the baseboard runs straight under the stair (${baseRun.length} run)`);
+  const battensUnder = west.filter(m => m.pzHi < -3 && m.yLo > 0.5 && m.yHi > 2.5 && (m.pzHi - m.pzLo) < 0.25);
+  A(battensUnder.length > 0, `and so do the battens (${battensUnder.length})`);
+}
+
+// COVED CEILINGS. Both rooms that carry the cornice curve the plaster out of the wall
+// and into the ceiling rather than meeting it at an arris. The cove REPLACES the flat
+// band that used to fill crownTop..wallTop, so it inherits the cornice's spans — which
+// is why the foyer gets none over the stair break.
+{
+  console.log('\nCOVED CEILINGS');
+  // crownTop 8.28 ft and wallTop 9.0, both reading LOOSE_DY low. The giveaway against
+  // the flat band it replaced is the PROJECTION: a cove is ~0.72 ft deep where the band
+  // was 0.012 m of skim, and that is the smaller of its two plan extents whichever wall
+  // it is on.
+  // The entablature and the cove split the band between the 7 ft head line and the
+  // ceiling, so both ends move with the ceiling height: at 9'6" the cove springs at
+  // crownTop = 8.25 ft and dies at 9.5, each reading LOOSE_DY low.
+  const isCove = (m) => m.yLo > 8.05 && m.yLo < 8.35 && m.yHi > 9.35
+    && Math.min(m.pxHi - m.pxLo, m.pzHi - m.pzLo) > 0.5;
+  // Centre-in-box, not overlap: the foyer's west wall and the dining room's east wall
+  // are the same line (x 15.0833), so an overlap test hands each room the other's cove.
+  const inRoom = (m, x0, x1, z0, z1) => {
+    const cx = (m.pxLo + m.pxHi) / 2, cz = (m.pzLo + m.pzHi) / 2;
+    return cx > x0 && cx < x1 && cz > z0 && cz < z1;
+  };
+  // All four coved rooms. The sitting and family rooms have NO entablature, so their
+  // cove springs straight off the plain wall — at the same height, because COVE_H is
+  // set to the corniced rooms' wallTop - crownTop so every coved room reads alike.
+  // They share the z = 0 wall, which centre-in-box separates.
+  const ROOMS = [['foyer', 3.9167, 15.0833, -11.9167, 10.1667],
+                 ['dining', 15.0833, 31, 2, 16.0833],
+                 ['sitting', -12, 3.9167, 0, 16.0833],
+                 ['family', -12, 3.9167, -11.9167, 0]];
+  for (const [name, x0, x1, z0, z1] of ROOMS) {
+    const c = L.filter(m => isCove(m) && inRoom(m, x0, x1, z0, z1));
+    A(c.length > 0, `${name}: the ceiling is coved (${c.length} runs off the crown)`);
+    // THE assertion that distinguishes a cove from simply a deeper flat band: a
+    // BoxGeometry has 24 vertices, a swept section has hundreds.
+    A(c.length > 0 && c.every(m => m.nv > 100),
+      `${name}: swept, not a thicker flat band (${[...new Set(c.map(m => m.nv))].join(', ')} verts; a box is 24)`);
+    // ...and swept the RIGHT WAY ROUND. A hollow and a bullnose share a bounding box and
+    // a vertex count; only the solid volume separates them. Section area / R^2 is
+    // 1 - pi/4 = 0.215 for the fillet a cove is, and pi/4 = 0.785 for the quarter-disc
+    // it is not. The first cut of this shipped the bullnose.
+    for (const m of c) {
+      const R = Math.min(m.pxHi - m.pxLo, m.pzHi - m.pzLo);
+      const len = Math.max(m.pxHi - m.pxLo, m.pzHi - m.pzLo);
+      const k = m.vol / (R * R * len);
+      A(k > 0.13 && k < 0.32,
+        `${name}: hollow, not a bullnose (section/R\u00b2 = ${R2(k)}; a cove is 0.215, a bullnose 0.785)`);
+    }
+  }
+  // ...and specifically on the WEST wall, which is the one the stair breaks. Scoped to
+  // that wall on purpose: the SOUTH wall's cove runs its full length and should, so an
+  // unscoped "nothing south of pz -3" test just fails on it.
+  // Identify the west wall by the cove's OUTER edge sitting on the wall face (14.854),
+  // not by its centre: the centre moves whenever the cove's projection changes, and it
+  // did — going from a 9'0" ceiling to 9'6" took the projection from 0.98 ft to 1.25 and
+  // the centre slid right past a 14.3 threshold.
+  // A WEST-wall member runs along z, so its px extent (just the projection) is smaller
+  // than its pz extent. That last clause is orientation-based and therefore scale-free —
+  // the SOUTH wall's cove also has its outer edge at px 15.08 and was caught without it,
+  // reporting the west wall's cove reaching pz -11.69. Same trap as the crown's.
+  const westCove = L.filter(m => isCove(m) && inRoom(m, 3.9167, 15.0833, -11.9167, 10.1667)
+    && m.pxHi > 14.6 && (m.pxHi - m.pxLo) < (m.pzHi - m.pzLo));
+  const southMostCove = westCove.length ? Math.min(...westCove.map(m => m.pzLo)) : 0;
+  A(westCove.length > 0 && southMostCove > -3,
+    `foyer: the west wall's cove stops at the stair like its cornice (southernmost pz ${R(southMostCove, 2)})`);
+}
+
 {
   const LI = raw.lights || [];
   console.log('\nLIGHT FALLOFF');

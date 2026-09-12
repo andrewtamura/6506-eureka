@@ -69,6 +69,27 @@
         "material": "oak",
         "railMaterial": "walnut"
       }
-    ]
+    ],
+    "paneling": {
+      "baseboard": 10,
+      "corniceBreaks": {
+        "W": [
+          [
+            -11.9167,
+            -2.2
+          ]
+        ]
+      },
+      "rakedCornice": {
+        "W": [
+          {
+            "pz0": -2.2,
+            "y0": 7.641,
+            "pz1": -7.32,
+            "y1": 3.69
+          }
+        ]
+      }
+    }
   }
 }

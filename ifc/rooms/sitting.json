@@ -37,7 +37,8 @@
     "paneling": {
       "baseboard": 10,
       "noCornice": true,
-      "battens": false
+      "battens": false,
+      "coved": true
     }
   }
 }

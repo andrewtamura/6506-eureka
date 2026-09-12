@@ -34,7 +34,10 @@
       "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
-      "wainscot": false
+      "wainscot": false,
+      "coved": true,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "x",
@@ -59,7 +62,10 @@
       "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
-      "wainscot": false
+      "wainscot": false,
+      "coved": true,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "z",
@@ -88,7 +94,10 @@
       "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
-      "wainscot": false
+      "wainscot": false,
+      "coved": true,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "z",
@@ -108,7 +117,10 @@
       "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
-      "wainscot": false
+      "wainscot": false,
+      "coved": true,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "x",
@@ -133,7 +145,10 @@
       "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
-      "wainscot": false
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "x",
@@ -166,7 +181,10 @@
       "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
-      "wainscot": false
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "z",
@@ -186,7 +204,10 @@
       "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
-      "wainscot": false
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "z",
@@ -219,7 +240,10 @@
       "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
-      "wainscot": false
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "x",
@@ -244,7 +268,10 @@
       "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
-      "wainscot": false
+      "wainscot": false,
+      "coved": true,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "x",
@@ -277,7 +304,10 @@
       "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
-      "wainscot": false
+      "wainscot": false,
+      "coved": true,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "z",
@@ -297,7 +327,10 @@
       "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
-      "wainscot": false
+      "wainscot": false,
+      "coved": true,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "z",
@@ -322,7 +355,10 @@
       "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
-      "wainscot": false
+      "wainscot": false,
+      "coved": true,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "x",
@@ -355,7 +391,10 @@
       "bareDoors": [],
       "noCornice": false,
       "noBattens": false,
-      "wainscot": false
+      "wainscot": false,
+      "coved": true,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "x",
@@ -388,7 +427,10 @@
       "bareDoors": [],
       "noCornice": false,
       "noBattens": false,
-      "wainscot": false
+      "wainscot": false,
+      "coved": true,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "z",
@@ -413,7 +455,10 @@
       "bareDoors": [],
       "noCornice": false,
       "noBattens": false,
-      "wainscot": false
+      "wainscot": false,
+      "coved": true,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "z",
@@ -446,7 +491,143 @@
       "bareDoors": [],
       "noCornice": false,
       "noBattens": false,
-      "wainscot": false
+      "wainscot": false,
+      "coved": true,
+      "corniceBreaks": [],
+      "rakedCornice": []
+    },
+    {
+      "along": "x",
+      "at": -11.6875,
+      "normal": [
+        0,
+        1
+      ],
+      "side": "S",
+      "lo": 3.917,
+      "hi": 15.083,
+      "doors": [],
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [],
+      "bareDoors": [],
+      "noCornice": false,
+      "noBattens": false,
+      "wainscot": false,
+      "coved": true,
+      "corniceBreaks": [],
+      "rakedCornice": []
+    },
+    {
+      "along": "x",
+      "at": 9.9375,
+      "normal": [
+        0,
+        -1
+      ],
+      "side": "N",
+      "lo": 3.917,
+      "hi": 15.083,
+      "doors": [
+        [
+          8.0,
+          11.0
+        ]
+      ],
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [
+        [
+          4.646,
+          7.94
+        ],
+        [
+          11.06,
+          14.354
+        ]
+      ],
+      "bareDoors": [
+        [
+          8.0,
+          11.0
+        ]
+      ],
+      "noCornice": false,
+      "noBattens": false,
+      "wainscot": false,
+      "coved": true,
+      "corniceBreaks": [],
+      "rakedCornice": []
+    },
+    {
+      "along": "z",
+      "at": 4.1459,
+      "normal": [
+        1,
+        0
+      ],
+      "side": "E",
+      "lo": -11.917,
+      "hi": 10.167,
+      "doors": [
+        [
+          2.67,
+          9.67
+        ]
+      ],
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [],
+      "bareDoors": [],
+      "noCornice": false,
+      "noBattens": false,
+      "wainscot": false,
+      "coved": true,
+      "corniceBreaks": [],
+      "rakedCornice": []
+    },
+    {
+      "along": "z",
+      "at": 14.8541,
+      "normal": [
+        -1,
+        0
+      ],
+      "side": "W",
+      "lo": -11.917,
+      "hi": 10.167,
+      "doors": [
+        [
+          2.67,
+          9.67
+        ]
+      ],
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [],
+      "bareDoors": [],
+      "noCornice": false,
+      "noBattens": false,
+      "wainscot": false,
+      "coved": true,
+      "corniceBreaks": [
+        [
+          -11.917,
+          -2.2
+        ]
+      ],
+      "rakedCornice": [
+        {
+          "pz0": -2.2,
+          "y0": 7.641,
+          "pz1": -7.32,
+          "y1": 3.69
+        }
+      ]
     },
     {
       "along": "x",
@@ -466,12 +647,7 @@
       ],
       "windows": [],
       "tall": [],
-      "transoms": [
-        [
-          4.646,
-          14.354
-        ]
-      ],
+      "transoms": [],
       "sidelights": [
         [
           4.646,
@@ -490,7 +666,10 @@
       ],
       "noCornice": true,
       "noBattens": true,
-      "wainscot": false
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "x",
@@ -520,7 +699,10 @@
       "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
-      "wainscot": false
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "z",
@@ -540,7 +722,10 @@
       "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
-      "wainscot": false
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "z",
@@ -560,7 +745,10 @@
       "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
-      "wainscot": false
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "x",
@@ -585,7 +773,10 @@
       "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
-      "wainscot": false
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "x",
@@ -605,7 +796,10 @@
       "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
-      "wainscot": false
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "z",
@@ -632,7 +826,10 @@
       "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
-      "wainscot": false
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "z",
@@ -657,7 +854,10 @@
       "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
-      "wainscot": false
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "x",
@@ -702,7 +902,10 @@
       "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
-      "wainscot": false
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "x",
@@ -731,7 +934,10 @@
       "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
-      "wainscot": true
+      "wainscot": true,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "z",
@@ -758,7 +964,10 @@
       "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
-      "wainscot": false
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
     },
     {
       "along": "z",
@@ -785,7 +994,10 @@
       "bareDoors": [],
       "noCornice": true,
       "noBattens": true,
-      "wainscot": false
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
     }
   ]
 }
