@@ -1540,6 +1540,42 @@ console.log('EXTENSION');
   A(battensUnder.length > 0, `and so do the battens (${battensUnder.length})`);
 }
 
+// THE FOYER'S SCREEN WALL IS GLAZING, NOT PANELLING. Its north wall carries the steel
+// screen, and the battens were running straight across the sidelights: the batten loop
+// stops a batten at a sill only for members of `wins`, and compute_paneling files
+// sidelights under `sides`, which is consulted only for jamb CLEARANCE. So a batten
+// landing mid-sidelight was neither stopped nor skipped and ran floor-to-head over the
+// glass. Asserted as an ABSENCE, so it is paired with a presence check on another wall —
+// on its own it would pass just as happily if the trim program stopped running at all.
+{
+  console.log('\nFOYER SCREEN WALL');
+  // A batten is a `post`: BATTEN_W = 0.0254 m across the wall (0.083 ft) by a 0.03 m
+  // projection (0.098 ft), running baseboard to head. BOTH extents have to match or the
+  // filter also catches field panels (0.012 m thick), casing jambs (0.33 ft) and the
+  // screen's own mullions — which is exactly what it did at first, reporting five
+  // "battens" that were nothing of the kind.
+  const NFACE = 10.1667 - 0.22915;              // foyer z2 minus half a wall = 9.9375
+  const WFACE = 15.0833 - 0.22915;
+  const near = (v, want, tol = 0.03) => Math.abs(v - want) < tol;
+  const tall = (m) => (m.yHi - m.yLo) > 3;
+  // on an x-running wall the batten's width is in px and its projection in pz; on a
+  // z-running wall the two swap.
+  const battenX = (m) => tall(m) && near(m.pxHi - m.pxLo, 0.083) && near(m.pzHi - m.pzLo, 0.098);
+  const battenZ = (m) => tall(m) && near(m.pzHi - m.pzLo, 0.083) && near(m.pxHi - m.pxLo, 0.098);
+  const north = L.filter(m => battenX(m) && near((m.pzLo + m.pzHi) / 2, NFACE, 0.15)
+    && m.pxLo > 3.8 && m.pxHi < 15.2);
+  A(north.length === 0,
+    `no battens across the glazed screen (${north.length}${north.length ? ' at px ' + north.map(m => R((m.pxLo + m.pxHi) / 2, 2)).join(', ') : ''})`);
+  // The presence half: the SAME filter, on a wall that should be battened. Without this
+  // the absence above would pass just as happily if the trim program stopped running —
+  // and it is what shows the filter really does identify a batten.
+  const west = L.filter(m => battenZ(m) && near((m.pxLo + m.pxHi) / 2, WFACE, 0.15)
+    && m.pzLo > -12 && m.pzHi < 10.3);
+  A(west.length > 0,
+    `...and the same filter still finds them on the foyer's west wall (${west.length})`);
+}
+
+
 // COVED CEILINGS. Both rooms that carry the cornice curve the plaster out of the wall
 // and into the ceiling rather than meeting it at an arris. The cove REPLACES the flat
 // band that used to fill crownTop..wallTop, so it inherits the cornice's spans — which

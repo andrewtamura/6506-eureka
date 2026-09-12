@@ -116,6 +116,14 @@ def compute_paneling(ctx, rooms):
         all_sides = nc is True
         no_cornice = set() if all_sides else {sd.upper() for sd in (nc or [])}
         no_battens = pan.get("battens") is False
+        # `noBattens` is the PER-SIDE form, shaped like `noCornice` / `wainscot` /
+        # `coved`: True for the room, or a list of sides. Named this way rather than
+        # letting `battens` take a list, because `battens: ["N"]` reads as "battens ON
+        # the north wall" — the opposite of what it would mean. `battens: false` is
+        # untouched, so the rooms already using it are unaffected.
+        nb = pan.get("noBattens")
+        all_nb = nb is True
+        nb_sides = set() if all_nb else {sd.upper() for sd in (nb or [])}
         # `wainscot` follows the same shape as `noCornice`: True for the whole room,
         # or a list of sides. A dado is normally a per-wall decision.
         ws = pan.get("wainscot")
@@ -152,7 +160,7 @@ def compute_paneling(ctx, rooms):
                 "doors": doors, "windows": wins, "tall": tall, "transoms": trans,
                 "sidelights": sides, "bareDoors": bare,
                 "noCornice": all_sides or side in no_cornice,
-                "noBattens": no_battens,
+                "noBattens": no_battens or all_nb or side in nb_sides,
                 "wainscot": all_ws or side in wainscot,
                 "coved": not (all_sides or side in no_cornice) or all_cv or side in coved,
                 "corniceBreaks": [[round(a, 3), round(b, 3)] for a, b in breaks.get(side, [])],

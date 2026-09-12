@@ -256,6 +256,23 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   test just fails on it. And match coves to rooms by CENTRE-in-box, not overlap — the
   foyer's west wall and the dining room's east wall are the same line, so an overlap test
   hands each room the other's cove.
+- **Battens are suppressed PER SIDE with `noBattens`** (True for the room, or a list of
+  sides — the same shape as `noCornice` / `wainscot` / `coved`). `battens: false` is the
+  older room-wide form and still works. Named `noBattens` because `battens: ["N"]` would
+  read as "battens ON the north wall", the opposite of what it means.
+  The foyer's north wall is the steel screen and carries none: it should read as glazing.
+  **A batten could cross a SIDELIGHT and did.** The loop stops a batten at a sill only for
+  members of `wins`, and `compute_paneling` files sidelights under `sides` (own frame, no
+  casing), which is consulted only for jamb CLEARANCE — so a batten landing mid-sidelight
+  was neither stopped nor skipped and ran floor-to-head over the glass. Five of them did,
+  on the foyer screen. `sides` is in the skip test now.
+  When asserting a batten's ABSENCE, key on its SECTION — 0.0254 m across the wall by a
+  0.03 m projection — and require BOTH extents. A loose "narrow and tall" filter also
+  catches field panels (0.012 m), casing jambs (0.33 ft) and the screen's own mullions,
+  which is how a first cut reported five battens that were nothing of the kind. Pair the
+  absence with a PRESENCE check using the same filter on a wall that should be battened:
+  that is what proves the filter finds battens at all, rather than the trim program having
+  quietly stopped running.
 - **A door set into a glazed SCREEN derives its grid from the screen, not from a lite
   count.** `doorStyle: "steel"` plus `screen: {sillFt, liteFt}` in the door's spec makes
   `leafParts` compute the SAME division `add_glazed_frame` computes for the sidelights

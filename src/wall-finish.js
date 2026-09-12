@@ -308,6 +308,13 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     for (let g = w.noBattens ? w.hi : w.lo + BATTEN_SPACING_FT; g < w.hi - 0.05; g += BATTEN_SPACING_FT) {
       if ([...doors, ...tallX].some(([a, b]) => g > Math.min(a, b) && g < Math.max(a, b))) continue; // in a doorway / built-in
       if (openings.some(([oa, ob]) => Math.abs(g - oa) < battenClear || Math.abs(g - ob) < battenClear)) continue; // would touch a jamb
+      // A SIDELIGHT is glass, so a batten cannot cross it. The `wins` loop below stops a
+      // batten at a window's sill, but sidelights are filed under `sides` (they carry
+      // their own frame and take no casing), and `sides` is consulted only for jamb
+      // clearance above — so a batten landing mid-sidelight was neither stopped nor
+      // skipped and ran floor-to-head over the glass. That is what put five battens
+      // across the foyer's screen.
+      if (sides.some(([a, b]) => g > Math.min(a, b) && g < Math.max(a, b))) continue;
       let yTop = headY; // under a window the batten stops at the sill
       for (const [a, b, sill] of wins) { if (g > Math.min(a, b) && g < Math.max(a, b)) { yTop = sill * ft; break; } }
       if (yTop - bbH < 0.25) continue; // skip stubby battens (e.g. under a low sill)

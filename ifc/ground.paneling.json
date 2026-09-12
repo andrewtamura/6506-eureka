@@ -555,7 +555,7 @@
         ]
       ],
       "noCornice": false,
-      "noBattens": false,
+      "noBattens": true,
       "wainscot": false,
       "coved": true,
       "corniceBreaks": [],
