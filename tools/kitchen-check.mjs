@@ -1586,8 +1586,10 @@ console.log('EXTENSION');
   const onBoxFace = L.filter(m => crownBand(m) && near((m.pzLo + m.pzHi) / 2, -0.30, 0.45)
     && m.pxLo > 11.0 && m.pxHi < 15.3 && (m.pxHi - m.pxLo) > 2.5);
   A(onBoxFace.length > 0, `the crown runs across the box's north face (${onBoxFace.length} runs)`);
+  // > 0.6 ft of pz so this is the RUN and not the mitred return's wedge, which sits on
+  // the same line, in the same band, and is exactly one projection long.
   const onReturn = L.filter(m => crownBand(m) && near((m.pxLo + m.pxHi) / 2, 11.28, 0.45)
-    && m.pzLo > -1.4 && m.pzHi < 0.2 && (m.pzHi - m.pzLo) > 0.2);
+    && m.pzLo > -1.4 && m.pzHi < 0.2 && (m.pzHi - m.pzLo) > 0.6);
   A(onReturn.length > 0, `...and returns round the outside corner (${onReturn.length} runs)`);
   // and the west wall's own crown now STOPS at the box rather than running behind it
   const westCrown = L.filter(m => crownBand(m) && near((m.pxLo + m.pxHi) / 2, 14.65, 0.35)
@@ -1620,11 +1622,40 @@ console.log('EXTENSION');
   // than an arbitrary number.
   const refRun = westCrown.reduce((a, m) => (a && (a.pzHi - a.pzLo) > (m.pzHi - m.pzLo) ? a : m), null);
   const sectA = refRun ? refRun.vol / (refRun.pzHi - refRun.pzLo) : 0;   // sq ft of section
-  for (const [m, len, nm] of [[boxCrownN, boxCrownN && boxCrownN.pxHi - boxCrownN.pxLo, 'north run'],
-                              [boxCrownE, boxCrownE && boxCrownE.pzHi - boxCrownE.pzLo, 'east return']]) {
-    const square = sectA * len;
-    A(sectA > 0 && m.vol < square * 0.98 && m.vol > square * 0.5,
-      `the ${nm} is MITRED, not square-cut (${R(m.vol, 4)} cu ft against ${R(square, 4)} for a square end)`);
+  // Every mitred end eats the SAME wedge — one section's worth of material over the
+  // projection, less the section's own centroid — so the two runs cross-check each other
+  // rather than each being compared to a number typed in here. The north run has ONE
+  // mitred end (the outside corner); the east return has TWO (that corner and the mitred
+  // return at its far end), so its loss must be exactly twice. A square-cut run shows no
+  // loss at all, and a shear shorn the wrong way shows a different one.
+  const lenN = boxCrownN ? boxCrownN.pxHi - boxCrownN.pxLo : 0;
+  const lenE = boxCrownE ? boxCrownE.pzHi - boxCrownE.pzLo : 0;
+  const lossN = sectA * lenN - (boxCrownN ? boxCrownN.vol : 0);
+  const lossE = sectA * lenE - (boxCrownE ? boxCrownE.vol : 0);
+  A(sectA > 0 && lossN > sectA * P5 * 0.3 && lossN < sectA * P5 * 0.95,
+    `the north run's one mitred end eats a wedge (${R(lossN, 4)} cu ft off a square ${R(sectA * lenN, 4)})`);
+  A(lossN > 0 && near(lossE, 2 * lossN, lossN * 0.08),
+    `...and the east return's TWO mitred ends eat exactly two of them (${R(lossE, 4)} against ${R(2 * lossN, 4)})`);
+
+  // THE FAR END OF THE RETURN IS MITRED BACK INTO THE WALL. It has no neighbour to carry
+  // the profile on, so a square cap would show the section end-on as a flat face 8 ft up.
+  // The wedge is the same section turned to look along the wall: one projection square in
+  // plan, sitting on the run's line at its south end, thick at the wall and dying at the
+  // front. Three things pin it down, because any one alone is weak — a plain block would
+  // pass on position, and a full-length offcut would pass on position and vertex count:
+  //   PLAN SIZE, P5 x P5 (a longer piece is a run, not a return);
+  //   VERTEX COUNT, which says it carries the swept profile rather than being a box;
+  //   VOLUME, which says it is a WEDGE. A square block of the same box would be
+  //     sectA x P5; the wedge is that times the section's own centroid fraction, ~1/3.
+  const wedge = L.filter(m => crownBand(m) && near((m.pxLo + m.pxHi) / 2, 11.28, 0.45)
+    && near((m.pzHi - m.pzLo), P5, 0.06) && near((m.pxHi - m.pxLo), P5, 0.06)
+    && near(m.pzLo, -0.90, 0.06));
+  A(wedge.length === 1, `the return's far end dies into the wall on a mitred wedge (${wedge.length})`);
+  if (wedge[0]) {
+    const wv = wedge[0], block = sectA * P5;
+    A(wv.nv > 24, `...carrying the crown's own profile, not a block (${wv.nv} vertices, a box is 24)`);
+    A(wv.vol > block * 0.15 && wv.vol < block * 0.6,
+      `...and it is a WEDGE, thick at the wall and dying at the front (${R(wv.vol, 4)} cu ft against ${R(block, 4)} for a full block)`);
   }
 
   // The glazing reaches the FINISHED FLOOR now, so a baseboard would run across the

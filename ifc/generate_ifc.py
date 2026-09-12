@@ -190,6 +190,10 @@ def compute_paneling(ctx, rooms):
                 # its own projection and the crown is mitred to turn.
                 "mitreLo": bool(ew.get("mitreLo", False)),
                 "mitreHi": bool(ew.get("mitreHi", False)),
+                # a MITRED RETURN at that end: nothing carries the profile on, so the
+                # crown is mitred on the spot and a wedge turns it back into the wall.
+                "returnLo": bool(ew.get("returnLo", False)),
+                "returnHi": bool(ew.get("returnHi", False)),
                 "corniceBreaks": [], "rakedCornice": [],
             })
 

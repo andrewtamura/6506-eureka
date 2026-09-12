@@ -115,7 +115,8 @@
           "noBattens": true,
           "coved": false,
           "_note": "short return round the outside corner; the well wall's head falls from 9.6 to 8.2 ft over the next 2 ft",
-          "mitreHi": true
+          "mitreHi": true,
+          "returnLo": true
         }
       ]
     }

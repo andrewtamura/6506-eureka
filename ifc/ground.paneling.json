@@ -646,6 +646,8 @@
       "coved": true,
       "mitreLo": true,
       "mitreHi": false,
+      "returnLo": false,
+      "returnHi": false,
       "corniceBreaks": [],
       "rakedCornice": []
     },
@@ -671,6 +673,8 @@
       "coved": false,
       "mitreLo": false,
       "mitreHi": true,
+      "returnLo": true,
+      "returnHi": false,
       "corniceBreaks": [],
       "rakedCornice": []
     },

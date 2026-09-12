@@ -420,18 +420,72 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       // head line to the ceiling over the break, the same as a `noCornice` wall.
       const brk = (w.corniceBreaks || []).map(([a, b]) => [Math.min(a, b), Math.max(a, b)]);
       for (const [a, b] of brk) band(a, b, headY, wallTop, 0.012, field);
-      // OUTSIDE (convex) CORNER. An inside corner needs nothing — each run's square end is
-      // hidden behind its neighbour. An outside one is the opposite: the runs turn AWAY
-      // from the room, so square ends leave both cut faces staring out and the profiles
-      // never meet. Every member has to reach the corner, which means running PAST the
-      // wall line by its own projection — the neighbour's face is that far out — and the
-      // crown has to be mitred so the moulding actually turns.
+      // TWO WAYS A RUN OF CROWN CAN END, and both are the SAME 45 deg cut on the run —
+      // long point at the FRONT, short point at the wall (`BACK_*` in `sweep`'s table).
+      // What differs is what carries the profile on from there:
+      //   OUTSIDE (convex) CORNER — a neighbouring run does. An inside corner needs
+      //     nothing, since each square end hides behind its neighbour; an outside one is
+      //     the opposite, both runs turning AWAY from the room so two cut faces stare out
+      //     and the profiles never meet. Every member has to REACH the corner, i.e. run
+      //     PAST the wall line by its own projection, because the neighbour's face is
+      //     that far out.
+      //   MITRED RETURN — nothing does: the run simply stops in mid-wall. No extension
+      //     (the long point lands on the authored end) and a wedge of the same section,
+      //     turned to look along the wall, carries the moulding round and dies into the
+      //     wall. Without it the section shows end-on as a flat cut face 8 ft up.
       const mLo = !!w.mitreLo, mHi = !!w.mitreHi;
+      const rLo = !!w.returnLo, rHi = !!w.returnHi;
+      // Only a span that actually reaches the wall's own end can carry either: `subtract`
+      // can hand back interior spans (a doorway, a cornice break) whose ends are holes,
+      // and mitreing one of those would cut the crown back at a doorhead.
+      const atEnd = (v, e) => Math.abs(v - e) < 1e-6;
       const ext = (a, b, d) => [
-        mLo && Math.abs(a - w.lo) < 1e-6 ? a - d / ft : a,
-        mHi && Math.abs(b - w.hi) < 1e-6 ? b + d / ft : b,
+        mLo && atEnd(a, w.lo) ? a - d / ft : a,
+        mHi && atEnd(b, w.hi) ? b + d / ft : b,
       ];
+      // The crown's SECTION, drawn once: a single concave cove (height coveH) under a
+      // straight topper (topperH), which together read as the S-curve in the photos.
+      // (X = projection into the room, Y = up.)
+      const crownShape = new THREE.Shape();
+      crownShape.moveTo(0, 0);
+      crownShape.lineTo(0, 0.016);                              // bottom fillet (fascia) at wall
+      crownShape.quadraticCurveTo(0, coveH, 0.08, coveH);       // concave cove (up wall, sweep out)
+      crownShape.lineTo(P5, Hc - 0.012);                        // straight topper (flat slope outward)
+      crownShape.lineTo(P5, Hc);                                // top fillet
+      crownShape.lineTo(0, Hc);                                 // top face back to wall
+      crownShape.lineTo(0, 0);                                  // down the wall (back face)
+      // One length of that section, extruded along a RIGHT-HANDED basis (X -> interior
+      // normal, Y -> up, Z -> X x Y) so the rotation is valid on all four walls, with
+      // either cap optionally sheared to 45 deg. With no bevel and one step the extrusion
+      // has vertices only at z=0 and z=L, so a mitre is a shear on the cap — the same
+      // trick `sweep` uses for the casing, and the same cut codes, since P5 is this
+      // section's own max projection.
+      const crownPiece = (startPt, xAxis, yAxis, length, cut0 = SQUARE, cutL = SQUARE) => {
+        if (length < 0.004) return;
+        const zA = new THREE.Vector3().crossVectors(xAxis, yAxis).normalize();
+        const g = new THREE.ExtrudeGeometry(crownShape, { depth: length, bevelEnabled: false });
+        if (cut0 || cutL) {
+          const pos = g.getAttribute('position');
+          for (let i2 = 0; i2 < pos.count; i2++) {
+            const x = pos.getX(i2), z = pos.getZ(i2);
+            const cut = z > length / 2 ? cutL : cut0;
+            if (cut === BACK_NEAR) pos.setZ(i2, P5 - x);
+            else if (cut === BACK_FAR) pos.setZ(i2, length - P5 + x);
+            else if (cut === FWD_NEAR) pos.setZ(i2, x);
+            else if (cut === FWD_FAR) pos.setZ(i2, length - x);
+          }
+          pos.needsUpdate = true;
+          g.computeVertexNormals();
+        }
+        const m = new THREE.Mesh(g, crownMat);
+        m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
+          xAxis.clone().normalize(), yAxis.clone().normalize(), zA));
+        m.position.copy(startPt);
+        scene.add(m);
+      };
       for (const [s0, s1] of subtract(w.lo, w.hi, [...tallX, ...brk], 0, 0.05)) {
+        const endLo = atEnd(s0, w.lo), endHi = atEnd(s1, w.hi);
+        const cutLo = endLo && (mLo || rLo), cutHi = endHi && (mHi || rHi);
         { const [a, b] = ext(s0, s1, 0.024); band(a, b, headY, friezeTop, 0.024); }             // FRIEZE
         { const [a, b] = ext(s0, s1, 0.05);  band(a, b, friezeTop, friezeTop + 0.018, 0.05); }  // bed: bead
         { const [a, b] = ext(s0, s1, 0.058); band(a, b, friezeTop + 0.018, crownB, 0.058); }    // bed: step
@@ -451,36 +505,26 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
         const zAxis = new THREE.Vector3().crossVectors(Nw, up).normalize(); // right-handed third axis
         const fwd = zAxis.dot(B.clone().sub(A)) >= 0;
         const start = fwd ? A : B;                                          // so the span runs c0..c1
-        const shape = new THREE.Shape();
-        shape.moveTo(0, 0);
-        shape.lineTo(0, 0.016);                                  // bottom fillet (fascia) at wall
-        shape.quadraticCurveTo(0, coveH, 0.08, coveH);           // concave cove (up wall, sweep out)
-        shape.lineTo(P5, Hc - 0.012);                            // straight topper (flat slope outward)
-        shape.lineTo(P5, Hc);                                    // top fillet
-        shape.lineTo(0, Hc);                                     // top face back to wall
-        shape.lineTo(0, 0);                                      // down the wall (back face)
-        const geo = new THREE.ExtrudeGeometry(shape, { depth: L, bevelEnabled: false });
-        // MITRE the extended end(s). With no bevel and one step the extrusion has vertices
-        // only at z=0 and z=L, so the cut is a shear on the cap — the same trick `sweep`
-        // uses for the casing. An OUTSIDE corner puts the LONG POINT AT THE FRONT (max X
-        // of the profile) and the short point at the wall, so the two runs meet front to
-        // front and the moulding turns; the inside-corner cut is the other way round and
-        // would leave a wedge missing here.
-        const mitreAt0 = fwd ? mLo : mHi, mitreAtL = fwd ? mHi : mLo;
-        if (mitreAt0 || mitreAtL) {
-          const pos = geo.getAttribute('position');
-          for (let i2 = 0; i2 < pos.count; i2++) {
-            const x = pos.getX(i2), z = pos.getZ(i2);
-            if (z < L / 2) { if (mitreAt0) pos.setZ(i2, P5 - x); }
-            else if (mitreAtL) pos.setZ(i2, L - P5 + x);
-          }
-          pos.needsUpdate = true;
-          geo.computeVertexNormals();
+        // THE RUN. The return below is the SAME section from the SAME builder, which is
+        // the point of having one: tessellated separately the two profiles would not line
+        // up across the mitre, and the joint the return exists to hide would show as a
+        // row of hairline notches.
+        crownPiece(new THREE.Vector3(start.x, floorY + crownB, start.z), Nw, up, L,
+                   (fwd ? cutLo : cutHi) ? BACK_NEAR : SQUARE,
+                   (fwd ? cutHi : cutLo) ? BACK_FAR : SQUARE);
+        // THE RETURN WEDGE, where an end has no neighbour. Same construction as
+        // `mouldH`'s returns: origin one projection INBOARD, X running out along the wall,
+        // and the MATCHING cut — the opposite assignment to the run's own, so the two
+        // 45 deg faces lie in one plane and the moulded face turns and dies into the wall.
+        for (const [endS, on, sgn] of [[c0, endLo && rLo, -1], [c1, endHi && rHi, +1]]) {
+          if (!on) continue;
+          const out = dir.clone().multiplyScalar(sgn);
+          const o = P(endS - (sgn * P5) / ft);
+          const base = new THREE.Vector3(o.x, floorY + crownB, o.z);
+          const outward = new THREE.Vector3().crossVectors(out, up).normalize().dot(Nw) >= 0;
+          crownPiece(outward ? base : base.clone().add(Nw.clone().multiplyScalar(P5)),
+                     out, up, P5, outward ? SQUARE : FWD_FAR, outward ? FWD_NEAR : SQUARE);
         }
-        const crown = new THREE.Mesh(geo, crownMat);
-        crown.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(Nw, up, zAxis));
-        crown.position.set(start.x, floorY + crownB, start.z);
-        scene.add(crown);
       }
       // plain wall above each full-height built-in (from its head up to the ceiling)
       for (const [a, b, th] of tall) band(a, b, th * ft, wallTop, 0.012, field);
