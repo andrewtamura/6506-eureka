@@ -221,6 +221,15 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   in `tools/shot.mjs` searches BOTH containers for this reason — it looked only in
   `#scenes` and would silently have matched nothing. Note Night now lights the LOT only,
   so an interior night render needs `selectLighting('ground')` as well.
+- **A room with a cornice cannot carry glazing above the head line.** The frieze seats
+  directly ON `headFt` and the crown tops out ~1.3 ft above it, so a transom over a door
+  drives straight through frieze, bed mould and crown. Giving the foyer a trim program
+  did exactly that to the steel screen's full-width transom (7.06-8.67). The screen now
+  stops at 7.0 ft — two sidelights and the door, nothing glazed above — and
+  `tools/ifc_check.py` asserts it for every corniced wall. That check has to match on the
+  wall's ALONG-EXTENT as well as its line: the dining room's north wall and the
+  vestibule's share z = 16.0833, and without the span test the front door's transom, 20 ft
+  away over a `noCornice` room, was reported as running through the dining room's cornice.
 - **Breaking a cornice is NOT the same as a `tall` span.** `tallX` is subtracted from the
   baseboard, field, battens AND chair rail as well as the crown — right for a
   floor-to-ceiling built-in, wrong for a staircase, where the board-and-batten has to run

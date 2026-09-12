@@ -207,5 +207,51 @@ for stem in stems:
     check(bool(pan), f"{stem}: {len(wins)} window(s), and a trim program to case them"
                      + ('' if pan else ' — MISSING, they will be raw openings'))
 
+# --- GLAZING FITS UNDER THE CORNICE ----------------------------------------------
+# A room that carries the entablature seats its frieze directly ON the head line, and
+# the crown tops out ~1.3 ft above that. So anything glazed on one of its walls has to
+# stop at the head line: a transom above a door drives straight through the frieze, the
+# bed mould and the crown, which is exactly what the foyer's steel screen did once the
+# foyer got a trim program. Checked from the room files, because the collision is
+# between a WINDOW's head and a PANELING option, and neither is geometry the browser
+# harness can see as wrong — it would happily measure a cornice with a window through it.
+print('\nGLAZING FITS UNDER THE CORNICE')
+model_j = json.load(open('ifc/model.json'))
+head_ft = model_j.get('headFt', 7.0)
+stems_g = sorted({s for level in model_j['levels'] for s in level.get('rooms', [])})
+rooms_g = {s: json.load(open(f'ifc/rooms/{s}.json')) for s in stems_g}
+# walls that belong to a room with a cornice, keyed by (orient, fixed)
+corniced = set()
+for stem, room in rooms_g.items():
+    pan = (room.get('interior') or {}).get('paneling')
+    if not pan or pan.get('noCornice') is True:
+        continue
+    b = room['bounds']
+    # The along-extent matters as well as the wall line: the dining room's north wall
+    # and the vestibule's share the line z = 16.0833, and without this the front door's
+    # transom — 20 ft away along it, and over a room that has noCornice — was reported
+    # as driving through the dining room's cornice.
+    xs, zs = sorted([b['x1'], b['x2']]), sorted([b['z1'], b['z2']])
+    for orient, fixed, span in (('H', b['z1'], xs), ('H', b['z2'], xs),
+                                ('V', b['x1'], zs), ('V', b['x2'], zs)):
+        corniced.add((stem, orient, round(fixed, 3), span[0], span[1]))
+bad = 0
+for stem, room in rooms_g.items():
+    for w in room.get('windows', []):
+        if w.get('blind'):
+            continue
+        half = abs(w['width']) / 2
+        wlo, whi = w['pos'] - half, w['pos'] + half
+        hit = [c for c in corniced if c[1] == w['orient'] and abs(c[2] - w['fixed']) < 0.3
+               and min(whi, c[4]) - max(wlo, c[3]) > 0.05]
+        if not hit:
+            continue
+        over = w['head'] - head_ft
+        if over > 0.01:
+            bad += 1
+            check(False, f"{w['name']}: head {w['head']} ft is {over:.2f} ft ABOVE the "
+                         f"{head_ft} ft line, through {hit[0][0]}'s cornice")
+check(bad == 0, f"no glazing runs up through a cornice ({len(corniced)} corniced walls checked)")
+
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)

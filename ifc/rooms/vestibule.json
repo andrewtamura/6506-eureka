@@ -61,18 +61,6 @@
       ],
       "steel": true,
       "liteFt": 1.55
-    },
-    {
-      "name": "Transom - Foyer",
-      "orient": "H",
-      "fixed": 10.1667,
-      "pos": 9.5,
-      "width": 9.708,
-      "sill": 7.06,
-      "head": 8.67,
-      "transom": true,
-      "steel": true,
-      "liteFt": 1.55
     }
   ],
   "interior": {
