@@ -181,6 +181,12 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   light counts, and the pixel ratio in the corner of the real browser, plus
   `EXT_disjoint_timer_query_webgl2` for true GPU ms where the machine offers it.
   `?dpr=<n>` overrides the pixel ratio so the fill-rate question is answered by looking.
+  There is a **Performance HUD button** in the 6506 Eureka menu; `?perf=1` starts it
+  open. It is built on FIRST use, because `setupPerf` wraps `renderer.render` to time
+  it and an instrument nobody asked for should not sit in the hot path. Note the panel
+  reports frames **drawn**, not animation-frame ticks — with render-on-demand the tick
+  loop still runs at 60 Hz over a picture that is not moving, so counting ticks would
+  report a confident and entirely fictional 60 fps.
 - **`node tools/trace.mjs [--pan] [--full]`** is the committed version of the Chrome-trace
   recipe below. It kept getting rebuilt in the scratchpad.
 - **Three things that look like the cause of sluggish panning and measurably are not** —

@@ -137,6 +137,24 @@ const m = await page.evaluate(async () => {
            merged: (window.__eureka.consolidated?.merged || 0) +
                    (window.__eureka.consolidatedExhibits?.merged || 0) };
 });
+// The performance HUD toggle. Built on first use, so this also proves the lazy
+// construction path works — and that the button reports the state it is actually in,
+// which it did not at first (build-then-flip hid it on the very first click).
+const hud = await page.evaluate(async () => {
+  const btn = document.getElementById('perf-toggle');
+  if (!btn) return { button: false };
+  const panel = () => [...document.querySelectorAll('div')]
+    .find(e => /draw calls/.test(e.textContent || ''));
+  const shown = () => { const p = panel(); return !!p && p.style.display !== 'none'; };
+  const before = { exists: !!panel(), label: btn.textContent };
+  window.__eureka.togglePerf(true);
+  await new Promise(r => setTimeout(r, 1400));
+  const on = { shown: shown(), label: btn.textContent, text: (panel() || {}).textContent || '' };
+  window.__eureka.togglePerf(false);
+  const off = { shown: shown(), label: btn.textContent };
+  return { button: true, before, on, off };
+});
+
 // RENDER ON DEMAND. Measured against the real update loop, not by calling render()
 // ourselves: idle should cost only the safety heartbeat, and moving the camera should
 // cost real frames. The failure mode of this feature is a viewer that looks frozen, so
@@ -165,6 +183,7 @@ console.log(`  render()                 ${m.ms} ms/frame  (swiftshader; indicati
 console.log(`  renderer mode            ${demand.mode === 0 ? 'MANUAL (on demand)' : 'AUTO'}`);
 console.log(`  frames drawn: idle 2 s   ${demand.idleFrames}   while panning  ${demand.movingFrames}`);
 console.log(`  model-owned meshes still drawing separately  ${m.fragLoose}`);
+console.log(`  perf HUD                 ${hud.button ? (hud.before.exists ? 'built at startup' : 'built on first use') : 'NO BUTTON'}`);
 
 if (REPORT) process.exit(0);
 let bad = 0;
@@ -175,6 +194,12 @@ A(m.visible <= MAX_MESHES, `${m.visible} drawable meshes (budget ${MAX_MESHES})`
 A(m.absorbed >= MIN_ABSORBED, `the merge absorbed ${m.absorbed} authored meshes (at least ${MIN_ABSORBED})`);
 A(m.hidden >= MIN_ABSORBED, `the originals are still in the scene, hidden (${m.hidden}) — kitchen-check measures them`);
 A(m.frozen > 1000, `static transforms frozen (${m.frozen})`);
+A(hud.button, `the UI has a performance HUD button`);
+A(hud.button && !hud.before.exists, `the HUD is built on first use, not at startup — no render() wrapper nobody asked for`);
+A(hud.button && hud.on.shown && /draw calls/.test(hud.on.text) && /Hide/.test(hud.on.label),
+  `the button shows the HUD and says so (${hud.button ? hud.on.label : '—'})`);
+A(hud.button && !hud.off.shown && !/Hide/.test(hud.off.label),
+  `and hides it again (${hud.button ? hud.off.label : '—'})`);
 A(m.inspect && m.inspect.hit,
   `tap-to-inspect still resolves an element (${m.inspect ? (m.inspect.error || 'localId ' + m.inspect.id) : 'no result'}) — fragments picks against its own data, not the hidden meshes`);
 A(m.fragLoose <= MAX_FRAG_LOOSE,

@@ -79,9 +79,11 @@ export function setupPerf({ world, scene, getExtra }) {
   };
   census();
 
-  let frames = 0, last = performance.now();
+  // Report frames DRAWN, not animation-frame ticks. The viewer renders on demand, so
+  // the tick loop keeps running at 60 Hz while the renderer draws twice a second —
+  // counting ticks would report a confident 60 fps over a picture that is not moving.
+  let last = performance.now();
   const tick = () => {
-    frames++;
     const now = performance.now();
     if (now - last >= 1000) {
       const secs = (now - last) / 1000;
@@ -89,7 +91,7 @@ export function setupPerf({ world, scene, getExtra }) {
       const x = (getExtra && getExtra()) || {};
       const info = renderer.info;
       el.textContent =
-        `${fmt(frames / secs, 0)} fps   frame ${fmt((now - last) / frames)} ms\n` +
+        `${fmt(renders / secs, 0)} fps drawn  (on demand)\n` +
         `render()   ${fmt(renders ? cpuMs / renders : 0)} ms cpu\n` +
         `gpu        ${ext ? fmt(gpuMs) + ' ms' : 'n/a (no timer ext)'}\n` +
         `draw calls ${info.render.calls}\n` +
@@ -100,13 +102,18 @@ export function setupPerf({ world, scene, getExtra }) {
         `pixels     ${renderer.domElement.width}x${renderer.domElement.height} @dpr ${renderer.getPixelRatio()}\n` +
         (x.merged != null ? `merged     ${x.merged} from ${x.absorbed}\n` : '') +
         (x.note ? `${x.note}\n` : '');
-      frames = 0; cpuMs = 0; renders = 0; last = now;
+      cpuMs = 0; renders = 0; last = now;
     }
     requestAnimationFrame(tick);
   };
   requestAnimationFrame(tick);
 
-  return { el, hasGpuTimer: !!ext };
+  return {
+    el,
+    hasGpuTimer: !!ext,
+    visible: () => el.style.display !== 'none',
+    setVisible: (on) => { el.style.display = on ? '' : 'none'; },
+  };
 }
 
 // `?dpr=<n>` — override the pixel ratio to see what fill rate actually costs.

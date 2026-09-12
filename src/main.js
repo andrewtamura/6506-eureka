@@ -2323,9 +2323,26 @@ async function main() {
     window.addEventListener("resize", invalidate);
   }
 
-  if (PERF) {
-    applyDprOverride(world);
-    setupPerf({ world, scene, getExtra: () => window.__eureka.consolidated });
+  // The HUD is built on FIRST use, not at startup: setupPerf wraps renderer.render to
+  // time it, and an instrument nobody asked for should not be in the hot path. After
+  // that the button just shows and hides it. `?perf=1` still starts it open.
+  {
+    const btn = document.getElementById("perf-toggle");
+    let perf = null;
+    const paint = () => { btn.textContent = perf && perf.visible() ? "Hide performance HUD" : "Performance HUD"; };
+    const toggle = (on) => {
+      // Decide the target state BEFORE building it — build-then-flip made the first
+      // click create the HUD and hide it in the same breath.
+      const want = on === undefined ? !(perf && perf.visible()) : on;
+      if (!perf) { applyDprOverride(world); perf = setupPerf({ world, scene, getExtra: () => window.__eureka.consolidated }); }
+      perf.setVisible(want);
+      paint();
+      invalidate();                 // render on demand: give the HUD a frame to report
+    };
+    btn.addEventListener("click", () => toggle());
+    window.__eureka.togglePerf = toggle;   // debug handle: tools/frame-check drives it
+    paint();
+    if (PERF) toggle(true);
   }
 
   // --- compass (see compass.js) -------------------------------------------
