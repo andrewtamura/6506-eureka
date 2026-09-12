@@ -187,6 +187,27 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   reports frames **drawn**, not animation-frame ticks — with render-on-demand the tick
   loop still runs at 60 Hz over a picture that is not moving, so counting ticks would
   report a confident and entirely fictional 60 fps.
+- **On a phone there is NO GPU timer — benchmark instead.** Safari exposes no
+  `EXT_disjoint_timer_query_webgl2`, so the HUD's `gpu` line reads `n/a` on the device
+  the owner actually uses. The HUD's **benchmark** button is the answer: it forces the
+  renderer to AUTO, spins the camera for 3 s, counts frames actually drawn and splits the
+  frame into `cpu + other` — and achieved frame rate under continuous rendering includes
+  GPU time by definition. It MUST restore the previous mode; leaving it in AUTO would
+  silently undo render-on-demand, and `frame-check` asserts the restore (verified to fail
+  when broken). Two A/Bs answer the open questions without a timer: `?dpr=1` against
+  `?dpr=2` for fill rate, and the **dim other levels** button for lighting.
+- **Every VISIBLE light is in every fragment shader, and the exhibits' fixtures count.**
+  `applyFixture` sets `light.visible = factor > 0` precisely so dark fixtures drop out.
+  With the exhibits loaded and lit, a phone reported **87 lights on** — the ground floor
+  paying per-pixel for the Second Floor's and the Attic's fixtures. The HUD's lights
+  control switches off every fixture not on the active level (49 → 25 locally) purely so
+  the two benchmarks can be compared; it writes the lights directly and restores from a
+  snapshot rather than going through `setFixtures`, so it cannot disturb that
+  bookkeeping. Per-LEVEL culling is not the per-frame culling ruled out below: it is a
+  rare, bucketed change costing one shader recompile on a level switch.
+- **A phone is ~3.5x slower per draw call.** The device reported 304 calls in 22 ms
+  (~72 us each) against ~20 us in this container. Scale any draw-call saving measured
+  here up by about that much before deciding it is not worth doing.
 - **`node tools/trace.mjs [--pan] [--full]`** is the committed version of the Chrome-trace
   recipe below. It kept getting rebuilt in the scratchpad.
 - **Three things that look like the cause of sluggish panning and measurably are not** —
