@@ -88,11 +88,34 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     // width). `sweep` puts X on the wall normal, Y on whatever axis the member's width
     // runs along, and extrudes down the third — so one profile serves a vertical jamb
     // and a horizontal head without being redrawn.
-    const sweep = (shape, startPt, xAxis, yAxis, length, m = mill) => {
+    // `ends` cuts the extrusion's caps at 45 deg instead of square. A straight extrude
+    // has flat caps perpendicular to the run, so butting a run against its return shows
+    // the CUT FACE at the corner — you see the section end-on, and the profile stops
+    // dead instead of turning. A real mitre is a 45 deg plane through the corner: the
+    // long point at the wall, the short point at the front, so the two faces meet edge
+    // to edge and the moulded face changes direction and runs back to the wall.
+    //
+    // With no bevel and one step, vertices exist only at z=0 and z=length, so the cut is
+    // a shear on the caps: SQUARE leaves it, IN pulls it to z=x, OUT to z=length-x
+    // (x being the profile's own projection, which is what makes the angle 45 deg).
+    const SQUARE = 0, IN = 1, OUT = 2;
+    const sweep = (shape, startPt, xAxis, yAxis, length, ends = [SQUARE, SQUARE], m = mill) => {
       if (length < 0.004) return;
       const zAxis = new THREE.Vector3().crossVectors(xAxis, yAxis).normalize();
-      const mesh = new THREE.Mesh(
-        new THREE.ExtrudeGeometry(shape, { depth: length, bevelEnabled: false, curveSegments: 8 }), m);
+      const geo = new THREE.ExtrudeGeometry(shape, { depth: length, bevelEnabled: false, curveSegments: 8 });
+      const [nearCut, farCut] = ends;
+      if (nearCut || farCut) {
+        const pos = geo.getAttribute('position');
+        for (let i = 0; i < pos.count; i++) {
+          const x = pos.getX(i), z = pos.getZ(i);
+          const cut = z > length / 2 ? farCut : nearCut;
+          if (cut === IN) pos.setZ(i, x);
+          else if (cut === OUT) pos.setZ(i, length - x);
+        }
+        pos.needsUpdate = true;
+        geo.computeVertexNormals();
+      }
+      const mesh = new THREE.Mesh(geo, m);
       mesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
         xAxis.clone().normalize(), yAxis.clone().normalize(), zAxis));
       mesh.position.copy(startPt);
@@ -147,20 +170,29 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       // 3/4 in horn measured 1.93 in. (The box version had the same bug; sweeping the
       // profile reintroduced it.)
       const pf = proj / ft;
-      const a2 = P(s0 + pf), b2 = P(s1 - pf);
-      const along = P(s1).clone().sub(P(s0)).setY(0).normalize();
+      const A = P(s0), B = P(s1);
+      const along = B.clone().sub(A).setY(0).normalize();
       const across = flip ? UP.clone().negate() : UP.clone();
+      // The RUN gets a 45 deg cut at each end — long point at the wall, short point at
+      // the front — so it now runs the assembly's full length and the mitre takes the
+      // material back, rather than the run being shortened and a block set beside it.
       const zAxis = new THREE.Vector3().crossVectors(Nw, across).normalize();
-      const startPt = zAxis.dot(b2.clone().sub(a2)) >= 0 ? a2 : b2;
+      const fwd = zAxis.dot(B.clone().sub(A)) >= 0;
+      const startPt = fwd ? A : B;
       sweep(shape, new THREE.Vector3(startPt.x, floorY + yLo, startPt.z),
-            Nw, across, a2.distanceTo(b2));
-      // Returns: the section turned to face along the wall, its back on the mitre joint
-      // and its face flush with the end of the assembly.
-      for (const [inner, out] of [[a2, along.clone().negate()], [b2, along.clone()]]) {
-        const e = new THREE.Vector3(inner.x, floorY + yLo, inner.z);
+            Nw, across, A.distanceTo(B), [IN, OUT]);
+      // The RETURN is the matching wedge: the same section, turned so its moulded face
+      // looks along the wall, swept from the wall out to the front, and cut at 45 deg on
+      // the face that meets the run. The two cut faces are the same plane, so the profile
+      // carries round the corner and dies into the wall.
+      for (const [endS, out] of [[s0, along.clone().negate()], [s1, along.clone()]]) {
+        // origin one projection INBOARD, with X running outward to the assembly's end
+        const originPlan = endS + (out.dot(along) > 0 ? -pf : pf);
+        const o = P(originPlan);
+        const base = new THREE.Vector3(o.x, floorY + yLo, o.z);
         const zr = new THREE.Vector3().crossVectors(out, across).normalize();
-        sweep(shape, zr.dot(Nw) >= 0 ? e : e.clone().add(Nw.clone().multiplyScalar(proj)),
-              out, across, proj);
+        sweep(shape, zr.dot(Nw) >= 0 ? base : base.clone().add(Nw.clone().multiplyScalar(proj)),
+              out, across, proj, zr.dot(Nw) >= 0 ? [OUT, SQUARE] : [SQUARE, IN]);
       }
     };
     const mouldV = (s, y0, y1, shape, sgn) => {

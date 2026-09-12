@@ -1093,9 +1093,18 @@ console.log('EXTENSION FIXTURES');
         const stool = L.filter(m => onEast(m) && (m.pzHi - m.pzLo) > 2.9
           && m.yHi > 3.0 - DY && m.yHi < 3.2);
         A(stool.length >= 1, `a stool at the sill (${stool.length})`);
-        const apron = L.filter(m => onEast(m) && (m.pzHi - m.pzLo) > 2.8 && (m.pzHi - m.pzLo) < 3.3
+        // Runs to the STOOL's length now, not the casing's, so the old 3.3 ceiling cut
+        // it out. Bounded by the stool it sits under rather than by a fixed number.
+        const apron = L.filter(m => onEast(m) && (m.pzHi - m.pzLo) > 2.8
           && m.yHi < 3.0 - DY + 0.02 && m.yLo > 2.4);
         A(apron.length >= 1, `an apron under it (${apron.length})`);
+        A(apron.some(m => m.nv >= 100), 'moulded, and returned onto itself');
+        if (apron.length && stool.length) {
+          const a0 = apron.sort((u, v) => (v.pzHi - v.pzLo) - (u.pzHi - u.pzLo))[0];
+          const s0 = stool.sort((u, v) => (v.pzHi - v.pzLo) - (u.pzHi - u.pzLo))[0];
+          A(Math.abs(a0.pzLo - s0.pzLo) < 0.02 && Math.abs(a0.pzHi - s0.pzHi) < 0.02,
+            `dies flush with the stool (${R(a0.pzLo, 2)}..${R(a0.pzHi, 2)})`);
+        }
       }
     } }
 }
