@@ -141,16 +141,23 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     // perpendicular, so the profile wraps the corner and dies into the wall instead of
     // stopping at a square cut that shows its section as a flat face.
     const mouldH = (s0, s1, yLo, shape, proj, flip) => {
-      const A = P(s0), B = P(s1), L = A.distanceTo(B);
-      const along = B.clone().sub(A).setY(0).normalize();
+      // The mitre EATS the last `proj` of the run at each end — s0..s1 is the finished
+      // length of the assembly, returns included. Swept the other way the returns hang
+      // off the ends and the member is 2 x proj longer than asked for, which is how a
+      // 3/4 in horn measured 1.93 in. (The box version had the same bug; sweeping the
+      // profile reintroduced it.)
+      const pf = proj / ft;
+      const a2 = P(s0 + pf), b2 = P(s1 - pf);
+      const along = P(s1).clone().sub(P(s0)).setY(0).normalize();
       const across = flip ? UP.clone().negate() : UP.clone();
-      // start from whichever end makes the sweep run A->B under this basis
       const zAxis = new THREE.Vector3().crossVectors(Nw, across).normalize();
-      const startPt = zAxis.dot(B.clone().sub(A)) >= 0 ? A : B;
-      const base = new THREE.Vector3(startPt.x, floorY + yLo, startPt.z);
-      sweep(shape, base, Nw, across, L);
-      for (const [endPt, out] of [[A, along.clone().negate()], [B, along.clone()]]) {
-        const e = new THREE.Vector3(endPt.x, floorY + yLo, endPt.z);
+      const startPt = zAxis.dot(b2.clone().sub(a2)) >= 0 ? a2 : b2;
+      sweep(shape, new THREE.Vector3(startPt.x, floorY + yLo, startPt.z),
+            Nw, across, a2.distanceTo(b2));
+      // Returns: the section turned to face along the wall, its back on the mitre joint
+      // and its face flush with the end of the assembly.
+      for (const [inner, out] of [[a2, along.clone().negate()], [b2, along.clone()]]) {
+        const e = new THREE.Vector3(inner.x, floorY + yLo, inner.z);
         const zr = new THREE.Vector3().crossVectors(out, across).normalize();
         sweep(shape, zr.dot(Nw) >= 0 ? e : e.clone().add(Nw.clone().multiplyScalar(proj)),
               out, across, proj);
