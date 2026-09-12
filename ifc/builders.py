@@ -2095,10 +2095,16 @@ def second_floor_windows(rooms):
     def add(name, orient, fixed, pos, sill=SILL, width=W, head=HEAD):
         specs.append({"name": name, "orient": orient, "fixed": fixed, "pos": pos,
                       "width": width, "sill": sill, "head": head})
-    # NORTH (locked): one upper over each ground-floor front opening (windows + door)
+    # NORTH (locked): one upper over each ground-floor front opening (windows + door).
+    # `transom` opts an opening OUT: a transom is part of the opening below it, not a
+    # bay of its own. Without this the front door's transom — same wall, same plan-x —
+    # added a second bay on top of the door's, which shifted aligned_front_bays and
+    # moved an attic dormer and the window bench with it.
     for r in rooms:
         for o in r.get("windows", []) + r.get("doors", []):
-            if not o.get("opening") and o["orient"] == "H" and abs(o["fixed"] - front_z) < 1e-3:
+            if o.get("opening") or o.get("transom"):
+                continue
+            if o["orient"] == "H" and abs(o["fixed"] - front_z) < 1e-3:
                 add(f"Upper - {o['name']}", "H", front_z, o["pos"])
     # WEST: one upper over EVERY ground-floor west opening — four now, so the elevation
     # reads four over four with both rows symmetric about the facade centre. This used to
@@ -2844,6 +2850,59 @@ def add_doors(ctx, r):
             # plain slab from inside. The viewer's leaf needs it too.
             "style": d.get("doorStyle", "panel"),
         })
+        # `openDeg` overrides the viewer's default 90 deg swing for this door only.
+        # A leaf can only lie flat against its own wall if the wall RETURNS past the
+        # jamb by at least the leaf width; where it does not, this is how far it goes.
+        if d.get("openDeg") is not None:
+            ctx.door_meta[-1]["openDeg"] = float(d["openDeg"])
+
+
+def add_transom_frame(ctx, r, w, sill, head):
+    """The frame around a transom light, on the ROOM side of the wall.
+
+    Sized and positioned to line up with the DOOR CASING below it, because the two
+    are one composition and reading them as one is the whole point:
+
+      * the same casing width (`casingFt`), so nothing steps in or out;
+      * stiles CENTRED on the opening edges, the convention `post()` uses in
+        wall-finish.js, so the verticals run unbroken from floor to transom head;
+      * NO bar of its own where a door sits directly below. That door's head casing
+        already lands on the masonry between the two openings and IS the transom bar.
+        Drawing both stacked two bands totalling 7-1/2 in of trim at the head.
+
+    This only works because the transom sill sits a casing-width ABOVE the door head,
+    leaving real wall between them. With both at 7 ft there is nothing to bear on and
+    the head casing covers the bottom of the glass.
+    """
+    TRIM = (0.93, 0.92, 0.88)
+    CW = w.get("frameFt", 0.33)                       # = casingFt, the door's architrave
+    DEP = 0.06                                        # projection off the wall face (ft)
+    b = r["bounds"]
+    pos, W = w["pos"], abs(w["width"])
+    half = ctx.T / FT / 2
+    if w["orient"] != "H":
+        return                                        # V-wall transoms would mirror this
+    # Is there a door under this transom? Then its head casing is the bar.
+    lo, hi = pos - W / 2, pos + W / 2
+    door_below = any(
+        d["orient"] == "H" and abs(d["fixed"] - w["fixed"]) < 0.3
+        and min(d["pos"] + abs(d["width"]) / 2, hi) - max(d["pos"] - abs(d["width"]) / 2, lo) > 0.05
+        for d in r.get("doors", []))
+    inward = -1 if abs(w["fixed"] - max(b["z1"], b["z2"])) < 1e-6 else 1
+    face = w["fixed"] + inward * half
+    cz = face + inward * DEP / 2
+
+    def bar(name, cx, wide, z0, z1):
+        pr = make_box(ctx, "IfcBuildingElementProxy", name, wide * FT, DEP * FT,
+                      (z1 - z0) * FT, ctx.X(cx), ctx.Y(cz), z0 * FT, color=TRIM)
+        run("spatial.assign_container", ctx.model, products=[pr],
+            relating_structure=ctx.storey)
+
+    if not door_below:
+        bar(f"{w['name']} bar", pos, W + 2 * CW, sill - CW, sill)
+    bar(f"{w['name']} rail", pos, W + 2 * CW, head, head + CW)
+    for sx in (-1, 1):                                # centred on the jambs, like post()
+        bar(f"{w['name']} stile", pos + sx * W / 2, CW, sill, head)
 
 
 def add_windows(ctx, r):
@@ -2854,6 +2913,22 @@ def add_windows(ctx, r):
             cut_opening(ctx, "IfcWindow", w["name"], w["orient"], w["fixed"], w["pos"],
                         w["width"], w["sill"], ctx.head_ft, leaf=False)
             continue
-        # Uniform head for every window (sills stay as authored).
+        # Uniform head for every window (sills stay as authored) — the whole house lines
+        # up on one head line, so an authored `head` is deliberately IGNORED here.
+        # A transom is the one real exception: it sits ABOVE that line, stacked on the
+        # opening it belongs to, so it authors its own head. Without this carve-out a
+        # transom with sill == head_ft came out ZERO HEIGHT, and both it and its opening
+        # then failed to produce geometry at all — a silently missing window, not an error.
+        head = w["head"] if w.get("transom") else ctx.head_ft
+        if head <= w["sill"]:
+            # Loud, because the quiet version cost a debugging round: a zero-height
+            # window still produces an IfcWindow and an IfcOpeningElement, so nothing
+            # looks wrong until you notice the wall is solid where the glass should be.
+            raise ValueError(
+                f"{w['name']}: head {head} is not above sill {w['sill']} — the window "
+                f"would be zero height. A transom sitting ON the head line must author "
+                f"its own `head` and carry `transom: true`.")
         cut_opening(ctx, "IfcWindow", w["name"], w["orient"], w["fixed"], w["pos"],
-                    w["width"], w["sill"], ctx.head_ft)
+                    w["width"], w["sill"], head)
+        if w.get("transom"):
+            add_transom_frame(ctx, r, w, w["sill"], head)

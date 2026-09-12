@@ -21,7 +21,8 @@
     "name": "Foyer -> Vestibule (french)",
     "hingeMax": false,
     "swingSign": 1,
-    "style": "panel"
+    "style": "8lite",
+    "openDeg": 140.0
   },
   {
     "name": "Front Door",

@@ -29,6 +29,7 @@
       ],
       "windows": [],
       "tall": [],
+      "transoms": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -51,6 +52,7 @@
       ],
       "windows": [],
       "tall": [],
+      "transoms": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -77,6 +79,7 @@
       ],
       "windows": [],
       "tall": [],
+      "transoms": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -94,6 +97,7 @@
       "doors": [],
       "windows": [],
       "tall": [],
+      "transoms": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -116,6 +120,7 @@
       ],
       "windows": [],
       "tall": [],
+      "transoms": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -146,6 +151,7 @@
       ],
       "windows": [],
       "tall": [],
+      "transoms": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -163,6 +169,7 @@
       "doors": [],
       "windows": [],
       "tall": [],
+      "transoms": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -193,6 +200,7 @@
         ]
       ],
       "tall": [],
+      "transoms": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -223,6 +231,7 @@
       ],
       "windows": [],
       "tall": [],
+      "transoms": [],
       "noCornice": false,
       "noBattens": false,
       "wainscot": false
@@ -253,6 +262,7 @@
         ]
       ],
       "tall": [],
+      "transoms": [],
       "noCornice": false,
       "noBattens": false,
       "wainscot": false
@@ -275,6 +285,7 @@
       ],
       "windows": [],
       "tall": [],
+      "transoms": [],
       "noCornice": false,
       "noBattens": false,
       "wainscot": false
@@ -305,8 +316,96 @@
         ]
       ],
       "tall": [],
+      "transoms": [],
       "noCornice": false,
       "noBattens": false,
+      "wainscot": false
+    },
+    {
+      "along": "x",
+      "at": 10.3959,
+      "normal": [
+        0,
+        1
+      ],
+      "side": "S",
+      "lo": 3.917,
+      "hi": 15.083,
+      "doors": [
+        [
+          6.5,
+          12.5
+        ]
+      ],
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "noCornice": true,
+      "noBattens": true,
+      "wainscot": false
+    },
+    {
+      "along": "x",
+      "at": 15.8542,
+      "normal": [
+        0,
+        -1
+      ],
+      "side": "N",
+      "lo": 3.917,
+      "hi": 15.083,
+      "doors": [
+        [
+          8.0,
+          11.0
+        ]
+      ],
+      "windows": [],
+      "tall": [],
+      "transoms": [
+        [
+          8.0,
+          11.0
+        ]
+      ],
+      "noCornice": true,
+      "noBattens": true,
+      "wainscot": false
+    },
+    {
+      "along": "z",
+      "at": 4.1459,
+      "normal": [
+        1,
+        0
+      ],
+      "side": "E",
+      "lo": 10.167,
+      "hi": 16.083,
+      "doors": [],
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "noCornice": true,
+      "noBattens": true,
+      "wainscot": false
+    },
+    {
+      "along": "z",
+      "at": 14.8541,
+      "normal": [
+        -1,
+        0
+      ],
+      "side": "W",
+      "lo": 10.167,
+      "hi": 16.083,
+      "doors": [],
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "noCornice": true,
+      "noBattens": true,
       "wainscot": false
     },
     {
@@ -327,6 +426,7 @@
       ],
       "windows": [],
       "tall": [],
+      "transoms": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -344,6 +444,7 @@
       "doors": [],
       "windows": [],
       "tall": [],
+      "transoms": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -368,6 +469,7 @@
         ]
       ],
       "tall": [],
+      "transoms": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -390,6 +492,7 @@
       ],
       "windows": [],
       "tall": [],
+      "transoms": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -432,6 +535,7 @@
           7.0
         ]
       ],
+      "transoms": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -458,6 +562,7 @@
       ],
       "windows": [],
       "tall": [],
+      "transoms": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": true
@@ -482,6 +587,7 @@
         ]
       ],
       "tall": [],
+      "transoms": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false
@@ -506,6 +612,7 @@
         ]
       ],
       "tall": [],
+      "transoms": [],
       "noCornice": true,
       "noBattens": true,
       "wainscot": false

@@ -19,11 +19,52 @@
       "doorStyle": "front"
     }
   ],
-  "windows": [],
+  "windows": [
+    {
+      "name": "Transom - Front Door",
+      "orient": "H",
+      "fixed": 16.0833,
+      "pos": 9.5,
+      "width": 3.0,
+      "sill": 7.33,
+      "head": 8.67,
+      "transom": true
+    }
+  ],
   "interior": {
     "flooring": {
       "material": "tile",
-      "pattern": "basketweave"
+      "pattern": "checker"
+    },
+    "furniture": [
+      {
+        "type": "mudroom_bench",
+        "at": [
+          4.896,
+          13.125
+        ],
+        "faces": "W",
+        "lenFt": 5.0,
+        "depthFt": 1.5,
+        "hooks": 5,
+        "cubbies": 4
+      },
+      {
+        "type": "wall_mirror",
+        "at": [
+          14.794,
+          13.125
+        ],
+        "faces": "E",
+        "widthFt": 3.5,
+        "heightFt": 5.5,
+        "bottomFt": 1.5
+      }
+    ],
+    "paneling": {
+      "baseboard": 10,
+      "noCornice": true,
+      "battens": false
     }
   }
 }

@@ -354,6 +354,27 @@
       }
     },
     {
+      "type": "mudroom_bench",
+      "px": 4.896,
+      "pz": 13.125,
+      "rot": 0.0,
+      "faces": "W",
+      "lenFt": 5.0,
+      "depthFt": 1.5,
+      "hooks": 5,
+      "cubbies": 4
+    },
+    {
+      "type": "wall_mirror",
+      "px": 14.794,
+      "pz": 13.125,
+      "rot": 0.0,
+      "faces": "E",
+      "widthFt": 3.5,
+      "heightFt": 5.5,
+      "bottomFt": 1.5
+    },
+    {
       "type": "shower",
       "px": -20.1875,
       "pz": 1.771,

@@ -9,7 +9,12 @@
     "z2": 10.1667
   },
   "walls": true,
-  "floorOpening": { "x1": 8.5167, "x2": 15.0833, "z1": -7.317, "z2": -0.33 },
+  "floorOpening": {
+    "x1": 8.5167,
+    "x2": 15.0833,
+    "z1": -7.317,
+    "z2": -0.33
+  },
   "doors": [
     {
       "name": "Foyer <-> Sitting (opening)",
@@ -33,7 +38,9 @@
       "fixed": 10.1667,
       "pos": 9.5,
       "width": 6.0,
-      "swing": "pos"
+      "swing": "pos",
+      "doorStyle": "8lite",
+      "openDeg": 140
     }
   ],
   "windows": [],
@@ -44,7 +51,10 @@
     "furniture": [
       {
         "type": "staircase",
-        "at": [9.5, -6.1233],
+        "at": [
+          9.5,
+          -6.1233
+        ],
         "w": 11.1666,
         "d": 11.5867,
         "floorToFloor": 10.0,
