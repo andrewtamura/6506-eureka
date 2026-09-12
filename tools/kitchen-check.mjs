@@ -528,6 +528,21 @@ if (gUps.length === 2) {
   HORN(hRun, hRet, 'head');
   A(hRet.length === 6, `mitred returns at both ends of each head (${hRet.length})`);
   A(hRet.every(m => m.nv >= MOULDED), 'the returns carry the same section round the corner');
+  // DIRECTION of the mitre. It has to slope BACKWARDS — long point at the front, short
+  // point at the wall — so the cut faces into the wall and the return tucks in behind
+  // it. Cut the other way the run's long point is at the wall and the cut face aims out
+  // into the room where you see it, which is what was here. Both are 45 deg and both
+  // measure identically end-to-end, so only the depth at which the member reaches its
+  // full length tells them apart: at the FRONT for a backward cut.
+  if (hRun.length && hRet.length) {
+    const r = hRun[0];
+    // They share an END with the run, not a boundary: cutting backwards puts the run's
+    // long point at the extremity, so the return tucks in BEHIND it and sits inside the
+    // run's span. An adjacency test finds nothing, which is itself the tell.
+    const ret = hRet.filter(m => Math.abs(m.pxLo - r.pxLo) < 0.02 || Math.abs(m.pxHi - r.pxHi) < 0.02);
+    A(ret.length === 2 && ret.every(m => Math.abs((m.pzHi - m.pzLo) - (r.pzHi - r.pzLo)) < 0.02),
+      'the return is the full section deep, seating on the wall behind the mitre');
+  }
   if (hRun.length && hRet.length) {
     const proj = hRun[0].pzHi - hRun[0].pzLo;
     A(hRet.every(m => Math.abs((m.pxHi - m.pxLo) - proj) < 0.02),

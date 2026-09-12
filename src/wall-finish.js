@@ -98,7 +98,12 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     // With no bevel and one step, vertices exist only at z=0 and z=length, so the cut is
     // a shear on the caps: SQUARE leaves it, IN pulls it to z=x, OUT to z=length-x
     // (x being the profile's own projection, which is what makes the angle 45 deg).
-    const SQUARE = 0, IN = 1, OUT = 2;
+    // Cuts, as seen looking down on the member. BACK_* is the one a return wants: the
+    // LONG POINT AT THE FRONT and the short point at the wall, so the cut slopes
+    // backwards toward the wall and the return piece tucks in behind it. FWD_* slopes
+    // the other way — long point at the wall — which is what was here, and it presents
+    // the cut face outward where you can see it.
+    const SQUARE = 0, FWD_NEAR = 1, FWD_FAR = 2, BACK_NEAR = 3, BACK_FAR = 4;
     const sweep = (shape, startPt, xAxis, yAxis, length, ends = [SQUARE, SQUARE], m = mill) => {
       if (length < 0.004) return;
       const zAxis = new THREE.Vector3().crossVectors(xAxis, yAxis).normalize();
@@ -106,11 +111,15 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       const [nearCut, farCut] = ends;
       if (nearCut || farCut) {
         const pos = geo.getAttribute('position');
+        let pmax = 0;
+        for (let i = 0; i < pos.count; i++) pmax = Math.max(pmax, pos.getX(i));
         for (let i = 0; i < pos.count; i++) {
           const x = pos.getX(i), z = pos.getZ(i);
           const cut = z > length / 2 ? farCut : nearCut;
-          if (cut === IN) pos.setZ(i, x);
-          else if (cut === OUT) pos.setZ(i, length - x);
+          if (cut === FWD_NEAR) pos.setZ(i, x);
+          else if (cut === FWD_FAR) pos.setZ(i, length - x);
+          else if (cut === BACK_NEAR) pos.setZ(i, pmax - x);
+          else if (cut === BACK_FAR) pos.setZ(i, length - pmax + x);
         }
         pos.needsUpdate = true;
         geo.computeVertexNormals();
@@ -204,7 +213,7 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       const fwd = zAxis.dot(B.clone().sub(A)) >= 0;
       const startPt = fwd ? A : B;
       sweep(shape, new THREE.Vector3(startPt.x, floorY + yLo, startPt.z),
-            Nw, across, A.distanceTo(B), [IN, OUT]);
+            Nw, across, A.distanceTo(B), [BACK_NEAR, BACK_FAR]);
       // The RETURN is the matching wedge: the same section, turned so its moulded face
       // looks along the wall, swept from the wall out to the front, and cut at 45 deg on
       // the face that meets the run. The two cut faces are the same plane, so the profile
@@ -215,8 +224,11 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
         const o = P(originPlan);
         const base = new THREE.Vector3(o.x, floorY + yLo, o.z);
         const zr = new THREE.Vector3().crossVectors(out, across).normalize();
+        // MATCHING cut: the return's 45 deg face has to lie in the same plane as the
+        // run's, which is the opposite assignment to the run's own — the wedge tucks in
+        // BEHIND the run's long front point, thick at the wall and dying at the front.
         sweep(shape, zr.dot(Nw) >= 0 ? base : base.clone().add(Nw.clone().multiplyScalar(proj)),
-              out, across, proj, zr.dot(Nw) >= 0 ? [OUT, SQUARE] : [SQUARE, IN]);
+              out, across, proj, zr.dot(Nw) >= 0 ? [SQUARE, FWD_NEAR] : [FWD_FAR, SQUARE]);
       }
     };
     const mouldV = (s, y0, y1, shape, sgn) => {
