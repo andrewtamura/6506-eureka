@@ -302,11 +302,16 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       mouldH(lo - hOut, hi + hOut, headY, casingShape, CASE_P, false);
       // STOOL: a bullnosed sill board, mitred back to the wall at each horn.
       mouldH(lo - hOut, hi + hOut, sy, stoolShape, STOOL_D, false);
-      // The apron is a 2" proud board the exact width of the window. Where the wall
-      // below is open floor rather than a counter it hangs 25" up with nothing under
-      // it and reads as a stray panel, so `plainBelow` drops it and the field and
-      // battens simply carry on to the stool.
-      if (!plainBelow) band(a, b, sy - 0.12, sy, 0.05);                    // apron
+      // APRON: a length of the CASING stock run horizontally under the stool, inverted,
+      // and returned onto itself at both ends — which is what an apron is. It was the
+      // last flat board in the composition.
+      // Its length is the distance across the OUTSIDE EDGES of the side casings: the
+      // long point of each mitre lands where the casing's outer edge meets it. Running
+      // it the width of the window (as it did) stops it short of the casing above.
+      // Where the wall below is open floor rather than a counter the apron hangs 25 in
+      // up with nothing under it and reads as a stray panel, so `plainBelow` drops it
+      // and the field and battens simply carry on to the stool.
+      if (!plainBelow) mouldH(lo - cwf / 2, hi + cwf / 2, sy, casingShape, CASE_P, true);
     }
     // 5) door casing: jambs (floor..head) PLUS a head casing across the top. The head
     //    was missing everywhere — every cased door in the house had two verticals and

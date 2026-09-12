@@ -549,10 +549,27 @@ if (gUps.length === 2) {
     A(proj > (jambs[0].pzHi - jambs[0].pzLo), 'the stool stands prouder than the casing');
   }
 
-  const aprons = L.filter(m => m.pzLo < SWALL + 0.35 && Math.abs(m.yHi - sy) < 0.05
-    && (m.yHi - m.yLo) > 0.3 && (m.yHi - m.yLo) < 0.5
-    && (m.pxHi - m.pxLo) > 1.8 && (m.pxHi - m.pxLo) < 2.3);
-  A(aprons.length === 3, `an apron under each window (${aprons.length})`);
+  // APRON: casing stock run horizontally under the stool, inverted, returned onto
+  // itself. Its length is the distance across the OUTSIDE EDGES of the side casings —
+  // the long point of each mitre lands where the casing's outer edge meets it — which
+  // is the rule that says it is an apron and not just a board of some length.
+  const atApron = onWall.filter(m => Math.abs(m.yHi - sy) < 0.05 && m.yLo > sy - 0.45);
+  const aRun = atApron.filter(m => (m.pxHi - m.pxLo) > 1.5);
+  const aRet = atApron.filter(m => (m.pxHi - m.pxLo) < 0.3);
+  A(aRun.length === 3, `an apron under each window (${aRun.length})`);
+  A(aRet.length === 6, `returned onto itself at both ends (${aRet.length})`);
+  A(aRun.every(m => m.nv >= MOULDED), 'a moulded section, not a flat board');
+  A(aRun.every(m => Math.abs((m.yHi - m.yLo) - 0.33) < 0.02),
+    'the same 4 in stock as the casing');
+  // Per window: each apron's own ends against the jambs FLANKING IT. Taking the
+  // extremes across all three windows instead compared one apron to the whole wall.
+  for (const r of aRun) {
+    const near = aRet.filter(m => Math.abs(m.pxLo - r.pxHi) < 0.02 || Math.abs(m.pxHi - r.pxLo) < 0.02);
+    const lo = Math.min(r.pxLo, ...near.map(m => m.pxLo));
+    const hi = Math.max(r.pxHi, ...near.map(m => m.pxHi));
+    A(jambs.some(j => Math.abs(j.pxLo - lo) < 0.02) && jambs.some(j => Math.abs(j.pxHi - hi) < 0.02),
+      `apron flush with its casing's outer edges (${R(lo, 3)}..${R(hi, 3)})`);
+  }
 }
 
 // EAST WINDOW. Its casing runs 4 in past the opening, and a wall-centred window would
