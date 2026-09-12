@@ -160,19 +160,23 @@ const hud = await page.evaluate(async () => {
 // puts the mode back. Leaving it in AUTO would silently undo render-on-demand and
 // nothing else here would notice. Also check the lights control restores exactly what it
 // switched off.
-const bench = await page.evaluate(async () => {
+const BENCH_S = 4;
+const bench = await page.evaluate(async (BENCH_S) => {
   window.__eureka.togglePerf(true);
   await new Promise(r => setTimeout(r, 300));
   const perf = window.__eureka.perf;
   const modeBefore = window.__eureka.world.renderer.mode;
-  const r = await perf.benchmark(2);
+  // 4 s, not 2: the full ground scene draws at roughly 1 fps under swiftshader, so a
+  // 2 s window asserting "at least 2 frames" sits right on the edge and fails
+  // intermittently. The assertion is about measuring DRAWN frames, not about speed.
+  const r = await perf.benchmark(BENCH_S);
   const modeAfter = window.__eureka.world.renderer.mode;
   const before = perf.lightsOn();
   const dim = perf.dimOtherLevels();
   const undim = perf.dimOtherLevels();
   window.__eureka.togglePerf(false);
   return { modeBefore, modeAfter, ...r, lights: { before, dimmed: dim.lightsOn, restored: undim.lightsOn } };
-});
+}, BENCH_S);
 
 // RENDER ON DEMAND. Measured against the real update loop, not by calling render()
 // ourselves: idle should cost only the safety heartbeat, and moving the camera should
@@ -224,7 +228,7 @@ A(hud.button && !hud.off.shown && !/Hide/.test(hud.off.label),
 A(bench.modeAfter === bench.modeBefore,
   `the benchmark puts the renderer mode back (${bench.modeBefore} -> ${bench.modeAfter}) — leaving it in AUTO would undo render-on-demand`);
 A(bench.frames >= 2 && bench.fps > 0,
-  `the benchmark measures frames actually drawn (${bench.frames} in 2 s)`);
+  `the benchmark measures frames actually drawn (${bench.frames} in ${BENCH_S} s)`);
 A(bench.lights.restored === bench.lights.before,
   `the lights control restores exactly what it switched off (${bench.lights.before} -> ${bench.lights.dimmed} -> ${bench.lights.restored})`);
 if (FULL) A(bench.lights.dimmed < bench.lights.before,

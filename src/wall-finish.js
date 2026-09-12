@@ -339,7 +339,12 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     // off the plain wall the same distance below the ceiling, so every coved room reads
     // with the same curve. `coved` in the room's paneling turns it on, and is implied
     // for any wall that carries a cornice.
-    const COVE_H = 0.30;                     // matches wallTop - crownTop in a corniced room
+    // The band between the 7 ft head line and the ceiling is shared EQUALLY by the
+    // ENTABLATURE and the COVE above it — that is the ratio the owner's photographed
+    // corners show. Derived rather than hard-coded so it survives a change of ceiling
+    // height: at 9'0" that was 12 in each, at 9'6" it is 15 in each.
+    const CEIL_BAND = wallTop - headY;
+    const COVE_H = CEIL_BAND / 2;
     const sweepCove = (s0, s1, springY) => {
       const H = wallTop - springY, Rc = H;
       if (H < 0.02) return;
@@ -377,14 +382,13 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       //    height equals the frieze height. The crown runs on all four walls and
       //    miters at the corners, but BREAKS around full-height built-ins (`tall`),
       //    which run past the cornice; plain wall fills above each built-in instead.
-      // The 0.61 m between the head line and the ceiling is shared by the ENTABLATURE and
-      // the COVE above it, and the owner's photos show those reading about equal. At full
-      // size the entablature took 0.39 m and left the cove 8.65 in, which is why the cove
-      // looked like the leftover gap it was rather than a designed curve. ENT_K shrinks
-      // the whole assembly while keeping its own proportions exactly as approved —
-      // including `coveH === friezeH` and the crown's projection, which has to come down
-      // with its height or the profile stops being the same moulding.
-      const ENT_K = 0.795;                             // entablature 0.31 m, cove 0.30 m
+      // The cove used to be whatever the entablature left over — 8.65 in against its
+      // 15.4 — which is why it read as a gap rather than a designed curve. Now they
+      // split the band; see CEIL_BAND above. The crown's projection scales with its
+      // height or the profile stops being the same moulding.
+      // ...so the entablature scales to whatever half the band is. Its own proportions
+      // are fixed (0.39 m at full size) and ENT_K keeps them.
+      const ENT_K = COVE_H / 0.39;
       const topperH = 0.03 * ENT_K, bedH = 0.04 * ENT_K, P5 = 0.127 * ENT_K;
       const friezeH = 0.16 * ENT_K, coveH = friezeH;   // frieze height == cove height (per spec)
       const Hc = coveH + topperH;             // total crown height

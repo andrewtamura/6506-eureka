@@ -241,9 +241,12 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   `(0.012, H)`.** Putting it at `(Rc, 0)` is the same quarter-round turned inside out — a
   bullnose bulging into the room — and that is what shipped first, because in a render
   the two look alike at a glance. A photographed corner settles it; so does the harness.
-  The entablature is scaled by `ENT_K` so the cove reads about as tall as the
-  frieze-and-crown below it (0.31 m each of the 0.61 m between head line and ceiling);
-  at full size the entablature took 0.39 m and the cove was the 8.65 in left over.
+  **The entablature and the cove SPLIT the band between the head line and the ceiling**,
+  which is the ratio the photographed corners show. Both are derived from
+  `CEIL_BAND = wallTop - headY` rather than hard-coded, so they survive a change of
+  ceiling height: at 9'0" that was 12 in each, at 9'6" it is 15 in each. Originally the
+  entablature took a fixed 0.39 m and the cove was the 8.65 in left over, which is why
+  it read as a gap rather than a designed curve.
   `kitchen-check` proves it is a cove rather than a deeper flat band by VERTEX COUNT — a
   `BoxGeometry` has 24, the swept section has 144 — and proves it curves the RIGHT WAY by
   SOLID VOLUME, which is the only thing that separates a hollow from a bullnose of the
@@ -293,6 +296,16 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   slab's underside and 3 mm INSIDE the opening (flush with the slab's cut edge the two
   faces are coplanar and z-fight). The harness measures it in world metres against the
   real ceiling, and that guard was confirmed to fail on the old geometry.
+- **`wallHeight` (finished floor-to-ceiling, 9.5) and `storyHeight` (floor-to-floor, 10)
+  are INDEPENDENT** in `ifc/model.json`. Raising `wallHeight` alone is interior-only
+  while `wallHeight + slabThickness` still fits inside `storyHeight` — nothing outside
+  moves, and the foyer stair keeps its `floorToFloor: 10` and its 15 risers. Past about
+  9'9" the story height has to rise too, which re-cuts the exterior massing, the eaves,
+  the upper floors and the stair.
+  To tell a REAL geometry change from the generator's GUID/timestamp churn, diff the
+  sorted multiset of decimal literals in each `.ifc` before and after: raising the
+  ceiling moved `ground` by exactly one value (2.7432 -> 2.8956) and left `attic`
+  bit-identical in coordinates, so only the files that really moved need committing.
 - **A phone is ~3.5x slower per draw call.** The device reported 304 calls in 22 ms
   (~72 us each) against ~20 us in this container. Scale any draw-call saving measured
   here up by about that much before deciding it is not worth doing.

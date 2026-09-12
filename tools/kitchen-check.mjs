@@ -1518,10 +1518,10 @@ console.log('EXTENSION');
   // the flat band it replaced is the PROJECTION: a cove is ~0.72 ft deep where the band
   // was 0.012 m of skim, and that is the smaller of its two plan extents whichever wall
   // it is on.
-  // Springs at crownTop = headY + 0.31 m = 8.017 ft and dies at the 9 ft ceiling, both
-  // reading LOOSE_DY low. It used to spring at 8.28 — the entablature was shrunk (ENT_K)
-  // so the cove reads about as tall as the frieze-and-crown below it, per the photos.
-  const isCove = (m) => m.yLo > 7.85 && m.yLo < 8.15 && m.yHi > 8.85
+  // The entablature and the cove split the band between the 7 ft head line and the
+  // ceiling, so both ends move with the ceiling height: at 9'6" the cove springs at
+  // crownTop = 8.25 ft and dies at 9.5, each reading LOOSE_DY low.
+  const isCove = (m) => m.yLo > 8.05 && m.yLo < 8.35 && m.yHi > 9.35
     && Math.min(m.pxHi - m.pxLo, m.pzHi - m.pzLo) > 0.5;
   // Centre-in-box, not overlap: the foyer's west wall and the dining room's east wall
   // are the same line (x 15.0833), so an overlap test hands each room the other's cove.
@@ -1559,8 +1559,16 @@ console.log('EXTENSION');
   // ...and specifically on the WEST wall, which is the one the stair breaks. Scoped to
   // that wall on purpose: the SOUTH wall's cove runs its full length and should, so an
   // unscoped "nothing south of pz -3" test just fails on it.
+  // Identify the west wall by the cove's OUTER edge sitting on the wall face (14.854),
+  // not by its centre: the centre moves whenever the cove's projection changes, and it
+  // did — going from a 9'0" ceiling to 9'6" took the projection from 0.98 ft to 1.25 and
+  // the centre slid right past a 14.3 threshold.
+  // A WEST-wall member runs along z, so its px extent (just the projection) is smaller
+  // than its pz extent. That last clause is orientation-based and therefore scale-free —
+  // the SOUTH wall's cove also has its outer edge at px 15.08 and was caught without it,
+  // reporting the west wall's cove reaching pz -11.69. Same trap as the crown's.
   const westCove = L.filter(m => isCove(m) && inRoom(m, 3.9167, 15.0833, -11.9167, 10.1667)
-    && (m.pxLo + m.pxHi) / 2 > 14.3);
+    && m.pxHi > 14.6 && (m.pxHi - m.pxLo) < (m.pzHi - m.pzLo));
   const southMostCove = westCove.length ? Math.min(...westCove.map(m => m.pzLo)) : 0;
   A(westCove.length > 0 && southMostCove > -3,
     `foyer: the west wall's cove stops at the stair like its cornice (southernmost pz ${R(southMostCove, 2)})`);

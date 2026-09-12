@@ -11,29 +11,29 @@
   "zoning": {
     "district": "RM5",
     "baseDistrict": "RM (Multi-Family Residential)",
-    "code": "El Cerrito Municipal Code Title 19 (Zoning), §19.06.030 Development Standards",
+    "code": "El Cerrito Municipal Code Title 19 (Zoning), \u00a719.06.030 Development Standards",
     "maxHeightFt": 35,
     "daylightPlane": false,
     "tallPortionSetbacks": "portions of building >25 ft tall require 10 ft side setback (and 20 ft rear when abutting an RS zone)",
     "heightMeasurement": {
-      "code": "El Cerrito Municipal Code §19.03.050 (Measuring height)",
-      "topReference": "highest point of the structure (i.e. the roof ridge / top of covering) — NOT a midpoint; no sloped-roof averaging",
+      "code": "El Cerrito Municipal Code \u00a719.03.050 (Measuring height)",
+      "topReference": "highest point of the structure (i.e. the roof ridge / top of covering) \u2014 NOT a midpoint; no sloped-roof averaging",
       "gradeDatum": "ground level directly below, at the lower of natural or finished grade (per part B); not an averaged datum",
       "allParts": "all parts of the building except listed projections must comply with the max height",
       "crawlspaceCounts": true
     },
     "notes": [
       "RM has NO daylight-plane requirement (unlike the RS districts); height is governed by the flat 35 ft cap.",
-      "Per §19.03.050, height is measured to the HIGHEST point of the roof from the ground directly below (lower of natural/finished grade) — no midpoint averaging, and the 2.5 ft crawlspace counts (it sits above grade=z=0).",
-      "DESIGN: raised plate (story-and-a-half), 2.5 ft attic perimeter wall -> eave at 25.0 ft AG (overhang fascia ~24.2 ft). Roof 8:12; structural ridge ~34.33 ft, top of covering ~34.96 ft — under the 35 ft cap but by only ~0.5 in. CAUTION: at 8:12 there is essentially no margin; confirm actual roof-assembly thickness or back off to ~7.75:12 for a safe ~3 in. The south shed dormer is a FLAT roof behind a 2 ft decorated parapet (coping + cornice + dentils), which stays well below the ridge.",
-      "Eave wall held AT 25 ft (not over), so the building walls do not trigger RM's >25 ft side/rear setback step; the roof + dormers rise above 25 ft, so confirm how the city applies the >25 ft rule to roof vs wall portions (ECMC §19.06.030 table).",
+      "Per \u00a719.03.050, height is measured to the HIGHEST point of the roof from the ground directly below (lower of natural/finished grade) \u2014 no midpoint averaging, and the 2.5 ft crawlspace counts (it sits above grade=z=0).",
+      "DESIGN: raised plate (story-and-a-half), 2.5 ft attic perimeter wall -> eave at 25.0 ft AG (overhang fascia ~24.2 ft). Roof 8:12; structural ridge ~34.33 ft, top of covering ~34.96 ft \u2014 under the 35 ft cap but by only ~0.5 in. CAUTION: at 8:12 there is essentially no margin; confirm actual roof-assembly thickness or back off to ~7.75:12 for a safe ~3 in. The south shed dormer is a FLAT roof behind a 2 ft decorated parapet (coping + cornice + dentils), which stays well below the ridge.",
+      "Eave wall held AT 25 ft (not over), so the building walls do not trigger RM's >25 ft side/rear setback step; the roof + dormers rise above 25 ft, so confirm how the city applies the >25 ft rule to roof vs wall portions (ECMC \u00a719.06.030 table).",
       "8:12 yields ~820 sf >=5 ft and ~564 sf >=7 ft of attic floor (vs 643/439 for the eave-at-floor 10:12 scheme); the flat shed dormer gives a 7.5 ft clear ceiling over its bay.",
-      "Remaining to confirm: roof-assembly thickness keeps the ridge <35 ft; any RM story/floor-area cap; parcel designation 'RM5' shares the base RM standards in the §19.06.030 table."
+      "Remaining to confirm: roof-assembly thickness keeps the ridge <35 ft; any RM story/floor-area cap; parcel designation 'RM5' shares the base RM standards in the \u00a719.06.030 table."
     ]
   },
   "units": "feet",
   "wallThickness": 0.4583,
-  "wallHeight": 9.0,
+  "wallHeight": 9.5,
   "storyHeight": 10.0,
   "slabThickness": 0.2,
   "doorHeight": 7.0,
@@ -49,7 +49,7 @@
     "scullerySouthFt": 5,
     "frontage": {
       "_note": "Corner lot: city frontage on the NORTH and WEST lines. The lot itself is flat; the right-of-way falls away from it. The property stands nwDropIn above the sidewalk at the NW corner. Going EAST along the north line that drop dies to zero northLevelFromEastFt short of the NE corner; going SOUTH along the west line it eases to swDropIn at the SW corner. Both work out to a steady ~4% walk.",
-      "_noteBandOrder": "The two frontages run the same bands in OPPOSITE order — north is (property line) park strip, sidewalk, curb, with the walk out against the asphalt; west is (property line) sidewalk, park strip, curb. Each is sidewalkWidthFt + parkStripWidthFt overall either way, so the curb lines and the paved NW corner block agree.",
+      "_noteBandOrder": "The two frontages run the same bands in OPPOSITE order \u2014 north is (property line) park strip, sidewalk, curb, with the walk out against the asphalt; west is (property line) sidewalk, park strip, curb. Each is sidewalkWidthFt + parkStripWidthFt overall either way, so the curb lines and the paved NW corner block agree.",
       "_noteYard": "northYardFt is the CLEAR front yard: outer face of the north exterior wall to the near face of the retaining wall. It sets the north property line, and with it the parcel depth.",
       "northYardFt": 10,
       "nwDropIn": 36,
@@ -110,7 +110,11 @@
             "plateFt": 3.0,
             "recessFt": 0.75,
             "align": "bays",
-            "window": { "widthFt": 2.0, "heightFt": 1.8, "sillFt": 0.7 }
+            "window": {
+              "widthFt": 2.0,
+              "heightFt": 1.8,
+              "sillFt": 0.7
+            }
           },
           "shedDormer": {
             "side": "south",
@@ -120,14 +124,23 @@
             "marginFt": 0.5,
             "spanFt": 11.1666,
             "recessFt": 0.75,
-            "window": { "count": 3, "widthFt": 3.5, "heightFt": 3.8, "sillFt": 0.7 }
+            "window": {
+              "count": 3,
+              "widthFt": 3.5,
+              "heightFt": 3.8,
+              "sillFt": 0.7
+            }
           },
           "hipDormers": {
             "roof": "gable",
             "widthFt": 3.5,
             "plateFt": 3.0,
             "recessFt": 0.75,
-            "window": { "widthFt": 2.0, "heightFt": 1.8, "sillFt": 0.7 }
+            "window": {
+              "widthFt": 2.0,
+              "heightFt": 1.8,
+              "sillFt": 0.7
+            }
           }
         },
         "extension": {
@@ -192,10 +205,22 @@
       ],
       "upperWindows": true,
       "floorOverrides": {
-        "ext_bath": { "material": "tile", "pattern": "hexagon" },
-        "wc": { "material": "tile", "pattern": "hexagon" },
-        "ext_vestibule": { "material": "tile", "pattern": "hexagon" },
-        "ext_laundry": { "material": "tile", "pattern": "hexagon" }
+        "ext_bath": {
+          "material": "tile",
+          "pattern": "hexagon"
+        },
+        "wc": {
+          "material": "tile",
+          "pattern": "hexagon"
+        },
+        "ext_vestibule": {
+          "material": "tile",
+          "pattern": "hexagon"
+        },
+        "ext_laundry": {
+          "material": "tile",
+          "pattern": "hexagon"
+        }
       }
     },
     {
@@ -206,8 +231,17 @@
       "kneeFt": 3.0,
       "usableHeadroomFt": 6.0,
       "flatCeilFt": 8.5,
-      "bathroom": { "cutFt": 15.1, "x1": 15.1, "x2": 31, "z1": -11.9167, "z2": 16.0833 },
-      "roofRef": { "from": "exterior", "group": "primary" },
+      "bathroom": {
+        "cutFt": 15.1,
+        "x1": 15.1,
+        "x2": 31,
+        "z1": -11.9167,
+        "z2": 16.0833
+      },
+      "roofRef": {
+        "from": "exterior",
+        "group": "primary"
+      },
       "rooms": [
         "family",
         "kitchen",
