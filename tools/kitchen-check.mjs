@@ -167,7 +167,10 @@ const raw = await page.evaluate(() => {
       xmin = Math.min(xmin, bb.min.x); xmax = Math.max(xmax, bb.max.x); });
     doorLeaves.push({ name: d.name, parts: n, zmin, zmax, xmin, xmax });
   }
-  return { items, loose, doorLeaves, lights };
+  // The ceiling plane, so the skylight wells can be checked against the thing they
+  // actually have to meet rather than against their own nominal height.
+  const ceilingY = window.__eureka.modelViews[0].box.max.y;
+  return { items, loose, doorLeaves, lights, ceilingY };
 });
 await b.close();
   return raw;
@@ -877,6 +880,18 @@ console.log('WAINSCOT + LIGHTING');
     A(Math.abs((k.pxHi - k.pxLo) - 2.0) < 0.05, `2 ft wide, unchanged (${R(k.pxHi - k.pxLo, 2)})`);
     A(k.pzLo > SWALL + 1.1, `its well clears the galley uppers by ${R((k.pzLo - (SWALL + 1.1)) * 12, 1)} in`);
     A(NWALL - k.pzHi > 0.8, `${R((NWALL - k.pzHi) * 12, 1)} in of ceiling left at the north wall`);
+    // THE WELL HAS TO MEET THE CEILING. The lining is drawn from `ceilFt` above the
+    // item's own origin, and placed furniture is lifted FLOOR + 0.02 — so it used to
+    // start 20 mm above the TOP of the 60 mm slab and you could see straight through
+    // the slot, as a thin black line, looking up the well. Measured in world metres
+    // against the real ceiling, not against the nominal height that caused the bug.
+    const under = raw.ceilingY - 0.06;                 // ceilings.js slab thickness
+    const wellLo = raw.items.find(r => r.type === 'skylight'
+      && Math.abs(-r.max[0] / FT - k.pxLo) < 0.01).min[1];
+    A(wellLo <= under + 0.0005,
+      `its lining reaches the ceiling underside (${R((wellLo - under) * 1000, 1)} mm, must not be above it)`);
+    A(wellLo > under - 0.02,
+      `and does not dangle below it (${R((under - wellLo) * 1000, 1)} mm past)`);
     // The roof springs from the ceiling at the south eave and rises 0.45/ft north, so
     // the glazing must sit ABOVE the 9 ft ceiling or the well has no depth at all.
     A(k.yHi > 9.5, `glazing ${R((k.yHi - 9.0) * 12, 1)} in above the ceiling at its high edge`);
@@ -1398,7 +1413,12 @@ console.log('EXTENSION');
   A(LI.every(l => l.decay === 2), `all decay physically (${[...new Set(LI.map(l => l.decay))].join('/')})`);
   // Each builder's default, in plan feet. A stray edit to one of these shows up here
   // rather than three rooms later in a screenshot.
-  const REACH = { recessed: 12, pendant: 10, sconce: 8, undercabinet: 8.5, skylight: 16 };
+  // A SKYLIGHT IS NOT IN HERE ON PURPOSE — it is glazing, not a lamp. It used to carry
+  // a PointLight standing in for daylight down the well, which lit the scullery from a
+  // fixture no switch controlled and left the well glowing at midnight. Asserted
+  // positively below, because the loop here skips a type with no lights and a removal
+  // would otherwise pass silently.
+  const REACH = { recessed: 12, pendant: 10, sconce: 8, undercabinet: 8.5 };
   for (const [type, want] of Object.entries(REACH)) {
     const own = LI.filter(l => l.owner === type);
     if (!own.length) continue;
@@ -1406,6 +1426,8 @@ console.log('EXTENSION');
     A(ft.every(d => Math.abs(d - want) < 0.05),
       `${type} reaches ${want} ft (${[...new Set(ft.map(d => R(d, 2)))].join(', ')}) \u00d7${own.length}`);
   }
+  A(LI.filter(l => l.owner === 'skylight').length === 0,
+    `a skylight is glazing, not a light source (${LI.filter(l => l.owner === 'skylight').length} lights on skylights)`);
   // The generic per-room fixture and the attic downlights own no furniture item, so
   // main.js tags them — do NOT identify them by "has no owner", which also catches
   // every landscape light on the lot. (Those are finite already, and deliberately

@@ -1665,7 +1665,7 @@ async function main() {
   await buildTileFloor({ scene, model, fragments, floorY: FLOOR, baseUrl: BASE, manifestFile: groundManifests.tiles + VER });
 
   // --- soft furniture as procedural meshes (see furniture.js) -------------
-  const furniture = await buildFurniture({ scene, floorY: FLOOR + 0.02, baseUrl: BASE, manifestFile: groundManifests.furniture + VER, invalidate });
+  const furniture = await buildFurniture({ scene, floorY: FLOOR + 0.02, ceilingY: modelBox.max.y, baseUrl: BASE, manifestFile: groundManifests.furniture + VER, invalidate });
   if (furniture?.doorMeshes) furnitureDoorMeshes.push(...furniture.doorMeshes);
   // Exterior fixtures (entry pendant lanterns) parent to the exterior model so
   // they inherit its offset; heights come per-item from the manifest.
@@ -1674,6 +1674,15 @@ async function main() {
 
   // --- board-and-batten wall finish + baseboards (see wall-finish.js) -----
   await buildWallFinish({ scene, floorY: FLOOR, ceilingY: modelBox.max.y, baseUrl: BASE, manifestFile: groundManifests.paneling + VER });
+
+  // Skylight glazing follows the SUN, not the lamp scenes: bright sky by day, dark at
+  // night. Held at a constant emissive it went on glowing at midnight, which read as
+  // the skylight boxes being lit from inside. Not registered as a fixture, because a
+  // skylight that went out when you switched the lamps off would be wrong at noon.
+  if (furniture?.skylightGlass?.length) onTime((day) => {
+    for (const m of furniture.skylightGlass) m.emissiveIntensity = (m.userData.skyBase ?? 0.85) * day;
+    invalidate();
+  });
 
   // --- ceilings (block the sun; opaque in POV, transparent in plan) -------
   // Every hole the ceiling has to carry: the stairwell void, plus a well for each skylight.
