@@ -267,12 +267,18 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       const half = cwf / 2, top = headY + caseW;
       mouldV(lo, 0, top, shape, +1, FRAME_TOP);
       mouldV(hi, 0, top, shape, -1, FRAME_TOP);
+      // The head is swept from the TOP DOWN so its section runs the same way round as
+      // the jambs': backband on the OUTSIDE of the frame, bead next to the opening. Swept
+      // upward from the head line the profile comes out mirrored — backband against the
+      // opening — and then no cut can make the bands continue across the corner, because
+      // the two pieces do not present the same section to the joint. That is what makes
+      // a geometrically exact mitre still read as misaligned.
       const A = P(lo - half), B = P(hi + half);
-      const across = UP.clone();
+      const across = UP.clone().negate();
       const zAxis = new THREE.Vector3().crossVectors(Nw, across).normalize();
       const startPt = zAxis.dot(B.clone().sub(A)) >= 0 ? A : B;
-      sweep(shape, new THREE.Vector3(startPt.x, floorY + headY, startPt.z),
-            Nw, across, A.distanceTo(B), [FRAME_NEAR, FRAME_FAR]);
+      sweep(shape, new THREE.Vector3(startPt.x, floorY + top, startPt.z),
+            Nw, across, A.distanceTo(B), [FRAME_TOP_N, FRAME_TOP]);
     };
 
     // 1) baseboard — minus doors + full-height built-ins (continuous under windows)
@@ -402,7 +408,12 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       // cove-and-ovolo architrave, where a heavy overhang just looks slack.
       const HORN = 0.75 / 12;                  // 3/4 in past the casing edge
       const hOut = cwf / 2 + HORN;             // ...so, past the JAMB
-      mouldH(lo - hOut, hi + hOut, headY, casingShape, CASE_P, false);
+      // Swept from the top down, so the head's section runs the same way round as the
+      // jambs' — backband OUTERMOST, bead next to the glass. Swept upward from the head
+      // line it comes out mirrored, with the heavy backband sitting right on the glass
+      // and the bead at the top, which is the wrong way up for an architrave. (The same
+      // inversion is what stopped the door's mitre corners reading as continuous.)
+      mouldH(lo - hOut, hi + hOut, headY + caseW, casingShape, CASE_P, true);
       // STOOL: a bullnosed sill board, mitred back to the wall at each horn.
       mouldH(lo - hOut, hi + hOut, sy, stoolShape, STOOL_D, false);
       // APRON: a length of the CASING stock run horizontally under the stool, inverted,
