@@ -606,6 +606,78 @@ if sp and 'Side porch deck' in SP and len(_door) == 1:
     check(all(b[0] >= cnpy[0] - 1e-6 and b[1] <= cnpy[1] + 1e-6 for _, b in brk),
           'and sits within its width, not buried in the house wall')
 
+    # --- the guard and the handrail. The deck is 30 in over the yard, so its open
+    # edges need one; the shut edges must NOT have one, and neither must the stair
+    # opening, which is what an extent test on the guard alone would miss.
+    gd = sp['guard']
+    GR = extents(ext, lambda nm, p: nm.startswith(('Side porch guard', 'Side porch handrail',
+                                                   'Side porch stair')))
+    top_e, top_n = GR['Side porch guard top rail E'], GR['Side porch guard top rail N']
+    check(near(top_e[5] - deck[5], gd['heightFt'], 0.01),
+          f"the guard stands {gd['heightFt']} ft over the deck ({top_e[5] - deck[5]:.3f})")
+    # The east run dies INTO the yard fence's terminal post rather than standing its own
+    # 3 in away — the post is already 3.5 ft above this deck.
+    _fp = [b for _, b in _parts(ext, 'Yard fence post')
+           if b[0] <= wing_e + 0.3 and b[1] >= wing_e - 0.3]
+    check(len(_fp) == 1 and near(top_e[2], _fp[0][3], 0.02),
+          f"its east run dies into the fence post ({top_e[2]:.3f} vs "
+          f"{'none' if not _fp else f'{_fp[0][3]:.3f}'})")
+    # The east run ends on the north run's CENTRELINE, not on the edge of its box — a
+    # rail is rw wide, so comparing end against edge is off by half a rail every time.
+    check(top_n[2] - 1e-6 <= top_e[3] <= top_n[3] + 1e-6,
+          f'and turns the corner into the north run ({top_e[3]:.3f} inside '
+          f'{top_n[2]:.3f}..{top_n[3]:.3f})')
+    # It must STOP at the head of the stair. Running on, it would fence off the way down.
+    check(top_n[1] <= fl[0] + gd['postFt'] + 1e-6,
+          f"the north run stops at the head of the stair ({top_n[1]:.3f} vs the flight's "
+          f"east edge {fl[0]:.3f})")
+    # ...and the two SHUT edges have none. Asserted as "every member sits on one of the
+    # two open edges" rather than "none near the house": the east run reaches within
+    # 6 in of the south wall where it dies into the fence post, so a proximity test
+    # fails on the very member that is right.
+    allg = _parts(ext, 'Side porch guard') + _parts(ext, 'Side porch baluster')
+    e_line, n_line = wing_e + gd['postFt'] / 2, deck[3] - gd['postFt'] / 2
+    stray = [nm for nm, b in allg
+             if abs((b[0] + b[1]) / 2 - e_line) > 0.2 and abs((b[2] + b[3]) / 2 - n_line) > 0.2]
+    check(not stray,
+          f'every member sits on one of the two OPEN edges, none on a house wall '
+          f'({len(allg)} members, {len(stray)} stray)')
+    check(max(b[1] for _, b in allg) <= fl[0] + gd['postFt'] + 1e-6,
+          'and none west of the stair head, where the deck runs on to the house')
+
+    # THE 4 IN SPHERE RULE, between CONSECUTIVE balusters on every run — the raking one
+    # included, where vertical balusters under a sloped rail are still governed by the
+    # HORIZONTAL clear, so it is measured the same way as on the level runs.
+    for tag, ax in (('Side porch baluster E', 2), ('Side porch baluster N', 0),
+                    ('Side porch stair baluster', 2)):
+        bs = sorted([b for _, b in _parts(ext, tag)], key=lambda b: b[ax])
+        gaps = [bs[i + 1][ax] - bs[i][ax + 1] for i in range(len(bs) - 1)]
+        check(len(bs) >= 4 and gaps and max(gaps) <= 4 / 12 + 1e-6,
+              f'{tag.split()[-1]}: {len(bs)} balusters, widest opening '
+              f'{max(gaps) * 12:.2f} in (4 in max)')
+
+    # THE HANDRAIL. Its height is the guard's, carried down the rake, so the two make one
+    # line: assert they MEET at the newel rather than asserting each against its own
+    # number, which is how a step at the newel survives two passing checks.
+    hr = GR['Side porch handrail']
+    check(near(hr[5], top_n[5], 0.01),
+          f"it leaves the guard's top rail at the same height ({hr[5]:.3f} vs {top_n[5]:.3f})")
+    # It must fall at the FLIGHT's slope — a handrail that is not parallel to the
+    # nosings is the one thing you feel underhand.
+    # The rail's own THICKNESS is inside its bounding box, so the box's vertical extent
+    # is the rise plus one rail. Subtract it, or a 9 in rail on a 3 ft run reads as a
+    # slope 6% steeper than the stair it is supposed to be parallel to.
+    slope = (hr[5] - hr[4] - gd['railThickFt']) / (hr[3] - hr[2])
+    check(near(slope, riser / dk['treadFt'], 0.005),
+          f'falling at the flight\'s own slope ({slope:.4f} vs {riser / dk["treadFt"]:.4f})')
+    # Graspable height above the NOSING LINE, both ends, against the 34-38 in allowed.
+    nose_hi, nose_lo = deck[5], deck[5] - riser * (hr[3] - hr[2]) / dk['treadFt']
+    check(34 / 12 <= hr[5] - nose_hi <= 38 / 12 and 34 / 12 <= hr[4] - nose_lo <= 38 / 12,
+          f'{(hr[5] - nose_hi) * 12:.1f} in over the nosing line at both ends (34-38 in)')
+    nw = GR['Side porch stair newel']
+    check(near(nw[4], 0.0, 0.02) and nw[2] >= steps[-1][1][2] - 1e-6,
+          f'and its bottom newel stands on the grade paver ({nw[4]:.3f} ft)')
+
     # --- the yard fence's terminal post shares this corner BY CONSTRUCTION, so the
     # deck is punched around it. Paired with a positive control: without it, "no deck
     # piece overlaps the post" passes just as well when the fence stops being built.

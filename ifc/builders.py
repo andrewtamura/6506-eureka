@@ -1694,7 +1694,8 @@ def add_deck(ctx, lot, rooms_cache, base):
 
 def add_side_porch(ctx, lot, rooms_cache, base):
     """A small board porch at the east wing's outside door: a landing level with the
-    floor, a flight down to grade, and a free-standing awning over the door.
+    floor, a flight down to grade, a guard and handrail, and a free-standing awning
+    over the door.
 
     It fills the reentrant corner between the wing's north wall and the primary
     block's east wall, so it is sheltered on two sides before any roof is added. Kept
@@ -1789,6 +1790,97 @@ def add_side_porch(ctx, lot, rooms_cache, base):
         t0 = (nst - 1) * tread
         slab(f"Side porch step {nst - 1}", se, die_in(sw), pz_n + t0, pz_n + t0 + tread,
              -0.05, 0.05)
+
+    # --- the guard and the stair handrail -----------------------------------------
+    # The deck stands 30 in over the yard, so its two OPEN edges get a guard: the east
+    # edge and the north edge as far as the head of the stair. South and west are house
+    # walls. The east run's south end dies into the YARD FENCE'S TERMINAL POST, which
+    # already stands 3.5 ft above this deck — standing a second post 3 in from it would
+    # be a mistake rather than a detail.
+    #
+    # Every member sits on a centreline inset `postFt / 2` from the edge it guards, so
+    # posts, rails and balusters share one line and the posts' outer faces are flush
+    # with the deck. IfcRailing throughout, like the two fences — a railing is not a
+    # walk-POV surface.
+    #
+    # The HANDRAIL'S HEIGHT IS NOT AUTHORED: it is the guard's own height carried down
+    # the rake above the nosing line. That lands at 36 in, inside the 34-38 in a
+    # handrail is allowed, and makes the guard's top rail and the handrail ONE line
+    # broken only at the newel — two authored heights would meet at the newel with a
+    # step in them and nothing would have caught it.
+    g = p.get("guard") or {}
+    if g:
+        gh, pst = g.get("heightFt", 3.0), g.get("postFt", 0.29)
+        rw, rt = g.get("railFt", 0.25), g.get("railThickFt", 0.12)
+        bw, boc = g.get("balusterFt", 0.125), g.get("balusterOcFt", 0.42)
+        bot = g.get("bottomClearFt", 0.25)
+        rail_x = se + pst / 2              # the stair's open (east) side, inset onto the tread
+        east_x = px_e + pst / 2            # the deck's east edge
+        north_z = pz_n - pst / 2
+
+        def newel(nm, xc, zc, y0, top):
+            slab(nm, xc - pst / 2, xc + pst / 2, zc - pst / 2, zc + pst / 2,
+                 y0, top - y0, cls="IfcRailing")
+
+        def guard_run(axis, fixed, a, b, tag):
+            """One straight run: bottom rail, top rail, balusters between. `axis` is the
+            one it runs ALONG, `fixed` the other coordinate."""
+            lo, hi = min(a, b), max(a, b)
+            def put(nm, p1, p2, half, y0, h):
+                if axis == "x":
+                    slab(nm, p1, p2, fixed - half, fixed + half, y0, h, cls="IfcRailing")
+                else:
+                    slab(nm, fixed - half, fixed + half, p1, p2, y0, h, cls="IfcRailing")
+            put(f"Side porch guard bottom rail {tag}", lo, hi, rw / 2,
+                base + bot * FT, rt * FT)
+            put(f"Side porch guard top rail {tag}", lo, hi, rw / 2,
+                base + (gh - rt) * FT, rt * FT)
+            # Divisions, not a fixed pitch: an even division that never EXCEEDS boc, so
+            # the 4 in sphere rule holds whatever the run works out to.
+            n = max(1, int(math.ceil((hi - lo) / boc)))
+            for i in range(n):
+                c = lo + (hi - lo) * (i + 0.5) / n
+                put(f"Side porch baluster {tag}.{i}", c - bw / 2, c + bw / 2, bw / 2,
+                    base + (bot + rt) * FT, (gh - bot - 2 * rt) * FT)
+
+        top_y = base + (gh + 0.12) * FT
+        newel("Side porch guard post 0", east_x, north_z, base, top_y)       # NE corner
+        newel("Side porch guard post 1", rail_x, north_z, base, top_y)       # head of the stair
+        guard_run("z", east_x, fz + hp, north_z, "E")                        # dies into the fence post
+        guard_run("x", north_z, east_x, rail_x, "N")
+
+        # --- the flight. `y_of` is the handrail's TOP: level over the landing, then
+        # falling at the flight's own slope from the top nosing. riser is metres and
+        # tread is plan feet, so the quotient is metres per plan-foot.
+        def y_of(z):
+            return base + gh * FT - (riser / tread) * max(0.0, z - pz_n)
+
+        def rake(nm, za, zb, dy, h, half):
+            """A member following the rake, `dy` ft below the handrail line and `h` thick."""
+            y = lambda z: y_of(z) - dy * FT
+            x0, x1 = ctx.X(rail_x - half), ctx.X(rail_x + half)
+            poly = [(x0, ctx.Y(za), y(za)), (x0, ctx.Y(zb), y(zb)),
+                    (x0, ctx.Y(zb), y(zb) - h * FT), (x0, ctx.Y(za), y(za) - h * FT)]
+            v, faces = _prism(poly, (x1 - x0, 0, 0))
+            add_brep(ctx, nm, v, faces, DECK, ifc_class="IfcRailing")
+
+        z_foot = pz_n + (nst - 1) * tread + pst / 2      # centred on the grade paver
+        newel("Side porch stair newel", rail_x, z_foot, 0.0, y_of(z_foot) + 0.12 * FT)
+        rake("Side porch handrail", pz_n, z_foot, 0.0, rt, rw / 2)
+        rake("Side porch stair bottom rail", pz_n, z_foot, gh - bot - rt, rt, rw / 2)
+        # Balusters spaced IN PLAN, like the guard's runs — the openings here are
+        # measured horizontally because the balusters are vertical, whatever the rail
+        # above them does, so the sloped length is the wrong ruler. It is also the
+        # tighter-looking mistake rather than the dangerous one: counting off the rake
+        # put nine of them where seven carry the same 3.5 in clear, and broke the
+        # rhythm the guard beside it is set out on.
+        span = z_foot - pz_n
+        n = max(1, int(math.ceil(span / boc)))
+        for i in range(n):
+            c = pz_n + span * (i + 0.5) / n
+            slab(f"Side porch stair baluster {i}", rail_x - bw / 2, rail_x + bw / 2,
+                 c - bw / 2, c + bw / 2, y_of(c) - (gh - bot - rt) * FT,
+                 (gh - bot - 2 * rt) * FT, cls="IfcRailing")
 
     # --- the awning. FREE-STANDING: it projects off the wall on its own brackets and
     # nothing lands on the deck, so the porch floor and the head of the stair are clear.

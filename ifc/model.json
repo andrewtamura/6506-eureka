@@ -86,6 +86,17 @@
       "_noteSteps": "stepCount and treadFt are NOT authored here \u2014 the flight reads lot.deck's, so every set of steps on the lot climbs the same 7.5 in riser. stepWidthFt and the awning width are CENTRED ON THE DOOR and then snapped flush to the primary's east wall, which both land within a few inches of: a 3 in sliver of deck beside a stair reads as a mistake where a flush edge reads as built.",
       "depthFt": 5.0,
       "stepWidthFt": 5.0,
+      "guard": {
+        "_note": "The deck stands 30 in over the yard, so its two OPEN edges get a guard \u2014 the east edge and the north edge as far as the head of the stair. South and west are house walls, and the run's south end dies into the yard fence's terminal post, which already stands 3.5 ft above this deck; a second post 3 in from it would be a mistake, not a detail. (The rear terrace has no rails ON PURPOSE and this does not change that: there the whole open edge IS a flight of steps.)",
+        "_noteHandrail": "The stair handrail's height is NOT authored. It is this same heightFt carried down the rake above the nosing line, which lands at 36 in \u2014 inside the 34-38 in a handrail is allowed \u2014 and makes the guard's top rail and the handrail one continuous line broken only at the newel. balusterOcFt is a MAXIMUM that each run divides evenly, not a pitch, so the 4 in sphere rule holds whatever length a run works out to. It is spacing in PLAN on the rake as well as on the level runs: the balusters are vertical whatever the rail above them does, so the opening is measured horizontally.",
+        "heightFt": 3.0,
+        "postFt": 0.29,
+        "railFt": 0.25,
+        "railThickFt": 0.12,
+        "balusterFt": 0.125,
+        "balusterOcFt": 0.42,
+        "bottomClearFt": 0.25
+      },
       "awning": {
         "_note": "A FREE-STANDING projection over the door \u2014 it stands clear of the porch on its own brackets, with nothing landing on the deck. springFt is the top of it AT THE WALL, above the porch floor, and it falls dropFt over its projection; the underside of the outer edge is what has to stay above head height, so that is what ifc_check measures rather than the mounting height.",
         "_noteWidth": "Wider than the door, and it runs to the corner rather than stopping a few inches short of it: the door sits 2.7 ft off the primary's east wall, so anything that covers the door properly reaches that wall anyway, and a 3 in gap there reads as a mistake.",
