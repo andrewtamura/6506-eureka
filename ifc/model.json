@@ -99,7 +99,7 @@
       },
       "awning": {
         "_note": "A FREE-STANDING projection over the door \u2014 it stands clear of the porch on its own brackets, with nothing landing on the deck. springFt is the top of it AT THE WALL, above the porch floor, and it falls dropFt over its projection; the underside of the outer edge is what has to stay above head height, so that is what ifc_check measures rather than the mounting height.",
-        "_noteWidth": "Wider than the door, and it runs to the corner rather than stopping a few inches short of it: the door sits 2.7 ft off the primary's east wall, so anything that covers the door properly reaches that wall anyway, and a 3 in gap there reads as a mistake.",
+        "_noteWidth": "widthFt is a FALLBACK. The awning fills the wall's WEST BAY \u2014 the door's own room \u2014 which lands it exactly centred on the door with no snapping, and stops it dead on the party wall instead of straddling it. Authored at 6.0 ft it overhung that line by 6 in and drove through the elevation trellis's stile: a collision neither builder could see alone, since each measured from a different end of the same wall.",
         "widthFt": 6.0,
         "projectFt": 4.0,
         "springFt": 8.25,
@@ -108,6 +108,28 @@
         "bracketReachFt": 2.75,
         "bracketDropFt": 2.0,
         "bracketThickFt": 0.25
+      }
+    },
+    "wingElevation": {
+      "_note": "The east wing's NORTH face: 10.9 ft wide by 19 ft of blank stucco, and the one wall on the house that takes no windows \u2014 the east bay is the bathroom on BOTH storeys, and its window is on the east face. Composed as four quadrants over the two REAL bays the rooms behind it already make: the wall's centreline is the bath/vestibule party wall, and the door sits dead centre of the west bay, so the door is already symmetrical, just not about the wall. Lower west is the door and its awning; the EAST bay gets one tall trellis crossing both of its quadrants; the upper west gets a blind oculus on the door's own axis \u2014 which is also the arc the door's halfmoon fanlight starts.",
+      "_noteDerived": "Neither element is placed by coordinate. The bays come from the rooms behind the wall, the trellis foot sits on the WATER TABLE's top, and the oculus centre is the trellis top less its radius, so the two share a top line whatever either is set to. Only the trellis's top and the oculus's radius are authored heights.",
+      "trellis": {
+        "insetFt": 0.3,
+        "topFt": 18.0,
+        "frameFt": 0.29,
+        "battenFt": 0.125,
+        "battenOcFt": 0.5,
+        "railOcFt": 2.5,
+        "frameProudFt": 0.15,
+        "battenProudFt": 0.1
+      },
+      "oculus": {
+        "_note": "A BLIND oculus \u2014 a moulded ring on stucco, no glazing. The bead's outer edge is the ring's inner edge (derived, not authored), so the two read as one stepped moulding rather than two circles with a gap. At 3 ft across with a 3.6 in ring it read as a pencil line on a 19 ft wall; the section has to be coarse to carry at this distance.",
+        "radiusFt": 1.75,
+        "ringFt": 0.42,
+        "beadFt": 0.15,
+        "ringProudFt": 0.18,
+        "beadProudFt": 0.27
       }
     },
     "frontage": {

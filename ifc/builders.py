@@ -1034,6 +1034,22 @@ EXT_WING = ("ext_bath", "wc", "ext_vestibule", "ext_laundry")   # the house's ea
 YARD_POST_FT = 0.5                                              # the yard fence's 6 in square posts
 
 
+def wing_bays(rooms_cache):
+    """The east wing's north wall, split into the bays the ROOMS behind it already make:
+    a sorted list of plan-x edges, east first (px increases west).
+
+    Shared because the elevation and the porch have to agree on it. The wall's centreline
+    is the bath/vestibule party wall, and the awning that straddled it by 6 in cut
+    straight through the trellis stile standing on it — a collision neither builder could
+    see on its own, because each was measuring from a different end of the same wall."""
+    B = {k: v["bounds"] for k, v in rooms_cache.items() if k in EXT_WING}
+    if not B:
+        return []
+    wall_z = max(max(b["z1"], b["z2"]) for b in B.values())
+    front = [b for b in B.values() if abs(max(b["z1"], b["z2"]) - wall_z) < 1e-6]
+    return sorted({v for b in front for v in (b["x1"], b["x2"])})
+
+
 def yard_fence_line(rooms_cache, half_wall_ft):
     """(line, x_start) for the rear-yard fence, in plan feet: the east wing's north
     wall FACE, and the wing's NE corner where the run begins before heading east.
@@ -1891,7 +1907,12 @@ def add_side_porch(ctx, lot, rooms_cache, base):
     # short: the door sits 2.7 ft off that wall, so anything wide enough to cover the
     # door reaches it anyway, and the alternative is a 3 in slot nobody would build.
     c = p.get("awning") or {}
-    ce, cw = centred(c.get("widthFt", 6.0))
+    # Its width is the WEST BAY, not a number: the bay is the door's own room, so filling
+    # it lands the awning exactly centred on the door with no snapping at all — and it
+    # stops dead on the party wall instead of straddling it. Authored at 6.0 ft it
+    # overhung that line by 6 in and drove through the elevation trellis's stile.
+    bays = wing_bays(rooms_cache)
+    ce, cw = (bays[-2], bays[-1]) if len(bays) >= 3 else centred(c.get("widthFt", 6.0))
     prj, spring = c.get("projectFt", 4.0), c.get("springFt", 8.25)
     drop, thk = c.get("dropFt", 1.0), c.get("thickFt", 0.2)
     pz_o = pz_s + prj                               # the outer edge
@@ -1916,6 +1937,139 @@ def add_side_porch(ctx, lot, rooms_cache, base):
         v, faces = _prism(tri, (ctx.X(x1 + bt) - ctx.X(x1), 0, 0))
         add_brep(ctx, f"Side porch bracket {i}", v, faces, DECK,
                  ifc_class="IfcBuildingElementProxy")
+
+
+def wall_ring(ctx, name, px, pz, y, radius_ft, thick_ft, depth_ft, color):
+    """A flat ring standing PROUD of a north-facing wall: a hollow circular profile
+    extruded along +Y, the wall's outward normal.
+
+    One product holding one solid. The alternative — a ring approximated by little
+    blocks, the way the dentil course is built — would be dozens of them, and a
+    parametric profile is both exact and free. `IfcCircleHollowProfileDef`'s Radius is
+    the OUTER one and the wall thickness runs inward, so the ring occupies
+    `radius - thick .. radius`.
+
+    The Position's Axis is what turns the profile onto a vertical wall: local Z is
+    global +Y, so the disc stands in the wall plane and the extrusion runs out of it."""
+    m = ctx.model
+    prof = m.create_entity("IfcCircleHollowProfileDef", ProfileType="AREA",
+                           Radius=float(radius_ft * FT), WallThickness=float(thick_ft * FT))
+    solid = m.create_entity(
+        "IfcExtrudedAreaSolid", SweptArea=prof, Depth=float(depth_ft * FT),
+        Position=m.create_entity(
+            "IfcAxis2Placement3D",
+            Location=m.create_entity("IfcCartesianPoint",
+                                     Coordinates=(float(ctx.X(px)), float(ctx.Y(pz)), float(y))),
+            Axis=m.create_entity("IfcDirection", DirectionRatios=(0.0, 1.0, 0.0)),
+            RefDirection=m.create_entity("IfcDirection", DirectionRatios=(1.0, 0.0, 0.0))),
+        ExtrudedDirection=m.create_entity("IfcDirection", DirectionRatios=(0.0, 0.0, 1.0)))
+    style_item(ctx, solid, color)
+    prod = multi_solid_product(ctx, "IfcBuildingElementProxy", name, [solid])
+    run("spatial.assign_container", ctx.model, products=[prod], relating_structure=ctx.storey)
+
+
+def add_wing_elevation(ctx, lot, rooms_cache, base):
+    """The east wing's NORTH face — 10.9 ft wide by 19 ft of blank stucco, and the one
+    wall on the house that takes no windows: the east bay is the bathroom on BOTH
+    storeys and its window is on the east face.
+
+    Read as FOUR QUADRANTS over the two bays the rooms behind it already make. That
+    division is not drawn on: the wall's centreline IS the bath/vestibule party wall,
+    and the door sits dead centre of the west bay — so the door is already symmetrical,
+    just not about the wall, which is why it looks misplaced with nothing to relate to.
+
+        lower west   the door and its awning          (built already)
+        east, both   ONE trellis crossing the pair
+        upper west   a blind oculus on the door's axis
+
+    The oculus is blind — a moulded ring on stucco, no glazing — and lands on the door's
+    own centreline, which is also the arc the door's halfmoon fanlight starts.
+
+    NOTHING HERE IS PLACED BY COORDINATE. The bays are derived from the rooms behind the
+    wall, so a replan moves both elements; the trellis foot sits on the WATER TABLE's
+    top, the one horizontal this wall already has; and the oculus centre is the trellis
+    top less its own radius, so the two share a top line whatever either is set to.
+    Only the trellis's top and the oculus's radius are authored heights."""
+    spec = lot.get("wingElevation") or {}
+    if not spec or base <= 0:
+        return
+    # BOTH elements are the porch's wood. Two reasons, and the first is measured: the
+    # primary's white trim (0.93, 0.92, 0.88) sits 0.06 from this stucco and the first
+    # oculus read as a pencil line on a 19 ft wall — the same disappearing act
+    # addAltExtension documents for its cast stone, on this same palette, and this is a
+    # NORTH wall, permanently in shade, so no amount of projection buys a shadow back.
+    # The second is compositional: one material makes the trellis and the roundel read as
+    # a pair, and ties both to the porch they stand on.
+    WOOD = (0.60, 0.47, 0.34)
+    BURY = 0.05                                     # plan ft INTO the wall, so no face is coplanar
+    B = {k: v["bounds"] for k, v in rooms_cache.items()}
+    if not all(k in B for k in EXT_WING):
+        return
+    wall_z = max(max(B[k]["z1"], B[k]["z2"]) for k in EXT_WING)
+    # The rooms that actually front this wall, and the bay edges between them. Sorted by
+    # px, which increases WEST, so edges[0] is the east corner.
+    front = [k for k in EXT_WING if abs(max(B[k]["z1"], B[k]["z2"]) - wall_z) < 1e-6]
+    edges = sorted({v for k in front for v in (B[k]["x1"], B[k]["x2"])})
+    if len(edges) < 3:
+        return
+    east_bay, west_bay = (edges[0], edges[1]), (edges[-2], edges[-1])
+
+    def part(nm, xa, xb, ya, yb, za, zb, color=WOOD):
+        """px xa..xb, height ya..yb (metres), pz za..zb."""
+        w, d, h = abs(xb - xa), abs(zb - za), yb - ya
+        if w <= 1e-6 or d <= 1e-6 or h <= 1e-6:
+            return
+        pr = make_box(ctx, "IfcBuildingElementProxy", nm, w * FT, d * FT, h,
+                      ctx.X((xa + xb) / 2), ctx.Y((za + zb) / 2), ya, color=color)
+        run("spatial.assign_container", ctx.model, products=[pr], relating_structure=ctx.storey)
+
+    # --- the trellis, filling the east bay over both storeys -----------------------
+    t = spec.get("trellis") or {}
+    top_ft = t.get("topFt", 18.0)
+    if t:
+        ins = t.get("insetFt", 0.5)
+        x_e, x_w = east_bay[0] + ins, east_bay[1] - ins
+        fr, bt = t.get("frameFt", 0.29), t.get("battenFt", 0.125)
+        p_fr, p_bt = t.get("frameProudFt", 0.15), t.get("battenProudFt", 0.10)
+        # It stands on the WATER TABLE rather than on the porch deck: the deck is a
+        # separate structure that happens to pass in front, whereas the water table is
+        # this wall's own base and the one line the elevation already has. add_massing
+        # puts its top at crawl + 0.05 m.
+        y0, y1 = base + 0.05, top_ft * FT
+        z0, z1 = wall_z - BURY, wall_z + p_fr
+        z2 = z1 + p_bt
+        for i, x in enumerate((x_e, x_w)):
+            part(f"Wing trellis stile {i}", x, x + (fr if i == 0 else -fr), y0, y1, z0, z1)
+        part("Wing trellis rail 0", x_e, x_w, y0, y0 + fr * FT, z0, z1)
+        part("Wing trellis rail 1", x_e, x_w, y1 - fr * FT, y1, z0, z1)
+        # Laths both ways over the frame, the light members inside the heavy one. Counts
+        # are DIVISIONS that never exceed the authored spacing, so the openings stay even
+        # whatever the bay works out to — the same reckoning the guard's balusters use.
+        ia, ib = y0 + fr * FT, y1 - fr * FT                 # inner height (metres)
+        ja, jb = x_e + fr, x_w - fr                         # inner width (plan ft)
+        n = max(1, int(math.ceil(((ib - ia) / FT) / t.get("railOcFt", 2.5))))
+        for i in range(1, n):
+            c = ia + (ib - ia) * i / n
+            part(f"Wing trellis lath H{i}", ja, jb, c - bt * FT / 2, c + bt * FT / 2, z1, z2)
+        n = max(1, int(math.ceil(abs(jb - ja) / t.get("battenOcFt", 0.5))))
+        for i in range(n):
+            c = ja + (jb - ja) * (i + 0.5) / n
+            part(f"Wing trellis batten {i}", c - bt / 2, c + bt / 2, ia, ib, z1, z2)
+
+    # --- the oculus, centred on the door's axis in the upper west quadrant ---------
+    o = spec.get("oculus") or {}
+    if o:
+        R = o.get("radiusFt", 1.5)
+        cx = (west_bay[0] + west_bay[1]) / 2        # = the door's own centreline
+        cy = (top_ft - R) * FT if t else base + 14.0 * FT
+        wall_ring(ctx, "Wing oculus ring", cx, wall_z - BURY, cy,
+                  R, o.get("ringFt", 0.30), o.get("ringProudFt", 0.12) + BURY, WOOD)
+        # A bead just inside the ring and standing prouder — the step is what makes it a
+        # moulding rather than a painted circle, and it is what casts the shadow.
+        ring = o.get("ringFt", 0.30)
+        wall_ring(ctx, "Wing oculus bead", cx, wall_z - BURY, cy,
+                  R - ring + o.get("beadFt", 0.12), o.get("beadFt", 0.12),
+                  o.get("beadProudFt", 0.20) + BURY, WOOD)
 
 
 def add_lot_wall(ctx, lot, rooms_cache, base):
