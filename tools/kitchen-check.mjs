@@ -1815,7 +1815,7 @@ console.log('EXTENSION');
   // The skylight IS in here — it is daylight down the well, not a lamp — but what it is
   // NOT allowed to be is constant. See the day/night assertions below; the loop here
   // would skip a type with no lights at all, so neither check covers the other.
-  const REACH = { recessed: 12, pendant: 10, sconce: 8, undercabinet: 8.5, skylight: 16 };
+  const REACH = { recessed: 12, pendant: 10, sconce: 8, undercabinet: 8.5, skylight: 16, chandelier: 14 };
   for (const [type, want] of Object.entries(REACH)) {
     const own = LI.filter(l => l.owner === type);
     if (!own.length) continue;
@@ -1939,7 +1939,7 @@ console.log('EXTENSION');
   // the old number fails for the one reason that is not a defect.
   const inBay = (r) => r.px > EAST - 0.7 && r.px < WEST + 0.7 && r.pz < -0.4 && r.pz > -7.4;
   const wc = P.find(r => r.type === 'toilet' && inBay(r));
-  const van = P.find(r => r.type === 'vanity' && inBay(r));
+  const van = P.find(r => r.type === 'wall_basin' && inBay(r));
   A(!!wc && !!van, `a WC and a basin are in the room (${wc ? 'wc' : '-'}, ${van ? 'basin' : '-'})`);
   if (wc && van) {
     const wb = meshes(wc), vb = meshes(van);
@@ -1960,6 +1960,15 @@ console.log('EXTENSION');
       `21 in clear in front of the bowl (${R((vanSouth - wcFront) * 12, 1)} in to the basin)`);
     A(vanFront > EAST + 1.5,
       `and the basin leaves a passage past it (${R((vanFront - EAST) * 12, 1)} in)`);
+    // CLEAR OF THE DOORWAY, in both directions. A basin hard against the north wall is
+    // the first thing your shoulder meets coming in: it blocked 7 in of a 30 in opening
+    // and stood at the jamb. Both numbers are asserted because shrinking it only helps
+    // one of them and sliding it south only helps the other.
+    const vanNorth = Math.max(...vb.map(m => m.pzHi));
+    A(-0.570 - vanNorth > 0.3,
+      `the basin stands clear of the door opening (${R((-0.570 - vanNorth) * 12, 1)} in back from it)`);
+    A(DOOR[1] - vanFront < 0.5,
+      `and blocks little of it (${R((DOOR[1] - vanFront) * 12, 1)} in of a ${R((DOOR[1] - DOOR[0]) * 12, 0)} in opening)`);
   }
 
   // 5) THE CEILING. The requirement is "the stair steps are not visible", so the test is
@@ -1977,11 +1986,36 @@ console.log('EXTENSION');
     `${stepHits.length ? ': ' + stepHits.slice(0, 3).map(o => `px ${o.px} pz ${o.pz} at ${R(o.y, 2)} ft`).join('; ') : ''})`);
   // ...and that the ceiling it gives is a usable one. These are the heights the layout
   // was chosen for, so they are the ones that must not quietly erode.
-  const hAt = (pz) => { const c = OH.filter(o => near(o.pz, pz, 0.2) && o.y != null);
-                        return c.length ? Math.min(...c.map(o => o.y)) : NaN; };
+  // ONE plane fit, used for the heights here AND for the flatness test below. A windowed
+  // MIN over nearby probes was the first version and reads systematically low — the grid
+  // is 0.3 ft, so the window catches probes up to 0.2 ft further south, which on a
+  // ceiling falling 0.82 ft per ft is an eighth of a foot of pessimism. That is fine for
+  // a ">" test and useless for reporting a height, and it made every threshold here a
+  // fudge factor. The fit is exact: the residual assertion below is what earns it.
+  const pts = OH.filter(o => o.y != null);
+  const nP = pts.length;
+  const sx = pts.reduce((t, o) => t + o.pz, 0), sy = pts.reduce((t, o) => t + o.y, 0);
+  const sxx = pts.reduce((t, o) => t + o.pz * o.pz, 0);
+  const sxy = pts.reduce((t, o) => t + o.pz * o.y, 0);
+  const bF = (nP * sxy - sx * sy) / (nP * sxx - sx * sx), aF = (sy - bF * sx) / nP;
+  const hAt = (pz) => aF + bF * pz;
+  // Keyed to where the fixtures ACTUALLY are, not to typed-in coordinates: these move
+  // whenever the basin's length changes, and the whole point of the numbers is the
+  // relationship between the ceiling and the fixture under it.
   A(hAt(-0.9) > 8.5, `8 ft 6 in of ceiling at the door (${R(hAt(-0.9), 2)} ft)`);
-  A(hAt(-1.45) > 8.0, `and over the basin (${R(hAt(-1.45), 2)} ft)`);
-  A(hAt(-5.05) > 5.2, `and 5 ft over the WC seat (${R(hAt(-5.05), 2)} ft) — sitting height`);
+  if (wc && van) {
+    const vb2 = meshes(van), wb2 = meshes(wc);
+    const vanMid = (Math.min(...vb2.map(m => m.pzLo)) + Math.max(...vb2.map(m => m.pzHi))) / 2;
+    const front = Math.max(...wb2.map(m => m.pzHi));           // the bowl, facing north
+    const seatPz = (Math.min(...wb2.map(m => m.pzLo)) + front) / 2;
+    A(hAt(vanMid) > 8.0, `and over the basin (${R(hAt(vanMid), 2)} ft at pz ${R(vanMid, 2)})`);
+    // STANDING at the bowl is the binding number, not the seated one: seated, the top of
+    // your head is about 50 in, so 65 in over the seat was never the complaint — 73.9 in
+    // at the bowl, which is 6 ft 2 in, was.
+    A(hAt(front) > 6.4,
+      `${R(hAt(front) * 12, 0)} in standing at the bowl (pz ${R(front, 2)}) — the number that was 73.9`);
+    A(hAt(seatPz) > 5.5, `and ${R(hAt(seatPz) * 12, 0)} in over the seat (${R(hAt(seatPz), 2)} ft)`);
+  }
   // A FLAT sheet, which is what was asked for. Tested by FITTING A PLANE to every probe
   // and looking at the worst residual: a stepped profile, a fold, or a sheet that sloped
   // across the room as well as along it all show up as points off the fit. Differencing
@@ -1989,21 +2023,30 @@ console.log('EXTENSION');
   // is 0.3 ft and the sampling window caught one row in some places and two in others,
   // which reported a "slope" wandering between 0.41 and 1.24 on a plane that is dead
   // flat. The fit is over pz only, so any fall ACROSS the room lands in the residual too.
-  const pts = OH.filter(o => o.y != null);
-  const n = pts.length;
-  const sx = pts.reduce((t, o) => t + o.pz, 0), sy = pts.reduce((t, o) => t + o.y, 0);
-  const sxx = pts.reduce((t, o) => t + o.pz * o.pz, 0);
-  const sxy = pts.reduce((t, o) => t + o.pz * o.y, 0);
-  const b = (n * sxy - sx * sy) / (n * sxx - sx * sx), a0 = (sy - b * sx) / n;
-  const resid = Math.max(...pts.map(o => Math.abs(o.y - (a0 + b * o.pz))));
-  A(n > 100 && resid < 0.01,
-    `it is ONE FLAT plane, not a stepped profile (falls ${R(b, 3)} ft per ft going south, ` +
+  const resid = Math.max(...pts.map(o => Math.abs(o.y - hAt(o.pz))));
+  A(nP > 100 && resid < 0.01,
+    `it is ONE FLAT plane, not a stepped profile (falls ${R(bF, 3)} ft per ft going south, ` +
     `worst point ${R(resid, 4)} ft off the fit)`);
 
   // 6) FINISHED FLOORING, and the hardwood stopping for it. The tile is instanced hex, so
   // it is checked through the manifest the viewer drives it from; the hardwood is checked
   // by its coverings having been SPLIT, since a single un-split Foyer covering means the
   // planks are being drawn straight through the powder room under the tile.
+  // 7) ONE LAMP, NOT TWO. The viewer gives every room without an authored fixture a generic
+  // ceiling one, keyed off which room each fixture landed in — and it used to take the
+  // FIRST room whose box contained it. This room lies entirely inside the foyer, so its
+  // sconce was inside both boxes and got attributed to the foyer: the foyer silently lost
+  // its own ceiling light, and this room gained a generic one, a 14 ft intensity-3.0 lamp
+  // at the centre of a space 3 ft 2 in wide. That is most of why it read as blown out and
+  // most of what was spilling into the foyer. Nesting is the thing to assert.
+  const inRoom = (l) => -l.x / FT > EAST - 0.4 && -l.x / FT < WEST + 0.4
+    && -l.z / FT < -0.4 && -l.z / FT > -7.4;
+  const pwLights = (raw.lights || []).filter(inRoom);
+  A(pwLights.length === 1,
+    `exactly one lamp in the room (${pwLights.length}: ${pwLights.map(l => `${l.owner || l.lamp} ${R(l.distance / FT, 0)} ft`).join(', ')})`);
+  A(pwLights.every(l => (l.owner || '') === 'sconce'),
+    `...and it is the authored sconce, not a generic ceiling fixture`);
+
   const names = (f) => { try { return JSON.parse(readFileSync(`public/${f}`, 'utf8')).map(e => e.name); }
                          catch (e) { return []; } };
   const tiles = names('ground.tiles.json'), woods = names('ground.floors.json');
@@ -2011,6 +2054,35 @@ console.log('EXTENSION');
   const foyerFloors = woods.filter(t => /Foyer/i.test(t));
   A(foyerFloors.length > 1,
     `and the foyer's hardwood stops for it (${foyerFloors.length} coverings — one would mean planks under the tile)`);
+}
+
+// THE FOYER CHANDELIER. A semi-drop on the entry axis, which also takes the foyer off the
+// viewer's generic per-room ceiling fixture — any authored fixture inside a room's IfcSpace
+// suppresses it (main.js), which is the mechanism the powder room's nesting bug broke.
+{
+  console.log('\nFOYER CHANDELIER');
+  const ch = P.find(r => r.type === 'chandelier');
+  A(!!ch, `the foyer has a chandelier (${ch ? `at plan ${R(ch.px, 2)}, ${R(ch.pz, 2)}` : 'none'})`);
+  if (ch) {
+    A(Math.abs(ch.px - 9.5) < 0.05 && Math.abs(ch.pz - 6.17) < 0.05,
+      `on the entry axis — mid-width, on the sitting/dining opening cross-axis (${R(ch.px, 2)}, ${R(ch.pz, 2)})`);
+    const m = meshes(ch);
+    const lo = Math.min(...m.map(q => q.yLo)), hi = Math.max(...m.map(q => q.yHi));
+    // A SEMI-drop: the canopy is on the ceiling and the lowest point clears the head line.
+    // If it ever grows into a long-drop it stops being the thing that was asked for, and
+    // starts being something you walk into.
+    A(hi > 9.3 && hi < 9.6, `canopy on the 9.5 ft ceiling (tops out at ${R(hi, 2)} ft)`);
+    A(lo > 7.0, `and hangs clear of the 7 ft head line (lowest point ${R(lo, 2)} ft) — a semi-drop`);
+    A(hi - lo < 2.6, `...a SHORT drop, not a stairwell pendant (${R(hi - lo, 2)} ft overall)`);
+    // The arms are what make it a chandelier rather than a lamp on a stick.
+    const span = Math.max(...m.map(q => q.pxHi)) - Math.min(...m.map(q => q.pxLo));
+    A(span > 1.6 && span < 3.0, `six arms spreading ${R(span, 2)} ft across`);
+  }
+  // The generic fixture the foyer used to get sat over the stairwell void. It must be gone.
+  const generic = (raw.lights || []).filter(l => l.lamp === 'semiFlush'
+    && -l.x / FT > 3.9 && -l.x / FT < 15.1 && -l.z / FT > -11.9 && -l.z / FT < 10.2);
+  A(generic.length === 0,
+    `and the foyer's generic ceiling fixture is gone (${generic.length} left over the stairwell)`);
 }
 
 console.log(fail ? `\n${fail} FAILURES` : '\nALL CHECKS PASSED');

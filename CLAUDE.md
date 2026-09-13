@@ -339,6 +339,53 @@ performance (`src/wood-floor.js`), driven by `ifc/floors.json`.
   One trap when asserting west-wall trim: filter on the member's px EXTENT (a west-wall
   run is only its ~5 in projection wide), or the SOUTH wall's crown — 11 ft of px ending
   at that very corner — is caught too and reports the level crown reaching pz -11.69.
+- **PUNCTUAL LIGHTS ARE NOT OCCLUDED, and `reachFt` is a range cap standing in for a
+  wall.** A `PointLight` with no shadow map lights every fragment in range straight
+  THROUGH whatever is in the way, so every lamp here is contained only by its `distance`.
+  That works room-by-room and fails in the under-stair powder room, whose lamp sits ~1 ft
+  from the door leaf in a room 3 ft 2 in wide: no range that lights the room fails to
+  cross the wall. That one sconce opts in with `"castShadow": true` in its room file;
+  nothing else in the house does, and nothing else should without a reason this specific.
+  Four things that each make a first attempt look like "point lights can't be occluded":
+  **the lamp sits at the centre of its own opal globe**, and `main.js` makes every opaque
+  mesh a caster — so without `userData.noShadow` on the globe, arm and backplate the
+  fixture blacks ITSELF out and the room goes dark, not just the foyer; **`shadow.camera.near`
+  defaults to 0.5 m**, further than both occluders that matter (the leaf at ~0.31 m, its own
+  wall at ~0.23 m), so the cube records neither; **`shadow.camera.far` is not yours to set** —
+  `WebGLShadowMap.render` overwrites it with `light.distance` every bake, so `reachFt` IS the
+  far plane; and the map is baked ON DEMAND (`autoUpdate = false`) like the sun's, re-baked
+  only when a door SETTLES, since a bake is ~6x every visible caster and the scene runs
+  `frustumCulled = false`. Intensity and visibility changes do NOT invalidate a depth cube,
+  so `applyFixture`/`setFixtures`/`selectLighting` are deliberately not hooked; a light with
+  `visible = false` is never even collected, so a pending `needsUpdate` while the lamp is off
+  is free. Shadow draws are NOT in `info.render.calls` (three resets after the shadow pass),
+  so `frame-check`'s budget cannot see a bake — and neither can the perf HUD. The cost that
+  IS real is per-pixel: `NUM_POINT_LIGHT_SHADOWS` 0→1 recompiles every material when ground
+  lighting comes on, and every lit fragment then pays 5 cube taps. Measure that on the phone
+  with `?perf=1`, not here.
+- **A room INSIDE another room broke the generic ceiling fixture, and that was most of the
+  "too bright".** The viewer gives every room with no authored fixture a generic semi-flush,
+  keyed off which room each fixture landed in — and it took the FIRST room whose box
+  contained it. The powder room lies entirely inside the foyer, so its sconce was inside
+  both boxes and was attributed to the FOYER: the foyer silently lost its own ceiling light
+  and the powder room gained a generic one — a 14 ft, intensity-3.0 lamp at the centre of a
+  space 3 ft 2 in wide. It reads as a blown-out room AND as a lamp spilling into the foyer,
+  which is exactly how it was reported. `main.js` now takes the SMALLEST containing box.
+  `kitchen-check` asserts one lamp in that room and that it is the authored sconce.
+- **`node tools/lightleak-check.mjs` measures a lamp's containment in PIXELS**, because what
+  is being asserted is what you can see. It renders into a small `WebGLRenderTarget` and
+  reads back, sampling the DIFFERENCE between lamp-on and lamp-off from one camera, which
+  cancels the sun, the ambient floor and tone mapping. Three things it had to learn: aim at
+  the FLOOR outside the door, not at the box's north face — that face points away from the
+  lamp, so `N·L` is negative and it reads ~0 on a build that leaks badly; toggle with
+  `intensity = 0`, not `visible`, or every sample pays a shader recompile; and drive the lamp
+  far above its authored brightness for the measurement, since at 0.5 the readings were 0.34
+  against 0.71 on a 0-255 mean, which is one grey level in three pixels. Two of its three
+  assertions are POSITIVE CONTROLS (the lamp still lights its own room; the foyer camera does
+  see it with the door open) — without them "the foyer is dark" passes for a camera aimed at
+  nothing, or for a lamp that has occluded itself. Verified by running it on the broken build
+  first: 49% of the lamp reached the foyer with the door shut, and 1.7% after, the residual
+  being the leaf's authored 9 mm head and strike gaps.
 - **A skylight is DAYLIGHT, not a lamp — and not a constant either.** Each scullery well
   carries a PointLight under its glazing, and both that light and the glazing's emissive
   are scaled by the sun's own `day` factor through `onTime` (`src/main.js`), so the well

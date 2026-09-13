@@ -51,7 +51,8 @@ VIEWER_TYPES = {"round_pedestal_table", "upholstered_dining_chair", "highback_ch
                 "cabinet_run", "island", "appliance", "range_surround", "cased_portal",
                 "open_shelves", "counter_stool", "banquette", "bentwood_chair",
                 "pendant", "sconce", "undercabinet", "skylight", "mudroom_bench",
-                "recessed", "vanity", "shower", "toilet", "wall_mirror"}
+                "recessed", "vanity", "wall_basin", "shower", "toilet", "wall_mirror",
+                "chandelier"}
 
 
 def material_color(name, fallback):

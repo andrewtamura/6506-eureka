@@ -77,15 +77,29 @@
         "run2Width": 3.0,
         "margin": 0.6,
         "firstRunSide": "west",
-      "underDoor": {
-        "posFt": 13.234,
-        "widthFt": 2.5,
-        "headFt": 7.0,
-        "hingeHi": true,
-        "_note": "into the powder room. Centred on the CLEAR bay (11.653..14.815), not on the wall span, so the reveals inside the room are even. Hinged at the high-px (west) jamb so the open leaf parks against the foyer's west wall instead of standing in the route past the stair. ifc_check asserts this matches the extraWalls door span below."
-      },
+        "underDoor": {
+          "posFt": 13.234,
+          "widthFt": 2.5,
+          "headFt": 7.0,
+          "hingeHi": true,
+          "_note": "into the powder room. Centred on the CLEAR bay (11.653..14.815), not on the wall span, so the reveals inside the room are even. Hinged at the high-px (west) jamb so the open leaf parks against the foyer's west wall instead of standing in the route past the stair. ifc_check asserts this matches the extraWalls door span below."
+        },
         "material": "oak",
         "railMaterial": "walnut"
+      },
+      {
+        "type": "chandelier",
+        "at": [
+          9.5,
+          6.17
+        ],
+        "ceilFt": 9.5,
+        "dropFt": 7.5,
+        "armsN": 6,
+        "spreadFt": 2.1,
+        "reachFt": 14,
+        "intensity": 3.0,
+        "_note": "On the entry axis: mid-width of the foyer, on the cross-axis of the sitting- and dining-room openings (both at pos 6.17), under the flat 9.5 ft ceiling NORTH of the stairwell void. A semi-drop \u2014 canopy at the ceiling, lowest point at 7.5 ft, clear of the 7 ft head line. reachFt 14 matches the generic semiFlush this replaces: any authored fixture inside a room's IfcSpace suppresses that fixture (main.js), and the foyer is 22 ft long."
       }
     ],
     "paneling": {
@@ -115,7 +129,12 @@
           "noBattens": true,
           "coved": true,
           "mitreLo": true,
-          "doors": [[11.984, 14.484]]
+          "doors": [
+            [
+              11.984,
+              14.484
+            ]
+          ]
         },
         {
           "side": "E",
