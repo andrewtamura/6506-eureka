@@ -1387,14 +1387,16 @@ async function main() {
       // ...and the primary scheme's EAST TERRACE with it. The alt puts a garage and a
       // driveway in that yard, so the new terrace would stand 2 ft proud of the garage
       // floor INSIDE it, its full-width stair would cross the 16 ft bay door, and the
-      // yard fence would run through the building. Hidden by NAME rather than by a box:
+      // yard fence would run through the building. The SIDE PORCH goes too: it serves a
+      // door on a wall the alt does not have, and the box test above stops ~2 ft short
+      // of it (Z0 is pz 5.97, the porch runs pz 4 to 9). Hidden by NAME rather than by a box:
       // a box wide enough to catch the terrace would also swallow the main deck and the
       // lot slab, whereas `Deck terrace E` was split out of `Deck` precisely so one
       // match takes the new east-yard work and leaves the original rear deck alone.
       try {
         const ids = await alt.getLocalIds();
         const data = await alt.getItemsData(ids, { attributesDefault: true });
-        const re = /^(Deck terrace E|Deck step N|Hot tub|Yard fence)/;
+        const re = /^(Deck terrace E|Deck step N|Hot tub|Yard fence|Side porch)/;
         const hide = ids.filter((id, i) => re.test(String(data[i]?.Name?.value ?? "")));
         if (hide.length) { await alt.setVisible(hide, false); await fragments.core.update(true); }
       } catch (e) { console.warn("alt: could not hide the east terrace", e); }

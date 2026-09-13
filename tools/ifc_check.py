@@ -451,5 +451,246 @@ if boards:
           f'the fence stands clear of the deck ({len(on_deck)} boards on it; '
           f"deck north {D['Deck terrace E'][3]:.3f}, fence line {fence_line:.3f})")
 
+# THE DRIVEWAY. Measured off the built slabs, and against the two things that actually
+# constrain it: the level stretch of frontage it has to cross, and a car.
+print('\nDRIVEWAY')
+dv = _cfg.get('driveway') or {}
+DV = extents(ext, lambda nm, p: nm.startswith(('Driveway', 'Park strip - north', 'Retaining wall - north')))
+if dv and 'Driveway' in DV:
+    pad = DV['Driveway']
+    width = pad[1] - pad[0]
+    check(near(width, dv['widthFt'], 0.02), f"the drive is {dv['widthFt']} ft wide ({width:.3f})")
+    # The width assertion that means something: two cars SIDE BY SIDE. 20 on its own is
+    # a number with no argument behind it.
+    check(width >= 2 * dv['stallWidthFt'],
+          f"which holds two {dv['stallWidthFt']} ft stalls side by side "
+          f"({width / dv['stallWidthFt']:.2f} stalls)")
+    # It has to be long enough to park on, not just a crossing.
+    depth = pad[3] - pad[2]
+    check(depth > 18, f'and is {depth:.2f} ft deep, so a car fits clear of the footway')
+    # WHERE it sits is the whole point: hard against the east end of the retaining wall,
+    # on the stretch where the public walk has climbed back to lot grade. West of that a
+    # drive needs a step down AND a gap cut in the wall.
+    wall_e = min(b[0] for nm, b in DV.items() if nm.startswith('Retaining wall - north'))
+    check(near(pad[1], wall_e, 0.05),
+          f"its west edge meets the retaining wall's east end ({pad[1]:.3f} vs {wall_e:.3f})")
+    check(near(pad[5], 0.0, 0.02) and near(DV['Driveway apron'][5], 0.0, 0.02),
+          f'drive and apron are both at lot grade, no step at the line ({pad[5]:.3f}, {DV["Driveway apron"][5]:.3f})')
+    # The apron crosses the planting strip; the grass must actually stop for it rather
+    # than the two sitting coplanar and z-fighting.
+    grass = DV.get('Park strip - north level')
+    check(grass is None or grass[1] <= pad[0] + 0.02,
+          f"the planting strip stops at the apron, it does not run under it "
+          f"({'none' if grass is None else f'{grass[1]:.3f} vs {pad[0]:.3f}'})")
+    # ...and the drive runs from the yard fence, so cars park against it.
+    check(near(pad[2], min(b[2] for nm, b in D.items() if nm.startswith('Yard fence')), 0.4),
+          f'it starts at the yard fence ({pad[2]:.3f})')
+else:
+    check(False, 'a driveway is authored and built')
+
+
+# ---------------------------------------------------------------------------------
+# THE SIDE PORCH at the east wing's outside door. Everything here is measured off the
+# built slabs and asserted against something that CONSTRAINS it — the wing it spans,
+# the door it shelters, the riser every other flight on the lot uses — rather than
+# against the number that went into it, which would assert nothing.
+print('\nSIDE PORCH')
+sp = _cfg.get('sidePorch') or {}
+SP = extents(ext, lambda nm, p: nm.startswith('Side porch'))
+
+
+def _parts(model, prefix):
+    """Per-PRODUCT boxes. `extents` unions by name, which is what is wanted almost
+    everywhere and is exactly wrong for the deck: its pieces share a name, so the union
+    is the un-notched rect and the notch assertion below would pass on any build."""
+    out = []
+    for p in model.by_type('IfcProduct'):
+        nm = getattr(p, 'Name', None) or ''
+        if not nm.startswith(prefix):
+            continue
+        try:
+            sh = ifcopenshell.geom.create_shape(S, p)
+        except Exception:
+            continue
+        v = np.array(sh.geometry.verts).reshape(-1, 3)
+        px, pz, y = -v[:, 0] / FT, v[:, 1] / FT, v[:, 2] / FT
+        out.append((nm, (px.min(), px.max(), pz.min(), pz.max(), y.min(), y.max())))
+    return out
+
+
+EXT_W = ('ext_bath', 'wc', 'ext_vestibule', 'ext_laundry')
+_wing = [json.load(open(f'ifc/rooms/{k}.json'))['bounds'] for k in EXT_W]
+wing_e = min(min(b['x1'], b['x2']) for b in _wing)
+wing_w = max(max(b['x1'], b['x2']) for b in _wing)
+wing_n = max(max(b['z1'], b['z2']) for b in _wing)
+_door = [d for k in EXT_W for d in json.load(open(f'ifc/rooms/{k}.json')).get('doors', [])
+         if d.get('orient') == 'H' and abs(d.get('fixed', 0.0) - wing_n) < 1e-6]
+
+if sp and 'Side porch deck' in SP and len(_door) == 1:
+    deck, cnpy = SP['Side porch deck'], SP['Side porch awning']
+    door = _door[0]
+    d_e, d_w = door['pos'] - door['width'] / 2, door['pos'] + door['width'] / 2
+
+    # --- it spans the wing, which is what "~11 ft" meant. Both edges asserted: the
+    # width alone would pass for a porch 11 ft long in the wrong place.
+    check(near(deck[0], wing_e, 0.02),
+          f"the deck's east edge is the wing's east wall ({deck[0]:.4f} vs {wing_e:.4f})")
+    check(deck[1] >= wing_w - 1e-6,
+          f"and its west edge reaches the primary's east wall ({deck[1]:.4f} vs {wing_w:.4f})")
+    check(near(deck[1] - deck[0], wing_w - wing_e, 0.1),
+          f'so it spans the wing, {wing_w - wing_e:.3f} ft ({deck[1] - deck[0]:.3f})')
+    # It must TUCK UNDER the wall, not stop on the face of it: the massing blocks are
+    # built at the room bounds and two boxes sharing a face plane z-fight.
+    check(deck[2] < wing_n - 1e-6,
+          f"its south edge runs under the wing's wall, not onto it ({deck[2]:.4f} < {wing_n})")
+    check(near(deck[3] - wing_n, sp['depthFt'], 0.02),
+          f"and it projects {sp['depthFt']} ft ({deck[3] - wing_n:.4f})")
+    check(near(deck[5], BASE, 0.01), f'level with the finished floor ({deck[5]:.4f} ft)')
+
+    # --- the flight. Same reckoning as the deck's: stepCount RISERS is stepCount - 1
+    # treads plus a paver flush with grade.
+    steps = sorted([(nm, b) for nm, b in _parts(ext, 'Side porch step')], key=lambda t: t[1][2])
+    check(len(steps) == dk['stepCount'],
+          f"{dk['stepCount']} risers -> {dk['stepCount']} slabs, treads plus the grade paver ({len(steps)})")
+    tops = [b[5] for _, b in steps]
+    check(all(near(tops[i] - tops[i + 1], riser, 0.01) for i in range(len(tops) - 2)) and near(tops[-1], 0.0, 0.01),
+          f'even {riser * 12:.1f} in risers down to grade ({", ".join(f"{t:.3f}" for t in tops)})')
+    # The riser is the DECK's, not one of its own: one lot, one stair rhythm.
+    check(riser * 12 <= 7.75, f'which is inside the 7.75 in maximum ({riser * 12:.2f} in)')
+    # The flight has to be at the DOOR, not merely on the porch somewhere.
+    fl = steps[0][1]
+    check(fl[0] <= door['pos'] <= fl[1],
+          f"the flight is under the door ({fl[0]:.3f}..{fl[1]:.3f} holds {door['pos']})")
+    check(fl[2] >= deck[3] - 0.02, f'and descends off the north edge ({fl[2]:.3f} vs {deck[3]:.3f})')
+    # Its toe has to stay on the lot, and clear of the drive it lands beside.
+    toe_n = max(b[3] for _, b in steps)
+    check(toe_n < E['Lot'][3] - 10, f'the toe stays well inside the north line ({toe_n:.2f})')
+    drv = DV.get('Driveway')
+    check(drv is None or fl[1] < drv[0] or fl[0] > drv[1],
+          f"and does not land in the driveway ({fl[0]:.2f}..{fl[1]:.2f} vs "
+          f"{'none' if drv is None else f'{drv[0]:.2f}..{drv[1]:.2f}'})")
+
+    # --- the awning. The point of it is the DOOR, so that is what it is measured
+    # against; and it is FREE-STANDING, which is the assertion that matters most here
+    # because the first build carried it on two posts landing on the deck.
+    aw = sp['awning']
+    check(cnpy[0] <= d_e + 1e-6 and cnpy[1] >= d_w - 1e-6,
+          f"the awning covers the door's full {door['width']} ft ({cnpy[0]:.3f}..{cnpy[1]:.3f} "
+          f"over {d_e:.3f}..{d_w:.3f})")
+    check(near(cnpy[3] - wing_n, aw['projectFt'], 0.02),
+          f"projecting {aw['projectFt']} ft off the wall ({cnpy[3] - wing_n:.3f})")
+    check(cnpy[3] - wing_n >= 3.0,
+          f'which is enough to stand at the door under ({cnpy[3] - wing_n:.2f} ft)')
+    # FREE-STANDING: nothing in the assembly comes down to the deck. Measured as the
+    # LOWEST point of the awning and its brackets together, which is the one number a
+    # post or a leg would break no matter how it was named.
+    assembly = _parts(ext, 'Side porch awning') + _parts(ext, 'Side porch bracket')
+    low = min(b[4] for _, b in assembly)
+    check(low - deck[5] > 3.0,
+          f'and it stands free — nothing lands on the porch, lowest part {low - deck[5]:.2f} ft '
+          f'above the deck ({len(assembly)} members)')
+    # What actually has to clear your head is the UNDERSIDE OF THE OUTER EDGE, not the
+    # height it is mounted at: the awning falls away from the wall, so the mounting
+    # height is the generous end of it.
+    check(cnpy[4] - deck[5] >= 7.0,
+          f'you walk under its outer edge ({cnpy[4] - deck[5]:.2f} ft clear)')
+    check(near(cnpy[5] - cnpy[4], aw['dropFt'] + aw['thickFt'], 0.02),
+          f"it sheds away from the wall, {aw['dropFt']} ft over the projection "
+          f"({cnpy[4]:.3f}..{cnpy[5]:.3f})")
+    # A bracket has to reach BOTH ways — bear on the wall and meet the awning — or it
+    # is a decoration hanging in the air.
+    brk = _parts(ext, 'Side porch bracket')
+    check(len(brk) == 2, f'a bracket at each end carries it ({len(brk)})')
+    check(all(near(b[2], wing_n, 0.02) and b[5] >= cnpy[4] - 0.02 for _, b in brk),
+          'each one bears on the wall and reaches the awning')
+    check(all(b[0] >= cnpy[0] - 1e-6 and b[1] <= cnpy[1] + 1e-6 for _, b in brk),
+          'and sits within its width, not buried in the house wall')
+
+    # --- the guard and the handrail. The deck is 30 in over the yard, so its open
+    # edges need one; the shut edges must NOT have one, and neither must the stair
+    # opening, which is what an extent test on the guard alone would miss.
+    gd = sp['guard']
+    GR = extents(ext, lambda nm, p: nm.startswith(('Side porch guard', 'Side porch handrail',
+                                                   'Side porch stair')))
+    top_e, top_n = GR['Side porch guard top rail E'], GR['Side porch guard top rail N']
+    check(near(top_e[5] - deck[5], gd['heightFt'], 0.01),
+          f"the guard stands {gd['heightFt']} ft over the deck ({top_e[5] - deck[5]:.3f})")
+    # The east run dies INTO the yard fence's terminal post rather than standing its own
+    # 3 in away — the post is already 3.5 ft above this deck.
+    _fp = [b for _, b in _parts(ext, 'Yard fence post')
+           if b[0] <= wing_e + 0.3 and b[1] >= wing_e - 0.3]
+    check(len(_fp) == 1 and near(top_e[2], _fp[0][3], 0.02),
+          f"its east run dies into the fence post ({top_e[2]:.3f} vs "
+          f"{'none' if not _fp else f'{_fp[0][3]:.3f}'})")
+    # The east run ends on the north run's CENTRELINE, not on the edge of its box — a
+    # rail is rw wide, so comparing end against edge is off by half a rail every time.
+    check(top_n[2] - 1e-6 <= top_e[3] <= top_n[3] + 1e-6,
+          f'and turns the corner into the north run ({top_e[3]:.3f} inside '
+          f'{top_n[2]:.3f}..{top_n[3]:.3f})')
+    # It must STOP at the head of the stair. Running on, it would fence off the way down.
+    check(top_n[1] <= fl[0] + gd['postFt'] + 1e-6,
+          f"the north run stops at the head of the stair ({top_n[1]:.3f} vs the flight's "
+          f"east edge {fl[0]:.3f})")
+    # ...and the two SHUT edges have none. Asserted as "every member sits on one of the
+    # two open edges" rather than "none near the house": the east run reaches within
+    # 6 in of the south wall where it dies into the fence post, so a proximity test
+    # fails on the very member that is right.
+    allg = _parts(ext, 'Side porch guard') + _parts(ext, 'Side porch baluster')
+    e_line, n_line = wing_e + gd['postFt'] / 2, deck[3] - gd['postFt'] / 2
+    stray = [nm for nm, b in allg
+             if abs((b[0] + b[1]) / 2 - e_line) > 0.2 and abs((b[2] + b[3]) / 2 - n_line) > 0.2]
+    check(not stray,
+          f'every member sits on one of the two OPEN edges, none on a house wall '
+          f'({len(allg)} members, {len(stray)} stray)')
+    check(max(b[1] for _, b in allg) <= fl[0] + gd['postFt'] + 1e-6,
+          'and none west of the stair head, where the deck runs on to the house')
+
+    # THE 4 IN SPHERE RULE, between CONSECUTIVE balusters on every run — the raking one
+    # included, where vertical balusters under a sloped rail are still governed by the
+    # HORIZONTAL clear, so it is measured the same way as on the level runs.
+    for tag, ax in (('Side porch baluster E', 2), ('Side porch baluster N', 0),
+                    ('Side porch stair baluster', 2)):
+        bs = sorted([b for _, b in _parts(ext, tag)], key=lambda b: b[ax])
+        gaps = [bs[i + 1][ax] - bs[i][ax + 1] for i in range(len(bs) - 1)]
+        check(len(bs) >= 4 and gaps and max(gaps) <= 4 / 12 + 1e-6,
+              f'{tag.split()[-1]}: {len(bs)} balusters, widest opening '
+              f'{max(gaps) * 12:.2f} in (4 in max)')
+
+    # THE HANDRAIL. Its height is the guard's, carried down the rake, so the two make one
+    # line: assert they MEET at the newel rather than asserting each against its own
+    # number, which is how a step at the newel survives two passing checks.
+    hr = GR['Side porch handrail']
+    check(near(hr[5], top_n[5], 0.01),
+          f"it leaves the guard's top rail at the same height ({hr[5]:.3f} vs {top_n[5]:.3f})")
+    # It must fall at the FLIGHT's slope — a handrail that is not parallel to the
+    # nosings is the one thing you feel underhand.
+    # The rail's own THICKNESS is inside its bounding box, so the box's vertical extent
+    # is the rise plus one rail. Subtract it, or a 9 in rail on a 3 ft run reads as a
+    # slope 6% steeper than the stair it is supposed to be parallel to.
+    slope = (hr[5] - hr[4] - gd['railThickFt']) / (hr[3] - hr[2])
+    check(near(slope, riser / dk['treadFt'], 0.005),
+          f'falling at the flight\'s own slope ({slope:.4f} vs {riser / dk["treadFt"]:.4f})')
+    # Graspable height above the NOSING LINE, both ends, against the 34-38 in allowed.
+    nose_hi, nose_lo = deck[5], deck[5] - riser * (hr[3] - hr[2]) / dk['treadFt']
+    check(34 / 12 <= hr[5] - nose_hi <= 38 / 12 and 34 / 12 <= hr[4] - nose_lo <= 38 / 12,
+          f'{(hr[5] - nose_hi) * 12:.1f} in over the nosing line at both ends (34-38 in)')
+    nw = GR['Side porch stair newel']
+    check(near(nw[4], 0.0, 0.02) and nw[2] >= steps[-1][1][2] - 1e-6,
+          f'and its bottom newel stands on the grade paver ({nw[4]:.3f} ft)')
+
+    # --- the yard fence's terminal post shares this corner BY CONSTRUCTION, so the
+    # deck is punched around it. Paired with a positive control: without it, "no deck
+    # piece overlaps the post" passes just as well when the fence stops being built.
+    fposts = [b for nm, b in _parts(ext, 'Yard fence post')]
+    corner = [b for b in fposts if b[0] <= wing_e + 0.3 and b[1] >= wing_e - 0.3]
+    check(len(corner) == 1, f'the yard fence still ends on this corner ({len(corner)} post there)')
+    if corner:
+        c = corner[0]
+        bad = [nm for nm, b in _parts(ext, 'Side porch deck')
+               if b[0] < c[1] - 1e-6 and b[1] > c[0] + 1e-6 and b[2] < c[3] - 1e-6 and b[3] > c[2] + 1e-6]
+        check(not bad, f'and the deck is notched around it, not through it ({len(bad)} overlaps)')
+else:
+    check(False, 'a side porch is authored, built, and serves exactly one exterior door')
+
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)

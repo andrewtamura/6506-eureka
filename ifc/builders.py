@@ -1031,6 +1031,24 @@ def rects_minus(rects, hole):
 
 
 EXT_WING = ("ext_bath", "wc", "ext_vestibule", "ext_laundry")   # the house's east extension
+YARD_POST_FT = 0.5                                              # the yard fence's 6 in square posts
+
+
+def yard_fence_line(rooms_cache, half_wall_ft):
+    """(line, x_start) for the rear-yard fence, in plan feet: the east wing's north
+    wall FACE, and the wing's NE corner where the run begins before heading east.
+
+    Bounds are wall CENTRELINES, so the bound itself would leave that corner half a
+    wall proud of the fence. Shared for the same reason `deck_extent` is shared: the
+    side porch lands on this very corner and its deck has to notch around the terminal
+    post, and a line re-derived in two places is how a fence quietly stops meeting the
+    thing it dies into."""
+    B = {k: v["bounds"] for k, v in rooms_cache.items()}
+    line = max(max(B[k]["z1"], B[k]["z2"]) for k in EXT_WING if k in B) + half_wall_ft
+    x_start = min(min(B[k]["x1"], B[k]["x2"]) for k in EXT_WING if k in B)
+    return line, x_start
+
+
 
 
 def deck_extent(rooms_cache, lot, half_wall_ft):
@@ -1674,6 +1692,232 @@ def add_deck(ctx, lot, rooms_cache, base):
     })
 
 
+def add_side_porch(ctx, lot, rooms_cache, base):
+    """A small board porch at the east wing's outside door: a landing level with the
+    floor, a flight down to grade, a guard and handrail, and a free-standing awning
+    over the door.
+
+    It fills the reentrant corner between the wing's north wall and the primary
+    block's east wall, so it is sheltered on two sides before any roof is added. Kept
+    plain on purpose — this is the side door off the drive, not a second front stoop,
+    and `add_porch`'s stucco skirt and splayed cheek walls would make a ceremony of it.
+
+    Four things are DERIVED, and each is why a number here is not a coordinate:
+
+      - the DOOR is found by geometry — the one exterior opening on the wing's north
+        wall — so moving it in the room file moves the steps and the awning with it;
+      - the WIDTH is the wing's own, bound to bound, which is the ~11 ft asked for;
+      - the flight and the awning are centred on the door and then SNAPPED flush to
+        the primary's east wall, which they both land within a few inches of. Centred
+        exactly, the stair would leave a 3 in sliver of deck against the house, which
+        reads as a mistake where a flush edge reads as built;
+      - the RISERS come from `lot.deck`, so every flight on the lot climbs alike.
+
+    The south edge sits on the wing's BOUND rather than its wall face: the exterior
+    massing blocks are built at the bounds, so the deck tucks under the finished wall
+    exactly as `add_deck`'s terrace does. An overlap hides; a gap shows.
+
+    The yard fence's terminal post stands on this porch's SE corner — they share a
+    corner by construction, not by coincidence — so the deck is PUNCHED around it
+    (`yard_fence_line`) instead of the two interpenetrating."""
+    p = lot.get("sidePorch") or {}
+    if base <= 0 or not p:
+        return
+    DECK = (0.60, 0.47, 0.34)                       # warm deck wood, as the rear deck
+    ROOF = (0.30, 0.30, 0.33)                       # charcoal shingle, as the house
+    d = lot.get("deck") or {}
+    B = {k: v["bounds"] for k, v in rooms_cache.items()}
+    if not all(k in B for k in EXT_WING):
+        return
+    half_wall = ctx.T / FT / 2
+    px_e = min(min(B[k]["x1"], B[k]["x2"]) for k in EXT_WING)   # wing's east bound
+    px_w = max(max(B[k]["x1"], B[k]["x2"]) for k in EXT_WING)   # ...and its west, on the house wall
+    pz_s = max(max(B[k]["z1"], B[k]["z2"]) for k in EXT_WING)   # the wall the porch sits against
+
+    door = None                                     # the wing's one exterior door
+    for k in EXT_WING:
+        for dr in rooms_cache[k].get("doors", []):
+            if dr.get("orient") == "H" and abs(dr.get("fixed", 0.0) - pz_s) < 1e-6:
+                door = dr
+    if not door:
+        return
+
+    depth = p.get("depthFt", 5.0)
+    pz_n = pz_s + depth
+    nst, tread = d.get("stepCount", 4), d.get("treadFt", 0.92)
+    riser = base / nst
+    # A member that dies against a wall runs BURY into it rather than stopping ON its
+    # face. Two opaque boxes sharing a face PLANE z-fight from the side they both face,
+    # and every exterior material is DoubleSide in the viewer, so neither face is culled.
+    # 0.6 in, inside a solid massing block, so nothing is visible either way.
+    BURY = 0.05
+
+    def slab(name, x1, x2, z1, z2, z0, h, cls="IfcSlab", color=DECK):
+        w, dp = abs(x2 - x1), abs(z2 - z1)
+        if w <= 1e-6 or dp <= 1e-6 or h <= 1e-6:
+            return
+        b = make_box(ctx, cls, name, w * FT, dp * FT, h,
+                     ctx.X((x1 + x2) / 2), ctx.Y((z1 + z2) / 2), z0, color=color)
+        run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
+
+    def centred(width, snap=0.75):
+        """A run of `width` centred on the door, clamped inside the porch and snapped
+        flush to the primary's east wall when it lands within `snap` of it. Returns
+        (east, west) — plan x increases WEST, so west is the larger number."""
+        w = min(door["pos"] + width / 2, px_w)
+        if px_w - w < snap:
+            w = px_w
+        return max(w - width, px_e), w
+
+    def die_in(x):
+        """`x` after burying it, if that edge landed on the primary's east wall."""
+        return x + BURY if abs(x - px_w) < 1e-9 else x
+
+    # --- the landing, punched around the yard fence's terminal post ---------------
+    fz, fx = yard_fence_line(rooms_cache, half_wall)
+    hp = YARD_POST_FT / 2
+    for x1, x2, z1, z2 in rects_minus([(px_e, px_w + BURY, pz_s - BURY, pz_n)],
+                                      (fx - hp, fx + hp, fz - hp, fz + hp)):
+        slab("Side porch deck", x1, x2, z1, z2, 0.0, base)
+
+    # --- the flight, descending north straight out of the door. `nst` RISERS is
+    # nst - 1 treads plus a paver flush with grade, the same reckoning add_deck sets out.
+    se, sw = centred(p.get("stepWidthFt", 5.0))
+    for k in range(nst - 1):
+        slab(f"Side porch step {k}", se, die_in(sw), pz_n + k * tread,
+             pz_n + (k + 1) * tread, 0.0, base - (k + 1) * riser)
+    if d.get("gradePaver", True):
+        t0 = (nst - 1) * tread
+        slab(f"Side porch step {nst - 1}", se, die_in(sw), pz_n + t0, pz_n + t0 + tread,
+             -0.05, 0.05)
+
+    # --- the guard and the stair handrail -----------------------------------------
+    # The deck stands 30 in over the yard, so its two OPEN edges get a guard: the east
+    # edge and the north edge as far as the head of the stair. South and west are house
+    # walls. The east run's south end dies into the YARD FENCE'S TERMINAL POST, which
+    # already stands 3.5 ft above this deck — standing a second post 3 in from it would
+    # be a mistake rather than a detail.
+    #
+    # Every member sits on a centreline inset `postFt / 2` from the edge it guards, so
+    # posts, rails and balusters share one line and the posts' outer faces are flush
+    # with the deck. IfcRailing throughout, like the two fences — a railing is not a
+    # walk-POV surface.
+    #
+    # The HANDRAIL'S HEIGHT IS NOT AUTHORED: it is the guard's own height carried down
+    # the rake above the nosing line. That lands at 36 in, inside the 34-38 in a
+    # handrail is allowed, and makes the guard's top rail and the handrail ONE line
+    # broken only at the newel — two authored heights would meet at the newel with a
+    # step in them and nothing would have caught it.
+    g = p.get("guard") or {}
+    if g:
+        gh, pst = g.get("heightFt", 3.0), g.get("postFt", 0.29)
+        rw, rt = g.get("railFt", 0.25), g.get("railThickFt", 0.12)
+        bw, boc = g.get("balusterFt", 0.125), g.get("balusterOcFt", 0.42)
+        bot = g.get("bottomClearFt", 0.25)
+        rail_x = se + pst / 2              # the stair's open (east) side, inset onto the tread
+        east_x = px_e + pst / 2            # the deck's east edge
+        north_z = pz_n - pst / 2
+
+        def newel(nm, xc, zc, y0, top):
+            slab(nm, xc - pst / 2, xc + pst / 2, zc - pst / 2, zc + pst / 2,
+                 y0, top - y0, cls="IfcRailing")
+
+        def guard_run(axis, fixed, a, b, tag):
+            """One straight run: bottom rail, top rail, balusters between. `axis` is the
+            one it runs ALONG, `fixed` the other coordinate."""
+            lo, hi = min(a, b), max(a, b)
+            def put(nm, p1, p2, half, y0, h):
+                if axis == "x":
+                    slab(nm, p1, p2, fixed - half, fixed + half, y0, h, cls="IfcRailing")
+                else:
+                    slab(nm, fixed - half, fixed + half, p1, p2, y0, h, cls="IfcRailing")
+            put(f"Side porch guard bottom rail {tag}", lo, hi, rw / 2,
+                base + bot * FT, rt * FT)
+            put(f"Side porch guard top rail {tag}", lo, hi, rw / 2,
+                base + (gh - rt) * FT, rt * FT)
+            # Divisions, not a fixed pitch: an even division that never EXCEEDS boc, so
+            # the 4 in sphere rule holds whatever the run works out to.
+            n = max(1, int(math.ceil((hi - lo) / boc)))
+            for i in range(n):
+                c = lo + (hi - lo) * (i + 0.5) / n
+                put(f"Side porch baluster {tag}.{i}", c - bw / 2, c + bw / 2, bw / 2,
+                    base + (bot + rt) * FT, (gh - bot - 2 * rt) * FT)
+
+        top_y = base + (gh + 0.12) * FT
+        newel("Side porch guard post 0", east_x, north_z, base, top_y)       # NE corner
+        newel("Side porch guard post 1", rail_x, north_z, base, top_y)       # head of the stair
+        guard_run("z", east_x, fz + hp, north_z, "E")                        # dies into the fence post
+        guard_run("x", north_z, east_x, rail_x, "N")
+
+        # --- the flight. `y_of` is the handrail's TOP: level over the landing, then
+        # falling at the flight's own slope from the top nosing. riser is metres and
+        # tread is plan feet, so the quotient is metres per plan-foot.
+        def y_of(z):
+            return base + gh * FT - (riser / tread) * max(0.0, z - pz_n)
+
+        def rake(nm, za, zb, dy, h, half):
+            """A member following the rake, `dy` ft below the handrail line and `h` thick."""
+            y = lambda z: y_of(z) - dy * FT
+            x0, x1 = ctx.X(rail_x - half), ctx.X(rail_x + half)
+            poly = [(x0, ctx.Y(za), y(za)), (x0, ctx.Y(zb), y(zb)),
+                    (x0, ctx.Y(zb), y(zb) - h * FT), (x0, ctx.Y(za), y(za) - h * FT)]
+            v, faces = _prism(poly, (x1 - x0, 0, 0))
+            add_brep(ctx, nm, v, faces, DECK, ifc_class="IfcRailing")
+
+        z_foot = pz_n + (nst - 1) * tread + pst / 2      # centred on the grade paver
+        newel("Side porch stair newel", rail_x, z_foot, 0.0, y_of(z_foot) + 0.12 * FT)
+        rake("Side porch handrail", pz_n, z_foot, 0.0, rt, rw / 2)
+        rake("Side porch stair bottom rail", pz_n, z_foot, gh - bot - rt, rt, rw / 2)
+        # Balusters spaced IN PLAN, like the guard's runs — the openings here are
+        # measured horizontally because the balusters are vertical, whatever the rail
+        # above them does, so the sloped length is the wrong ruler. It is also the
+        # tighter-looking mistake rather than the dangerous one: counting off the rake
+        # put nine of them where seven carry the same 3.5 in clear, and broke the
+        # rhythm the guard beside it is set out on.
+        span = z_foot - pz_n
+        n = max(1, int(math.ceil(span / boc)))
+        for i in range(n):
+            c = pz_n + span * (i + 0.5) / n
+            slab(f"Side porch stair baluster {i}", rail_x - bw / 2, rail_x + bw / 2,
+                 c - bw / 2, c + bw / 2, y_of(c) - (gh - bot - rt) * FT,
+                 (gh - bot - 2 * rt) * FT, cls="IfcRailing")
+
+    # --- the awning. FREE-STANDING: it projects off the wall on its own brackets and
+    # nothing lands on the deck, so the porch floor and the head of the stair are clear.
+    # Carried on posts it read as a doorframe — two uprights at the deck's north edge
+    # framing the flight — which is a canopy, not the awning this wanted to be.
+    #
+    # It runs to the primary's east wall on the west rather than stopping a few inches
+    # short: the door sits 2.7 ft off that wall, so anything wide enough to cover the
+    # door reaches it anyway, and the alternative is a 3 in slot nobody would build.
+    c = p.get("awning") or {}
+    ce, cw = centred(c.get("widthFt", 6.0))
+    prj, spring = c.get("projectFt", 4.0), c.get("springFt", 8.25)
+    drop, thk = c.get("dropFt", 1.0), c.get("thickFt", 0.2)
+    pz_o = pz_s + prj                               # the outer edge
+    top_w, top_o = base + spring * FT, base + (spring - drop) * FT
+    poly = [(ctx.X(ce), ctx.Y(pz_s - BURY), top_w),
+            (ctx.X(die_in(cw)), ctx.Y(pz_s - BURY), top_w),
+            (ctx.X(die_in(cw)), ctx.Y(pz_o), top_o),
+            (ctx.X(ce), ctx.Y(pz_o), top_o)]
+    v, faces = _prism(poly, (0, 0, -thk * FT))
+    add_brep(ctx, "Side porch awning", v, faces, ROOF, predefined="SHED_ROOF")
+
+    # Brackets: one at each end, a gusset off the WALL reaching up under the awning.
+    # Inset from the ends rather than centred on them — the west end is the primary's
+    # east wall, and a bracket centred there would be half buried inside the house.
+    bt = c.get("bracketThickFt", 0.25)
+    reach, bdrop = c.get("bracketReachFt", 2.75), c.get("bracketDropFt", 2.0)
+    y_at = lambda z: top_w - (top_w - top_o) * (z - pz_s) / prj - thk * FT   # underside
+    for i, x1 in enumerate((ce, cw - bt)):
+        tri = [(ctx.X(x1), ctx.Y(pz_s), y_at(pz_s)),
+               (ctx.X(x1), ctx.Y(pz_s), y_at(pz_s) - bdrop * FT),
+               (ctx.X(x1), ctx.Y(pz_s + reach), y_at(pz_s + reach))]
+        v, faces = _prism(tri, (ctx.X(x1 + bt) - ctx.X(x1), 0, 0))
+        add_brep(ctx, f"Side porch bracket {i}", v, faces, DECK,
+                 ifc_class="IfcBuildingElementProxy")
+
+
 def add_lot_wall(ctx, lot, rooms_cache, base):
     """An 8" CMU boundary wall, full-stucco (smooth, uniform), 84" above grade,
     along the SOUTH and EAST lot lines and placed entirely inside the property
@@ -1810,6 +2054,55 @@ def _entry_stair_span(f, rooms_cache):
     return (fd["pos"] - half, fd["pos"] + half)
 
 
+def _driveway_span(lot, x_flat):
+    """Plan-x span (lo, hi) the driveway occupies on the north frontage — the gap the
+    park strip has to leave for its apron. None if no driveway is authored.
+
+    Anchored to `x_flat`, the station where the public walk has climbed back to lot
+    grade and the retaining wall stops. That is not decoration: west of it a drive would
+    have to step down to meet the walk AND have a gap cut in the wall, and east of it it
+    simply runs out level. So the drive's west edge sits on it."""
+    d = lot.get("driveway") or {}
+    if not d:
+        return None
+    return (x_flat - d.get("widthFt", 20), x_flat)
+
+
+def add_driveway(ctx, lot, rooms_cache):
+    """A two-car driveway on the east front yard: a pad from the yard fence north to
+    the property line, and an apron carrying it across the planting strip to the walk.
+
+    Level throughout — see `_driveway_span` for why it sits where it does. It needs no
+    curb cut: on this stretch the curb's top is already flush with the walk and the lot,
+    and only its extra thickness stands proud on the street side."""
+    d = lot.get("driveway") or {}
+    if not d:
+        return
+    f = lot.get("frontage") or {}
+    CONCRETE = (0.74, 0.73, 0.71)                    # matches the sidewalk
+    B = {k: v["bounds"] for k, v in rooms_cache.items()}
+    half_wall = ctx.T / FT / 2
+    _, east, _, north, _ = lot_lines(lot, B.values(), half_wall)
+    x_flat = east + f.get("northLevelFromEastFt", 25)
+    span = _driveway_span(lot, x_flat)
+    if not span:
+        return
+    lo, hi = span
+    TH = f.get("pavingThicknessIn", 4) / 12.0
+    STRIP = f.get("parkStripWidthFt", 9)
+    # South end: the yard fence. The drive runs up to it and the cars park against it.
+    fence_z = max(max(B[k]["z1"], B[k]["z2"]) for k in EXT_WING if k in B) + half_wall
+
+    def paving(name, z1, z2):
+        b = make_box(ctx, "IfcSlab", name, abs(hi - lo) * FT, abs(z2 - z1) * FT, TH * FT,
+                     ctx.X((lo + hi) / 2), ctx.Y((z1 + z2) / 2), -TH * FT,
+                     predefined="BASESLAB", color=CONCRETE)
+        run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
+
+    paving("Driveway", fence_z, north)               # the pad, fence to the property line
+    paving("Driveway apron", north, north + STRIP)   # across the planting strip to the walk
+
+
 def add_yard_fence(ctx, lot, rooms_cache, base):
     """A 6 ft stained BOARD fence closing the rear yard: from the east extension's NE
     corner, east along that wing's north wall face, to the east property line.
@@ -1839,13 +2132,12 @@ def add_yard_fence(ctx, lot, rooms_cache, base):
     half_wall = ctx.T / FT / 2
     _, east, _, _, _ = lot_lines(lot, B.values(), half_wall)
     _, deck_east, deck_south, deck_north = deck_extent(rooms_cache, lot, half_wall)
-    # The fence line is the east wing's north wall FACE — bounds are wall centrelines,
-    # so the bound itself would leave that corner half a wall proud of the fence. NOT
-    # taken from deck_extent: the deck's north edge and the fence line used to be the
-    # same number and are not any more, which is exactly the kind of coincidence that
-    # silently moves a fence when the deck moves.
-    fence_z = max(max(B[k]["z1"], B[k]["z2"]) for k in EXT_WING if k in B) + half_wall
-    x_start = min(min(B[k]["x1"], B[k]["x2"]) for k in EXT_WING if k in B)  # NE corner (centreline)
+    # The fence line is the east wing's north wall FACE. NOT taken from deck_extent:
+    # the deck's north edge and the fence line used to be the same number and are not
+    # any more, which is exactly the kind of coincidence that silently moves a fence
+    # when the deck moves. Shared with add_side_porch, which notches around the post
+    # this run starts on.
+    fence_z, x_start = yard_fence_line(rooms_cache, half_wall)
 
     H = f.get("heightFt", 6.0)
     Wb, oc = f.get("boardWidthIn", 5.5) / 12, f.get("boardOcIn", 5.75) / 12
@@ -1878,8 +2170,9 @@ def add_yard_fence(ctx, lot, rooms_cache, base):
         n = max(1, int(round((hi - lo) / post_oc)))
         for i in range(n + 1):
             xc = lo + (hi - lo) * i / n
-            box(f"Yard fence post {si}.{i}", xc - 0.25, xc + 0.25,
-                fence_z - 0.25, fence_z + 0.25, y0, top - y0 + 0.08)
+            hp = YARD_POST_FT / 2
+            box(f"Yard fence post {si}.{i}", xc - hp, xc + hp,
+                fence_z - hp, fence_z + hp, y0, top - y0 + 0.08)
         # rails, spread between the base and the top
         for j in range(nrail):
             yc = y0 + (top - y0) * (j + 0.5) / nrail
@@ -1987,7 +2280,14 @@ def add_street_frontage(ctx, lot, rooms_cache):
     ramp_n("Park strip - north", north, n1, GRASS)
     ramp_n("Sidewalk - north", n1, n2, CONCRETE)
     ramp_n("Curb - north", n2, n3, CONCRETE, th=CURB_T)
-    paving("Park strip - north level", x_flat, east, north, n1, 0.0, GRASS)
+    # The level park strip, minus the gap the driveway's apron crosses. Split here for
+    # the same reason the retaining wall is split around the entry stair: two slabs at
+    # the same top would z-fight, and the grass has to actually stop at the paving.
+    drv = _driveway_span(lot, x_flat)
+    if drv:
+        paving("Park strip - north level", drv[0], east, north, n1, 0.0, GRASS)
+    else:
+        paving("Park strip - north level", x_flat, east, north, n1, 0.0, GRASS)
     paving("Sidewalk - north level", x_flat, east, n1, n2, 0.0, CONCRETE)
     paving("Curb - north level", x_flat, east, n2, n3, 0.0, CONCRETE, th=CURB_T)
 

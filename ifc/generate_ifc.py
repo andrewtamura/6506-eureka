@@ -371,9 +371,11 @@ def build_level(cfg, rooms_cache, level):
         B.add_lot_wall(ctx, cfg["lot"], rooms_cache, crawl)
         B.add_picket_fence(ctx, cfg["lot"], rooms_cache)
         B.add_yard_fence(ctx, cfg["lot"], rooms_cache, crawl)
+        B.add_side_porch(ctx, cfg["lot"], rooms_cache, crawl)
         # Corner-lot street frontage: retaining wall on the north/west property
         # lines plus the sidewalk, park strip and curb falling away beyond them.
         B.add_street_frontage(ctx, cfg["lot"], rooms_cache)
+        B.add_driveway(ctx, cfg["lot"], rooms_cache)
 
     ifc_name = f"{lid}.ifc"
     m.write(os.path.join(HERE, ifc_name))
