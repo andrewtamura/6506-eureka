@@ -2645,6 +2645,78 @@ function buildSconce(p) {
   return g;
 }
 
+// A BUILT-IN HOT TUB, set into a well in the rear deck. The deck slabs around it and
+// the coping-level surround it sits in are IFC (add_deck punches the hole); this is the
+// vessel that drops into that hole, which is a fixture and so has to be a procedural
+// mesh — CLAUDE.md's furniture rule — not an IFC box proxy.
+//
+// Heights come from the well it fills, in feet above GRADE (the exterior manifest's
+// datum is grade, not a floor): `rimFt` is the surround, one riser below the deck, and
+// `deckFt` the deck itself. The tub is dug from there — a spa is ~3 ft of water, so on
+// a 30 in deck the shell floor lands below grade, which is what a built-in spa does.
+//
+// Built as a basin rather than a block: four shell walls and a floor, so looking in you
+// see a hollow with water in it. One solid rounded box with a water plane laid on top
+// reads as a puddle on a plinth, which is what the first pass at the wall basin did.
+function buildHotTub(p) {
+  const ft = FT, g = new THREE.Group();
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const acrylic = new THREE.MeshStandardMaterial({ color: 0xeef2f1, roughness: 0.18, metalness: 0.05 });
+  const water = new THREE.MeshStandardMaterial({ color: 0x3f7f86, roughness: 0.12, metalness: 0.1 });
+  const coping = new THREE.MeshStandardMaterial({ color: col("limestone", 0xbfb6a6), roughness: 0.8 });
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.25, metalness: 0.8 });
+  const box = (dx, dz, yc, sx, sz, hy, mat, rad = 0) => {
+    if (sx <= 0.002 || sz <= 0.002 || hy <= 0.002) return null;
+    const geo = rad > 0 ? new RoundedBoxGeometry(sx * ft, hy * ft, sz * ft, 3, rad * ft)
+                        : new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft);
+    const m = new THREE.Mesh(geo, mat);
+    m.position.copy(V(dx, dz, yc)); m.castShadow = true; m.receiveShadow = true;
+    g.add(m); return m;
+  };
+  const W = p.wFt ?? 7.0, D = p.dFt ?? 7.0;
+  // `rimFt` is the ENTRY SILL — the top of the coping you step over — and the deck is
+  // flush with it. Everything else is dug from there: a spa is about 3 ft of water, so
+  // on a 30 in deck the shell floor lands below grade, which is what a built-in does.
+  const rim = p.rimFt ?? 2.5;
+  const DEEP = p.depthFt ?? 3.0;                // water depth, sill to floor
+  const CP = p.copingFt ?? 0.42, CT = 0.14;     // coping width and thickness
+  const T = 0.18, floorY = rim - DEEP;          // shell thickness; floor sits below grade
+  const shellTop = rim - CT;                    // the coping caps the shell, flush on top
+  const iw = W - 2 * T, id = D - 2 * T;         // inside the shell
+  box(0, 0, floorY - T / 2, W, D, T, acrylic);                       // shell floor
+  for (const s of [-1, 1]) {
+    box(s * (W - T) / 2, 0, (floorY + shellTop) / 2, T, D, shellTop - floorY, acrylic, 0.04);
+    box(0, s * (D - T) / 2, (floorY + shellTop) / 2, iw, T, shellTop - floorY, acrylic, 0.04);
+  }
+  // The moulded seat: a bench right round the inside, which is most of what makes a spa
+  // read as a spa rather than as a tank.
+  const SEAT = p.seatFt ?? 1.15, seatY = rim - (p.seatDropFt ?? 1.45);
+  for (const s of [-1, 1]) {
+    box(s * (iw - SEAT) / 2, 0, (floorY + seatY) / 2, SEAT, id, seatY - floorY, acrylic, 0.05);
+    box(0, s * (id - SEAT) / 2, (floorY + seatY) / 2, iw - 2 * SEAT, SEAT, seatY - floorY, acrylic, 0.05);
+  }
+  box(0, 0, rim - 0.40, iw - 0.03, id - 0.03, 0.06, water);          // water, 5 in below the rim
+  // Coping: a stone band lapping the shell, out over the deck and back in over the water,
+  // so the acrylic edge is never the thing you see. It sits BELOW the sill line rather
+  // than on top of it — its top face IS the sill, level with the decking, so there is no
+  // lip to catch a foot on the way in.
+  for (const s of [-1, 1]) {
+    box(s * (W + CP - 0.2) / 2, 0, rim - CT / 2, CP, D + CP * 2 - 0.4, CT, coping, 0.03);
+    box(0, s * (D + CP - 0.2) / 2, rim - CT / 2, W - CP + 0.2, CP, CT, coping, 0.03);
+  }
+  // Jets in the seat backs, and a spill-over spout on the south wall.
+  const nj = p.jets ?? 4;
+  for (let i = 0; i < nj; i++) {
+    const f = (i + 0.5) / nj;
+    for (const s of [-1, 1]) {
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.055 * ft, 0.055 * ft, 0.05 * ft, 12), chrome);
+      m.position.copy(V(s * (iw / 2 - 0.02), -id / 2 + id * f, seatY + 0.42));
+      m.rotation.z = Math.PI / 2; g.add(m);
+    }
+  }
+  return g;
+}
+
 // A SEMI-DROP CHANDELIER: a short stem rather than a chain, for a flat ceiling. Canopy,
 // stem, a turned body, a ring of scrolled arms carrying candles, and a finial below.
 //
@@ -2854,7 +2926,7 @@ function buildWallMirror(p) {
   return g;
 }
 
-const BUILDERS = { wall_basin: buildWallBasin, chandelier: buildChandelier, mudroom_bench: buildMudroomBench, wall_mirror: buildWallMirror, recessed: buildRecessed, pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight,
+const BUILDERS = { wall_basin: buildWallBasin, chandelier: buildChandelier, hot_tub: buildHotTub, mudroom_bench: buildMudroomBench, wall_mirror: buildWallMirror, recessed: buildRecessed, pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight,
   range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, open_shelves: buildOpenShelves, counter_stool: buildCounterStool, banquette: buildBanquette, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, bentwood_chair: buildBentwoodChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 // Re-export a few individual builders so the viewer can drop single procedural
 // pieces (e.g. patio furniture on the alt roof deck) without going through the
