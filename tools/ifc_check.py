@@ -769,51 +769,67 @@ if we and party is not None and 'Wing frieze' in WE:
               f"and the cornice turns the east corner "
               f"({'missing' if rtn is None else f'{wing_n - rtn[2]:.2f} ft'})")
 
-        # --- THE BELT COURSE, which is what now divides the elevation --------------
+        # --- THE WAIST COURSE, which is what divides the storeys ------------------
         cl = we.get('cladding') or {}
-        belt = WE.get('Wing belt course')
-        check(cl and belt, 'a belt course carries a clad upper storey')
-        if cl and belt:
-            check(near(belt[5], floor2, 0.01),
-                  f'the belt tops out on the second-floor line ({belt[5]:.3f} vs {floor2})')
-            check(near(belt[0], wing_e, 0.02) and belt[1] >= wing_w - 0.02,
-                  f'running the full wall ({belt[0]:.3f}..{belt[1]:.3f})')
-            brt = WE.get('Wing belt return')
-            check(brt is not None and near(wing_n - brt[2], cl['beltReturnFt'], 0.02),
+        waist = WE.get('Wing waist course')
+        check(cl and waist, 'a waist course divides the storeys')
+        if cl and waist:
+            check(near(waist[5], floor2, 0.01),
+                  f'the waist sits on the second-floor line ({waist[5]:.3f} vs {floor2})')
+            check(near(waist[0], wing_e, 0.02) and waist[1] >= wing_w - 0.02,
+                  f'running the full wall ({waist[0]:.3f}..{waist[1]:.3f})')
+            wrt = WE.get('Wing waist return')
+            check(wrt is not None and near(wing_n - wrt[2], cl['waistReturnFt'], 0.02),
                   f"and turning the east corner like the cornice "
-                  f"({'missing' if brt is None else f'{wing_n - brt[2]:.2f} ft'})")
+                  f"({'missing' if wrt is None else f'{wing_n - wrt[2]:.2f} ft'})")
 
-            # --- THE T1-11 BAND ---------------------------------------------------
-            # GROOVED, not battened. The face is strips with gaps between them over a
-            # darker backer that shows through, because a groove reads by its SHADOW and
-            # this north wall has none. So the assertions are about the GAPS.
+            # --- THE T1-11 BAND, hung from the eaves ----------------------------
             back = WE.get('Wing cladding backer')
             boards = _parts(ext, 'Wing cladding board')
-            stiles = sorted([b for _, b in _parts(ext, 'Wing cladding stile')],
-                            key=lambda b: b[0])
-            check(back is not None and len(boards) >= 8 and len(stiles) == 2,
-                  f'the band is {len(boards)} strips on a backer between two corner boards')
-            if back is not None and boards and len(stiles) == 2:
-                # It spans the FULL wall now — the trellis that held the east bay is gone,
-                # so anything less would leave that bay blank top to bottom again.
-                check(near(stiles[0][0], wing_e, 0.02) and stiles[1][1] >= wing_w - 0.02,
-                      f'corner board to corner board, the full width '
-                      f'({stiles[0][0]:.3f}..{stiles[1][1]:.3f})')
-                check(near(back[4], floor2, 0.01) and
-                      all(near(b[4], floor2, 0.01) for _, b in boards),
-                      f'standing on the belt ({back[4]:.3f} vs {floor2})')
-                # Head dies into the frieze, read off the panel's own top EDGE: a
-                # bounding box only knows the high end and is satisfied by a level top.
+            skirt = WE.get('Wing cladding skirt')
+            check(back is not None and len(boards) >= 8 and skirt is not None,
+                  f'a T1-11 band of {len(boards)} strips on a backer, over a skirt')
+            if back is not None and boards and skirt is not None:
+                # IT IS A BAND, NOT A CLAD STOREY. Sprung from the floor line it stood
+                # 7 ft tall and read as a whole storey; it hangs from the soffit now,
+                # with STUCCO ABOVE AND BELOW THE WAIST. That gap is the assertion —
+                # without it the waist is just the siding's base again, doing two jobs
+                # and neither of them legibly.
+                check(back[4] - floor2 > 1.5,
+                      f'with plain stucco between it and the waist, so the waist reads as '
+                      f'a storey line and not the siding\'s base ({back[4] - floor2:.2f} ft)')
+                check(near(soffit(wing_e) - back[4], cl['bandFt'], 0.02),
+                      f"{cl['bandFt']} ft deep at the low end ({soffit(wing_e) - back[4]:.3f})")
+                check(back[5] - back[4] < 0.6 * model['storyHeight'],
+                      f'well under a storey tall, which is what makes it a band '
+                      f'({back[5] - back[4]:.2f} ft against {model["storyHeight"]})')
+                # A LEVEL base under a raking head — the base is what gives the rake
+                # something to read against, the same trick the corbels play.
+                check(all(near(b[4], back[4], 0.01) for _, b in boards),
+                      f'its base level all the way across ({back[4]:.3f} ft)')
                 head = _rake_line(ext, 'Wing cladding backer', lo=False)
-                for end, x in (('east', back[0]), ('west', back[1])):
+                for end, x in (('east', wing_e), ('west', wing_w)):
                     check(head and near(head(x), soffit(x), 0.02),
-                          f'and its head dies into the frieze at the {end} edge '
+                          f'and its head dying into the frieze at the {end} end '
                           f'({head(x):.3f} vs {soffit(x):.3f})')
-                # THE GROOVES. Measured as the GAPS BETWEEN consecutive strips — which is
-                # what a groove is here, and the one thing that separates this from the
-                # board-and-batten it replaced. Both that they exist and that the backer
-                # is behind them to be seen through.
+                check(skirt is not None and near(skirt[5], back[4], 0.01)
+                      and near(skirt[0], wing_e, 0.02),
+                      f'the skirt carries its foot, full width ({skirt[5]:.3f})')
+
+                # NO CORNER BOARDS. Framed out on all four sides it read as a heavy panel
+                # bolted to the wall. Asserted as an absence PAIRED with the siding
+                # actually reaching both corners — on its own, "no corner boards" passes
+                # just as well for a band that stopped short of them.
+                check(not _parts(ext, 'Wing cladding stile'),
+                      'no corner boards framing it — the trim was too heavy')
                 bs = sorted([b for _, b in boards], key=lambda b: b[0])
+                check(near(bs[0][0], wing_e, 0.02) and bs[-1][1] >= wing_w - 0.02,
+                      f'the siding running corner to corner instead '
+                      f'({bs[0][0]:.3f}..{bs[-1][1]:.3f})')
+
+                # THE GROOVES, measured as the GAPS BETWEEN consecutive strips — which is
+                # what a groove is here, and the one thing separating this from the
+                # board-and-batten it replaced.
                 gaps = [bs[i + 1][0] - bs[i][1] for i in range(len(bs) - 1)]
                 check(gaps and all(near(g, cl['grooveFt'], 0.005) for g in gaps),
                       f"{len(gaps)} grooves, each {cl['grooveFt'] * 12:.2f} in wide "
@@ -824,34 +840,27 @@ if we and party is not None and 'Wing frieze' in WE:
                       f"at {max(step) * 12:.1f} in centres "
                       f"(max {cl['grooveOcFt'] * 12:.0f} in — 8 in is standard T1-11)")
                 check(bs[0][3] > back[3] + 1e-6,
-                      f'the face stands proud of the backer, so the grooves show it '
+                      f'the face standing proud of the backer, so the grooves show it '
                       f'({bs[0][3]:.3f} vs {back[3]:.3f})')
-                # The outermost strips run flush into the corner boards: a groove hard
-                # against a corner board is a gap, not a groove.
-                check(near(bs[0][0], stiles[0][1], 0.01) and near(bs[-1][1], stiles[1][0], 0.01),
-                      'and the end strips run flush into the corner boards, no groove there')
-                # Corner boards stand proud of the siding they stop — what gives a sheet
-                # material an edge instead of a raw cut.
-                check(all(st[3] > bs[0][3] + 1e-6 for st in stiles),
-                      'which stand proud of it in turn')
 
-            # --- THE TWO STOREYS. The composition asserted as a whole: a clad band
-            # above the belt, and PLAIN STUCCO below it carrying only the door and its
-            # awning. The second half is the one that would go unnoticed — siding that
-            # crept below the belt, or a leftover member from the trellis that used to
-            # stand here, would both pass a "is the upper storey clad" test.
-            upper = [(nm, b) for nm, b in _parts(ext, 'Wing')
-                     if not nm.startswith(('Wing cornice', 'Wing frieze', 'Wing corbel',
-                                           'Wing belt'))]
-            check(upper and all(b[4] >= floor2 - 0.01 for _, b in upper),
-                  f'nothing of the clad band comes below the belt ({len(upper)} members)')
+            # --- THE TWO STOREYS. The composition as a whole: a band under the eaves,
+            # a waist at the floor line, and PLAIN STUCCO everywhere else carrying only
+            # the door and its awning. The last one is what would go unnoticed — siding
+            # that crept down the wall, or a member left over from the trellis that used
+            # to stand here, would both pass every test above.
+            band = [(nm, b) for nm, b in _parts(ext, 'Wing')
+                    if not nm.startswith(('Wing cornice', 'Wing frieze', 'Wing corbel',
+                                          'Wing waist'))]
+            check(band and all(b[4] >= back[4] - 0.3 for _, b in band),
+                  f'nothing of the band comes below its own skirt ({len(band)} members)')
             for half, x0, x1 in (('east', wing_e, party), ('west', party, wing_w)):
-                got = [nm for nm, b in upper if b[1] > x0 + 0.05 and b[0] < x1 - 0.05]
+                got = [nm for nm, b in band if b[1] > x0 + 0.05 and b[0] < x1 - 0.05]
                 check(got, f'the band covers the {half} bay ({len(got)} members)')
             below = [nm for nm, b in _parts(ext, 'Side porch awning') + _parts(ext, 'Wing')
-                     if b[4] < floor2 - 0.01 and not nm.startswith('Wing belt')]
+                     if b[4] < floor2 - 0.01 and not nm.startswith('Wing waist')]
             check(all(nm.startswith('Side porch') for nm in below),
-                  f'and below it only the door and its awning ({", ".join(sorted(below)) or "nothing"})')
+                  f'and below the waist only the door and its awning '
+                  f'({", ".join(sorted(below)) or "nothing"})')
 
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)

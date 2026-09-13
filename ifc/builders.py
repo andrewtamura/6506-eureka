@@ -1949,9 +1949,10 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
 
     Read as TWO STOREYS, which is how the house itself is built:
 
-        upper        a band of T1-11 on a belt course, the full width
-        lower        plain stucco, carrying only the door and its awning
-        at the top   a raking entablature
+        under the eaves   a band of T1-11, hung from the soffit, the full width
+        at the floor line a waist course dividing the storeys
+        elsewhere         plain stucco, carrying only the door and its awning
+        at the top        a raking entablature
 
     It began as four quadrants over the two bays the rooms behind it make — the wall's
     centreline IS the bath/vestibule party wall, and the door sits dead centre of the
@@ -1969,9 +1970,11 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
 
     NOTHING HERE IS PLACED BY COORDINATE. The bays come from the rooms behind the wall;
     the wall top comes from the massing group's own storeys and pitch, so the trim
-    cannot drift off the roof it follows; the belt is the second-floor line, taken as
+    cannot drift off the roof it follows; the waist is the second-floor line, taken as
     crawl + one storey; and the siding's head DIES INTO the frieze, raking with it rather
-    than stopping level and leaving a wedge of blank wall widening toward the high end."""
+    than stopping level and leaving a wedge of blank wall widening toward the high end.
+    Only the band's own height is authored, and only because this wall has nothing to
+    derive it from — no windows, and the floor line is far too low to hang a band on."""
     spec = lot.get("wingElevation") or {}
     if not spec or base <= 0:
         return
@@ -1984,14 +1987,10 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
     # — and matching that cornice is what ties the wing to the house.
     WOOD = (0.60, 0.47, 0.34)
     TRIM = (0.93, 0.92, 0.88)
-    # The yard fence's stain, for the BOARDS behind the battens. Board-and-batten in one
-    # tone is a flat slab here: the battens stand an inch proud and this wall never sees
-    # direct sun, so there is no shadow to find the joints — the third time on this
-    # elevation that relief has read as nothing and only tone has read at all (the
-    # corbels, the oculus, now these). Darker boards with lighter battens is also what
-    # the real thing looks like, the battens catching the light and the boards sitting
-    # back, so the fix is the honest detail rather than a workaround.
-    STAIN = (0.42, 0.30, 0.21)
+    # The groove's shadow. A NEUTRAL dark, not the fence's brown: the face above it is
+    # painted white now, and a warm backer would read as wood showing through a gap
+    # rather than as a shadow line in a painted sheet.
+    SHADOW = (0.35, 0.34, 0.32)
     BURY = 0.05                                     # plan ft INTO the wall, so no face is coplanar
     B = {k: v["bounds"] for k, v in rooms_cache.items()}
     if not all(k in B for k in EXT_WING):
@@ -2079,56 +2078,62 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
         part("Wing frieze return", x_east - fzp, x_east, top - (cn + fz) * FT,
              top - cn * FT, wall_z - ret, wall_z + fzp, color=TRIM)
 
-    # --- the upper storey: T1-11 on a belt course ----------------------------------
-    # A band of grooved plywood siding over plain stucco, exactly as the house itself is
-    # built. It runs the FULL width — the trellis that used to hold the east bay is gone,
-    # and the composition is no longer four quadrants but two STOREYS: a clad upper band
-    # on a belt course, plain stucco below it carrying only the door and its awning.
+    # --- the upper wall: a T1-11 band under the eaves, over a waist course ---------
+    # A band of grooved plywood siding hanging from the roof, plain stucco below it, and
+    # a WAIST COURSE lower down at the second-floor line dividing the storeys.
     #
     # T1-11 IS GROOVED, NOT BATTENED, and that is not a naming quibble: a batten stands
-    # proud and a groove is cut in, so one is modelled by adding material and the other by
-    # leaving a gap. The face is built as strips with the gaps between them, over a darker
-    # backer that shows through — because a groove reads by its SHADOW, and this north
-    # wall has none. The dark backer IS the shadow. It is the fourth time on this
-    # elevation that relief has read as nothing and only tone has read at all.
+    # proud and a groove is cut in, so one is modelled by adding material and the other
+    # by leaving a gap. The face is strips with the gaps between them over a dark backer
+    # that shows through — a groove reads by its SHADOW and this north wall has none, so
+    # the dark backer IS the shadow.
+    #
+    # Three things this got wrong first, all of them visible only in a render:
+    #   - FRAMED OUT on all four sides by corner boards it read as a heavy panel bolted
+    #     to the wall. The siding now runs corner to corner and the only trim is a thin
+    #     skirt at its foot.
+    #   - SPRUNG FROM THE SECOND-FLOOR LINE it stood 7 ft tall and read as a whole clad
+    #     storey rather than a band under the eaves. It hangs from the soffit now.
+    #   - WOOD-TONED it was never what the house is: this is painted siding, and it is
+    #     the one white member this wall can carry, because the grooves give it texture
+    #     where the oculus and the corbels had only relief and vanished.
     cl = spec.get("cladding") or {}
     if cl and banded:
-        bh, bp = cl.get("beltFt", 0.45), cl.get("beltProudFt", 0.12)
         floor2 = base + ctx.story                   # the second-floor line, derived
-        # The belt is the band's base and its drip, so it projects further than the siding
-        # it carries. It runs the full wall and turns the east corner like the cornice.
-        part("Wing belt course", x_east, x_west, floor2 - bh * FT, floor2,
-             wall_z - BURY, wall_z + bp, color=TRIM)
-        rt = cl.get("beltReturnFt", 0.8)
-        part("Wing belt return", x_east - bp, x_east, floor2 - bh * FT, floor2,
-             wall_z - rt, wall_z + bp, color=TRIM)
+        # The WAIST, low and thin, with stucco above AND below it. That is what makes it
+        # read as a storey division rather than as the base of the siding — the job the
+        # old belt course was doing twice and therefore doing badly.
+        wf, wp = cl.get("waistFt", 0.30), cl.get("waistProudFt", 0.08)
+        part("Wing waist course", x_east, x_west, floor2 - wf * FT, floor2,
+             wall_z - BURY, wall_z + wp, color=TRIM)
+        rt = cl.get("waistReturnFt", 0.8)
+        part("Wing waist return", x_east - wp, x_east, floor2 - wf * FT, floor2,
+             wall_z - rt, wall_z + wp, color=TRIM)
 
-        # Corner boards at BOTH ends, standing proud of the siding they stop — which is
-        # what gives a sheet material an edge instead of a raw cut.
-        st, sp = cl.get("stileFt", 0.6), cl.get("stileProudFt", 0.18)
-        for i, (xa, xb) in enumerate(((x_east, x_east + st), (x_west - st, x_west))):
-            part(f"Wing cladding stile {i}", xa, xb, floor2, soffit((xa + xb) / 2),
-                 wall_z - BURY, wall_z + sp, color=TRIM)
+        # The band hangs from the soffit: `bandFt` is its height at the LOW end, so its
+        # head rakes with the roof while its base stays level. A level base is what gives
+        # the rake something to read against, the same trick the corbels play.
+        lo = soffit(x_east) - cl.get("bandFt", 4.5) * FT
+        sf, sp = cl.get("skirtFt", 0.25), cl.get("skirtProudFt", 0.10)
+        part("Wing cladding skirt", x_east, x_west, lo - sf * FT, lo,
+             wall_z - BURY, wall_z + sp, color=TRIM)
 
-        # The backer, dark, showing through the grooves. Level base on the belt, head
-        # dying into the frieze and raking with it.
-        fa, fb = x_east + st, x_west - st
+        # Backer, dark, showing through the grooves; face over it, corner to corner.
         z_back = wall_z + cl.get("backProudFt", 0.02)
         z_face = z_back + cl.get("faceProudFt", 0.06)
-        rake_panel("Wing cladding backer", fa, fb, floor2, soffit,
-                   wall_z - BURY, z_back, color=STAIN)
-        # The face, in strips with a groove's width left between them. DIVISIONS that
-        # never exceed the authored spacing, the reckoning the guard's balusters use, so
-        # the grooves stay even whatever the wall works out to. The outermost strips run
-        # flush into the corner boards: a groove hard against a corner board is a gap, not
-        # a groove.
+        rake_panel("Wing cladding backer", x_east, x_west, lo, soffit,
+                   wall_z - BURY, z_back, color=SHADOW)
+        # DIVISIONS that never exceed the authored spacing, the reckoning the guard's
+        # balusters use, so the grooves stay even whatever the wall works out to. The
+        # outermost strips run into the corners: a groove hard against a corner is an
+        # open edge, not a groove.
         gw, goc = cl.get("grooveFt", 0.031), cl.get("grooveOcFt", 0.667)
-        n = max(1, int(math.ceil(abs(fb - fa) / goc)))
+        n = max(1, int(math.ceil(abs(x_west - x_east) / goc)))
         for i in range(n):
-            a0 = fa + (fb - fa) * i / n + (gw / 2 if i else 0.0)
-            a1 = fa + (fb - fa) * (i + 1) / n - (gw / 2 if i < n - 1 else 0.0)
-            rake_panel(f"Wing cladding board {i}", a0, a1, floor2, soffit,
-                       z_back, z_face, color=WOOD)
+            a0 = x_east + (x_west - x_east) * i / n + (gw / 2 if i else 0.0)
+            a1 = x_east + (x_west - x_east) * (i + 1) / n - (gw / 2 if i < n - 1 else 0.0)
+            rake_panel(f"Wing cladding board {i}", a0, a1, lo, soffit,
+                       z_back, z_face, color=TRIM)
 
 
 def add_lot_wall(ctx, lot, rooms_cache, base):
