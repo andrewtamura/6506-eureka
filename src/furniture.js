@@ -1115,6 +1115,68 @@ function buildToilet(p) {
   return g;
 }
 
+// A small WALL-HUNG LAVATORY — no cabinet. What a powder room 3 ft 2 in wide actually
+// gets, and the reason it is here rather than a narrowed vanity: in a corridor room
+// every fixture is in series, so the basin's length along the wall is what fixes how far
+// north the WC can sit, and a cabinet's counter was eating 21 in of it. This is 15.
+//
+// Modelled as it is made, not as a slab on a bracket: a china bowl with a raised rim and
+// a recessed well, a splashback returning up the wall, the tap on the back ledge, and
+// the exposed chromed trap and stops underneath — a wall-hung basin has no cupboard to
+// hide them in, which is most of what it looks like from the doorway.
+// Anchor (px,pz) = the WALL LINE at the basin's centre; `faces` = the way it looks into
+// the room (so the wall is behind it).
+function buildWallBasin(p) {
+  const ft = FT, g = new THREE.Group();
+  const A = DIR[p.faces || "E"], P = [-A[1], A[0]];
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
+  const box = (da, ds, y, dl, dw, hy, mat, rad = 0) => {
+    const [opx, opz, sx, sz] = pl(da, ds, dl, dw);
+    const geo = rad > 0 ? new RoundedBoxGeometry(sx * ft, hy * ft, sz * ft, 3, rad * ft)
+                        : new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft);
+    const m = new THREE.Mesh(geo, mat);
+    m.position.copy(V(opx, opz, y)); m.castShadow = true; g.add(m); return m;
+  };
+  const cyl = (da, ds, y, r, h, mat, axis = "y") => {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r * ft, r * ft, h * ft, 16), mat);
+    const [opx, opz] = pl(da, ds, 0, 0);
+    if (axis === "a") m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0),
+      new THREE.Vector3(-A[0], 0, -A[1]).normalize());
+    m.position.copy(V(opx, opz, y)); g.add(m); return m;
+  };
+  const porc = new THREE.MeshStandardMaterial({ color: 0xf7f7f4, roughness: 0.25 });
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.25, metalness: 0.8 });
+  const W = p.widthFt ?? 1.25, D = p.depthFt ?? 0.92;   // 15 in along the wall, 11 in out
+  const RIM = p.rimFt ?? 2.83;                          // rim height (34 in), the usual
+  const RW = 0.14, WELL = 0.20, LEDGE = 0.22;           // rim width, well depth, tap ledge
+  // THE BOWL, and the point of building it in pieces: the well has to be a real recess.
+  // Drawn as one slab with a body under it — which is what this was first — the top is
+  // a flat plane and the basin reads as a lump of stone with a tap behind it. So the rim
+  // is FOUR bars, each running the full depth of the well, which makes them the rim seen
+  // from above and the well's side walls seen from the doorway; the floor of the well is
+  // a slab set down between them, and the underbowl hangs below that.
+  box(RW / 2, 0, RIM - WELL / 2, RW, W, WELL, porc, 0.03);                  // rim, at the wall
+  box(D - RW / 2, 0, RIM - WELL / 2, RW, W, WELL, porc, 0.03);              // rim, at the front
+  for (const sg of [-1, 1])                                                  // rim, the two ends
+    box(D / 2, sg * (W - RW) / 2, RIM - WELL / 2, D, RW, WELL, porc, 0.03);
+  box(D / 2, 0, RIM - WELL - 0.015, D - 2 * RW, W - 2 * RW, 0.03, porc);     // floor of the well
+  box(D / 2, 0, RIM - WELL - 0.16, D - 0.10, W - 0.13, 0.26, porc, 0.09);    // underbowl
+  box(0.06, 0, RIM - WELL - 0.28, 0.12, W - 0.13, 0.50, porc, 0.04);        // hanger, back to the wall
+  box(0.02, 0, RIM + 0.17, 0.05, W, 0.34, porc, 0.02);                      // splashback up the wall
+  // Tap and waste on the back ledge, then the exposed chrome below.
+  cyl(LEDGE * 0.5, 0, RIM + 0.16, 0.035, 0.32, chrome);                     // pillar tap
+  box(LEDGE * 0.5 + 0.09, 0, RIM + 0.29, 0.18, 0.05, 0.03, chrome);         // spout
+  cyl(D * 0.52, 0, RIM - WELL - 0.42, 0.055, 0.26, chrome);                 // tailpiece
+  cyl(D * 0.52, 0, RIM - WELL - 0.58, 0.075, 0.16, chrome);                 // P-trap bend
+  cyl(D * 0.30, 0, RIM - WELL - 0.63, 0.048, D * 0.44, chrome, "a");        // trap arm into the wall
+  for (const sg of [-1, 1]) {                                               // angle stops
+    cyl(0.10, sg * (W / 2 - 0.17), RIM - WELL - 0.68, 0.032, 0.22, chrome);
+    box(0.10, sg * (W / 2 - 0.17), RIM - WELL - 0.56, 0.07, 0.07, 0.07, chrome, 0.02);
+  }
+  return g;
+}
+
 // Walk-in shower: a tiled pan with tiled back + two side walls, a fixed glass
 // screen over half the open side (walk-in gap on the other half), and a
 // wall-mounted head. Anchor (px,pz) = footprint centre; `opens` = the open
@@ -2702,7 +2764,7 @@ function buildWallMirror(p) {
   return g;
 }
 
-const BUILDERS = { mudroom_bench: buildMudroomBench, wall_mirror: buildWallMirror, recessed: buildRecessed, pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight,
+const BUILDERS = { wall_basin: buildWallBasin, mudroom_bench: buildMudroomBench, wall_mirror: buildWallMirror, recessed: buildRecessed, pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight,
   range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, open_shelves: buildOpenShelves, counter_stool: buildCounterStool, banquette: buildBanquette, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, bentwood_chair: buildBentwoodChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 // Re-export a few individual builders so the viewer can drop single procedural
 // pieces (e.g. patio furniture on the alt roof deck) without going through the

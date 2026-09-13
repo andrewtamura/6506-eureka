@@ -2,7 +2,7 @@
   "key": "pw",
   "name": "Powder Room",
   "longName": "Powder Room (under stair)",
-  "_note": "The bay under the upper flight. Its walls are all built by something else — the foyer's west wall is IFC, the east (well) wall and the north end wall are the stair's own drywall panels — so `walls` is false and `slab` is false (the foyer's slab is already under it). What this room record is FOR is the tile floor, the IfcSpace, and the fixtures.",
+  "_note": "The bay under the upper flight. Its walls are all built by something else \u2014 the foyer's west wall is IFC, the east (well) wall and the north end wall are the stair's own drywall panels \u2014 so `walls` is false and `slab` is false (the foyer's slab is already under it). What this room record is FOR is the tile floor, the IfcSpace, and the fixtures.",
   "bounds": {
     "x1": 11.5683,
     "x2": 15.0833,
@@ -20,32 +20,48 @@
     },
     "furniture": [
       {
-        "type": "vanity",
-        "at": [14.215, -1.45],
+        "type": "wall_basin",
+        "at": [
+          14.8147,
+          -1.512
+        ],
         "faces": "E",
-        "widthFt": 1.6,
-        "depthFt": 1.2,
-        "cols": 1,
-        "rows": 1,
-        "cabinet": "walnut",
-        "mirrorWFt": 1.2,
-        "mirrorHFt": 1.7,
-        "mirrorTopFt": 5.9,
-        "_note": "small: the bay is 3 ft 2 in clear, so a 1 ft 2 in deep cabinet leaves 2 ft of passage"
+        "widthFt": 1.05,
+        "depthFt": 0.75,
+        "_note": "A 12.6 x 9 in wall-hung lavatory (a cloakroom size), held 5 in clear of the door opening. Both numbers are the same trade: in a 3 ft 2 in corridor the fixtures are in series, so the basin's LENGTH is what fixes how far north the WC can sit, and its DEPTH is what blocks the doorway. Moving the old 15 x 11 in basin south without shrinking it would have bought the 5 in gap for 3.4 in of WC headroom and left the doorway just as blocked; taking it to 12.6 x 9 costs 1.5 in and unblocks 2 in as well. Anchor is the wall line."
+      },
+      {
+        "type": "wall_mirror",
+        "at": [
+          14.78,
+          -1.512
+        ],
+        "faces": "E",
+        "widthFt": 1.05,
+        "heightFt": 2.2,
+        "bottomFt": 3.5,
+        "frameFt": 0.08,
+        "_note": "the vanity carried its own mirror; a wall-hung basin does not, so it is a piece in its own right"
       },
       {
         "type": "toilet",
-        "at": [13.234, -5.05],
+        "at": [
+          13.234,
+          -4.7
+        ],
         "faces": "N",
-        "_note": "centred on the clear bay. Bowl front lands at pz -4.15, which is 22.8 in clear to the basin — 21 in is the minimum and the first position, 6 in north of this, measured 20.1. The soffit is 5 ft 11 in over the seat and 7 ft 3 in where you stand in front of it."
+        "_note": "centred on the clear bay, and as far NORTH as the basin allows: bowl front at pz -3.80 is 21.2 in clear to the basin against the 21 in minimum. The ceiling falls 9.9 in per foot going south, so this is 77.3 in standing at the bowl and 67.4 in over the seat."
       },
       {
         "type": "sconce",
-        "at": [14.78, -1.45],
+        "at": [
+          14.78,
+          -1.512
+        ],
         "faces": "E",
         "atFt": 6.35,
         "intensity": 1.3,
-        "_note": "over the mirror. No recessed downlight here: the ceiling is the raking underside of the flight, so there is no flat soffit to cut one into."
+        "_note": "over the mirror. No recessed downlight here: the ceiling is the raking drywall soffit under the flight, so there is no flat plane to cut one into."
       }
     ]
   }
