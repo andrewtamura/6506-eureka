@@ -315,5 +315,114 @@ for stem, room in rooms_s.items():
               f"({ud.get('headFt')} against {model_s['headHeight']})")
 check(checked_ud > 0, f'an under-stair door exists to check ({checked_ud})')
 
+# THE REAR DECK AND YARD. Everything here is measured from the BUILT geometry — the
+# clearances especially, because they are the whole point of the deck's dimensions and
+# reading them back out of model.json would assert nothing. The property lines come from
+# the built `Lot` slab, which add_lot makes exactly widthFt wide.
+print('\nREAR DECK & YARD')
+D = extents(ext, lambda nm, p: nm.startswith(('Deck', 'Hot tub', 'Yard fence', 'Lot wall')))
+east_line, west_line = E['Lot'][0], E['Lot'][1]
+_cfg = json.load(open('ifc/model.json'))['lot']
+dk = _cfg['deck']; tb = dk['hotTub']; fn = _cfg['yardFence']
+BASE = 2.5                                          # crawlspaceFt: the deck top, above grade
+riser = BASE / dk['stepCount']
+toe = (dk['stepCount'] - 1) * dk['treadFt'] + (dk['treadFt'] if dk.get('gradePaver') else 0)
+
+# --- the two clearances the deck is dimensioned by ---------------------------------
+w_clear = west_line - D['Deck - scullery'][1]
+e_clear = D['Deck terrace E'][0] - east_line
+check(near(w_clear, dk['westClearFt']),
+      f"WEST yard: {dk['westClearFt']} ft, deck edge to the west line ({w_clear:.4f})")
+check(near(e_clear, dk['eastClearFt']),
+      f"EAST yard: {dk['eastClearFt']} ft, terrace edge to the east line ({e_clear:.4f})")
+# ...and the same distances to the STAIR TOES, which is the ground you can actually
+# stand on. A flight projects past the edge it descends from, so the platform figure
+# alone would hide the encroachment entirely.
+w_toe = max(b[1] for nm, b in D.items() if nm.startswith('Deck step W'))
+e_toe = min(b[0] for nm, b in D.items() if nm.startswith('Deck step E'))
+check(near(west_line - w_toe, dk['westClearFt'] - toe),
+      f'clear ground west of the stair toe ({west_line - w_toe:.4f} ft)')
+check(near(e_toe - east_line, dk['eastClearFt'] - toe),
+      f'clear ground east of the stair toe ({e_toe - east_line:.4f} ft)')
+
+# --- the steps: stepCount RISERS is stepCount-1 treads plus a flush grade paver -----
+tre = sorted((nm for nm in D if nm.startswith('Deck step E')), key=lambda n: D[n][0], reverse=True)
+check(len(tre) == dk['stepCount'],
+      f"east flight is {dk['stepCount']} risers = {dk['stepCount'] - 1} treads + a grade paver ({len(tre)})")
+tops = [D[nm][5] for nm in tre]
+want = [BASE - (k + 1) * riser for k in range(dk['stepCount'] - 1)] + [0.0]
+check(all(near(a, b, 0.02) for a, b in zip(tops, want)),
+      f"...rising {riser * 12:.1f} in a tread ({', '.join(f'{t:.3f}' for t in tops)})")
+# and they span the terrace's WHOLE north-south run, which is what "full width" means
+check(all(near(D[nm][2], D['Deck terrace E'][2], 0.02) and near(D[nm][3], D['Deck terrace E'][3], 0.02)
+          for nm in tre),
+      'and run the full depth of the terrace, edge to edge')
+
+# --- the hot tub -------------------------------------------------------------------
+wall_in = D['Lot wall - south'][3]                  # the CMU wall's INNER face
+tub_s, tub_n = D['Hot tub surround S'][3], D['Hot tub surround N'][2]
+tub_w, tub_e = D['Hot tub surround W'][0], D['Hot tub surround E'][1]
+check(near(tub_s - wall_in, tb['fromWallIn'] / 12),
+      f"tub sits {tb['fromWallIn']} in off the south wall's inner face ({(tub_s - wall_in) * 12:.2f} in)")
+check(near(tub_n - tub_s, tb['sizeFt']) and near(tub_w - tub_e, tb['sizeFt']),
+      f"tub is {tb['sizeFt']} x {tb['sizeFt']} ft ({tub_w - tub_e:.3f} x {tub_n - tub_s:.3f})")
+check(near(BASE - D['Hot tub surround S'][5], riser * tb['recessRisers'], 0.02),
+      f"its surround is recessed exactly {tb['recessRisers']} riser below the deck "
+      f"({(BASE - D['Hot tub surround S'][5]) * 12:.2f} in)")
+
+# THE MESH TUB AND THE HOLE IT FILLS ARE IN DIFFERENT FILES. The vessel is a procedural
+# three.js mesh (the furniture rule) and the well is IFC, so nothing at runtime notices
+# them drifting apart — the tub would simply float or sink.
+_fur = json.load(open('ifc/exterior.furniture.json'))['items']
+hot = [i for i in _fur if i.get('type') == 'hot_tub']
+check(len(hot) == 1, f'exactly one hot_tub in the viewer manifest ({len(hot)})')
+if hot:
+    h = hot[0]
+    check(near(h['px'], (tub_w + tub_e) / 2, 0.02) and near(h['pz'], (tub_s + tub_n) / 2, 0.02),
+          f"the mesh tub is centred on the IFC well ({h['px']}, {h['pz']})")
+    check(near(h.get('wFt', 0), tb['sizeFt']) and near(h.get('dFt', 0), tb['sizeFt']),
+          'the mesh tub is the size of the hole it fills')
+    check(near(h.get('rimFt', 0), BASE - riser * tb['recessRisers'], 0.02),
+          f"its rim lands on the surround, not on the deck ({h.get('rimFt')} ft)")
+
+# --- NO GUARD RAILINGS -------------------------------------------------------------
+named = [p for p in ext.by_type('IfcRailing') if (getattr(p, 'Name', '') or '').startswith('Deck')]
+check(not named, f'no railing named Deck* survives ({len(named)})')
+# ...and nothing renamed its way back on. Any railing standing INSIDE the deck footprint
+# has to be a yard-fence member; this catches a rail that came back under another name.
+R = extents(ext, lambda nm, p: p.is_a('IfcRailing'))
+foot = (D['Deck terrace E'][0], D['Deck - scullery'][1], wall_in, D['Deck terrace E'][3])
+intruders = sorted(nm for nm, b in R.items()
+                   if not nm.startswith('Yard fence')
+                   and b[0] > foot[0] - 0.01 and b[1] < foot[1] + 0.01
+                   and b[2] > foot[2] - 0.01 and b[3] < foot[3] + 0.01 and b[5] > 0.1)
+check(not intruders, 'no railing of any name stands on the deck'
+                     + ('' if not intruders else f" \u2014 found {', '.join(intruders)}"))
+# The paired PRESENCE check: an absence passes just as well when the builder that makes
+# railings has quietly stopped running.
+check(any(nm.startswith('Fence') for nm in R), f'...and the picket fence is still built ({len(R)} railings in all)')
+
+# --- the yard fence ----------------------------------------------------------------
+boards = {nm: b for nm, b in D.items() if nm.startswith('Yard fence board')}
+check(len(boards) > 20, f'the yard fence is built board by board ({len(boards)} boards)')
+if boards:
+    run_lo = min(b[0] for b in boards.values()); run_hi = max(b[1] for b in boards.values())
+    check(near(run_lo, east_line, 0.4), f'the fence reaches the east property line ({run_lo:.3f})')
+    check(near(run_hi, -22.9167, 0.4), f"and starts at the extension's NE corner ({run_hi:.3f})")
+    edge = D['Deck terrace E'][0]
+    on_deck = {nm: b for nm, b in boards.items() if b[0] > edge - 1e-6}
+    on_grade = {nm: b for nm, b in boards.items() if b[1] < edge + 1e-6}
+    check(len(on_deck) + len(on_grade) == len(boards),
+          f'every board is wholly on the deck or wholly on grade ({len(on_deck)} + {len(on_grade)}'
+          f' of {len(boards)}) \u2014 the step is at the deck edge, not adrift')
+    surface = fn.get('heightDatum', 'surface') == 'surface'
+    for label, grp, y0 in (('over the deck', on_deck, BASE), ('on grade', on_grade, 0.0)):
+        if not grp:
+            continue
+        top = fn['heightFt'] + y0 if surface else fn['heightFt']
+        bad = [nm for nm, b in grp.items() if not (near(b[4], y0, 0.02) and near(b[5], top, 0.02))]
+        check(not bad, f"{len(grp)} boards {label} run {y0:.2f} to {top:.2f} ft"
+                       + ('' if not bad else f' \u2014 {len(bad)} off'))
+
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)

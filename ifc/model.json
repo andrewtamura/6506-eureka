@@ -47,6 +47,33 @@
     "_noteDepth": "The parcel's N-S depth is DERIVED, not authored: the south line sits scullerySouthFt off the scullery and the north line is set by frontage.northYardFt, so the front yard holds whatever the house does. See lot_lines in builders.py.",
     "westMarginFt": 16,
     "scullerySouthFt": 5,
+    "deck": {
+      "_note": "The rear deck. Its west and east edges are authored as CLEARANCES from the property lines \u2014 the same idiom as westMarginFt/scullerySouthFt \u2014 so the platform follows the parcel if widthFt or westMarginFt ever move. The south edge stays derived (scullerySouthFt plus the lot wall's 8 in) and the east terrace's north edge comes off the extension's north wall FACE, not its bounds: room bounds are wall CENTRELINES, so stopping at the bound would leave the wall corner 2.75 in proud of the deck.",
+      "_noteSteps": "stepCount RISERS of base/stepCount (7.5 in over the 30 in crawlspace). A flight has stepCount-1 TREADS plus a flush grade paver, so it projects (stepCount-1)*treadFt past the deck edge \u2014 the existing inset flights emit stepCount slabs only because their top one is flush with the deck and fills a notch. Clear ground at the toe is therefore clearFt - (stepCount-1)*treadFt, not clearFt.",
+      "westClearFt": 15,
+      "eastClearFt": 15,
+      "stepCount": 4,
+      "treadFt": 0.92,
+      "gradePaver": true,
+      "hotTub": {
+        "_note": "Built into the deck, recessed recessRisers below it so you step down onto the surround and then into the water. Dimensioned off the things it is actually measured from \u2014 the lot wall's INNER face and the terrace's own width \u2014 rather than absolute plan coordinates, which this file authors nowhere else.",
+        "sizeFt": 7.0,
+        "fromWallIn": 12,
+        "surroundFt": 1.0,
+        "recessRisers": 1
+      }
+    },
+    "yardFence": {
+      "_note": "A 6 ft stained BOARD fence closing the rear yard: from the east extension's NE corner, east along that wing's north wall face, to the east property line. Its first 15 ft ride the new deck terrace.",
+      "_noteDatum": "heightDatum says what the 6 ft is measured from. 'surface' = 6 ft above whatever it stands on, so it steps up over the deck and doubles as that edge's guard now the rails are gone. 'grade' = one flat top line 6 ft above grade, which over the deck is exactly 42 in \u2014 a code guard \u2014 and is the one-word retreat if a fence-height cap turns out to bite.",
+      "heightFt": 6.0,
+      "heightDatum": "surface",
+      "boardWidthIn": 5.5,
+      "boardOcIn": 5.75,
+      "boardThickIn": 0.75,
+      "postSpacingFt": 6.0,
+      "railCount": 3
+    },
     "frontage": {
       "_note": "Corner lot: city frontage on the NORTH and WEST lines. The lot itself is flat; the right-of-way falls away from it. The property stands nwDropIn above the sidewalk at the NW corner. Going EAST along the north line that drop dies to zero northLevelFromEastFt short of the NE corner; going SOUTH along the west line it eases to swDropIn at the SW corner. Both work out to a steady ~4% walk.",
       "_noteBandOrder": "The two frontages run the same bands in OPPOSITE order \u2014 north is (property line) park strip, sidewalk, curb, with the walk out against the asphalt; west is (property line) sidewalk, park strip, curb. Each is sidewalkWidthFt + parkStripWidthFt overall either way, so the curb lines and the paved NW corner block agree.",
