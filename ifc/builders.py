@@ -1968,51 +1968,56 @@ def wall_ring(ctx, name, px, pz, y, radius_ft, thick_ft, depth_ft, color):
     run("spatial.assign_container", ctx.model, products=[prod], relating_structure=ctx.storey)
 
 
-def add_wing_elevation(ctx, lot, rooms_cache, base):
+def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
     """The east wing's NORTH face — 10.9 ft wide by 19 ft of blank stucco, and the one
     wall on the house that takes no windows: the east bay is the bathroom on BOTH
     storeys and its window is on the east face.
 
-    Read as FOUR QUADRANTS over the two bays the rooms behind it already make. That
-    division is not drawn on: the wall's centreline IS the bath/vestibule party wall,
-    and the door sits dead centre of the west bay — so the door is already symmetrical,
-    just not about the wall, which is why it looks misplaced with nothing to relate to.
+    Read as FOUR QUADRANTS over the two bays the rooms behind it make. That division is
+    not drawn on: the wall's centreline IS the bath/vestibule party wall, and the door
+    sits dead centre of the west bay — so the door is already symmetrical, just not
+    about the wall, which is why it looks misplaced with nothing to relate to.
 
-        lower west   the door and its awning          (built already)
+        lower west   the door and its awning          (add_side_porch)
         east, both   ONE trellis crossing the pair
         upper west   a blind oculus on the door's axis
+        across both  a raking entablature at the wall top
 
-    The oculus is blind — a moulded ring on stucco, no glazing — and lands on the door's
-    own centreline, which is also the arc the door's halfmoon fanlight starts.
+    THE WALL TOP RAKES 1 IN 12 — 0.91 ft over 10.9 ft, high toward the primary. That is
+    shallow enough that bare, the roof reads as having SLIPPED rather than sloped, and
+    the wing had no eave trim whatever to say otherwise: the roof slab met the stucco
+    with no overhang on this face, no fascia and no shadow line. The frieze and cornice
+    rake with it and the corbels under them stand VERTICAL, and it is that contrast
+    which makes a 5 degree slope read as deliberate.
 
-    NOTHING HERE IS PLACED BY COORDINATE. The bays are derived from the rooms behind the
-    wall, so a replan moves both elements; the trellis foot sits on the WATER TABLE's
-    top, the one horizontal this wall already has; and the oculus centre is the trellis
-    top less its own radius, so the two share a top line whatever either is set to.
-    Only the trellis's top and the oculus's radius are authored heights."""
+    NOTHING HERE IS PLACED BY COORDINATE. The bays come from the rooms behind the wall;
+    the wall top comes from the massing group's own storeys and pitch, so the trim
+    cannot drift off the roof it follows; the trellis foot stands on the WATER TABLE's
+    top, the one horizontal this wall already had, and its head DIES INTO the frieze,
+    raking with it rather than stopping level and leaving the wedge of blank wall that
+    a flat top left; and the oculus is centred in its own quadrant, between the
+    second-floor line and that same soffit."""
     spec = lot.get("wingElevation") or {}
     if not spec or base <= 0:
         return
-    # BOTH elements are the porch's wood. Two reasons, and the first is measured: the
-    # primary's white trim (0.93, 0.92, 0.88) sits 0.06 from this stucco and the first
-    # oculus read as a pencil line on a 19 ft wall — the same disappearing act
-    # addAltExtension documents for its cast stone, on this same palette, and this is a
-    # NORTH wall, permanently in shade, so no amount of projection buys a shadow back.
-    # The second is compositional: one material makes the trellis and the roundel read as
-    # a pair, and ties both to the porch they stand on.
+    # The porch's wood for the JOINERY, the primary's white for the TRIM. The first is
+    # measured: white sits 0.06 from this stucco and a thin white ring read as a pencil
+    # line on a 19 ft wall — the disappearing act addAltExtension documents for its cast
+    # stone, on this same palette, and this is a NORTH wall, permanently in shade. The
+    # entablature is the exception because it is not thin: it projects, so it reads as a
+    # silhouette against the roof and the sky, exactly as the primary's own cornice does
+    # — and matching that cornice is what ties the wing to the house.
     WOOD = (0.60, 0.47, 0.34)
+    TRIM = (0.93, 0.92, 0.88)
     BURY = 0.05                                     # plan ft INTO the wall, so no face is coplanar
     B = {k: v["bounds"] for k, v in rooms_cache.items()}
     if not all(k in B for k in EXT_WING):
         return
     wall_z = max(max(B[k]["z1"], B[k]["z2"]) for k in EXT_WING)
-    # The rooms that actually front this wall, and the bay edges between them. Sorted by
-    # px, which increases WEST, so edges[0] is the east corner.
-    front = [k for k in EXT_WING if abs(max(B[k]["z1"], B[k]["z2"]) - wall_z) < 1e-6]
-    edges = sorted({v for k in front for v in (B[k]["x1"], B[k]["x2"])})
+    edges = wing_bays(rooms_cache)
     if len(edges) < 3:
         return
-    east_bay, west_bay = (edges[0], edges[1]), (edges[-2], edges[-1])
+    x_east, party, x_west = edges[0], edges[1], edges[-1]
 
     def part(nm, xa, xb, ya, yb, za, zb, color=WOOD):
         """px xa..xb, height ya..yb (metres), pz za..zb."""
@@ -2023,30 +2028,58 @@ def add_wing_elevation(ctx, lot, rooms_cache, base):
                       ctx.X((xa + xb) / 2), ctx.Y((za + zb) / 2), ya, color=color)
         run("spatial.assign_container", ctx.model, products=[pr], relating_structure=ctx.storey)
 
+    def rake_band(nm, xa, xb, y_of, h, za, zb, color=WOOD):
+        """A member whose TOP follows `y_of(px)` (metres), `h` ft deep, pz za..zb."""
+        Za, Zb = ctx.Y(za), ctx.Y(zb)
+        poly = [(ctx.X(xa), Za, y_of(xa)), (ctx.X(xb), Za, y_of(xb)),
+                (ctx.X(xb), Za, y_of(xb) - h * FT), (ctx.X(xa), Za, y_of(xa) - h * FT)]
+        v, faces = _prism(poly, (0, Zb - Za, 0))
+        add_brep(ctx, nm, v, faces, color, ifc_class="IfcBuildingElementProxy")
+
+    # --- where the wall stops. Taken from the massing group's OWN storeys and pitch, the
+    # same arithmetic add_massing springs its roof from, so the trim cannot drift off the
+    # roof it is supposed to follow.
+    e = spec.get("entablature") or {}
+    banded = bool(e and group)
+    fz, fzp = e.get("friezeFt", 0.85), e.get("friezeProudFt", 0.12)
+    cn, cnp = e.get("corniceFt", 0.28), e.get("corniceProudFt", 0.40)
+    if banded:
+        pitch = group.get("pitch", 0.0833)
+        ez = (base + group.get("storeys", 1) * ctx.story
+              - group.get("trimFt", 0) * FT + group.get("eaveWallFt", 0) * FT)
+        wall_top = lambda px: ez + pitch * (px - x_east) * FT
+        soffit = lambda px: wall_top(px) - (cn + fz) * FT
+    else:                                           # no trim: everything stops at a level line
+        _flat = (spec.get("trellis") or {}).get("topFt", 18.0) * FT
+        wall_top = soffit = lambda px: _flat
+
     # --- the trellis, filling the east bay over both storeys -----------------------
     t = spec.get("trellis") or {}
-    top_ft = t.get("topFt", 18.0)
     if t:
-        ins = t.get("insetFt", 0.5)
-        x_e, x_w = east_bay[0] + ins, east_bay[1] - ins
+        ins = t.get("insetFt", 0.3)
+        x_e, x_w = x_east + ins, party - ins
         fr, bt = t.get("frameFt", 0.29), t.get("battenFt", 0.125)
         p_fr, p_bt = t.get("frameProudFt", 0.15), t.get("battenProudFt", 0.10)
         # It stands on the WATER TABLE rather than on the porch deck: the deck is a
         # separate structure that happens to pass in front, whereas the water table is
-        # this wall's own base and the one line the elevation already has. add_massing
+        # this wall's own base and the one line the elevation already had. add_massing
         # puts its top at crawl + 0.05 m.
-        y0, y1 = base + 0.05, top_ft * FT
+        y0 = base + 0.05
         z0, z1 = wall_z - BURY, wall_z + p_fr
         z2 = z1 + p_bt
         for i, x in enumerate((x_e, x_w)):
-            part(f"Wing trellis stile {i}", x, x + (fr if i == 0 else -fr), y0, y1, z0, z1)
+            xa, xb = (x, x + fr) if i == 0 else (x - fr, x)
+            part(f"Wing trellis stile {i}", xa, xb, y0, soffit((xa + xb) / 2), z0, z1)
         part("Wing trellis rail 0", x_e, x_w, y0, y0 + fr * FT, z0, z1)
-        part("Wing trellis rail 1", x_e, x_w, y1 - fr * FT, y1, z0, z1)
+        rake_band("Wing trellis rail 1", x_e, x_w, soffit, fr, z0, z1)
         # Laths both ways over the frame, the light members inside the heavy one. Counts
         # are DIVISIONS that never exceed the authored spacing, so the openings stay even
         # whatever the bay works out to — the same reckoning the guard's balusters use.
-        ia, ib = y0 + fr * FT, y1 - fr * FT                 # inner height (metres)
-        ja, jb = x_e + fr, x_w - fr                         # inner width (plan ft)
+        # The horizontals stay LEVEL and stop below the rail's lowest point; only the
+        # battens follow the rake, each to its own height under it.
+        ia = y0 + fr * FT
+        ib = soffit(x_e) - fr * FT                  # lowest the rail's underside gets
+        ja, jb = x_e + fr, x_w - fr
         n = max(1, int(math.ceil(((ib - ia) / FT) / t.get("railOcFt", 2.5))))
         for i in range(1, n):
             c = ia + (ib - ia) * i / n
@@ -2054,14 +2087,47 @@ def add_wing_elevation(ctx, lot, rooms_cache, base):
         n = max(1, int(math.ceil(abs(jb - ja) / t.get("battenOcFt", 0.5))))
         for i in range(n):
             c = ja + (jb - ja) * (i + 0.5) / n
-            part(f"Wing trellis batten {i}", c - bt / 2, c + bt / 2, ia, ib, z1, z2)
+            part(f"Wing trellis batten {i}", c - bt / 2, c + bt / 2, ia,
+                 soffit(c) - fr * FT, z1, z2)
+
+    # --- the entablature, across both bays at the wall top -------------------------
+    if banded:
+        rake_band("Wing cornice", x_east - cnp, x_west, wall_top, cn,
+                  wall_z - BURY, wall_z + cnp, TRIM)
+        rake_band("Wing frieze", x_east, x_west, lambda px: wall_top(px) - cn * FT, fz,
+                  wall_z - BURY, wall_z + fzp, TRIM)
+        cbw, cbd, cbp = (e.get("corbelFt", 0.34), e.get("corbelDropFt", 0.50),
+                         e.get("corbelProudFt", 0.32))
+        n = max(1, int(round((x_west - x_east) / e.get("corbelOcFt", 1.35))))
+        for i in range(n):
+            c = x_east + (x_west - x_east) * (i + 0.5) / n
+            top = wall_top(c) - cn * FT
+            # WOOD, where the bands are white. A corbel is small and this is a north
+            # wall in permanent shade, so its 2 in of extra projection casts nothing and
+            # a white one is invisible against a white frieze — the render showed a flat
+            # band where the primary's cornice shows its dentils. Colour is the only
+            # lever this elevation has, and timber brackets under a painted eave both
+            # read and belong to the joinery already on this wall.
+            part(f"Wing corbel {i}", c - cbw / 2, c + cbw / 2, top - cbd * FT, top,
+                 wall_z - BURY, wall_z + cbp, color=WOOD)
+        # A short MITRED RETURN round the east corner. Trim that stops dead on a corner
+        # reads as a flat pasted on the front; turning it 9 in and stopping is what makes
+        # it read as going round — the same detail the under-stair crown needed. The east
+        # face is the shed's LOW eave, so the return is LEVEL: it is the one wall of this
+        # wing whose top is.
+        ret = e.get("returnFt", 0.8)
+        top = wall_top(x_east)
+        part("Wing cornice return", x_east - cnp, x_east, top - cn * FT, top,
+             wall_z - ret, wall_z + cnp, color=TRIM)
+        part("Wing frieze return", x_east - fzp, x_east, top - (cn + fz) * FT,
+             top - cn * FT, wall_z - ret, wall_z + fzp, color=TRIM)
 
     # --- the oculus, centred on the door's axis in the upper west quadrant ---------
     o = spec.get("oculus") or {}
     if o:
-        R = o.get("radiusFt", 1.5)
-        cx = (west_bay[0] + west_bay[1]) / 2        # = the door's own centreline
-        cy = (top_ft - R) * FT if t else base + 14.0 * FT
+        R = o.get("radiusFt", 1.75)
+        cx = (party + x_west) / 2                   # = the door's own centreline
+        cy = (base + ctx.story + soffit(cx)) / 2     # centred between floor line and soffit
         wall_ring(ctx, "Wing oculus ring", cx, wall_z - BURY, cy,
                   R, o.get("ringFt", 0.30), o.get("ringProudFt", 0.12) + BURY, WOOD)
         # A bead just inside the ring and standing prouder — the step is what makes it a

@@ -518,6 +518,31 @@ def _parts(model, prefix):
     return out
 
 
+def _rake_line(model, name, lo=True):
+    """The bottom (lo) or top edge of a raking member, as a function of plan x.
+
+    A prism carries vertices only at its two ends, so two points define the line — which
+    is the only way to ask "how high is this band ABOVE THAT POINT". A bounding box
+    cannot answer it: a raking member's box is the same whichever way it slopes, and
+    every question here is about where one raking line meets another."""
+    for p in model.by_type('IfcProduct'):
+        if (getattr(p, 'Name', None) or '') != name:
+            continue
+        # HOLD THE SHAPE. `create_shape(...).geometry.verts` reads a buffer owned by a
+        # temporary that is collected before numpy copies it, and the result is not an
+        # error — it is plausible numbers with a vertex or two replaced by the origin,
+        # which read here as a roof that rakes half as far as it does. extents() binds
+        # the shape to a name for this reason; so must this.
+        sh = ifcopenshell.geom.create_shape(S, p)
+        v = np.array(sh.geometry.verts).reshape(-1, 3)
+        px, y = -v[:, 0] / FT, v[:, 2] / FT
+        a, b = px.min(), px.max()
+        ya = y[px < a + 1e-4].min() if lo else y[px < a + 1e-4].max()
+        yb = y[px > b - 1e-4].min() if lo else y[px > b - 1e-4].max()
+        return lambda x, a=a, b=b, ya=ya, yb=yb: ya + (yb - ya) * (x - a) / (b - a)
+    return None
+
+
 EXT_W = ('ext_bath', 'wc', 'ext_vestibule', 'ext_laundry')
 _wing = [json.load(open(f'ifc/rooms/{k}.json'))['bounds'] for k in EXT_W]
 wing_e = min(min(b['x1'], b['x2']) for b in _wing)
@@ -757,10 +782,54 @@ if we and party is not None and 'Wing oculus ring' in WE:
     check(near((bead[1] - bead[0]) / 2, we['oculus']['radiusFt'] - we['oculus']['ringFt']
                + we['oculus']['beadFt'], 0.02),
           f'its bead lands on the ring\'s inner edge, one stepped moulding, not two circles')
-    # THE SHARED TOP LINE. The oculus centre is derived as the trellis top less its
-    # radius, so these must come out equal; two authored heights would not.
-    check(near(ring[5], trel[5], 0.02),
-          f'the oculus and the trellis top out on one line ({ring[5]:.3f} vs {trel[5]:.3f})')
+    # --- THE ENTABLATURE, and the roofline it has to follow ------------------------
+    # The wall top rakes 1 in 12. Measured against the BUILT MASSING at both ends, not
+    # against the pitch in model.json: what matters is that the trim sits on the roof,
+    # and reading the config back would assert nothing about that.
+    roofline = _rake_line(ext, 'Massing - extension', lo=False)
+    crown = _rake_line(ext, 'Wing cornice', lo=False)
+    soffit = _rake_line(ext, 'Wing frieze', lo=True)
+    check(crown and soffit and roofline, 'a raking entablature is built')
+    if crown and soffit and roofline:
+        for end, x in (('east', wing_e), ('west', wing_w)):
+            check(near(crown(x), roofline(x), 0.02),
+                  f'the cornice meets the wall top at the {end} end '
+                  f'({crown(x):.3f} vs {roofline(x):.3f})')
+        rise = roofline(wing_w) - roofline(wing_e)
+        check(rise > 0.5 and near(crown(wing_w) - crown(wing_e), rise, 0.02),
+              f'so it RAKES with the roof, not level across it ({rise:.3f} ft over '
+              f'{wing_w - wing_e:.2f})')
+        # The corbels are what make a 5 degree rake legible: VERTICAL members whose tops
+        # ride the raking line. Both halves asserted — plumb sides, and tops on the line.
+        cbs = _parts(ext, 'Wing corbel')
+        cn = we['entablature']['corniceFt']
+        check(len(cbs) >= 5 and all(near(b[5], crown((b[0] + b[1]) / 2) - cn, 0.02)
+                                    for _, b in cbs),
+              f'{len(cbs)} corbels ride the rake under the cornice')
+        check(all(near(b[5] - b[4], we['entablature']['corbelDropFt'], 0.02) for _, b in cbs),
+              'each one plumb and the same drop — the vertical against the slope')
+        # A short return round the east corner. Trim that stops dead on a corner reads as
+        # a flat pasted on the front, which is what the under-stair crown taught.
+        rtn = WE.get('Wing cornice return')
+        check(rtn is not None and near(wing_n - rtn[2], we['entablature']['returnFt'], 0.02),
+              f"and the cornice turns the east corner "
+              f"({'missing' if rtn is None else f'{wing_n - rtn[2]:.2f} ft'})")
+
+        # --- THE TRELLIS DIES INTO THE FRIEZE. No gap, at either stile: stopped level it
+        # left a wedge of blank wall widening toward the high end, which is the one thing
+        # a full-height panel must not do.
+        for i, (nm, b) in enumerate(sorted(_parts(ext, 'Wing trellis stile'),
+                                           key=lambda t: t[1][0])):
+            x = (b[0] + b[1]) / 2
+            check(near(b[5], soffit(x), 0.02),
+                  f'{nm} runs right up into the frieze ({b[5]:.3f} vs {soffit(x):.3f})')
+        check(near(trel[5] - trel[4], soffit(trel[1]) - wt[5], 0.05),
+              f'so the trellis rakes with it too, no wedge left at the high end')
+        # And the oculus sits centred in its own quadrant, under that same soffit.
+        cy = (ring[4] + ring[5]) / 2
+        check(near(cy, (floor2 + soffit(cx)) / 2, 0.03),
+              f'the oculus is centred between the floor line and the soffit '
+              f'({cy:.2f} in {floor2:.2f}..{soffit(cx):.2f})')
 
     # --- NOTHING CROSSES THE PARTY WALL. This is the collision that actually happened:
     # the awning was authored 6.0 ft wide and overhung the line by 6 in, straight through

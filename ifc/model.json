@@ -112,8 +112,21 @@
     },
     "wingElevation": {
       "_note": "The east wing's NORTH face: 10.9 ft wide by 19 ft of blank stucco, and the one wall on the house that takes no windows \u2014 the east bay is the bathroom on BOTH storeys, and its window is on the east face. Composed as four quadrants over the two REAL bays the rooms behind it already make: the wall's centreline is the bath/vestibule party wall, and the door sits dead centre of the west bay, so the door is already symmetrical, just not about the wall. Lower west is the door and its awning; the EAST bay gets one tall trellis crossing both of its quadrants; the upper west gets a blind oculus on the door's own axis \u2014 which is also the arc the door's halfmoon fanlight starts.",
-      "_noteDerived": "Neither element is placed by coordinate. The bays come from the rooms behind the wall, the trellis foot sits on the WATER TABLE's top, and the oculus centre is the trellis top less its radius, so the two share a top line whatever either is set to. Only the trellis's top and the oculus's radius are authored heights.",
+      "_noteDerived": "Neither element is placed by coordinate. The bays come from the rooms behind the wall, the trellis foot sits on the WATER TABLE's top and its head dies into the frieze, and the oculus is centred in its own quadrant between the second-floor line and that same soffit. The wall top itself comes from the massing group's storeys and pitch. Only the oculus's radius and the trim's sections are authored.",
+      "entablature": {
+        "_note": "The wall top RAKES 1 in 12 \u2014 0.91 ft over 10.9 ft, high toward the primary \u2014 and the wing had NO eave trim at all: the roof slab met the stucco with no overhang on this face, no fascia, no shadow line. Bare, a 5 degree slope reads as a roof that has slipped rather than sloped. The frieze and cornice rake with it; the corbels under them stand VERTICAL, and that contrast is what makes the slope read as deliberate. The corbels are the porch's WOOD where the bands are white: a corbel is small and this wall never sees direct sun, so a white one casts nothing and vanishes against a white frieze. Its geometry is taken from the massing group's own storeys and pitch, never authored here, so the trim cannot drift off the roof it follows.",
+        "friezeFt": 0.85,
+        "friezeProudFt": 0.12,
+        "corniceFt": 0.28,
+        "corniceProudFt": 0.4,
+        "corbelFt": 0.34,
+        "corbelDropFt": 0.5,
+        "corbelProudFt": 0.32,
+        "corbelOcFt": 1.35,
+        "returnFt": 0.8
+      },
       "trellis": {
+        "_noteTop": "topFt is a FALLBACK, used only if no entablature is built. The trellis's head DIES INTO the frieze and rakes with it; stopped level it left a wedge of blank wall widening toward the high end, which is the one thing a full-height panel must not do.",
         "insetFt": 0.3,
         "topFt": 18.0,
         "frameFt": 0.29,
