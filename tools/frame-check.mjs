@@ -161,7 +161,7 @@ const hud = await page.evaluate(async () => {
 // nothing else here would notice. Also check the lights control restores exactly what it
 // switched off.
 const BENCH_S = 4;
-const bench = await page.evaluate(async (BENCH_S) => {
+const bench = await page.evaluate(async ({ BENCH_S, FULL }) => {
   window.__eureka.togglePerf(true);
   await new Promise(r => setTimeout(r, 300));
   const perf = window.__eureka.perf;
@@ -171,12 +171,19 @@ const bench = await page.evaluate(async (BENCH_S) => {
   // intermittently. The assertion is about measuring DRAWN frames, not about speed.
   const r = await perf.benchmark(BENCH_S);
   const modeAfter = window.__eureka.world.renderer.mode;
+  // Light a level OTHER than the one being viewed, which is the only situation the dim
+  // control exists for. Left at the default it has nothing to do and the assertion below
+  // compared 6 against 6: fixture lighting is a RADIO, `auto` lights the lot's lanterns,
+  // and a daylit photocell holds even those off — so every one of those 6 was the sun,
+  // a fill or a skylight well, none of which are fixtures and none of which this touches.
+  if (FULL) window.__eureka.selectLighting('level2');
   const before = perf.lightsOn();
   const dim = perf.dimOtherLevels();
   const undim = perf.dimOtherLevels();
+  if (FULL) window.__eureka.selectLighting('auto');
   window.__eureka.togglePerf(false);
   return { modeBefore, modeAfter, ...r, lights: { before, dimmed: dim.lightsOn, restored: undim.lightsOn } };
-}, BENCH_S);
+}, { BENCH_S, FULL });
 
 // RENDER ON DEMAND. Measured against the real update loop, not by calling render()
 // ourselves: idle should cost only the safety heartbeat, and moving the camera should
@@ -231,6 +238,8 @@ A(bench.frames >= 2 && bench.fps > 0,
   `the benchmark measures frames actually drawn (${bench.frames} in ${BENCH_S} s)`);
 A(bench.lights.restored === bench.lights.before,
   `the lights control restores exactly what it switched off (${bench.lights.before} -> ${bench.lights.dimmed} -> ${bench.lights.restored})`);
+// Second-floor fixtures are lit above (the viewer is on the ground floor), so this is
+// the control doing its job: every light it switched off belongs to another level.
 if (FULL) A(bench.lights.dimmed < bench.lights.before,
   `dimming the other levels removes real lights (${bench.lights.before} -> ${bench.lights.dimmed})`);
 A(m.inspect && m.inspect.hit,

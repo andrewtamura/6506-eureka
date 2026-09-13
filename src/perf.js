@@ -216,7 +216,12 @@ export function setupPerf({ world, scene, getExtra }) {
     benchmark: (secs) => benchmark(benchBtn, secs),
     dimOtherLevels: () => dimOtherLevels(dimBtn),
     mode: () => world.renderer.mode,
-    lightsOn: () => lightsOn,
+    // COUNTS FRESH. The panel's own copy is refreshed once a second, which is plenty
+    // for a number a human reads but wrong for a caller that has just changed the
+    // lighting and wants to know what it did — frame-check read a stale 6 immediately
+    // after lighting a level and reported that dimming removed nothing. A traverse is
+    // only paid when something asks.
+    lightsOn: () => { census(); return lightsOn; },
     visible: () => el.style.display !== 'none',
     setVisible: (on) => { el.style.display = on ? '' : 'none'; },
   };

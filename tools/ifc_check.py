@@ -488,5 +488,133 @@ if dv and 'Driveway' in DV:
 else:
     check(False, 'a driveway is authored and built')
 
+
+# ---------------------------------------------------------------------------------
+# THE SIDE PORCH at the east wing's outside door. Everything here is measured off the
+# built slabs and asserted against something that CONSTRAINS it — the wing it spans,
+# the door it shelters, the riser every other flight on the lot uses — rather than
+# against the number that went into it, which would assert nothing.
+print('\nSIDE PORCH')
+sp = _cfg.get('sidePorch') or {}
+SP = extents(ext, lambda nm, p: nm.startswith('Side porch'))
+
+
+def _parts(model, prefix):
+    """Per-PRODUCT boxes. `extents` unions by name, which is what is wanted almost
+    everywhere and is exactly wrong for the deck: its pieces share a name, so the union
+    is the un-notched rect and the notch assertion below would pass on any build."""
+    out = []
+    for p in model.by_type('IfcProduct'):
+        nm = getattr(p, 'Name', None) or ''
+        if not nm.startswith(prefix):
+            continue
+        try:
+            sh = ifcopenshell.geom.create_shape(S, p)
+        except Exception:
+            continue
+        v = np.array(sh.geometry.verts).reshape(-1, 3)
+        px, pz, y = -v[:, 0] / FT, v[:, 1] / FT, v[:, 2] / FT
+        out.append((nm, (px.min(), px.max(), pz.min(), pz.max(), y.min(), y.max())))
+    return out
+
+
+EXT_W = ('ext_bath', 'wc', 'ext_vestibule', 'ext_laundry')
+_wing = [json.load(open(f'ifc/rooms/{k}.json'))['bounds'] for k in EXT_W]
+wing_e = min(min(b['x1'], b['x2']) for b in _wing)
+wing_w = max(max(b['x1'], b['x2']) for b in _wing)
+wing_n = max(max(b['z1'], b['z2']) for b in _wing)
+_door = [d for k in EXT_W for d in json.load(open(f'ifc/rooms/{k}.json')).get('doors', [])
+         if d.get('orient') == 'H' and abs(d.get('fixed', 0.0) - wing_n) < 1e-6]
+
+if sp and 'Side porch deck' in SP and len(_door) == 1:
+    deck, cnpy, beam = SP['Side porch deck'], SP['Side porch canopy'], SP['Side porch beam']
+    door = _door[0]
+    d_e, d_w = door['pos'] - door['width'] / 2, door['pos'] + door['width'] / 2
+
+    # --- it spans the wing, which is what "~11 ft" meant. Both edges asserted: the
+    # width alone would pass for a porch 11 ft long in the wrong place.
+    check(near(deck[0], wing_e, 0.02),
+          f"the deck's east edge is the wing's east wall ({deck[0]:.4f} vs {wing_e:.4f})")
+    check(deck[1] >= wing_w - 1e-6,
+          f"and its west edge reaches the primary's east wall ({deck[1]:.4f} vs {wing_w:.4f})")
+    check(near(deck[1] - deck[0], wing_w - wing_e, 0.1),
+          f'so it spans the wing, {wing_w - wing_e:.3f} ft ({deck[1] - deck[0]:.3f})')
+    # It must TUCK UNDER the wall, not stop on the face of it: the massing blocks are
+    # built at the room bounds and two boxes sharing a face plane z-fight.
+    check(deck[2] < wing_n - 1e-6,
+          f"its south edge runs under the wing's wall, not onto it ({deck[2]:.4f} < {wing_n})")
+    check(near(deck[3] - wing_n, sp['depthFt'], 0.02),
+          f"and it projects {sp['depthFt']} ft ({deck[3] - wing_n:.4f})")
+    check(near(deck[5], BASE, 0.01), f'level with the finished floor ({deck[5]:.4f} ft)')
+
+    # --- the flight. Same reckoning as the deck's: stepCount RISERS is stepCount - 1
+    # treads plus a paver flush with grade.
+    steps = sorted([(nm, b) for nm, b in _parts(ext, 'Side porch step')], key=lambda t: t[1][2])
+    check(len(steps) == dk['stepCount'],
+          f"{dk['stepCount']} risers -> {dk['stepCount']} slabs, treads plus the grade paver ({len(steps)})")
+    tops = [b[5] for _, b in steps]
+    check(all(near(tops[i] - tops[i + 1], riser, 0.01) for i in range(len(tops) - 2)) and near(tops[-1], 0.0, 0.01),
+          f'even {riser * 12:.1f} in risers down to grade ({", ".join(f"{t:.3f}" for t in tops)})')
+    # The riser is the DECK's, not one of its own: one lot, one stair rhythm.
+    check(riser * 12 <= 7.75, f'which is inside the 7.75 in maximum ({riser * 12:.2f} in)')
+    # The flight has to be at the DOOR, not merely on the porch somewhere.
+    fl = steps[0][1]
+    check(fl[0] <= door['pos'] <= fl[1],
+          f"the flight is under the door ({fl[0]:.3f}..{fl[1]:.3f} holds {door['pos']})")
+    check(fl[2] >= deck[3] - 0.02, f'and descends off the north edge ({fl[2]:.3f} vs {deck[3]:.3f})')
+    # Its toe has to stay on the lot, and clear of the drive it lands beside.
+    toe_n = max(b[3] for _, b in steps)
+    check(toe_n < E['Lot'][3] - 10, f'the toe stays well inside the north line ({toe_n:.2f})')
+    drv = DV.get('Driveway')
+    check(drv is None or fl[1] < drv[0] or fl[0] > drv[1],
+          f"and does not land in the driveway ({fl[0]:.2f}..{fl[1]:.2f} vs "
+          f"{'none' if drv is None else f'{drv[0]:.2f}..{drv[1]:.2f}'})")
+
+    # --- the canopy. The point of it is the DOOR, so that is what it is measured against.
+    check(cnpy[0] <= d_e + 1e-6 and cnpy[1] >= d_w - 1e-6,
+          f"the canopy covers the door's full {door['width']} ft ({cnpy[0]:.3f}..{cnpy[1]:.3f} "
+          f"over {d_e:.3f}..{d_w:.3f})")
+    check(cnpy[3] >= deck[3] - 1e-6,
+          f'and its overhang reaches past the top tread ({cnpy[3]:.3f} vs {deck[3]:.3f})')
+    # Headroom under the beam, and a foot of it over the door head.
+    head_y = BASE + model['doorHeight']
+    check(near(beam[4] - deck[5], sp['canopy']['headFt'], 0.02),
+          f"{sp['canopy']['headFt']} ft clear under the beam ({beam[4] - deck[5]:.3f})")
+    check(beam[4] >= head_y + 0.9,
+          f'which clears the door head by {beam[4] - head_y:.2f} ft')
+    # It must SHED, and away from the house: highest at the wall, lowest at the eave.
+    wall_hi = max(b[5] for nm, b in _parts(ext, 'Side porch canopy'))
+    check(near(wall_hi, cnpy[5], 0.001) and cnpy[5] - cnpy[4] > sp['canopy']['riseFt'],
+          f"it slopes away from the wall, {sp['canopy']['riseFt']} ft over the projection "
+          f"({cnpy[4]:.3f}..{cnpy[5]:.3f})")
+    # The roof has to sit ON the beam. Swept the wrong way it buries a third of the
+    # beam inside itself and the beam reads as a thin line — which is what shipped
+    # first, and is invisible in a measurement of the roof alone.
+    check(near(cnpy[4], beam[5], 0.01),
+          f"its underside lands on top of the beam ({cnpy[4]:.3f} vs {beam[5]:.3f})")
+    braces = _parts(ext, 'Side porch brace')
+    check(len(braces) == 2 and all(near(b[5], beam[4], 0.01) for _, b in braces),
+          f'a knee brace under each end of the beam ({len(braces)})')
+    # Both posts must stand ON the porch, not beside it.
+    posts = _parts(ext, 'Side porch post')
+    check(len(posts) == 2, f'two posts carry it ({len(posts)})')
+    check(all(near(b[4], deck[5], 0.01) and b[2] >= deck[2] - 1e-6 and b[3] <= deck[3] + 1e-6
+              for _, b in posts),
+          'both standing on the deck, inside its edges')
+
+    # --- the yard fence's terminal post shares this corner BY CONSTRUCTION, so the
+    # deck is punched around it. Paired with a positive control: without it, "no deck
+    # piece overlaps the post" passes just as well when the fence stops being built.
+    fposts = [b for nm, b in _parts(ext, 'Yard fence post')]
+    corner = [b for b in fposts if b[0] <= wing_e + 0.3 and b[1] >= wing_e - 0.3]
+    check(len(corner) == 1, f'the yard fence still ends on this corner ({len(corner)} post there)')
+    if corner:
+        c = corner[0]
+        bad = [nm for nm, b in _parts(ext, 'Side porch deck')
+               if b[0] < c[1] - 1e-6 and b[1] > c[0] + 1e-6 and b[2] < c[3] - 1e-6 and b[3] > c[2] + 1e-6]
+        check(not bad, f'and the deck is notched around it, not through it ({len(bad)} overlaps)')
+else:
+    check(False, 'a side porch is authored, built, and serves exactly one exterior door')
+
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)

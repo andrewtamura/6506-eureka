@@ -81,6 +81,23 @@
       "postSpacingFt": 6.0,
       "railCount": 3
     },
+    "sidePorch": {
+      "_note": "The side entrance: a small board porch at the east wing's outside door, filling the reentrant corner between that wing's north wall and the primary block's east wall. Dimensioned as a DEPTH only \u2014 its width is the wing's own ~11 ft and its south edge is the wing's north bound, so it follows the house rather than a coordinate. Deliberately plain: this is the door off the drive, not a second front stoop, so it gets a board deck where add_porch gets a stucco skirt and splayed cheek walls.",
+      "_noteSteps": "stepCount and treadFt are NOT authored here \u2014 the flight reads lot.deck's, so every set of steps on the lot climbs the same 7.5 in riser. stepWidthFt and the canopy width are CENTRED ON THE DOOR and then snapped flush to the primary's east wall, which both land within a few inches of: a 3 in sliver of deck beside a stair reads as a mistake where a flush edge reads as built.",
+      "depthFt": 5.0,
+      "stepWidthFt": 5.0,
+      "canopy": {
+        "_note": "A shed roof over the door, on two posts at the porch's north edge, knee-braced. headFt is the underside of the beam above the porch FLOOR, so it clears the 7 ft door head by a foot. Its west edge dies into the primary's east wall and so takes no overhang there; north and east get overhangFt, which is what puts cover over the top tread.",
+        "widthFt": 6.0,
+        "headFt": 8.0,
+        "beamFt": 0.6,
+        "postFt": 0.5,
+        "braceFt": 1.25,
+        "riseFt": 0.75,
+        "overhangFt": 0.5,
+        "thickFt": 0.33
+      }
+    },
     "frontage": {
       "_note": "Corner lot: city frontage on the NORTH and WEST lines. The lot itself is flat; the right-of-way falls away from it. The property stands nwDropIn above the sidewalk at the NW corner. Going EAST along the north line that drop dies to zero northLevelFromEastFt short of the NE corner; going SOUTH along the west line it eases to swDropIn at the SW corner. Both work out to a steady ~4% walk.",
       "_noteBandOrder": "The two frontages run the same bands in OPPOSITE order \u2014 north is (property line) park strip, sidewalk, curb, with the walk out against the asphalt; west is (property line) sidewalk, park strip, curb. Each is sidewalkWidthFt + parkStripWidthFt overall either way, so the curb lines and the paved NW corner block agree.",
