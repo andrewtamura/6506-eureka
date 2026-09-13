@@ -1034,6 +1034,24 @@ EXT_WING = ("ext_bath", "wc", "ext_vestibule", "ext_laundry")   # the house's ea
 YARD_POST_FT = 0.5                                              # the yard fence's 6 in square posts
 
 
+def wing_bays(rooms_cache):
+    """The east wing's north wall, split into the bays the ROOMS behind it already make:
+    a sorted list of plan-x edges, east first (px increases west).
+
+    Shared because the elevation and the porch have to agree on it. The wall's centreline
+    is the bath/vestibule party wall; an awning authored 6 in too wide straddled that line
+    and drove through a member standing on it — a collision neither builder could see on
+    its own, because each was measuring from a different end of the same wall. The member
+    it hit has since gone, but the awning still takes its width from the bay rather than
+    from a number, which is what kept the two in step."""
+    B = {k: v["bounds"] for k, v in rooms_cache.items() if k in EXT_WING}
+    if not B:
+        return []
+    wall_z = max(max(b["z1"], b["z2"]) for b in B.values())
+    front = [b for b in B.values() if abs(max(b["z1"], b["z2"]) - wall_z) < 1e-6]
+    return sorted({v for b in front for v in (b["x1"], b["x2"])})
+
+
 def yard_fence_line(rooms_cache, half_wall_ft):
     """(line, x_start) for the rear-yard fence, in plan feet: the east wing's north
     wall FACE, and the wing's NE corner where the run begins before heading east.
@@ -1449,27 +1467,11 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
                 belt = make_box(ctx, "IfcBuildingElementProxy", f"Belt course - {key}",
                                 w + 2 * bp, d + 2 * bp, bh, cx, cy, ez - ewall - bh / 2, color=TRIM)
                 run("spatial.assign_container", ctx.model, products=[belt], relating_structure=ctx.storey)
-            # dentil course running under the eave cornice (classical entablature
-            # over the frieze). One product holds all the little blocks.
-            dh, dpr, dw, dpitch = 0.22 * FT, 0.14 * FT, 0.34 * FT, 0.62 * FT
-            dz = ez - ch - dh                      # tucked directly beneath the cornice band
-            dents = []
-            nx = max(1, round(w / dpitch))
-            for i in range(nx):
-                x = cx - w / 2 + (i + 0.5) * w / nx
-                for fy in (cy + d / 2, cy - d / 2):
-                    yc = fy + (dpr / 2 - 0.03) * (1 if fy > cy else -1)
-                    dents.append(positioned_solid(ctx, dw, dpr + 0.06, dh, x, yc, dz))
-            ny = max(1, round(d / dpitch))
-            for i in range(ny):
-                y = cy - d / 2 + (i + 0.5) * d / ny
-                for fx in (cx + w / 2, cx - w / 2):
-                    xc = fx + (dpr / 2 - 0.03) * (1 if fx > cx else -1)
-                    dents.append(positioned_solid(ctx, dpr + 0.06, dw, dh, xc, y, dz))
-            for s in dents:
-                style_item(ctx, s, TRIM)
-            dent = multi_solid_product(ctx, "IfcBuildingElementProxy", f"Dentils - {key}", dents)
-            run("spatial.assign_container", ctx.model, products=[dent], relating_structure=ctx.storey)
+            # NO DENTIL COURSE under the eave. The house it is drawn from is plain
+            # stucco with simple trim; a dentilled entablature made it read as a
+            # different, more formal building than the one standing on the lot. The
+            # entry surround and the shed dormer's parapet keep theirs — those are
+            # deliberate set pieces, not the general eave.
         else:
             # lean-to wing: sloped ceiling, so the shed roof sits directly on top
             mv, mf = _filled_block(*surf(0.0), crawl)
@@ -1891,7 +1893,13 @@ def add_side_porch(ctx, lot, rooms_cache, base):
     # short: the door sits 2.7 ft off that wall, so anything wide enough to cover the
     # door reaches it anyway, and the alternative is a 3 in slot nobody would build.
     c = p.get("awning") or {}
-    ce, cw = centred(c.get("widthFt", 6.0))
+    # Its width is the WEST BAY, not a number: the bay is the door's own room, so filling
+    # it lands the awning exactly centred on the door with no snapping at all — and it
+    # stops dead on the party wall instead of straddling it. Authored at 6.0 ft it
+    # overhung that line by 6 in and drove through a member of the elevation standing on
+    # it (see wing_bays).
+    bays = wing_bays(rooms_cache)
+    ce, cw = (bays[-2], bays[-1]) if len(bays) >= 3 else centred(c.get("widthFt", 6.0))
     prj, spring = c.get("projectFt", 4.0), c.get("springFt", 8.25)
     drop, thk = c.get("dropFt", 1.0), c.get("thickFt", 0.2)
     pz_o = pz_s + prj                               # the outer edge
@@ -1916,6 +1924,260 @@ def add_side_porch(ctx, lot, rooms_cache, base):
         v, faces = _prism(tri, (ctx.X(x1 + bt) - ctx.X(x1), 0, 0))
         add_brep(ctx, f"Side porch bracket {i}", v, faces, DECK,
                  ifc_class="IfcBuildingElementProxy")
+
+
+def wall_disc(ctx, name, px, pz, y, radius_ft, depth_ft, color, thick_ft=None):
+    """A disc — or a RING, given `thick_ft` — standing on a north-facing wall: a circular
+    profile extruded along +Y, the wall's outward normal.
+
+    One product, one solid. A circle approximated by little blocks, the way the dentil
+    course was built, would be dozens of them; a parametric profile is exact and free.
+    `IfcCircleHollowProfileDef`'s Radius is the OUTER one and the wall thickness runs
+    inward, so a ring occupies `radius - thick .. radius`.
+
+    The Position's Axis is what turns the profile onto a vertical wall: local Z is global
+    +Y, so the circle stands in the wall plane and the extrusion runs out of it."""
+    m = ctx.model
+    if thick_ft:
+        prof = m.create_entity("IfcCircleHollowProfileDef", ProfileType="AREA",
+                               Radius=float(radius_ft * FT),
+                               WallThickness=float(thick_ft * FT))
+    else:
+        prof = m.create_entity("IfcCircleProfileDef", ProfileType="AREA",
+                               Radius=float(radius_ft * FT))
+    solid = m.create_entity(
+        "IfcExtrudedAreaSolid", SweptArea=prof, Depth=float(depth_ft * FT),
+        Position=m.create_entity(
+            "IfcAxis2Placement3D",
+            Location=m.create_entity("IfcCartesianPoint",
+                                     Coordinates=(float(ctx.X(px)), float(ctx.Y(pz)), float(y))),
+            Axis=m.create_entity("IfcDirection", DirectionRatios=(0.0, 1.0, 0.0)),
+            RefDirection=m.create_entity("IfcDirection", DirectionRatios=(1.0, 0.0, 0.0))),
+        ExtrudedDirection=m.create_entity("IfcDirection", DirectionRatios=(0.0, 0.0, 1.0)))
+    style_item(ctx, solid, color)
+    prod = multi_solid_product(ctx, "IfcWindow" if thick_ft is None else
+                               "IfcBuildingElementProxy", name, [solid])
+    run("spatial.assign_container", ctx.model, products=[prod], relating_structure=ctx.storey)
+
+
+def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
+    """The east wing's NORTH face — 10.9 ft wide by 19 ft of blank stucco, and the one
+    wall on the house that takes no windows: the east bay is the bathroom on BOTH
+    storeys and its window is on the east face.
+
+    Read as TWO STOREYS, which is how the house itself is built:
+
+        under the eaves   a band of T1-11, hung from the soffit, the full width
+        at the floor line a waist course dividing the storeys
+        elsewhere         plain stucco, carrying the door, its awning, and one
+                          round window in the lower east bay
+        at the top        a raking entablature
+
+    It began as four quadrants over the two bays the rooms behind it make — the wall's
+    centreline IS the bath/vestibule party wall, and the door sits dead centre of the
+    west bay, so the door was always symmetrical, just not about the wall. That reading
+    still explains why the door sits where it does, and `wing_bays` still serves the
+    awning; but a full-height trellis held the east bay and it is gone, so the bays no
+    longer divide the elevation and the belt course does.
+
+    THE WALL TOP RAKES 1 IN 12 — 0.91 ft over 10.9 ft, high toward the primary. That is
+    shallow enough that bare, the roof reads as having SLIPPED rather than sloped, and
+    the wing had no eave trim whatever to say otherwise: the roof slab met the stucco
+    with no overhang on this face, no fascia and no shadow line. The frieze and cornice
+    rake with it, and the siding's LEVEL base below gives that rake something to read
+    against — which is what makes a 5 degree slope read as deliberate rather than as a
+    roof that has slipped.
+
+    NOTHING HERE IS PLACED BY COORDINATE. The bays come from the rooms behind the wall;
+    the wall top comes from the massing group's own storeys and pitch, so the trim
+    cannot drift off the roof it follows; the waist is the second-floor line, taken as
+    crawl + one storey; and the siding's head DIES INTO the frieze, raking with it rather
+    than stopping level and leaving a wedge of blank wall widening toward the high end.
+    Only the band's own height is authored, and only because this wall has nothing to
+    derive it from — no windows, and the floor line is far too low to hang a band on."""
+    spec = lot.get("wingElevation") or {}
+    if not spec or base <= 0:
+        return
+    # The porch's wood for the JOINERY, the primary's white for the TRIM. The first is
+    # measured: white sits 0.06 from this stucco and a thin white member read as a pencil
+    # line on a 19 ft wall — the disappearing act addAltExtension documents for its cast
+    # stone, on this same palette, and this is a NORTH wall, permanently in shade. The
+    # entablature is the exception because it is not thin: it projects, so it reads as a
+    # silhouette against the roof and the sky, exactly as the primary's own cornice does
+    # — and matching that cornice is what ties the wing to the house.
+    WOOD = (0.60, 0.47, 0.34)
+    TRIM = (0.93, 0.92, 0.88)
+    # The groove's shadow. A NEUTRAL dark, not the fence's brown: the face above it is
+    # painted white now, and a warm backer would read as wood showing through a gap
+    # rather than as a shadow line in a painted sheet.
+    SHADOW = (0.35, 0.34, 0.32)
+    BURY = 0.05                                     # plan ft INTO the wall, so no face is coplanar
+    B = {k: v["bounds"] for k, v in rooms_cache.items()}
+    if not all(k in B for k in EXT_WING):
+        return
+    wall_z = max(max(B[k]["z1"], B[k]["z2"]) for k in EXT_WING)   # the north face
+    wing_s = min(min(B[k]["z1"], B[k]["z2"]) for k in EXT_WING)   # ...and the south
+    edges = wing_bays(rooms_cache)
+    if len(edges) < 3:
+        return
+    x_east, party, x_west = edges[0], edges[1], edges[-1]
+
+    def part(nm, xa, xb, ya, yb, za, zb, color=WOOD):
+        """px xa..xb, height ya..yb (metres), pz za..zb."""
+        w, d, h = abs(xb - xa), abs(zb - za), yb - ya
+        if w <= 1e-6 or d <= 1e-6 or h <= 1e-6:
+            return
+        pr = make_box(ctx, "IfcBuildingElementProxy", nm, w * FT, d * FT, h,
+                      ctx.X((xa + xb) / 2), ctx.Y((za + zb) / 2), ya, color=color)
+        run("spatial.assign_container", ctx.model, products=[pr], relating_structure=ctx.storey)
+
+    def rake_band(nm, xa, xb, y_of, h, za, zb, color=WOOD):
+        """A member whose TOP follows `y_of(px)` (metres), `h` ft deep, pz za..zb."""
+        Za, Zb = ctx.Y(za), ctx.Y(zb)
+        poly = [(ctx.X(xa), Za, y_of(xa)), (ctx.X(xb), Za, y_of(xb)),
+                (ctx.X(xb), Za, y_of(xb) - h * FT), (ctx.X(xa), Za, y_of(xa) - h * FT)]
+        v, faces = _prism(poly, (0, Zb - Za, 0))
+        add_brep(ctx, nm, v, faces, color, ifc_class="IfcBuildingElementProxy")
+
+    def rake_panel(nm, xa, xb, y_lo, y_of, za, zb, color=WOOD):
+        """A field with a LEVEL base at `y_lo` and a head following `y_of(px)` — a
+        trapezoid, not a band. rake_band sweeps a constant depth and so cannot describe
+        a panel that stands on a level line under a raking one; that is every clad
+        field on this wall."""
+        Za, Zb = ctx.Y(za), ctx.Y(zb)
+        poly = [(ctx.X(xa), Za, y_lo), (ctx.X(xb), Za, y_lo),
+                (ctx.X(xb), Za, y_of(xb)), (ctx.X(xa), Za, y_of(xa))]
+        v, faces = _prism(poly, (0, Zb - Za, 0))
+        add_brep(ctx, nm, v, faces, color, ifc_class="IfcBuildingElementProxy")
+
+    # --- where the wall stops. Taken from the massing group's OWN storeys and pitch, the
+    # same arithmetic add_massing springs its roof from, so the trim cannot drift off the
+    # roof it is supposed to follow.
+    e = spec.get("entablature") or {}
+    banded = bool(e and group)
+    fz, fzp = e.get("friezeFt", 0.85), e.get("friezeProudFt", 0.12)
+    cn, cnp = e.get("corniceFt", 0.28), e.get("corniceProudFt", 0.40)
+    if banded:
+        pitch = group.get("pitch", 0.0833)
+        ez = (base + group.get("storeys", 1) * ctx.story
+              - group.get("trimFt", 0) * FT + group.get("eaveWallFt", 0) * FT)
+        wall_top = lambda px: ez + pitch * (px - x_east) * FT
+        soffit = lambda px: wall_top(px) - (cn + fz) * FT
+    else:                                           # no trim: everything stops at a level line
+        _flat = spec.get("fallbackTopFt", 18.0) * FT
+        wall_top = soffit = lambda px: _flat
+
+    # --- the entablature, across both bays at the wall top -------------------------
+    if banded:
+        rake_band("Wing cornice", x_east - cnp, x_west, wall_top, cn,
+                  wall_z - BURY, wall_z + cnp, TRIM)
+        rake_band("Wing frieze", x_east, x_west, lambda px: wall_top(px) - cn * FT, fz,
+                  wall_z - BURY, wall_z + fzp, TRIM)
+        # A short MITRED RETURN round the east corner. Trim that stops dead on a corner
+        # reads as a flat pasted on the front; turning it 9 in and stopping is what makes
+        # it read as going round — the same detail the under-stair crown needed. The east
+        # face is the shed's LOW eave, so the return is LEVEL: it is the one wall of this
+        # wing whose top is.
+        ret = e.get("returnFt", 0.8)
+        top = wall_top(x_east)
+        part("Wing cornice return", x_east - cnp, x_east, top - cn * FT, top,
+             wall_z - ret, wall_z + cnp, color=TRIM)
+        part("Wing frieze return", x_east - fzp, x_east, top - (cn + fz) * FT,
+             top - cn * FT, wall_z - ret, wall_z + fzp, color=TRIM)
+
+    # --- the upper wall: a T1-11 band under the eaves, over a waist course ---------
+    # A band of grooved plywood siding hanging from the roof, plain stucco below it, and
+    # a WAIST COURSE lower down at the second-floor line dividing the storeys.
+    #
+    # T1-11 IS GROOVED, NOT BATTENED, and that is not a naming quibble: a batten stands
+    # proud and a groove is cut in, so one is modelled by adding material and the other
+    # by leaving a gap. The face is strips with the gaps between them over a dark backer
+    # that shows through — a groove reads by its SHADOW and this north wall has none, so
+    # the dark backer IS the shadow.
+    #
+    # Three things this got wrong first, all of them visible only in a render:
+    #   - FRAMED OUT on all four sides by corner boards it read as a heavy panel bolted
+    #     to the wall. The siding now runs corner to corner and the only trim is a thin
+    #     skirt at its foot.
+    #   - SPRUNG FROM THE SECOND-FLOOR LINE it stood 7 ft tall and read as a whole clad
+    #     storey rather than a band under the eaves. It hangs from the soffit now.
+    #   - WOOD-TONED it was never what the house is: this is painted siding, and it is
+    #     the one white member this wall can carry, because the grooves give it texture
+    #     where every white member before it had only relief and vanished.
+    cl = spec.get("cladding") or {}
+    if cl and banded:
+        floor2 = base + ctx.story                   # the second-floor line, derived
+        # The WAIST, low and thin, with stucco above AND below it. That is what makes it
+        # read as a storey division rather than as the base of the siding — the job the
+        # old belt course was doing twice and therefore doing badly.
+        #
+        # It WRAPS the wing: north face, round the east corner, along the east face and
+        # round again onto the south, where it STOPS at the primary. A storey line that
+        # shows on one elevation and nowhere else is a stripe painted on a front; one
+        # that turns two corners is a course. It stops where the wing does because that
+        # is whose storey line it is — the primary's own floors sit elsewhere, and its
+        # south wall is the same plane, so running on would read as the main house's
+        # band drawn at the wrong height.
+        wf, wp = cl.get("waistFt", 0.30), cl.get("waistProudFt", 0.08)
+        y0, y1 = floor2 - wf * FT, floor2
+        # The three runs overlap in the corners rather than being mitred: they are one
+        # colour and one height, so the union IS the mitre.
+        part("Wing waist course N", x_east - wp, x_west, y0, y1,
+             wall_z - BURY, wall_z + wp, color=TRIM)
+        part("Wing waist course E", x_east - wp, x_east + BURY, y0, y1,
+             wing_s - wp, wall_z + wp, color=TRIM)
+        part("Wing waist course S", x_east - wp, x_west, y0, y1,
+             wing_s - wp, wing_s + BURY, color=TRIM)
+
+        # The band hangs from the soffit: `bandFt` is its height at the LOW end, so its
+        # head rakes with the roof while its base stays level. That level base is now the
+        # only thing the rake has to read against, the corbels that used to do it having
+        # gone, so it is doing real work rather than being a convenience.
+        lo = soffit(x_east) - cl.get("bandFt", 4.5) * FT
+        sf, sp = cl.get("skirtFt", 0.25), cl.get("skirtProudFt", 0.10)
+        part("Wing cladding skirt", x_east, x_west, lo - sf * FT, lo,
+             wall_z - BURY, wall_z + sp, color=TRIM)
+
+        # Backer, dark, showing through the grooves; face over it, corner to corner.
+        z_back = wall_z + cl.get("backProudFt", 0.02)
+        z_face = z_back + cl.get("faceProudFt", 0.06)
+        rake_panel("Wing cladding backer", x_east, x_west, lo, soffit,
+                   wall_z - BURY, z_back, color=SHADOW)
+        # DIVISIONS that never exceed the authored spacing, the reckoning the guard's
+        # balusters use, so the grooves stay even whatever the wall works out to. The
+        # outermost strips run into the corners: a groove hard against a corner is an
+        # open edge, not a groove.
+        gw, goc = cl.get("grooveFt", 0.031), cl.get("grooveOcFt", 0.667)
+        n = max(1, int(math.ceil(abs(x_west - x_east) / goc)))
+        for i in range(n):
+            a0 = x_east + (x_west - x_east) * i / n + (gw / 2 if i else 0.0)
+            a1 = x_east + (x_west - x_east) * (i + 1) / n - (gw / 2 if i < n - 1 else 0.0)
+            rake_panel(f"Wing cladding board {i}", a0, a1, lo, soffit,
+                       z_back, z_face, color=TRIM)
+
+
+    # --- a round window in the lower east bay --------------------------------------
+    # A blind oculus was tried on this wall once and removed: a circle stuck on a
+    # rectangular wall, agreeing with nothing around it. This is a different thing and
+    # the difference is the whole point — it is a real GLAZED OPENING rather than applied
+    # ornament, which is what gives a circle a reason to be there.
+    #
+    # Placed on two lines that already exist: the east bay's centre, and the DOOR HEAD,
+    # so the wall's two openings share a horizontal. That also puts it 7 ft above the
+    # finished floor, which is where a bathroom wants its glass.
+    rw = spec.get("roundWindow") or {}
+    if rw:
+        GLASS = (0.42, 0.52, 0.60)                  # as add_fenestration's panels. Blue
+        # over red is how the viewer recognises glazing, so it glows with the others at
+        # night; keep it that way if the tone is ever changed.
+        R = rw.get("radiusFt", 1.0)
+        cx = (x_east + party) / 2                   # the east bay's centre
+        cy = base + ctx.door_h_ft * FT              # ...on the door's head line
+        wall_disc(ctx, "Wing round window glass", cx, wall_z - BURY, cy,
+                  R - rw.get("ringFt", 0.22), rw.get("glassProudFt", 0.02) + BURY, GLASS)
+        wall_disc(ctx, "Wing round window ring", cx, wall_z - BURY, cy,
+                  R, rw.get("ringProudFt", 0.10) + BURY, TRIM,
+                  thick_ft=rw.get("ringFt", 0.22))
 
 
 def add_lot_wall(ctx, lot, rooms_cache, base):

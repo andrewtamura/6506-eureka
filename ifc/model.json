@@ -99,7 +99,7 @@
       },
       "awning": {
         "_note": "A FREE-STANDING projection over the door \u2014 it stands clear of the porch on its own brackets, with nothing landing on the deck. springFt is the top of it AT THE WALL, above the porch floor, and it falls dropFt over its projection; the underside of the outer edge is what has to stay above head height, so that is what ifc_check measures rather than the mounting height.",
-        "_noteWidth": "Wider than the door, and it runs to the corner rather than stopping a few inches short of it: the door sits 2.7 ft off the primary's east wall, so anything that covers the door properly reaches that wall anyway, and a 3 in gap there reads as a mistake.",
+        "_noteWidth": "widthFt is a FALLBACK. The awning fills the wall's WEST BAY \u2014 the door's own room \u2014 which lands it exactly centred on the door with no snapping, and stops it dead on the party wall instead of straddling it. Authored at 6.0 ft it overhung that line by 6 in and drove through the elevation trellis's stile: a collision neither builder could see alone, since each measured from a different end of the same wall.",
         "widthFt": 6.0,
         "projectFt": 4.0,
         "springFt": 8.25,
@@ -108,6 +108,42 @@
         "bracketReachFt": 2.75,
         "bracketDropFt": 2.0,
         "bracketThickFt": 0.25
+      }
+    },
+    "wingElevation": {
+      "_note": "The east wing's NORTH face: 10.9 ft wide by 19 ft of it, and the one wall on the house that takes no windows \u2014 the east bay is the bathroom on BOTH storeys, and its window is on the east face. Read as TWO STOREYS, which is how the house itself is built: a band of T1-11 hanging under the eaves, plain stucco below carrying only the door and its awning, a WAIST COURSE at the second-floor line dividing the storeys, and a raking entablature at the top. It began as four quadrants over the two REAL bays the rooms behind it make \u2014 the wall's centreline is the bath/vestibule party wall and the door sits dead centre of the west bay, which is why the door sits where it does \u2014 but the full-height trellis that held the east bay is gone, so the bays no longer divide the elevation and the belt course does.\n\nTwo things were tried here first and are worth not repeating: a blind oculus, which read as a porthole stuck on a rectangular wall, and board-and-batten, which is the wrong detail \u2014 the house is T1-11, and a batten stands proud where a groove is cut in.",
+      "_noteDerived": "Nothing here is placed by coordinate. The bays come from the rooms behind the wall; the wall top comes from the massing group's storeys and pitch, so the trim cannot drift off the roof it follows; the waist is crawl + one storey; and the siding's head dies into the frieze and rakes with it. Only the trim's sections, the groove spacing and the band's own height are authored.",
+      "entablature": {
+        "_note": "The wall top RAKES 1 in 12 \u2014 0.91 ft over 10.9 ft, high toward the primary \u2014 and the wing had NO eave trim at all: the roof slab met the stucco with no overhang on this face, no fascia, no shadow line. Bare, a 5 degree slope reads as a roof that has slipped rather than sloped. The frieze and cornice rake with it, and the siding's LEVEL base below is what the rake reads against \u2014 a row of corbels used to do that job and read as ornament this building does not carry. Its geometry is taken from the massing group's own storeys and pitch, never authored here, so the trim cannot drift off the roof it follows.",
+        "friezeFt": 0.85,
+        "friezeProudFt": 0.12,
+        "corniceFt": 0.28,
+        "corniceProudFt": 0.4,
+        "returnFt": 0.8
+      },
+      "roundWindow": {
+        "_note": "A small round window in the LOWER EAST bay. A blind oculus was tried on this wall once and removed \u2014 a circle stuck on a rectangular wall, agreeing with nothing around it. The difference here is the whole point: this is a real GLAZED OPENING rather than applied ornament, which is what gives a circle a reason to be there. Its position is derived, not authored: the east bay's centre, on the DOOR HEAD line, so the wall's two openings share a horizontal \u2014 which also puts it 7 ft above the finished floor, where a bathroom wants its glass.",
+        "_noteInterior": "EXTERIOR ONLY for now. The massing fakes every window as a panel on the face, so this one is built the same way; the ground floor has no matching opening. It should become a real authored window in ext_bath when the bathroom layouts are redone.",
+        "radiusFt": 1.0,
+        "ringFt": 0.22,
+        "ringProudFt": 0.1,
+        "glassProudFt": 0.02
+      },
+      "cladding": {
+        "_note": "T1-11 \u2014 GROOVED plywood siding, not board-and-batten. The distinction is not a naming quibble: a batten stands proud and a groove is cut in, so one is modelled by adding material and the other by leaving a gap. The face is built as strips with the gaps between them over a dark backer that shows through, because a groove reads by its SHADOW and this north wall has none: the dark backer IS the shadow.",
+        "_notePaint": "PAINTED, not a wood tone \u2014 the house's own trim white. It is the one element here that can be white and still read, because the grooves carry the texture on their own: every earlier white member on this wall (the oculus, the corbels) vanished against the stucco because it had nothing but relief to show, and this has 14 shadow lines.",
+        "_noteHeight": "bandFt is the height at the LOW (east) end, measured DOWN from the frieze soffit, so the band hangs from the roof and its head rakes with it while its base stays level. Authored as a height rather than a line because there is nothing on this wall to derive it from \u2014 no windows, and the second-floor line is far too low: run from there the band was 7 ft tall and read as a whole clad storey rather than a band under the eaves.",
+        "_noteTrim": "There are NO corner boards. Framed out on all four sides the band read as a heavy panel bolted to the wall; the siding now runs corner to corner and the only trim is a thin skirt at its foot. The WAIST course is a separate, lower line at the second-floor line \u2014 it divides the storeys, which is a different job from finishing the siding, and giving one member both jobs is what made the band look like a storey.",
+        "bandFt": 3.0,
+        "grooveOcFt": 0.667,
+        "grooveFt": 0.031,
+        "backProudFt": 0.02,
+        "faceProudFt": 0.06,
+        "skirtFt": 0.25,
+        "skirtProudFt": 0.1,
+        "waistFt": 0.3,
+        "waistProudFt": 0.08,
+        "_noteWaist": "It WRAPS the wing \u2014 north face, round the east corner, along the east face and round again onto the south, stopping where the extension meets the primary. A storey line that shows on one elevation and nowhere else is a stripe painted on a front; one that turns two corners is a course. It stops at the junction because that is whose storey line it is: the primary's floors sit elsewhere, and its south wall is the same plane, so running on would read as the main house's band drawn at the wrong height."
       }
     },
     "frontage": {

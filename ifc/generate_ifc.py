@@ -372,6 +372,8 @@ def build_level(cfg, rooms_cache, level):
         B.add_picket_fence(ctx, cfg["lot"], rooms_cache)
         B.add_yard_fence(ctx, cfg["lot"], rooms_cache, crawl)
         B.add_side_porch(ctx, cfg["lot"], rooms_cache, crawl)
+        B.add_wing_elevation(ctx, cfg["lot"], rooms_cache, crawl,
+                             level["roofGroups"].get("extension"))
         # Corner-lot street frontage: retaining wall on the north/west property
         # lines plus the sidewalk, park strip and curb falling away beyond them.
         B.add_street_frontage(ctx, cfg["lot"], rooms_cache)
