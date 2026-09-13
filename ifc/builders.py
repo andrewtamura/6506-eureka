@@ -1039,9 +1039,11 @@ def wing_bays(rooms_cache):
     a sorted list of plan-x edges, east first (px increases west).
 
     Shared because the elevation and the porch have to agree on it. The wall's centreline
-    is the bath/vestibule party wall, and the awning that straddled it by 6 in cut
-    straight through the trellis stile standing on it — a collision neither builder could
-    see on its own, because each was measuring from a different end of the same wall."""
+    is the bath/vestibule party wall; an awning authored 6 in too wide straddled that line
+    and drove through a member standing on it — a collision neither builder could see on
+    its own, because each was measuring from a different end of the same wall. The member
+    it hit has since gone, but the awning still takes its width from the bay rather than
+    from a number, which is what kept the two in step."""
     B = {k: v["bounds"] for k, v in rooms_cache.items() if k in EXT_WING}
     if not B:
         return []
@@ -1910,7 +1912,8 @@ def add_side_porch(ctx, lot, rooms_cache, base):
     # Its width is the WEST BAY, not a number: the bay is the door's own room, so filling
     # it lands the awning exactly centred on the door with no snapping at all — and it
     # stops dead on the party wall instead of straddling it. Authored at 6.0 ft it
-    # overhung that line by 6 in and drove through the elevation trellis's stile.
+    # overhung that line by 6 in and drove through a member of the elevation standing on
+    # it (see wing_bays).
     bays = wing_bays(rooms_cache)
     ce, cw = (bays[-2], bays[-1]) if len(bays) >= 3 else centred(c.get("widthFt", 6.0))
     prj, spring = c.get("projectFt", 4.0), c.get("springFt", 8.25)
@@ -1944,15 +1947,18 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
     wall on the house that takes no windows: the east bay is the bathroom on BOTH
     storeys and its window is on the east face.
 
-    Read as FOUR QUADRANTS over the two bays the rooms behind it make. That division is
-    not drawn on: the wall's centreline IS the bath/vestibule party wall, and the door
-    sits dead centre of the west bay — so the door is already symmetrical, just not
-    about the wall, which is why it looks misplaced with nothing to relate to.
+    Read as TWO STOREYS, which is how the house itself is built:
 
-        lower west   the door and its awning          (add_side_porch)
-        east, both   ONE trellis crossing the pair
-        upper west   board-and-batten on a belt course
-        across both  a raking entablature at the wall top
+        upper        a band of T1-11 on a belt course, the full width
+        lower        plain stucco, carrying only the door and its awning
+        at the top   a raking entablature
+
+    It began as four quadrants over the two bays the rooms behind it make — the wall's
+    centreline IS the bath/vestibule party wall, and the door sits dead centre of the
+    west bay, so the door was always symmetrical, just not about the wall. That reading
+    still explains why the door sits where it does, and `wing_bays` still serves the
+    awning; but a full-height trellis held the east bay and it is gone, so the bays no
+    longer divide the elevation and the belt course does.
 
     THE WALL TOP RAKES 1 IN 12 — 0.91 ft over 10.9 ft, high toward the primary. That is
     shallow enough that bare, the roof reads as having SLIPPED rather than sloped, and
@@ -1963,11 +1969,9 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
 
     NOTHING HERE IS PLACED BY COORDINATE. The bays come from the rooms behind the wall;
     the wall top comes from the massing group's own storeys and pitch, so the trim
-    cannot drift off the roof it follows; the trellis foot stands on the WATER TABLE's
-    top, the one horizontal this wall already had, and its head DIES INTO the frieze,
-    raking with it rather than stopping level and leaving the wedge of blank wall that
-    a flat top left; and the oculus is centred in its own quadrant, between the
-    second-floor line and that same soffit."""
+    cannot drift off the roof it follows; the belt is the second-floor line, taken as
+    crawl + one storey; and the siding's head DIES INTO the frieze, raking with it rather
+    than stopping level and leaving a wedge of blank wall widening toward the high end."""
     spec = lot.get("wingElevation") or {}
     if not spec or base <= 0:
         return
@@ -2040,45 +2044,8 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
         wall_top = lambda px: ez + pitch * (px - x_east) * FT
         soffit = lambda px: wall_top(px) - (cn + fz) * FT
     else:                                           # no trim: everything stops at a level line
-        _flat = (spec.get("trellis") or {}).get("topFt", 18.0) * FT
+        _flat = spec.get("fallbackTopFt", 18.0) * FT
         wall_top = soffit = lambda px: _flat
-
-    # --- the trellis, filling the east bay over both storeys -----------------------
-    t = spec.get("trellis") or {}
-    if t:
-        ins = t.get("insetFt", 0.3)
-        x_e, x_w = x_east + ins, party - ins
-        fr, bt = t.get("frameFt", 0.29), t.get("battenFt", 0.125)
-        p_fr, p_bt = t.get("frameProudFt", 0.15), t.get("battenProudFt", 0.10)
-        # It stands on the WATER TABLE rather than on the porch deck: the deck is a
-        # separate structure that happens to pass in front, whereas the water table is
-        # this wall's own base and the one line the elevation already had. add_massing
-        # puts its top at crawl + 0.05 m.
-        y0 = base + 0.05
-        z0, z1 = wall_z - BURY, wall_z + p_fr
-        z2 = z1 + p_bt
-        for i, x in enumerate((x_e, x_w)):
-            xa, xb = (x, x + fr) if i == 0 else (x - fr, x)
-            part(f"Wing trellis stile {i}", xa, xb, y0, soffit((xa + xb) / 2), z0, z1)
-        part("Wing trellis rail 0", x_e, x_w, y0, y0 + fr * FT, z0, z1)
-        rake_band("Wing trellis rail 1", x_e, x_w, soffit, fr, z0, z1)
-        # Laths both ways over the frame, the light members inside the heavy one. Counts
-        # are DIVISIONS that never exceed the authored spacing, so the openings stay even
-        # whatever the bay works out to — the same reckoning the guard's balusters use.
-        # The horizontals stay LEVEL and stop below the rail's lowest point; only the
-        # battens follow the rake, each to its own height under it.
-        ia = y0 + fr * FT
-        ib = soffit(x_e) - fr * FT                  # lowest the rail's underside gets
-        ja, jb = x_e + fr, x_w - fr
-        n = max(1, int(math.ceil(((ib - ia) / FT) / t.get("railOcFt", 2.5))))
-        for i in range(1, n):
-            c = ia + (ib - ia) * i / n
-            part(f"Wing trellis lath H{i}", ja, jb, c - bt * FT / 2, c + bt * FT / 2, z1, z2)
-        n = max(1, int(math.ceil(abs(jb - ja) / t.get("battenOcFt", 0.5))))
-        for i in range(n):
-            c = ja + (jb - ja) * (i + 0.5) / n
-            part(f"Wing trellis batten {i}", c - bt / 2, c + bt / 2, ia,
-                 soffit(c) - fr * FT, z1, z2)
 
     # --- the entablature, across both bays at the wall top -------------------------
     if banded:
@@ -2112,57 +2079,56 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
         part("Wing frieze return", x_east - fzp, x_east, top - (cn + fz) * FT,
              top - cn * FT, wall_z - ret, wall_z + fzp, color=TRIM)
 
-    # --- the upper west quadrant: board-and-batten on a belt course ----------------
-    # A blind oculus stood here first and read as a porthole stuck on a rectangular wall.
-    # What replaced it FILLS THE FIELD rather than floating in it, which is the whole
-    # lesson of that failure, and gives the upper west the weight the trellis gives the
-    # east. The WEST BAY only: run across both, vertical boarding would sit behind a
-    # vertical lattice and the two would compete.
+    # --- the upper storey: T1-11 on a belt course ----------------------------------
+    # A band of grooved plywood siding over plain stucco, exactly as the house itself is
+    # built. It runs the FULL width — the trellis that used to hold the east bay is gone,
+    # and the composition is no longer four quadrants but two STOREYS: a clad upper band
+    # on a belt course, plain stucco below it carrying only the door and its awning.
+    #
+    # T1-11 IS GROOVED, NOT BATTENED, and that is not a naming quibble: a batten stands
+    # proud and a groove is cut in, so one is modelled by adding material and the other by
+    # leaving a gap. The face is built as strips with the gaps between them, over a darker
+    # backer that shows through — because a groove reads by its SHADOW, and this north
+    # wall has none. The dark backer IS the shadow. It is the fourth time on this
+    # elevation that relief has read as nothing and only tone has read at all.
     cl = spec.get("cladding") or {}
     if cl and banded:
         bh, bp = cl.get("beltFt", 0.45), cl.get("beltProudFt", 0.12)
         floor2 = base + ctx.story                   # the second-floor line, derived
-        # The belt runs the FULL wall, not just the clad bay — a belt course is a storey
-        # line and wants to run, and it is the horizontal that finally divides a 19 ft
-        # wall. It is deliberately LESS PROUD than the trellis frame so it passes BEHIND
-        # the trellis in the east bay rather than through it: the belt is on the wall and
-        # the trellis is applied over it, which is both the right construction and the
-        # only way two solids at one height do not fight. Seen through the lattice
-        # openings, which is the point.
+        # The belt is the band's base and its drip, so it projects further than the siding
+        # it carries. It runs the full wall and turns the east corner like the cornice.
         part("Wing belt course", x_east, x_west, floor2 - bh * FT, floor2,
              wall_z - BURY, wall_z + bp, color=TRIM)
-        # ...and it turns the east corner like the cornice, for the same reason.
         rt = cl.get("beltReturnFt", 0.8)
         part("Wing belt return", x_east - bp, x_east, floor2 - bh * FT, floor2,
              wall_z - rt, wall_z + bp, color=TRIM)
 
-        # The stiles that frame the field. The EAST one's width is derived as twice the
-        # trellis's inset, so its east face lands on the trellis's west face and its
-        # centre lands on the party wall — both by construction, so a change to the inset
-        # moves them together instead of opening a slot between them.
-        ins = (spec.get("trellis") or {}).get("insetFt", 0.3)
-        st, sp = 2 * ins, cl.get("stileProudFt", 0.18)
-        stiles = ((party - ins, party + ins), (x_west - st, x_west))
-        for i, (xa, xb) in enumerate(stiles):
+        # Corner boards at BOTH ends, standing proud of the siding they stop — which is
+        # what gives a sheet material an edge instead of a raw cut.
+        st, sp = cl.get("stileFt", 0.6), cl.get("stileProudFt", 0.18)
+        for i, (xa, xb) in enumerate(((x_east, x_east + st), (x_west - st, x_west))):
             part(f"Wing cladding stile {i}", xa, xb, floor2, soffit((xa + xb) / 2),
                  wall_z - BURY, wall_z + sp, color=TRIM)
 
-        # The field: a level base on the belt, a head that dies into the frieze and rakes
-        # with it exactly as the trellis's does.
-        fa, fb = party + ins, x_west - st
-        z_back = wall_z + cl.get("backProudFt", 0.06)
-        rake_panel("Wing cladding boards", fa, fb, floor2, soffit,
+        # The backer, dark, showing through the grooves. Level base on the belt, head
+        # dying into the frieze and raking with it.
+        fa, fb = x_east + st, x_west - st
+        z_back = wall_z + cl.get("backProudFt", 0.02)
+        z_face = z_back + cl.get("faceProudFt", 0.06)
+        rake_panel("Wing cladding backer", fa, fb, floor2, soffit,
                    wall_z - BURY, z_back, color=STAIN)
-        # Battens over it, each to its own height under the rake. DIVISIONS that never
-        # exceed the authored pitch, the reckoning the trellis and the guard both use —
-        # 4.56 ft at 1 ft gives five boards of 10.9 in, a board-and-batten rhythm rather
-        # than whatever a fixed pitch leaves over.
-        bw, bpr = cl.get("battenFt", 0.25), cl.get("battenProudFt", 0.14)
-        n = max(1, int(math.ceil(abs(fb - fa) / cl.get("boardOcFt", 1.0))))
-        for i in range(1, n):
-            c = fa + (fb - fa) * i / n
-            part(f"Wing cladding batten {i}", c - bw / 2, c + bw / 2, floor2,
-                 soffit(c), z_back, z_back + bpr)
+        # The face, in strips with a groove's width left between them. DIVISIONS that
+        # never exceed the authored spacing, the reckoning the guard's balusters use, so
+        # the grooves stay even whatever the wall works out to. The outermost strips run
+        # flush into the corner boards: a groove hard against a corner board is a gap, not
+        # a groove.
+        gw, goc = cl.get("grooveFt", 0.031), cl.get("grooveOcFt", 0.667)
+        n = max(1, int(math.ceil(abs(fb - fa) / goc)))
+        for i in range(n):
+            a0 = fa + (fb - fa) * i / n + (gw / 2 if i else 0.0)
+            a1 = fa + (fb - fa) * (i + 1) / n - (gw / 2 if i < n - 1 else 0.0)
+            rake_panel(f"Wing cladding board {i}", a0, a1, floor2, soffit,
+                       z_back, z_face, color=WOOD)
 
 
 def add_lot_wall(ctx, lot, rooms_cache, base):

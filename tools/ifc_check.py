@@ -720,15 +720,17 @@ else:
 
 # ---------------------------------------------------------------------------------
 # THE WING'S NORTH ELEVATION. The one wall on the house that takes no windows, read as
-# four quadrants over the two bays the ROOMS behind it make. Everything here is checked
-# against those derived lines rather than against the numbers in model.json, which is
-# the whole point of deriving them.
+# TWO STOREYS the way the house itself is built: a band of T1-11 on a belt course above,
+# plain stucco below carrying only the door and its awning, a raking entablature at the
+# top. Everything is checked against the derived lines — the built massing, the bays the
+# rooms make, the second-floor line — rather than against the numbers in model.json,
+# which is the whole point of deriving them.
 print('\nWING NORTH ELEVATION')
 we = _cfg.get('wingElevation') or {}
 WE = extents(ext, lambda nm, p: nm.startswith('Wing'))
 # The bays, derived the same way the builder derives them: the plan-x edges of the rooms
-# that actually front this wall. The middle one is the bath/vestibule party wall, which is
-# the wall's centreline and the line every element here is measured against.
+# that actually front this wall. The middle one is the bath/vestibule party wall, which
+# is why the door sits where it does even though nothing now divides the elevation there.
 _fronting = [b for b in (json.load(open(f'ifc/rooms/{k}.json'))['bounds'] for k in EXT_W)
              if abs(max(b['z1'], b['z2']) - wing_n) < 1e-6]
 _edges = sorted({v for b in _fronting for v in (b['x1'], b['x2'])})
@@ -736,25 +738,6 @@ party = _edges[1] if len(_edges) >= 3 else None
 floor2 = BASE + model['storyHeight']            # the second-floor line, 12.5 ft
 
 if we and party is not None and 'Wing frieze' in WE:
-    tr = extents(ext, lambda nm, p: nm.startswith('Wing trellis'))
-    trel = (min(b[0] for b in tr.values()), max(b[1] for b in tr.values()),
-            min(b[2] for b in tr.values()), max(b[3] for b in tr.values()),
-            min(b[4] for b in tr.values()), max(b[5] for b in tr.values()))
-
-    # --- the trellis is the EAST bay's, and spans BOTH its quadrants -----------
-    ins = we['trellis']['insetFt']
-    check(near(trel[0] - wing_e, ins, 0.01) and near(party - trel[1], ins, 0.01),
-          f'the trellis is inset {ins} ft inside the east bay on both sides '
-          f'({trel[0] - wing_e:.3f}, {party - trel[1]:.3f})')
-    check(trel[4] < floor2 < trel[5],
-          f'and crosses the second-floor line, so it spans both east quadrants '
-          f'({trel[4]:.2f} to {trel[5]:.2f} over {floor2})')
-    # Its foot stands on the WATER TABLE — this wall's own base, and the one horizontal
-    # it already had. Read off the built band, not off crawlspaceFt.
-    wt = extents(ext, lambda nm, p: nm == 'Water table - extension')['Water table - extension']
-    check(near(trel[4], wt[5], 0.01),
-          f"standing on the water table's top ({trel[4]:.3f} vs {wt[5]:.3f})")
-
     # --- THE ENTABLATURE, and the roofline it has to follow ------------------------
     # The wall top rakes 1 in 12. Measured against the BUILT MASSING at both ends, not
     # against the pitch in model.json: what matters is that the trim sits on the roof,
@@ -772,8 +755,8 @@ if we and party is not None and 'Wing frieze' in WE:
         check(rise > 0.5 and near(crown(wing_w) - crown(wing_e), rise, 0.02),
               f'so it RAKES with the roof, not level across it ({rise:.3f} ft over '
               f'{wing_w - wing_e:.2f})')
-        # The corbels are what make a 5 degree rake legible: VERTICAL members whose tops
-        # ride the raking line. Both halves asserted — plumb sides, and tops on the line.
+        # The corbels make a 5 degree rake legible: VERTICAL members whose tops ride the
+        # raking line. Both halves asserted — plumb sides, and tops on the line.
         cbs = _parts(ext, 'Wing corbel')
         cn = we['entablature']['corniceFt']
         check(len(cbs) >= 5 and all(near(b[5], crown((b[0] + b[1]) / 2) - cn, 0.02)
@@ -781,115 +764,94 @@ if we and party is not None and 'Wing frieze' in WE:
               f'{len(cbs)} corbels ride the rake under the cornice')
         check(all(near(b[5] - b[4], we['entablature']['corbelDropFt'], 0.02) for _, b in cbs),
               'each one plumb and the same drop — the vertical against the slope')
-        # A short return round the east corner. Trim that stops dead on a corner reads as
-        # a flat pasted on the front, which is what the under-stair crown taught.
         rtn = WE.get('Wing cornice return')
         check(rtn is not None and near(wing_n - rtn[2], we['entablature']['returnFt'], 0.02),
               f"and the cornice turns the east corner "
               f"({'missing' if rtn is None else f'{wing_n - rtn[2]:.2f} ft'})")
 
-        # --- THE TRELLIS DIES INTO THE FRIEZE. No gap, at either stile: stopped level it
-        # left a wedge of blank wall widening toward the high end, which is the one thing
-        # a full-height panel must not do.
-        for i, (nm, b) in enumerate(sorted(_parts(ext, 'Wing trellis stile'),
-                                           key=lambda t: t[1][0])):
-            x = (b[0] + b[1]) / 2
-            check(near(b[5], soffit(x), 0.02),
-                  f'{nm} runs right up into the frieze ({b[5]:.3f} vs {soffit(x):.3f})')
-        check(near(trel[5] - trel[4], soffit(trel[1]) - wt[5], 0.05),
-              f'so the trellis rakes with it too, no wedge left at the high end')
-
-        # --- THE CLADDING in the upper west quadrant, on its belt course -----------
+        # --- THE BELT COURSE, which is what now divides the elevation --------------
         cl = we.get('cladding') or {}
-        belt, boards = WE.get('Wing belt course'), WE.get('Wing cladding boards')
-        check(cl and belt and boards, 'the upper west quadrant is clad on a belt course')
-        if cl and belt and boards:
-            # The belt sits ON the second-floor line, measured as crawl + one storey
-            # rather than read back from whatever was authored.
+        belt = WE.get('Wing belt course')
+        check(cl and belt, 'a belt course carries a clad upper storey')
+        if cl and belt:
             check(near(belt[5], floor2, 0.01),
                   f'the belt tops out on the second-floor line ({belt[5]:.3f} vs {floor2})')
             check(near(belt[0], wing_e, 0.02) and belt[1] >= wing_w - 0.02,
-                  f'running the full wall, not just the clad bay '
-                  f'({belt[0]:.3f}..{belt[1]:.3f})')
-            rtn = WE.get('Wing belt return')
-            check(rtn is not None and near(wing_n - rtn[2], cl['beltReturnFt'], 0.02),
+                  f'running the full wall ({belt[0]:.3f}..{belt[1]:.3f})')
+            brt = WE.get('Wing belt return')
+            check(brt is not None and near(wing_n - brt[2], cl['beltReturnFt'], 0.02),
                   f"and turning the east corner like the cornice "
-                  f"({'missing' if rtn is None else f'{wing_n - rtn[2]:.2f} ft'})")
-            # THE ONE NUMBER THAT MAKES THE TWO READ TOGETHER. The belt crosses the east
-            # bay, where the trellis is applied OVER it; less proud and it passes behind,
-            # prouder and it drives through the frame. Measured against the built trellis,
-            # not against the two config values, so it holds if either moves.
-            stiles = _parts(ext, 'Wing trellis stile')
-            frame = min(b[3] for _, b in stiles)
-            check(belt[3] < frame - 1e-6,
-                  f'and passing BEHIND the trellis, not through it '
-                  f'(proud to {belt[3]:.3f} against the frame at {frame:.3f})')
+                  f"({'missing' if brt is None else f'{wing_n - brt[2]:.2f} ft'})")
 
-            # The field: level base on the belt, head dying into the frieze. BOTH edges —
-            # a single-edge test passes just as well on a panel with a level top.
-            check(near(boards[4], floor2, 0.01),
-                  f'the boarding stands on the belt ({boards[4]:.3f} vs {floor2})')
-            # Measured off the panel's own top EDGE, not its bounding box: the box only
-            # knows the high end, so a box test is satisfied by a panel with a level top.
-            head = _rake_line(ext, 'Wing cladding boards', lo=False)
-            for end, x in (('east', boards[0]), ('west', boards[1])):
-                check(head and near(head(x), soffit(x), 0.02),
-                      f'and its head dies into the frieze at the {end} edge '
-                      f'({head(x):.3f} vs {soffit(x):.3f})')
-            # px increases WEST, so "west of the party wall" is the field's EAST edge
-            # being the greater number — the awning above is tested the same way.
-            check(boards[0] >= party - 1e-6,
-                  f'the clad field stays west of the party wall '
-                  f'({boards[0]:.3f} vs {party:.3f})')
+            # --- THE T1-11 BAND ---------------------------------------------------
+            # GROOVED, not battened. The face is strips with gaps between them over a
+            # darker backer that shows through, because a groove reads by its SHADOW and
+            # this north wall has none. So the assertions are about the GAPS.
+            back = WE.get('Wing cladding backer')
+            boards = _parts(ext, 'Wing cladding board')
+            stiles = sorted([b for _, b in _parts(ext, 'Wing cladding stile')],
+                            key=lambda b: b[0])
+            check(back is not None and len(boards) >= 8 and len(stiles) == 2,
+                  f'the band is {len(boards)} strips on a backer between two corner boards')
+            if back is not None and boards and len(stiles) == 2:
+                # It spans the FULL wall now — the trellis that held the east bay is gone,
+                # so anything less would leave that bay blank top to bottom again.
+                check(near(stiles[0][0], wing_e, 0.02) and stiles[1][1] >= wing_w - 0.02,
+                      f'corner board to corner board, the full width '
+                      f'({stiles[0][0]:.3f}..{stiles[1][1]:.3f})')
+                check(near(back[4], floor2, 0.01) and
+                      all(near(b[4], floor2, 0.01) for _, b in boards),
+                      f'standing on the belt ({back[4]:.3f} vs {floor2})')
+                # Head dies into the frieze, read off the panel's own top EDGE: a
+                # bounding box only knows the high end and is satisfied by a level top.
+                head = _rake_line(ext, 'Wing cladding backer', lo=False)
+                for end, x in (('east', back[0]), ('west', back[1])):
+                    check(head and near(head(x), soffit(x), 0.02),
+                          f'and its head dies into the frieze at the {end} edge '
+                          f'({head(x):.3f} vs {soffit(x):.3f})')
+                # THE GROOVES. Measured as the GAPS BETWEEN consecutive strips — which is
+                # what a groove is here, and the one thing that separates this from the
+                # board-and-batten it replaced. Both that they exist and that the backer
+                # is behind them to be seen through.
+                bs = sorted([b for _, b in boards], key=lambda b: b[0])
+                gaps = [bs[i + 1][0] - bs[i][1] for i in range(len(bs) - 1)]
+                check(gaps and all(near(g, cl['grooveFt'], 0.005) for g in gaps),
+                      f"{len(gaps)} grooves, each {cl['grooveFt'] * 12:.2f} in wide "
+                      f'({min(gaps) * 12:.2f}-{max(gaps) * 12:.2f})')
+                mid = [(b[0] + b[1]) / 2 for b in bs]
+                step = [mid[i + 1] - mid[i] for i in range(len(mid) - 1)]
+                check(step and max(step) <= cl['grooveOcFt'] + 1e-6,
+                      f"at {max(step) * 12:.1f} in centres "
+                      f"(max {cl['grooveOcFt'] * 12:.0f} in — 8 in is standard T1-11)")
+                check(bs[0][3] > back[3] + 1e-6,
+                      f'the face stands proud of the backer, so the grooves show it '
+                      f'({bs[0][3]:.3f} vs {back[3]:.3f})')
+                # The outermost strips run flush into the corner boards: a groove hard
+                # against a corner board is a gap, not a groove.
+                check(near(bs[0][0], stiles[0][1], 0.01) and near(bs[-1][1], stiles[1][0], 0.01),
+                      'and the end strips run flush into the corner boards, no groove there')
+                # Corner boards stand proud of the siding they stop — what gives a sheet
+                # material an edge instead of a raw cut.
+                check(all(st[3] > bs[0][3] + 1e-6 for st in stiles),
+                      'which stand proud of it in turn')
 
-            # The joint the whole scheme's tidiness rests on: the east stile centred on
-            # the party wall AND meeting the trellis. Both, in one place.
-            st = WE.get('Wing cladding stile 0')
-            tre_w = max(b[1] for _, b in stiles)     # the trellis's west face
-            check(st is not None and near((st[0] + st[1]) / 2, party, 0.01)
-                  and near(st[0], tre_w, 0.01),
-                  f'the east stile is centred on the party wall and meets the trellis '
-                  f'({(st[0] + st[1]) / 2:.4f} vs {party:.4f}; {st[0]:.3f} vs {tre_w:.3f})')
-
-            # Battens: plumb, evenly spaced inside the authored pitch, each to the rake.
-            bats = sorted([b for _, b in _parts(ext, 'Wing cladding batten')],
-                          key=lambda b: b[0])
-            # CENTRES against the pitch. The clear between battens is the exposed face,
-            # which is narrower than the board by one batten and would pass any pitch.
-            mid = [(b[0] + b[1]) / 2 for b in bats]
-            step = [mid[i + 1] - mid[i] for i in range(len(mid) - 1)]
-            check(len(bats) >= 3 and max(step) <= cl['boardOcFt'] + 1e-6,
-                  f'{len(bats)} battens at {max(step) * 12:.1f} in centres '
-                  f"(pitch {cl['boardOcFt'] * 12:.0f} in max), "
-                  f'{(max(step) - cl["battenFt"]) * 12:.1f} in of board showing')
-            check(all(near(b[5], soffit((b[0] + b[1]) / 2), 0.02) and near(b[4], floor2, 0.01)
-                      for b in bats),
-                  'each one plumb from the belt to its own height under the rake')
-
-    # --- NOTHING CROSSES THE PARTY WALL. This is the collision that actually happened:
-    # the awning was authored 6.0 ft wide and overhung the line by 6 in, straight through
-    # the trellis stile standing on it.
-    check(trel[1] <= party + 1e-6, f'the trellis stays east of the party wall ({trel[1]:.3f})')
-    check(SP['Side porch awning'][0] >= party - 1e-6,
-          f"the awning stays west of it ({SP['Side porch awning'][0]:.3f} vs {party:.3f})")
-
-    # --- and every quadrant is now spoken for. The composition, asserted as a whole:
-    # the wall was blank in three of its four quadrants.
-    quads = {'lower east': (wing_e, party, 0, floor2), 'upper east': (wing_e, party, floor2, 99),
-             'lower west': (party, wing_w, 0, floor2), 'upper west': (party, wing_w, floor2, 99)}
-    # The ENTABLATURE is excluded: it spans the whole wall by definition, so counting it
-    # would let either upper quadrant pass on trim alone — which is exactly what an empty
-    # quadrant looks like from a bounding box.
-    trim = ('Wing cornice', 'Wing frieze', 'Wing corbel', 'Wing belt')
-    filled = [(nm, b) for nm, b in _parts(ext, 'Wing') if not nm.startswith(trim)] + \
-             _parts(ext, 'Side porch awning') + \
-             [('door', (d_e, d_w, wing_n, wing_n, BASE, BASE + model['doorHeight']))]
-    for q, (qx0, qx1, qy0, qy1) in quads.items():
-        got = [nm for nm, b in filled
-               if b[1] > qx0 + 0.05 and b[0] < qx1 - 0.05 and b[5] > qy0 + 0.05 and b[4] < qy1 - 0.05]
-        check(got, f'{q} quadrant has something in it ({len(got)} members)')
-else:
-    check(False, 'the wing elevation is authored, built, and reads two bays')
+            # --- THE TWO STOREYS. The composition asserted as a whole: a clad band
+            # above the belt, and PLAIN STUCCO below it carrying only the door and its
+            # awning. The second half is the one that would go unnoticed — siding that
+            # crept below the belt, or a leftover member from the trellis that used to
+            # stand here, would both pass a "is the upper storey clad" test.
+            upper = [(nm, b) for nm, b in _parts(ext, 'Wing')
+                     if not nm.startswith(('Wing cornice', 'Wing frieze', 'Wing corbel',
+                                           'Wing belt'))]
+            check(upper and all(b[4] >= floor2 - 0.01 for _, b in upper),
+                  f'nothing of the clad band comes below the belt ({len(upper)} members)')
+            for half, x0, x1 in (('east', wing_e, party), ('west', party, wing_w)):
+                got = [nm for nm, b in upper if b[1] > x0 + 0.05 and b[0] < x1 - 0.05]
+                check(got, f'the band covers the {half} bay ({len(got)} members)')
+            below = [nm for nm, b in _parts(ext, 'Side porch awning') + _parts(ext, 'Wing')
+                     if b[4] < floor2 - 0.01 and not nm.startswith('Wing belt')]
+            check(all(nm.startswith('Side porch') for nm in below),
+                  f'and below it only the door and its awning ({", ".join(sorted(below)) or "nothing"})')
 
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)
