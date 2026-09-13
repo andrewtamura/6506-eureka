@@ -361,6 +361,19 @@
       }
     },
     {
+      "type": "chandelier",
+      "px": 9.5,
+      "pz": 6.17,
+      "rot": 0.0,
+      "ceilFt": 9.5,
+      "dropFt": 7.5,
+      "armsN": 6,
+      "spreadFt": 2.1,
+      "reachFt": 14,
+      "intensity": 3.0,
+      "_note": "On the entry axis: mid-width of the foyer, on the cross-axis of the sitting- and dining-room openings (both at pos 6.17), under the flat 9.5 ft ceiling NORTH of the stairwell void. A semi-drop \u2014 canopy at the ceiling, lowest point at 7.5 ft, clear of the 7 ft head line. reachFt 14 matches the generic semiFlush this replaces: any authored fixture inside a room's IfcSpace suppresses that fixture (main.js), and the foyer is 22 ft long."
+    },
+    {
       "type": "mudroom_bench",
       "px": 4.896,
       "pz": 13.125,
@@ -838,8 +851,10 @@
       "rot": 0.0,
       "faces": "E",
       "atFt": 6.35,
-      "intensity": 1.3,
-      "_note": "over the mirror. No recessed downlight here: the ceiling is the raking drywall soffit under the flight, so there is no flat plane to cut one into."
+      "intensity": 0.5,
+      "_note": "over the mirror. No recessed downlight here: the ceiling is the raking drywall soffit under the flight, so there is no flat plane to cut one into. intensity/glow match the ext_bath pair, which were tuned by eye for a small bathroom; 1.3/1.1 blew the room out. castShadow is opted in for THIS lamp only \u2014 it sits about a foot from the door leaf, and an unshadowed punctual light read straight through it into the foyer. reachFt cannot contain it (the room is 3 ft 2 in wide), so the containment has to be a real shadow map.",
+      "glow": 0.45,
+      "castShadow": true
     }
   ]
 }

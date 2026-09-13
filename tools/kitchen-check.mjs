@@ -1815,7 +1815,7 @@ console.log('EXTENSION');
   // The skylight IS in here — it is daylight down the well, not a lamp — but what it is
   // NOT allowed to be is constant. See the day/night assertions below; the loop here
   // would skip a type with no lights at all, so neither check covers the other.
-  const REACH = { recessed: 12, pendant: 10, sconce: 8, undercabinet: 8.5, skylight: 16 };
+  const REACH = { recessed: 12, pendant: 10, sconce: 8, undercabinet: 8.5, skylight: 16, chandelier: 14 };
   for (const [type, want] of Object.entries(REACH)) {
     const own = LI.filter(l => l.owner === type);
     if (!own.length) continue;
@@ -2032,6 +2032,21 @@ console.log('EXTENSION');
   // it is checked through the manifest the viewer drives it from; the hardwood is checked
   // by its coverings having been SPLIT, since a single un-split Foyer covering means the
   // planks are being drawn straight through the powder room under the tile.
+  // 7) ONE LAMP, NOT TWO. The viewer gives every room without an authored fixture a generic
+  // ceiling one, keyed off which room each fixture landed in — and it used to take the
+  // FIRST room whose box contained it. This room lies entirely inside the foyer, so its
+  // sconce was inside both boxes and got attributed to the foyer: the foyer silently lost
+  // its own ceiling light, and this room gained a generic one, a 14 ft intensity-3.0 lamp
+  // at the centre of a space 3 ft 2 in wide. That is most of why it read as blown out and
+  // most of what was spilling into the foyer. Nesting is the thing to assert.
+  const inRoom = (l) => -l.x / FT > EAST - 0.4 && -l.x / FT < WEST + 0.4
+    && -l.z / FT < -0.4 && -l.z / FT > -7.4;
+  const pwLights = (raw.lights || []).filter(inRoom);
+  A(pwLights.length === 1,
+    `exactly one lamp in the room (${pwLights.length}: ${pwLights.map(l => `${l.owner || l.lamp} ${R(l.distance / FT, 0)} ft`).join(', ')})`);
+  A(pwLights.every(l => (l.owner || '') === 'sconce'),
+    `...and it is the authored sconce, not a generic ceiling fixture`);
+
   const names = (f) => { try { return JSON.parse(readFileSync(`public/${f}`, 'utf8')).map(e => e.name); }
                          catch (e) { return []; } };
   const tiles = names('ground.tiles.json'), woods = names('ground.floors.json');
@@ -2039,6 +2054,35 @@ console.log('EXTENSION');
   const foyerFloors = woods.filter(t => /Foyer/i.test(t));
   A(foyerFloors.length > 1,
     `and the foyer's hardwood stops for it (${foyerFloors.length} coverings — one would mean planks under the tile)`);
+}
+
+// THE FOYER CHANDELIER. A semi-drop on the entry axis, which also takes the foyer off the
+// viewer's generic per-room ceiling fixture — any authored fixture inside a room's IfcSpace
+// suppresses it (main.js), which is the mechanism the powder room's nesting bug broke.
+{
+  console.log('\nFOYER CHANDELIER');
+  const ch = P.find(r => r.type === 'chandelier');
+  A(!!ch, `the foyer has a chandelier (${ch ? `at plan ${R(ch.px, 2)}, ${R(ch.pz, 2)}` : 'none'})`);
+  if (ch) {
+    A(Math.abs(ch.px - 9.5) < 0.05 && Math.abs(ch.pz - 6.17) < 0.05,
+      `on the entry axis — mid-width, on the sitting/dining opening cross-axis (${R(ch.px, 2)}, ${R(ch.pz, 2)})`);
+    const m = meshes(ch);
+    const lo = Math.min(...m.map(q => q.yLo)), hi = Math.max(...m.map(q => q.yHi));
+    // A SEMI-drop: the canopy is on the ceiling and the lowest point clears the head line.
+    // If it ever grows into a long-drop it stops being the thing that was asked for, and
+    // starts being something you walk into.
+    A(hi > 9.3 && hi < 9.6, `canopy on the 9.5 ft ceiling (tops out at ${R(hi, 2)} ft)`);
+    A(lo > 7.0, `and hangs clear of the 7 ft head line (lowest point ${R(lo, 2)} ft) — a semi-drop`);
+    A(hi - lo < 2.6, `...a SHORT drop, not a stairwell pendant (${R(hi - lo, 2)} ft overall)`);
+    // The arms are what make it a chandelier rather than a lamp on a stick.
+    const span = Math.max(...m.map(q => q.pxHi)) - Math.min(...m.map(q => q.pxLo));
+    A(span > 1.6 && span < 3.0, `six arms spreading ${R(span, 2)} ft across`);
+  }
+  // The generic fixture the foyer used to get sat over the stairwell void. It must be gone.
+  const generic = (raw.lights || []).filter(l => l.lamp === 'semiFlush'
+    && -l.x / FT > 3.9 && -l.x / FT < 15.1 && -l.z / FT > -11.9 && -l.z / FT < 10.2);
+  A(generic.length === 0,
+    `and the foyer's generic ceiling fixture is gone (${generic.length} left over the stairwell)`);
 }
 
 console.log(fail ? `\n${fail} FAILURES` : '\nALL CHECKS PASSED');

@@ -1753,9 +1753,21 @@ async function main() {
   for (const f of furniture?.fixtures || []) registerFixture(f.light, "ground", f.emissive);
   // ...and a room that lights itself does NOT also get the generic semi-flush. Keyed off
   // where the fixtures actually landed, so there is no room list to keep in sync.
+  // The SMALLEST containing room, not the first one that matches. Rooms here can NEST:
+  // the under-stair powder room lies entirely inside the foyer, so its sconce is inside
+  // both boxes, and `find` handed it to whichever came first. That attributed the sconce
+  // to the FOYER — which silently took away the foyer's own ceiling fixture and gave the
+  // powder room a generic one instead, a 14 ft, intensity-3.0 lamp at the centre of a
+  // room 3 ft 2 in wide. It is most of why that room read as blown out, and being a 14 ft
+  // lamp 3 ft from the door it is most of what was spilling into the foyer.
+  const area = (r) => (r.box.max.x - r.box.min.x) * (r.box.max.z - r.box.min.z);
   const lit = new Set();
   for (const f of furniture?.fixtures || []) {
-    const rb = roomBoxes.find((r) => f.x > r.box.min.x && f.x < r.box.max.x && f.z > r.box.min.z && f.z < r.box.max.z);
+    let rb = null;
+    for (const r of roomBoxes) {
+      if (!(f.x > r.box.min.x && f.x < r.box.max.x && f.z > r.box.min.z && f.z < r.box.max.z)) continue;
+      if (!rb || area(r) < area(rb)) rb = r;
+    }
     if (rb) lit.add(rb.id);
   }
   const roomCenters = roomBoxes.map((r) => ({ id: r.id, x: (r.box.min.x + r.box.max.x) / 2, z: (r.box.min.z + r.box.max.z) / 2,
@@ -1770,7 +1782,13 @@ async function main() {
     if (!o.isMesh) return;
     o.frustumCulled = false;   // keep walls/geometry from popping out as you pan in a room
     const mats = Array.isArray(o.material) ? o.material : [o.material];
-    o.castShadow = !mats.some((m) => m && m.transparent && m.opacity < 0.95);
+    // `noShadow` is an OPT-OUT for a fixture's own lit parts. It exists because a lamp
+    // that casts shadows sits INSIDE its own shade: buildSconce puts the PointLight at
+    // the exact centre of its opal globe, so with the globe a caster the fixture blacks
+    // itself out and the room goes dark. Only meshes belonging to a shadow-casting lamp
+    // set it; everything else opaque casts, as before.
+    o.castShadow = !o.userData.noShadow
+      && !mats.some((m) => m && m.transparent && m.opacity < 0.95);
     o.receiveShadow = true;
   });
   const _sz = modelBox.getSize(new THREE.Vector3());

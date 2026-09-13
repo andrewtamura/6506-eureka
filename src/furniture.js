@@ -2614,7 +2614,97 @@ function buildSconce(p) {
   // wall washes the whole room from one small globe if you let its tail run. See buildRecessed.
   const light = new THREE.PointLight(0xffe7c0, p.intensity ?? 1.5, (p.reachFt ?? 8) * ft, 2);
   light.position.copy(globe.position); g.add(light);
+  // OPT-IN SHADOW CASTING, for the one lamp that needs it. Punctual lights in three are
+  // not occluded by geometry, so a lamp lights everything in range THROUGH whatever is in
+  // the way; `reachFt` is this project's only containment and it is a range cap, not a
+  // wall. That is fine everywhere but the under-stair powder room, whose lamp sits about a
+  // foot from a door leaf in a room 3 ft 2 in wide — no range that lights the room fails
+  // to cross the wall, so it read straight into the foyer with the door shut.
+  if (p.castShadow) {
+    light.castShadow = true;
+    light.shadow.mapSize.set(512, 512);
+    // The DEFAULT near plane is 0.5 m and would clip BOTH occluders that matter here —
+    // the leaf at ~0.31 m and this fixture's own wall at ~0.23 m — so the cube would
+    // record neither and the leak would survive looking exactly like "it didn't work".
+    light.shadow.camera.near = 0.05;
+    // shadow.camera.far is NOT ours to set: WebGLShadowMap.render overwrites it with
+    // light.distance on every bake. `reachFt` IS the far plane.
+    light.shadow.bias = -0.002;      // normalised depth; the sun's -0.0004 is the precedent
+    light.shadow.normalBias = 0.02;  // metres, well under the 52 mm drywall it has to not leak through
+    // Baked on demand like the sun (lighting.js), never per frame. It must start dirty:
+    // a first lit frame with no map still reports one shadow to the shader and binds an
+    // empty cube. Re-baked when a door settles — see buildFurniture's ease loop.
+    light.shadow.autoUpdate = false;
+    light.shadow.needsUpdate = true;
+    // THE FIXTURE MUST NOT OCCLUDE ITSELF. The light is at the globe's centre and main.js
+    // makes every opaque mesh a caster, so without this the globe encloses the lamp and
+    // the room goes black; the arm, 55 mm away, would blot out a quarter of the sphere.
+    for (const m of [plate, arm, globe]) m.userData.noShadow = true;
+  }
   g.userData.fixtures = [{ light, emissive: opal }];
+  return g;
+}
+
+// A SEMI-DROP CHANDELIER: a short stem rather than a chain, for a flat ceiling. Canopy,
+// stem, a turned body, a ring of scrolled arms carrying candles, and a finial below.
+//
+// The arms are what make it read as a chandelier rather than a lamp on a stick, and they
+// are swept along a BEZIER rather than assembled from cylinders: a real cast arm leaves
+// the body going DOWN and OUT, flattens, and turns back UP to present the candle level —
+// one curve, which a chain of straight segments cannot do without showing its joints.
+// `ceilFt` is the canopy (at the ceiling), `dropFt` the bottom of the body; the candles
+// sit above that, so the drop quoted in the room file is the lowest point of the fixture.
+function buildChandelier(p) {
+  const ft = FT, g = new THREE.Group();
+  const brass = BRASS();
+  const flameMat = GLOW(0xffca73, p.glow ?? 1.0);
+  const waxMat = new THREE.MeshStandardMaterial({ color: 0xf3ebd9, roughness: 0.8 });
+  const CEIL = (p.ceilFt ?? 9.5) * ft, BOT = (p.dropFt ?? 7.5) * ft;
+  const N = p.armsN ?? 6, SPREAD = ((p.spreadFt ?? 2.1) / 2) * ft;   // candle ring radius
+  const cyl = (r0, r1, h, y, mat, seg = 16) => {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r0, r1, h, seg), mat);
+    m.position.y = y; m.castShadow = true; g.add(m); return m;
+  };
+  cyl(0.085, 0.085, 0.035, CEIL - 0.018, brass, 20);                  // canopy at the ceiling
+  // The stem runs from the canopy to the TOP of the body. Everything below is derived
+  // from BOT so the room file quotes one number and the parts arrange themselves.
+  const bodyH = 0.26, bodyTop = BOT + 0.34 + bodyH;
+  cyl(0.013, 0.013, Math.max(CEIL - 0.035 - bodyTop, 0.02), (CEIL - 0.035 + bodyTop) / 2, brass, 10);
+  // THE BODY, a turned urn — a LatheGeometry silhouette, like the stair's balusters, not
+  // a stack of cylinders. Profile is (radius, height) up from the bottom of the urn.
+  const URN = [[0.06, 0], [0.13, 0.06], [0.17, 0.16], [0.15, 0.30], [0.09, 0.42],
+               [0.07, 0.56], [0.10, 0.72], [0.08, 0.86], [0.05, 1.0]];
+  const urn = new THREE.Mesh(new THREE.LatheGeometry(
+    URN.map(([r, h]) => new THREE.Vector2(Math.max(0.004, r * 0.62), h * bodyH)), 20), brass);
+  urn.position.y = BOT + 0.34; urn.castShadow = true; g.add(urn);
+  // Finial under the urn — the thing that stops a chandelier looking cut off.
+  const FIN = [[0.10, 0], [0.16, 0.12], [0.10, 0.30], [0.13, 0.46], [0.06, 0.72], [0.02, 1.0]];
+  const fin = new THREE.Mesh(new THREE.LatheGeometry(
+    FIN.map(([r, h]) => new THREE.Vector2(Math.max(0.004, r * 0.62), (1 - h) * 0.34)), 16), brass);
+  fin.position.y = BOT; fin.castShadow = true; g.add(fin);
+  const CANDLE = 0.13, CUP = BOT + 0.30;              // candle base height, on the arm ends
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2, dx = Math.cos(a), dz = Math.sin(a);
+    // Down and OUT of the body, then back up to the candle — one quadratic, so the arm
+    // has the sagging S a cast arm has rather than an elbow.
+    const curve = new THREE.QuadraticBezierCurve3(
+      new THREE.Vector3(dx * 0.035, BOT + 0.30, dz * 0.035),
+      new THREE.Vector3(dx * SPREAD * 0.66, BOT + 0.05, dz * SPREAD * 0.66),
+      new THREE.Vector3(dx * SPREAD, CUP, dz * SPREAD));
+    const arm = new THREE.Mesh(new THREE.TubeGeometry(curve, 14, 0.0125, 8, false), brass);
+    arm.castShadow = true; g.add(arm);
+    const put = (mesh, y) => { mesh.position.set(dx * SPREAD, y, dz * SPREAD);
+                               mesh.castShadow = true; g.add(mesh); };
+    put(new THREE.Mesh(new THREE.CylinderGeometry(0.052, 0.022, 0.03, 14), brass), CUP + 0.015); // bobeche
+    put(new THREE.Mesh(new THREE.CylinderGeometry(0.021, 0.023, CANDLE, 12), waxMat), CUP + 0.03 + CANDLE / 2);
+    const flame = new THREE.Mesh(new THREE.SphereGeometry(0.028, 12, 10), flameMat);
+    flame.position.set(dx * SPREAD, CUP + 0.03 + CANDLE + 0.022, dz * SPREAD); g.add(flame);
+  }
+  // Reach matches the generic semiFlush this replaces (main.js): a foyer 22 ft long is lit
+  // from one fixture, so the tail has to run further than a pendant over a table.
+  const light = new THREE.PointLight(0xfff0db, p.intensity ?? 3.0, (p.reachFt ?? 14) * ft, 2);
+  light.position.y = CUP + 0.10; g.add(light);
+  g.userData.fixtures = [{ light, emissive: flameMat }];
   return g;
 }
 
@@ -2764,7 +2854,7 @@ function buildWallMirror(p) {
   return g;
 }
 
-const BUILDERS = { wall_basin: buildWallBasin, mudroom_bench: buildMudroomBench, wall_mirror: buildWallMirror, recessed: buildRecessed, pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight,
+const BUILDERS = { wall_basin: buildWallBasin, chandelier: buildChandelier, mudroom_bench: buildMudroomBench, wall_mirror: buildWallMirror, recessed: buildRecessed, pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight,
   range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, open_shelves: buildOpenShelves, counter_stool: buildCounterStool, banquette: buildBanquette, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, bentwood_chair: buildBentwoodChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 // Re-export a few individual builders so the viewer can drop single procedural
 // pieces (e.g. patio furniture on the alt roof deck) without going through the
@@ -2787,6 +2877,7 @@ export async function buildFurniture({ scene, parent = scene, floorY, ceilingY, 
   const world = (px, pz) => [xs * px * ft, -(zs * pz * ft)];
 
   const doorEntries = [];   // { pivot, openAngle, current, open } — eased open/close
+  const shadowLights = [];  // lamps with an on-demand shadow map, re-baked when a door settles
   const doorMeshes = [];    // hinged leaf meshes for raycast picking (userData.fdoor -> entry)
   const fixtures = [];      // { light, emissive, x, z } -> the viewer's lighting scenes
   const ceilingOpenings = [];  // skylight wells: the ceiling has to be cut for them
@@ -2805,7 +2896,10 @@ export async function buildFurniture({ scene, parent = scene, floorY, ceilingY, 
     obj.userData.item = it;                                 // debug handle: the manifest entry behind this group
     if (it.rot) obj.rotation.y = (it.rot * Math.PI) / 180;  // e.g. a built-in facing into the room
     parent.add(obj);
-    if (obj.userData.fixtures) for (const f of obj.userData.fixtures) fixtures.push({ ...f, x, z });
+    if (obj.userData.fixtures) for (const f of obj.userData.fixtures) {
+      fixtures.push({ ...f, x, z });
+      if (f.light.castShadow) shadowLights.push(f.light);
+    }
     if (it.type === "skylight") {
       const hw = ((it.widthFt ?? 2.0) * ft) / 2, hd = ((it.depthFt ?? 2.5) * ft) / 2;
       ceilingOpenings.push({ minX: x - hw, maxX: x + hw, minZ: z - hd, maxZ: z + hd });
@@ -2880,6 +2974,18 @@ export async function buildFurniture({ scene, parent = scene, floorY, ceilingY, 
       if (Math.abs(d.current - target) > 1e-3) {
         d.current += (target - d.current) * 0.2;
         d.pivot.rotation.y = d.current;
+        d.settling = true;
+        invalidate();
+      } else if (d.settling) {
+        // SETTLED. A swinging leaf is the only geometry that moves inside a lamp's reach,
+        // so this is the one moment an on-demand shadow map goes stale. Re-baked here
+        // rather than on every eased frame: a bake is ~6 x every visible caster (the scene
+        // runs frustumCulled = false), which is not something to do 25 times a swing.
+        // The `invalidate()` is load-bearing — the branch above does not run on the frame
+        // the door settles, so without it the re-bake would wait for the 500 ms heartbeat.
+        d.settling = false;
+        d.current = target; d.pivot.rotation.y = target;
+        for (const l of shadowLights) l.shadow.needsUpdate = true;
         invalidate();
       }
     }
