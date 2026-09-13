@@ -1810,6 +1810,55 @@ def _entry_stair_span(f, rooms_cache):
     return (fd["pos"] - half, fd["pos"] + half)
 
 
+def _driveway_span(lot, x_flat):
+    """Plan-x span (lo, hi) the driveway occupies on the north frontage — the gap the
+    park strip has to leave for its apron. None if no driveway is authored.
+
+    Anchored to `x_flat`, the station where the public walk has climbed back to lot
+    grade and the retaining wall stops. That is not decoration: west of it a drive would
+    have to step down to meet the walk AND have a gap cut in the wall, and east of it it
+    simply runs out level. So the drive's west edge sits on it."""
+    d = lot.get("driveway") or {}
+    if not d:
+        return None
+    return (x_flat - d.get("widthFt", 20), x_flat)
+
+
+def add_driveway(ctx, lot, rooms_cache):
+    """A two-car driveway on the east front yard: a pad from the yard fence north to
+    the property line, and an apron carrying it across the planting strip to the walk.
+
+    Level throughout — see `_driveway_span` for why it sits where it does. It needs no
+    curb cut: on this stretch the curb's top is already flush with the walk and the lot,
+    and only its extra thickness stands proud on the street side."""
+    d = lot.get("driveway") or {}
+    if not d:
+        return
+    f = lot.get("frontage") or {}
+    CONCRETE = (0.74, 0.73, 0.71)                    # matches the sidewalk
+    B = {k: v["bounds"] for k, v in rooms_cache.items()}
+    half_wall = ctx.T / FT / 2
+    _, east, _, north, _ = lot_lines(lot, B.values(), half_wall)
+    x_flat = east + f.get("northLevelFromEastFt", 25)
+    span = _driveway_span(lot, x_flat)
+    if not span:
+        return
+    lo, hi = span
+    TH = f.get("pavingThicknessIn", 4) / 12.0
+    STRIP = f.get("parkStripWidthFt", 9)
+    # South end: the yard fence. The drive runs up to it and the cars park against it.
+    fence_z = max(max(B[k]["z1"], B[k]["z2"]) for k in EXT_WING if k in B) + half_wall
+
+    def paving(name, z1, z2):
+        b = make_box(ctx, "IfcSlab", name, abs(hi - lo) * FT, abs(z2 - z1) * FT, TH * FT,
+                     ctx.X((lo + hi) / 2), ctx.Y((z1 + z2) / 2), -TH * FT,
+                     predefined="BASESLAB", color=CONCRETE)
+        run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
+
+    paving("Driveway", fence_z, north)               # the pad, fence to the property line
+    paving("Driveway apron", north, north + STRIP)   # across the planting strip to the walk
+
+
 def add_yard_fence(ctx, lot, rooms_cache, base):
     """A 6 ft stained BOARD fence closing the rear yard: from the east extension's NE
     corner, east along that wing's north wall face, to the east property line.
@@ -1987,7 +2036,14 @@ def add_street_frontage(ctx, lot, rooms_cache):
     ramp_n("Park strip - north", north, n1, GRASS)
     ramp_n("Sidewalk - north", n1, n2, CONCRETE)
     ramp_n("Curb - north", n2, n3, CONCRETE, th=CURB_T)
-    paving("Park strip - north level", x_flat, east, north, n1, 0.0, GRASS)
+    # The level park strip, minus the gap the driveway's apron crosses. Split here for
+    # the same reason the retaining wall is split around the entry stair: two slabs at
+    # the same top would z-fight, and the grass has to actually stop at the paving.
+    drv = _driveway_span(lot, x_flat)
+    if drv:
+        paving("Park strip - north level", drv[0], east, north, n1, 0.0, GRASS)
+    else:
+        paving("Park strip - north level", x_flat, east, north, n1, 0.0, GRASS)
     paving("Sidewalk - north level", x_flat, east, n1, n2, 0.0, CONCRETE)
     paving("Curb - north level", x_flat, east, n2, n3, 0.0, CONCRETE, th=CURB_T)
 

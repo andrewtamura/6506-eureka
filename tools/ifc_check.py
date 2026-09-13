@@ -451,5 +451,42 @@ if boards:
           f'the fence stands clear of the deck ({len(on_deck)} boards on it; '
           f"deck north {D['Deck terrace E'][3]:.3f}, fence line {fence_line:.3f})")
 
+# THE DRIVEWAY. Measured off the built slabs, and against the two things that actually
+# constrain it: the level stretch of frontage it has to cross, and a car.
+print('\nDRIVEWAY')
+dv = _cfg.get('driveway') or {}
+DV = extents(ext, lambda nm, p: nm.startswith(('Driveway', 'Park strip - north', 'Retaining wall - north')))
+if dv and 'Driveway' in DV:
+    pad = DV['Driveway']
+    width = pad[1] - pad[0]
+    check(near(width, dv['widthFt'], 0.02), f"the drive is {dv['widthFt']} ft wide ({width:.3f})")
+    # The width assertion that means something: two cars SIDE BY SIDE. 20 on its own is
+    # a number with no argument behind it.
+    check(width >= 2 * dv['stallWidthFt'],
+          f"which holds two {dv['stallWidthFt']} ft stalls side by side "
+          f"({width / dv['stallWidthFt']:.2f} stalls)")
+    # It has to be long enough to park on, not just a crossing.
+    depth = pad[3] - pad[2]
+    check(depth > 18, f'and is {depth:.2f} ft deep, so a car fits clear of the footway')
+    # WHERE it sits is the whole point: hard against the east end of the retaining wall,
+    # on the stretch where the public walk has climbed back to lot grade. West of that a
+    # drive needs a step down AND a gap cut in the wall.
+    wall_e = min(b[0] for nm, b in DV.items() if nm.startswith('Retaining wall - north'))
+    check(near(pad[1], wall_e, 0.05),
+          f"its west edge meets the retaining wall's east end ({pad[1]:.3f} vs {wall_e:.3f})")
+    check(near(pad[5], 0.0, 0.02) and near(DV['Driveway apron'][5], 0.0, 0.02),
+          f'drive and apron are both at lot grade, no step at the line ({pad[5]:.3f}, {DV["Driveway apron"][5]:.3f})')
+    # The apron crosses the planting strip; the grass must actually stop for it rather
+    # than the two sitting coplanar and z-fighting.
+    grass = DV.get('Park strip - north level')
+    check(grass is None or grass[1] <= pad[0] + 0.02,
+          f"the planting strip stops at the apron, it does not run under it "
+          f"({'none' if grass is None else f'{grass[1]:.3f} vs {pad[0]:.3f}'})")
+    # ...and the drive runs from the yard fence, so cars park against it.
+    check(near(pad[2], min(b[2] for nm, b in D.items() if nm.startswith('Yard fence')), 0.4),
+          f'it starts at the yard fence ({pad[2]:.3f})')
+else:
+    check(False, 'a driveway is authored and built')
+
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)

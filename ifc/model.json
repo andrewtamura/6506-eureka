@@ -64,6 +64,12 @@
         "recessRisers": 0
       }
     },
+    "driveway": {
+      "_note": "Two cars side by side on the east front yard. Anchored to the LEVEL stretch of the north frontage rather than to a coordinate: the public walk falls ~3 ft from the NW corner and dies to lot grade northLevelFromEastFt short of the NE corner, and the retaining wall stops at that same point. East of it is the one place a drive can cross the property line with no step and no gap cut in the wall, so the drive's WEST edge sits on that point and it runs east from there. Its south end is the yard fence \u2014 cars park against it.",
+      "_noteWidth": "widthFt must hold stallWidthFt twice over or it is not a two-car drive; ifc_check asserts exactly that rather than the 20 on its own, which is a number with no argument behind it.",
+      "widthFt": 20,
+      "stallWidthFt": 9
+    },
     "yardFence": {
       "_note": "A 6 ft stained BOARD fence closing the rear yard: from the east extension's NE corner, east along that wing's north wall face, to the east property line. Its first 15 ft ride the new deck terrace.",
       "_noteDatum": "heightDatum says what the 6 ft is measured from. 'surface' = 6 ft above whatever it stands on, so it steps up over the deck and doubles as that edge's guard now the rails are gone. 'grade' = one flat top line 6 ft above grade, which over the deck is exactly 42 in \u2014 a code guard \u2014 and is the one-word retreat if a fence-height cap turns out to bite.",
