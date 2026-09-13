@@ -3001,7 +3001,12 @@ def second_floor_windows(rooms):
         # its sill hangs below the siding on bare stucco and the siding has to be split
         # around it. Raised to 4.35/6.10 they sit wholly inside the band, and the siding
         # closes cleanly over and under each one.
-        SILL_X, HEAD_X, W_X = 4.35, 6.10, 2.5
+        # 2.0 ft wide, and that is the WALL's number rather than a taste: trim spans the
+        # glass plus ~1.3 ft, and the wing's own north face keeps 1.2-1.7 ft of pier at
+        # every corner and party line. At 3.5 ft the south windows left 3.4 IN at the
+        # corners and 6.7 in between them — 9.8 ft of trim in a 10.9 ft wall. Narrow
+        # windows are what a 10.9 ft two-storey service wing can actually carry.
+        SILL_X, HEAD_X, W_X = 4.35, 6.10, 2.0
         eb = [r["bounds"] for r in ext_rooms]
         ext_x = min(b["x1"] for b in eb)                      # far (east) wall
         ext_s = min(b["z1"] for b in eb)                      # ...and the south

@@ -988,6 +988,40 @@ for face, ax, along, pairs in (
         steps = [cs[i + 1] - cs[i] for i in range(len(cs) - 1)]
         check(max(steps) - min(steps) < 0.01, f'{face}: evenly spaced ({max(steps):.3f} ft)')
 
+# PIERS — the wall LEFT between things. Nothing here measured density before, which is
+# how the south wall came to carry 9.8 ft of trim in a 10.9 ft wall: two windows correctly
+# stacked, correctly uniform, correctly on their bays, and 3.4 IN of wall at each corner.
+# Every assertion passed. The wing's own north face is the reference: its roundel and door
+# keep 1.2-1.7 ft at every corner and party line, so 1.0 ft is the floor.
+#
+# Measured on the TRIM, not the glass — trim spans the opening plus ~1.3 ft, and it is the
+# trim that runs out of wall.
+PIER_MIN = 1.0
+for face, ax, wall, tiers in (
+        ('south', 0, (wing_e, wing_w),
+         {'ground': ('Window - WC S', 'Window - Laundry S'),
+          'upper': ('Upper - Ext south 1', 'Upper - Ext south 2')}),
+        ('east', 2, (wing_s, wing_n),
+         {'ground': ('Window - Bath', 'Window - Bath N'),
+          'upper': ('Upper - Ext east 1', 'Upper - Ext east 2')})):
+    for tier, names in tiers.items():
+        spans = []
+        for n in names:
+            parts = [b for nm, b in _parts(ext, '') if nm.endswith(n)]
+            if parts:
+                spans.append((min(b[ax] for b in parts), max(b[ax + 1] for b in parts)))
+        check(len(spans) == len(names),
+              f'{face} {tier}: {len(spans)} of {len(names)} openings measurable')
+        if len(spans) != len(names):
+            continue
+        spans.sort()
+        piers = ([spans[0][0] - wall[0]]
+                 + [spans[i + 1][0] - spans[i][1] for i in range(len(spans) - 1)]
+                 + [wall[1] - spans[-1][1]])
+        check(min(piers) >= PIER_MIN,
+              f'{face} {tier}: least pier {min(piers) * 12:.1f} in '
+              f'({", ".join(f"{p * 12:.0f}" for p in piers)} in) — {PIER_MIN * 12:.0f} in min')
+
 # The south bays are the NORTH face's own two axes — the round window's and the door's —
 # so the wing has two vertical lines every face it has answers to. Asserted against the
 # built round window rather than a number, so the three faces cannot drift apart.
