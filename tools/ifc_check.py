@@ -377,9 +377,11 @@ check(near(tub_e - e_wall_in, tb['fromEastWallIn'] / 12),
       f"and {tb['fromEastWallIn']} in off the east wall's ({(tub_e - e_wall_in) * 12:.2f} in)")
 check(near(tub_n - tub_s, tb['sizeFt']) and near(tub_w - tub_e, tb['sizeFt']),
       f"tub is {tb['sizeFt']} x {tb['sizeFt']} ft ({tub_w - tub_e:.3f} x {tub_n - tub_s:.3f})")
-check(near(BASE - D['Hot tub surround S'][5], riser * tb['recessRisers'], 0.02),
-      f"its surround is recessed exactly {tb['recessRisers']} riser below the deck "
-      f"({(BASE - D['Hot tub surround S'][5]) * 12:.2f} in)")
+# THE ENTRY SILL IS FLUSH WITH THE DECK. The tub is built in — what sits below deck
+# level is the water — but there is no intermediate platform to step down onto first,
+# so the decking and the stone band round the tub are one level.
+check(near(D['Hot tub surround S'][5], BASE - riser * tb['recessRisers'], 0.02),
+      f"the surround is level with the deck ({D['Hot tub surround S'][5]:.4f} vs {BASE:.4f} ft)")
 
 # THE MESH TUB AND THE HOLE IT FILLS ARE IN DIFFERENT FILES. The vessel is a procedural
 # three.js mesh (the furniture rule) and the well is IFC, so nothing at runtime notices
@@ -393,8 +395,13 @@ if hot:
           f"the mesh tub is centred on the IFC well ({h['px']}, {h['pz']})")
     check(near(h.get('wFt', 0), tb['sizeFt']) and near(h.get('dFt', 0), tb['sizeFt']),
           'the mesh tub is the size of the hole it fills')
-    check(near(h.get('rimFt', 0), BASE - riser * tb['recessRisers'], 0.02),
-          f"its rim lands on the surround, not on the deck ({h.get('rimFt')} ft)")
+    # The sill is a number the MESH owns (it is the top of the coping the builder draws)
+    # and the deck is a number the IFC owns. They have to be the same, and nothing at
+    # runtime would notice them drifting — the tub would just stand proud or sink.
+    check(near(h.get('rimFt', 0), BASE, 0.02),
+          f"its entry sill is at deck level ({h.get('rimFt')} vs {BASE} ft)")
+    check(near(h.get('rimFt', 0), h.get('deckFt', -1), 0.001),
+          f"...which is the deck the well was cut in ({h.get('rimFt')} vs {h.get('deckFt')})")
 
 # --- NO GUARD RAILINGS -------------------------------------------------------------
 named = [p for p in ext.by_type('IfcRailing') if (getattr(p, 'Name', '') or '').startswith('Deck')]

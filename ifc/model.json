@@ -56,12 +56,12 @@
       "treadFt": 0.92,
       "gradePaver": true,
       "hotTub": {
-        "_note": "Built into the deck, recessed recessRisers below it so you step down onto the surround and then into the water. Dimensioned off the things it is actually measured from \u2014 the lot wall's INNER face and the terrace's own width \u2014 rather than absolute plan coordinates, which this file authors nowhere else.",
+        "_note": "Built into the deck. Its ENTRY SILL \u2014 the coping you step over \u2014 is FLUSH with the deck: recessRisers 0, so the decking runs right up to the stone band and there is no intermediate platform to step down onto first. The tub is still built in; what sits below deck level is the water, about 5 in down, which is what you step into. Dimensioned off the things it is actually measured from \u2014 the lot walls' INNER faces \u2014 rather than absolute plan coordinates, which this file authors nowhere else.",
         "sizeFt": 7.0,
         "fromWallIn": 12,
         "fromEastWallIn": 12,
         "surroundFt": 1.0,
-        "recessRisers": 1
+        "recessRisers": 0
       }
     },
     "yardFence": {

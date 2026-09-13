@@ -2674,14 +2674,19 @@ function buildHotTub(p) {
     g.add(m); return m;
   };
   const W = p.wFt ?? 7.0, D = p.dFt ?? 7.0;
-  const rim = p.rimFt ?? 1.875;                 // the surround: one riser below the deck
-  const DEEP = p.depthFt ?? 3.0;                // water depth, rim to floor
+  // `rimFt` is the ENTRY SILL — the top of the coping you step over — and the deck is
+  // flush with it. Everything else is dug from there: a spa is about 3 ft of water, so
+  // on a 30 in deck the shell floor lands below grade, which is what a built-in does.
+  const rim = p.rimFt ?? 2.5;
+  const DEEP = p.depthFt ?? 3.0;                // water depth, sill to floor
+  const CP = p.copingFt ?? 0.42, CT = 0.14;     // coping width and thickness
   const T = 0.18, floorY = rim - DEEP;          // shell thickness; floor sits below grade
+  const shellTop = rim - CT;                    // the coping caps the shell, flush on top
   const iw = W - 2 * T, id = D - 2 * T;         // inside the shell
   box(0, 0, floorY - T / 2, W, D, T, acrylic);                       // shell floor
   for (const s of [-1, 1]) {
-    box(s * (W - T) / 2, 0, (floorY + rim) / 2, T, D, rim - floorY, acrylic, 0.04);   // E/W walls
-    box(0, s * (D - T) / 2, (floorY + rim) / 2, iw, T, rim - floorY, acrylic, 0.04);  // N/S walls
+    box(s * (W - T) / 2, 0, (floorY + shellTop) / 2, T, D, shellTop - floorY, acrylic, 0.04);
+    box(0, s * (D - T) / 2, (floorY + shellTop) / 2, iw, T, shellTop - floorY, acrylic, 0.04);
   }
   // The moulded seat: a bench right round the inside, which is most of what makes a spa
   // read as a spa rather than as a tank.
@@ -2691,12 +2696,13 @@ function buildHotTub(p) {
     box(0, s * (id - SEAT) / 2, (floorY + seatY) / 2, iw - 2 * SEAT, SEAT, seatY - floorY, acrylic, 0.05);
   }
   box(0, 0, rim - 0.40, iw - 0.03, id - 0.03, 0.06, water);          // water, 5 in below the rim
-  // Coping: a stone cap lapping the shell, out over the surround and back in over the
-  // water, so the acrylic edge is never the thing you see.
-  const CP = p.copingFt ?? 0.42, CT = 0.14;
+  // Coping: a stone band lapping the shell, out over the deck and back in over the water,
+  // so the acrylic edge is never the thing you see. It sits BELOW the sill line rather
+  // than on top of it — its top face IS the sill, level with the decking, so there is no
+  // lip to catch a foot on the way in.
   for (const s of [-1, 1]) {
-    box(s * (W + CP - 0.2) / 2, 0, rim + CT / 2, CP, D + CP * 2 - 0.4, CT, coping, 0.03);
-    box(0, s * (D + CP - 0.2) / 2, rim + CT / 2, W - CP + 0.2, CP, CT, coping, 0.03);
+    box(s * (W + CP - 0.2) / 2, 0, rim - CT / 2, CP, D + CP * 2 - 0.4, CT, coping, 0.03);
+    box(0, s * (D + CP - 0.2) / 2, rim - CT / 2, W - CP + 0.2, CP, CT, coping, 0.03);
   }
   // Jets in the seat backs, and a spill-over spout on the south wall.
   const nj = p.jets ?? 4;
