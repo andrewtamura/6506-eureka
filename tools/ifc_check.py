@@ -548,6 +548,7 @@ _wing = [json.load(open(f'ifc/rooms/{k}.json'))['bounds'] for k in EXT_W]
 wing_e = min(min(b['x1'], b['x2']) for b in _wing)
 wing_w = max(max(b['x1'], b['x2']) for b in _wing)
 wing_n = max(max(b['z1'], b['z2']) for b in _wing)
+wing_s = min(min(b['z1'], b['z2']) for b in _wing)
 _door = [d for k in EXT_W for d in json.load(open(f'ifc/rooms/{k}.json')).get('doors', [])
          if d.get('orient') == 'H' and abs(d.get('fixed', 0.0) - wing_n) < 1e-6]
 
@@ -755,15 +756,17 @@ if we and party is not None and 'Wing frieze' in WE:
         check(rise > 0.5 and near(crown(wing_w) - crown(wing_e), rise, 0.02),
               f'so it RAKES with the roof, not level across it ({rise:.3f} ft over '
               f'{wing_w - wing_e:.2f})')
-        # The corbels make a 5 degree rake legible: VERTICAL members whose tops ride the
-        # raking line. Both halves asserted — plumb sides, and tops on the line.
-        cbs = _parts(ext, 'Wing corbel')
-        cn = we['entablature']['corniceFt']
-        check(len(cbs) >= 5 and all(near(b[5], crown((b[0] + b[1]) / 2) - cn, 0.02)
-                                    for _, b in cbs),
-              f'{len(cbs)} corbels ride the rake under the cornice')
-        check(all(near(b[5] - b[4], we['entablature']['corbelDropFt'], 0.02) for _, b in cbs),
-              'each one plumb and the same drop — the vertical against the slope')
+        # NO CORBELS, and NO DENTIL COURSE on the primary's eaves either: the house this
+        # is drawn from is plain stucco with simple trim, and a row of little blocks read
+        # as ornament it does not carry. Both absences are PAIRED with the cornice they
+        # hung under still being there — on its own, "no corbels" passes just as well for
+        # an entablature that stopped being built. (The entry surround and the shed
+        # dormer's parapet keep theirs; those are set pieces, not the general eave.)
+        check(not _parts(ext, 'Wing corbel') and not _parts(ext, 'Dentils'),
+              'no corbels and no eave dentil course — ornament this building does not carry')
+        check(crown(wing_e) and 'Wing frieze' in WE and 'Cornice - primary' in
+              extents(ext, lambda nm, p: nm == 'Cornice - primary'),
+              'while both cornices they hung under are still built')
         rtn = WE.get('Wing cornice return')
         check(rtn is not None and near(wing_n - rtn[2], we['entablature']['returnFt'], 0.02),
               f"and the cornice turns the east corner "
@@ -771,17 +774,31 @@ if we and party is not None and 'Wing frieze' in WE:
 
         # --- THE WAIST COURSE, which is what divides the storeys ------------------
         cl = we.get('cladding') or {}
-        waist = WE.get('Wing waist course')
-        check(cl and waist, 'a waist course divides the storeys')
-        if cl and waist:
-            check(near(waist[5], floor2, 0.01),
-                  f'the waist sits on the second-floor line ({waist[5]:.3f} vs {floor2})')
-            check(near(waist[0], wing_e, 0.02) and waist[1] >= wing_w - 0.02,
-                  f'running the full wall ({waist[0]:.3f}..{waist[1]:.3f})')
-            wrt = WE.get('Wing waist return')
-            check(wrt is not None and near(wing_n - wrt[2], cl['waistReturnFt'], 0.02),
-                  f"and turning the east corner like the cornice "
-                  f"({'missing' if wrt is None else f'{wing_n - wrt[2]:.2f} ft'})")
+        wN, wE, wS = (WE.get('Wing waist course N'), WE.get('Wing waist course E'),
+                      WE.get('Wing waist course S'))
+        check(cl and wN and wE and wS, 'a waist course divides the storeys, on three faces')
+        if cl and wN and wE and wS:
+            check(all(near(b[5], floor2, 0.01) for b in (wN, wE, wS)),
+                  f'the waist sits on the second-floor line, all three runs ({wN[5]:.3f})')
+            # IT WRAPS. A storey line that shows on one elevation and nowhere else is a
+            # stripe painted on a front; one that turns two corners is a course. Each run
+            # is checked on its OWN axis — the north and south along px, the east along pz.
+            check(wN[1] >= wing_w - 0.02 and wN[0] <= wing_e + 0.02,
+                  f'the north run crossing the whole face ({wN[0]:.3f}..{wN[1]:.3f})')
+            check(near(wE[2], wing_s, 0.1) and wE[3] >= wing_n - 0.02,
+                  f'the east run down the whole east face ({wE[2]:.3f}..{wE[3]:.3f} '
+                  f'against {wing_s:.3f}..{wing_n:.3f})')
+            check(near(wS[3], wing_s, 0.1) and wS[0] <= wing_e + 0.02,
+                  f'and continuing onto the south ({wS[0]:.3f}..{wS[1]:.3f})')
+            # AND IT STOPS AT THE JUNCTION. The wing's south wall is the SAME PLANE as the
+            # primary's, so nothing physical stops the band — run on, it would read as the
+            # main house's storey line drawn at the wrong height. This is the assertion
+            # that keeps it the wing's own.
+            check(near(wS[1], wing_w, 0.02),
+                  f"terminating where the extension meets the primary "
+                  f"({wS[1]:.3f} vs {wing_w:.3f})")
+            check(near(wN[1], wing_w, 0.02),
+                  f'the north run likewise ({wN[1]:.3f})')
 
             # --- THE T1-11 BAND, hung from the eaves ----------------------------
             back = WE.get('Wing cladding backer')

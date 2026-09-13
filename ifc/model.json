@@ -114,15 +114,11 @@
       "_note": "The east wing's NORTH face: 10.9 ft wide by 19 ft of it, and the one wall on the house that takes no windows \u2014 the east bay is the bathroom on BOTH storeys, and its window is on the east face. Read as TWO STOREYS, which is how the house itself is built: a band of T1-11 hanging under the eaves, plain stucco below carrying only the door and its awning, a WAIST COURSE at the second-floor line dividing the storeys, and a raking entablature at the top. It began as four quadrants over the two REAL bays the rooms behind it make \u2014 the wall's centreline is the bath/vestibule party wall and the door sits dead centre of the west bay, which is why the door sits where it does \u2014 but the full-height trellis that held the east bay is gone, so the bays no longer divide the elevation and the belt course does.\n\nTwo things were tried here first and are worth not repeating: a blind oculus, which read as a porthole stuck on a rectangular wall, and board-and-batten, which is the wrong detail \u2014 the house is T1-11, and a batten stands proud where a groove is cut in.",
       "_noteDerived": "Nothing here is placed by coordinate. The bays come from the rooms behind the wall; the wall top comes from the massing group's storeys and pitch, so the trim cannot drift off the roof it follows; the waist is crawl + one storey; and the siding's head dies into the frieze and rakes with it. Only the trim's sections, the groove spacing and the band's own height are authored.",
       "entablature": {
-        "_note": "The wall top RAKES 1 in 12 \u2014 0.91 ft over 10.9 ft, high toward the primary \u2014 and the wing had NO eave trim at all: the roof slab met the stucco with no overhang on this face, no fascia, no shadow line. Bare, a 5 degree slope reads as a roof that has slipped rather than sloped. The frieze and cornice rake with it; the corbels under them stand VERTICAL, and that contrast is what makes the slope read as deliberate. The corbels are the porch's WOOD where the bands are white: a corbel is small and this wall never sees direct sun, so a white one casts nothing and vanishes against a white frieze. Its geometry is taken from the massing group's own storeys and pitch, never authored here, so the trim cannot drift off the roof it follows.",
+        "_note": "The wall top RAKES 1 in 12 \u2014 0.91 ft over 10.9 ft, high toward the primary \u2014 and the wing had NO eave trim at all: the roof slab met the stucco with no overhang on this face, no fascia, no shadow line. Bare, a 5 degree slope reads as a roof that has slipped rather than sloped. The frieze and cornice rake with it, and the siding's LEVEL base below is what the rake reads against \u2014 a row of corbels used to do that job and read as ornament this building does not carry. Its geometry is taken from the massing group's own storeys and pitch, never authored here, so the trim cannot drift off the roof it follows.",
         "friezeFt": 0.85,
         "friezeProudFt": 0.12,
         "corniceFt": 0.28,
         "corniceProudFt": 0.4,
-        "corbelFt": 0.34,
-        "corbelDropFt": 0.5,
-        "corbelProudFt": 0.32,
-        "corbelOcFt": 1.35,
         "returnFt": 0.8
       },
       "cladding": {
@@ -130,7 +126,7 @@
         "_notePaint": "PAINTED, not a wood tone \u2014 the house's own trim white. It is the one element here that can be white and still read, because the grooves carry the texture on their own: every earlier white member on this wall (the oculus, the corbels) vanished against the stucco because it had nothing but relief to show, and this has 14 shadow lines.",
         "_noteHeight": "bandFt is the height at the LOW (east) end, measured DOWN from the frieze soffit, so the band hangs from the roof and its head rakes with it while its base stays level. Authored as a height rather than a line because there is nothing on this wall to derive it from \u2014 no windows, and the second-floor line is far too low: run from there the band was 7 ft tall and read as a whole clad storey rather than a band under the eaves.",
         "_noteTrim": "There are NO corner boards. Framed out on all four sides the band read as a heavy panel bolted to the wall; the siding now runs corner to corner and the only trim is a thin skirt at its foot. The WAIST course is a separate, lower line at the second-floor line \u2014 it divides the storeys, which is a different job from finishing the siding, and giving one member both jobs is what made the band look like a storey.",
-        "bandFt": 4.5,
+        "bandFt": 3.0,
         "grooveOcFt": 0.667,
         "grooveFt": 0.031,
         "backProudFt": 0.02,
@@ -139,7 +135,7 @@
         "skirtProudFt": 0.1,
         "waistFt": 0.3,
         "waistProudFt": 0.08,
-        "waistReturnFt": 0.8
+        "_noteWaist": "It WRAPS the wing \u2014 north face, round the east corner, along the east face and round again onto the south, stopping where the extension meets the primary. A storey line that shows on one elevation and nowhere else is a stripe painted on a front; one that turns two corners is a course. It stops at the junction because that is whose storey line it is: the primary's floors sit elsewhere, and its south wall is the same plane, so running on would read as the main house's band drawn at the wrong height."
       }
     },
     "frontage": {

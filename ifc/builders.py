@@ -1467,27 +1467,11 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0):
                 belt = make_box(ctx, "IfcBuildingElementProxy", f"Belt course - {key}",
                                 w + 2 * bp, d + 2 * bp, bh, cx, cy, ez - ewall - bh / 2, color=TRIM)
                 run("spatial.assign_container", ctx.model, products=[belt], relating_structure=ctx.storey)
-            # dentil course running under the eave cornice (classical entablature
-            # over the frieze). One product holds all the little blocks.
-            dh, dpr, dw, dpitch = 0.22 * FT, 0.14 * FT, 0.34 * FT, 0.62 * FT
-            dz = ez - ch - dh                      # tucked directly beneath the cornice band
-            dents = []
-            nx = max(1, round(w / dpitch))
-            for i in range(nx):
-                x = cx - w / 2 + (i + 0.5) * w / nx
-                for fy in (cy + d / 2, cy - d / 2):
-                    yc = fy + (dpr / 2 - 0.03) * (1 if fy > cy else -1)
-                    dents.append(positioned_solid(ctx, dw, dpr + 0.06, dh, x, yc, dz))
-            ny = max(1, round(d / dpitch))
-            for i in range(ny):
-                y = cy - d / 2 + (i + 0.5) * d / ny
-                for fx in (cx + w / 2, cx - w / 2):
-                    xc = fx + (dpr / 2 - 0.03) * (1 if fx > cx else -1)
-                    dents.append(positioned_solid(ctx, dpr + 0.06, dw, dh, xc, y, dz))
-            for s in dents:
-                style_item(ctx, s, TRIM)
-            dent = multi_solid_product(ctx, "IfcBuildingElementProxy", f"Dentils - {key}", dents)
-            run("spatial.assign_container", ctx.model, products=[dent], relating_structure=ctx.storey)
+            # NO DENTIL COURSE under the eave. The house it is drawn from is plain
+            # stucco with simple trim; a dentilled entablature made it read as a
+            # different, more formal building than the one standing on the lot. The
+            # entry surround and the shed dormer's parapet keep theirs — those are
+            # deliberate set pieces, not the general eave.
         else:
             # lean-to wing: sloped ceiling, so the shed roof sits directly on top
             mv, mf = _filled_block(*surf(0.0), crawl)
@@ -1965,8 +1949,9 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
     shallow enough that bare, the roof reads as having SLIPPED rather than sloped, and
     the wing had no eave trim whatever to say otherwise: the roof slab met the stucco
     with no overhang on this face, no fascia and no shadow line. The frieze and cornice
-    rake with it and the corbels under them stand VERTICAL, and it is that contrast
-    which makes a 5 degree slope read as deliberate.
+    rake with it, and the siding's LEVEL base below gives that rake something to read
+    against — which is what makes a 5 degree slope read as deliberate rather than as a
+    roof that has slipped.
 
     NOTHING HERE IS PLACED BY COORDINATE. The bays come from the rooms behind the wall;
     the wall top comes from the massing group's own storeys and pitch, so the trim
@@ -1995,7 +1980,8 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
     B = {k: v["bounds"] for k, v in rooms_cache.items()}
     if not all(k in B for k in EXT_WING):
         return
-    wall_z = max(max(B[k]["z1"], B[k]["z2"]) for k in EXT_WING)
+    wall_z = max(max(B[k]["z1"], B[k]["z2"]) for k in EXT_WING)   # the north face
+    wing_s = min(min(B[k]["z1"], B[k]["z2"]) for k in EXT_WING)   # ...and the south
     edges = wing_bays(rooms_cache)
     if len(edges) < 3:
         return
@@ -2052,20 +2038,6 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
                   wall_z - BURY, wall_z + cnp, TRIM)
         rake_band("Wing frieze", x_east, x_west, lambda px: wall_top(px) - cn * FT, fz,
                   wall_z - BURY, wall_z + fzp, TRIM)
-        cbw, cbd, cbp = (e.get("corbelFt", 0.34), e.get("corbelDropFt", 0.50),
-                         e.get("corbelProudFt", 0.32))
-        n = max(1, int(round((x_west - x_east) / e.get("corbelOcFt", 1.35))))
-        for i in range(n):
-            c = x_east + (x_west - x_east) * (i + 0.5) / n
-            top = wall_top(c) - cn * FT
-            # WOOD, where the bands are white. A corbel is small and this is a north
-            # wall in permanent shade, so its 2 in of extra projection casts nothing and
-            # a white one is invisible against a white frieze — the render showed a flat
-            # band where the primary's cornice shows its dentils. Colour is the only
-            # lever this elevation has, and timber brackets under a painted eave both
-            # read and belong to the joinery already on this wall.
-            part(f"Wing corbel {i}", c - cbw / 2, c + cbw / 2, top - cbd * FT, top,
-                 wall_z - BURY, wall_z + cbp, color=WOOD)
         # A short MITRED RETURN round the east corner. Trim that stops dead on a corner
         # reads as a flat pasted on the front; turning it 9 in and stopping is what makes
         # it read as going round — the same detail the under-stair crown needed. The east
@@ -2096,23 +2068,36 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
     #     storey rather than a band under the eaves. It hangs from the soffit now.
     #   - WOOD-TONED it was never what the house is: this is painted siding, and it is
     #     the one white member this wall can carry, because the grooves give it texture
-    #     where the oculus and the corbels had only relief and vanished.
+    #     where every white member before it had only relief and vanished.
     cl = spec.get("cladding") or {}
     if cl and banded:
         floor2 = base + ctx.story                   # the second-floor line, derived
         # The WAIST, low and thin, with stucco above AND below it. That is what makes it
         # read as a storey division rather than as the base of the siding — the job the
         # old belt course was doing twice and therefore doing badly.
+        #
+        # It WRAPS the wing: north face, round the east corner, along the east face and
+        # round again onto the south, where it STOPS at the primary. A storey line that
+        # shows on one elevation and nowhere else is a stripe painted on a front; one
+        # that turns two corners is a course. It stops where the wing does because that
+        # is whose storey line it is — the primary's own floors sit elsewhere, and its
+        # south wall is the same plane, so running on would read as the main house's
+        # band drawn at the wrong height.
         wf, wp = cl.get("waistFt", 0.30), cl.get("waistProudFt", 0.08)
-        part("Wing waist course", x_east, x_west, floor2 - wf * FT, floor2,
+        y0, y1 = floor2 - wf * FT, floor2
+        # The three runs overlap in the corners rather than being mitred: they are one
+        # colour and one height, so the union IS the mitre.
+        part("Wing waist course N", x_east - wp, x_west, y0, y1,
              wall_z - BURY, wall_z + wp, color=TRIM)
-        rt = cl.get("waistReturnFt", 0.8)
-        part("Wing waist return", x_east - wp, x_east, floor2 - wf * FT, floor2,
-             wall_z - rt, wall_z + wp, color=TRIM)
+        part("Wing waist course E", x_east - wp, x_east + BURY, y0, y1,
+             wing_s - wp, wall_z + wp, color=TRIM)
+        part("Wing waist course S", x_east - wp, x_west, y0, y1,
+             wing_s - wp, wing_s + BURY, color=TRIM)
 
         # The band hangs from the soffit: `bandFt` is its height at the LOW end, so its
-        # head rakes with the roof while its base stays level. A level base is what gives
-        # the rake something to read against, the same trick the corbels play.
+        # head rakes with the roof while its base stays level. That level base is now the
+        # only thing the rake has to read against, the corbels that used to do it having
+        # gone, so it is doing real work rather than being a convenience.
         lo = soffit(x_east) - cl.get("bandFt", 4.5) * FT
         sf, sp = cl.get("skirtFt", 0.25), cl.get("skirtProudFt", 0.10)
         part("Wing cladding skirt", x_east, x_west, lo - sf * FT, lo,
