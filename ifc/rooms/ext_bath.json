@@ -15,7 +15,16 @@
       "name": "Window - Bath",
       "orient": "V",
       "fixed": -22.9167,
-      "pos": -5.46,
+      "pos": -5.3375,
+      "width": 3.0,
+      "sill": 3.0,
+      "head": 7.0
+    },
+    {
+      "name": "Window - Bath N",
+      "orient": "V",
+      "fixed": -22.9167,
+      "pos": 0.8875,
       "width": 3.0,
       "sill": 3.0,
       "head": 7.0

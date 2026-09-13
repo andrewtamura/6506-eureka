@@ -1267,10 +1267,22 @@ console.log('EXTENSION FIXTURES');
           && m.pzLo > -8.3 && m.pzHi < 3.9;
         const posts = L.filter(m => onEast(m) && (m.pzHi - m.pzLo) > 0.25 && (m.pzHi - m.pzLo) < 0.45
           && Math.abs(m.yLo - (3.0 - DY)) < 0.12 && m.yHi > 6.5);
-        A(posts.length === 2, `a jamb casing each side of the bath window (${posts.length})`);
-        A(posts.every(m => m.nv >= 100), 'both swept profiles, not boxes');
+        // The bath's east wall carries TWO windows now that the elevation is set out on
+        // bays, not the one it had. Count and positions both come from the ROOM FILE
+        // rather than being written out here: this was a pair of hard-coded numbers and
+        // went stale the moment the windows moved, reporting a trim failure when the trim
+        // was right. Derived, it follows them next time.
+        const eastWins = JSON.parse(readFileSync('ifc/rooms/ext_bath.json', 'utf8'))
+          .windows.filter(w => w.orient === 'V');
+        const want = eastWins.flatMap(w => [w.pos - w.width / 2, w.pos + w.width / 2])
+          .map(v => R(v, 2)).sort((u, v2) => u - v2);
+        A(posts.length === want.length,
+          `a jamb casing each side of all ${eastWins.length} bath windows ` +
+          `(${posts.length} of ${want.length})`);
+        A(posts.every(m => m.nv >= 100), 'every one a swept profile, not a box');
         const at = posts.map(m => R((m.pzLo + m.pzHi) / 2, 2)).sort((u, v2) => u - v2);
-        A(JSON.stringify(at) === JSON.stringify([-6.96, -3.96]), `they land on the opening: ${at.join(', ')}`);
+        A(at.length === want.length && at.every((v, i) => Math.abs(v - want[i]) < 0.06),
+          `they land on the openings: ${at.join(', ')}`);
         const stool = L.filter(m => onEast(m) && (m.pzHi - m.pzLo) > 2.9
           && m.yHi > 3.0 - DY && m.yHi < 3.2);
         A(stool.length >= 1, `a stool at the sill (${stool.length})`);

@@ -843,27 +843,43 @@ if we and party is not None and 'Wing frieze N' in WE:
                   f'so the band steps up at the east corner, deliberately '
                   f'({east_top:.2f} ft)')
 
-            # --- THE SPLIT ROUND THE UPPER BATH WINDOW ----------------------------
-            # Measured against the BUILT window, not the spec that generated both —
-            # otherwise the test and the geometry would share a bug.
-            wb = [b for _, b in _parts(ext, 'Upper - Ext bath')] + \
-                 [b for _, b in _parts(ext, 'Casing - Upper - Ext bath')] + \
-                 [b for _, b in _parts(ext, 'Sill - Upper - Ext bath')] + \
-                 [b for _, b in _parts(ext, 'Header - Upper - Ext bath')]
-            check(wb, f'the upper bath window is built on the east face ({len(wb)} parts)')
-            if wb:
-                w0, w1 = min(b[2] for b in wb), max(b[3] for b in wb)
-                wy0, wy1 = min(b[4] for b in wb), max(b[5] for b in wb)
-                east = [b for _, b in faces['E']] + [b for _, b in _parts(ext, 'Wing cladding skirt E')]
-                hits = [b for b in east if b[3] > w0 and b[2] < w1 and b[5] > wy0 and b[4] < wy1]
-                check(not hits,
-                      f'the siding splits clear of it ({len(hits)} pieces in the opening, '
-                      f'pz {w0:.2f}..{w1:.2f} y {wy0:.2f}..{wy1:.2f})')
-                # PAIRED: alone, "nothing in the opening" passes for a band that stopped
-                # short of the whole window. It has to carry ON above the header.
-                over = [b for b in east if b[3] > w0 and b[2] < w1 and b[4] >= wy1 - 1e-6]
-                check(over, f'and carries on above its header, so it is a split and not a '
-                            f'notch out of the top ({len(over)} pieces)')
+            _sof_S = _rake_line(ext, 'Wing frieze S', lo=True)
+            _band_specs = {'N': (), 'E': ('east 1', 'east 2'),
+                           'S': ('south 1', 'south 2')}
+
+            # --- THE SPLIT ROUND THE UPPER WINDOWS --------------------------------
+            # Five of them now — three on the east, two on the south — so the siding
+            # splits five times. Measured against the BUILT windows and their trim, not
+            # the specs that generated both, or the test and the geometry share a bug.
+            for tag, ax, names in (('E', 2, ('east 1', 'east 2')),
+                                   ('S', 0, ('south 1', 'south 2'))):
+                sid = [b for _, b in faces[tag]] + \
+                      [b for _, b in _parts(ext, f'Wing cladding skirt {tag}')]
+                for w in names:
+                    wb = [b for nm, b in _parts(ext, '') if nm.endswith(f'Ext {w}')]
+                    check(wb, f'{tag}: upper "{w}" is built ({len(wb)} parts)')
+                    if not wb:
+                        continue
+                    a0, a1 = min(b[ax] for b in wb), max(b[ax + 1] for b in wb)
+                    y0, y1 = min(b[4] for b in wb), max(b[5] for b in wb)
+                    hits = [b for b in sid
+                            if b[ax + 1] > a0 and b[ax] < a1 and b[5] > y0 and b[4] < y1]
+                    over = [b for b in sid
+                            if b[ax + 1] > a0 and b[ax] < a1 and b[4] >= y1 - 1e-6]
+                    check(not hits and over,
+                          f'{tag}: the siding splits clear of "{w}" and closes above it '
+                          f'({len(hits)} in the opening, {len(over)} over it)')
+                    # AND IT SITS WHOLLY INSIDE THE BAND. This is the change that removed
+                    # the straddle: a standard upper spans 15.0-18.5 and crosses the
+                    # band's base at 16.37 however the band is sized, leaving its sill
+                    # hanging on bare stucco. Trim included, and at the TIGHTEST bay
+                    # rather than on average — the margin is 0.15 ft, so it needs a test.
+                    # The band's head, per face: the east runs to the wall top (no
+                    # frieze), the south dies into its own raking frieze soffit.
+                    top = east_top if tag == 'E' else _sof_S((a0 + a1) / 2)
+                    check(y0 > lo + 1e-9 and y1 < top + 1e-9,
+                          f'{tag}: "{w}" wholly inside the band '
+                          f'(+{y0 - lo:.3f} below, +{top - y1:.3f} above)')
 
             # GROOVES, per face, as the GAPS BETWEEN consecutive full-height strips —
             # what a groove is here, and the one thing separating this from the
@@ -877,10 +893,14 @@ if we and party is not None and 'Wing frieze N' in WE:
                 check(fine and all(near(g, cl['grooveFt'], 0.005) for g in fine),
                       f"{tag}: {len(fine)} grooves at {cl['grooveFt'] * 12:.2f} in "
                       f'({min(fine) * 12:.2f}-{max(fine) * 12:.2f} in)')
+                # A wide gap is a WINDOW, not a groove. There should be exactly one per
+                # upper window on that face — the north has none, the east three, the
+                # south two — which is what ties the siding's splits back to the openings
+                # that caused them rather than just counting holes.
                 wide = [g for g in gaps if g >= 0.2]
-                check((tag == 'E') == bool(wide),
-                      f'{tag}: {"one gap for the window" if wide else "no gap but the grooves"} '
-                      f'({len(wide)})')
+                want = len(_band_specs.get(tag, ()))
+                check(len(wide) == want,
+                      f'{tag}: {len(wide)} wide gap(s), one per upper window ({want})')
             # The face must stand PROUD of its backer on every wall — that is what lets the
             # dark backer show through the grooves. Measured as distance from the wall
             # plane, so it holds whichever way the face looks out.
@@ -916,6 +936,82 @@ if we and party is not None and 'Wing frieze N' in WE:
             check(near((ring[4] + ring[5]) / 2, BASE + model['doorHeight'], 0.02),
                   f"on the door's head line, so the wall's two openings share a horizontal "
                   f"({(ring[4] + ring[5]) / 2:.2f})")
+
+# ---------------------------------------------------------------------------------
+# THE WING'S FENESTRATION. Its east and south walls used to carry two windows that sat
+# 1.7 ft out of line with each other, because each was placed from INSIDE its own room
+# and nothing made them stack outside. Only the north front was ever locked to its ground
+# openings. These assertions are that rule, applied to the two faces that lacked it.
+print('\nWING FENESTRATION')
+_W = {}
+for p in ext.by_type('IfcWindow'):
+    nm = getattr(p, 'Name', None) or ''
+    try:
+        sh = ifcopenshell.geom.create_shape(S, p)
+    except Exception:
+        continue
+    v = np.array(sh.geometry.verts).reshape(-1, 3)
+    _W[nm] = (-v[:, 0] / FT, v[:, 1] / FT, v[:, 2] / FT)
+
+
+def _ctr(nm, ax):
+    a = _W[nm][ax]
+    return (a.min() + a.max()) / 2
+
+
+for face, ax, along, pairs in (
+        ('east', 0, 1, [('Window - Bath', 'Upper - Ext east 1'),
+                        ('Window - Bath N', 'Upper - Ext east 2')]),
+        ('south', 1, 0, [('Window - WC S', 'Upper - Ext south 1'),
+                         ('Window - Laundry S', 'Upper - Ext south 2')])):
+    have = all(g in _W and u in _W for g, u in pairs)
+    check(have, f'the {face} wall carries {len(pairs)} stacked bays')
+    if not have:
+        continue
+    # THE WHOLE POINT: ground and upper share a centreline, measured centre to centre
+    # rather than against the numbers that placed them. This is the 1.7 ft misalignment,
+    # and nothing else would have caught it.
+    for g, u in pairs:
+        d = abs(_ctr(g, along) - _ctr(u, along))
+        check(d < 0.01, f'{face}: "{u}" stacks on "{g}" ({d:.4f} ft apart)')
+    # A row with one window off reads worse than no row, so the tiers must be uniform.
+    for tier, names in (('ground', [g for g, _ in pairs]), ('upper', [u for _, u in pairs])):
+        sills = {round(_W[n][2].min(), 3) for n in names}
+        heads = {round(_W[n][2].max(), 3) for n in names}
+        wides = {round(_W[n][along].max() - _W[n][along].min(), 3) for n in names}
+        check(len(sills) == 1 and len(heads) == 1 and len(wides) == 1,
+              f'{face} {tier}: one sill, head and width across the row '
+              f'({sills.pop():.2f}/{heads.pop():.2f}, {wides.pop():.2f} ft wide)')
+    # Evenly spaced, and the same margin at each end of the run they occupy.
+    cs = sorted(_ctr(g, along) for g, _ in pairs)
+    if len(cs) > 2:
+        steps = [cs[i + 1] - cs[i] for i in range(len(cs) - 1)]
+        check(max(steps) - min(steps) < 0.01, f'{face}: evenly spaced ({max(steps):.3f} ft)')
+
+# The south bays are the NORTH face's own two axes — the round window's and the door's —
+# so the wing has two vertical lines every face it has answers to. Asserted against the
+# built round window rather than a number, so the three faces cannot drift apart.
+if 'Wing round window ring' in WE and 'Window - WC S' in _W:
+    check(near(_ctr('Window - WC S', 0), (WE['Wing round window ring'][0]
+                                          + WE['Wing round window ring'][1]) / 2, 0.01),
+          "the south's east bay is the round window's axis "
+          f"({_ctr('Window - WC S', 0):.4f})")
+_fd = [d for k in EXT_W for d in json.load(open(f'ifc/rooms/{k}.json')).get('doors', [])
+       if d.get('orient') == 'H' and abs(d.get('fixed', 0) - wing_n) < 1e-6]
+if _fd and 'Window - Laundry S' in _W:
+    check(near(_ctr('Window - Laundry S', 0), _fd[0]['pos'], 0.01),
+          f"and its west bay is the door's ({_ctr('Window - Laundry S', 0):.4f} vs {_fd[0]['pos']})")
+
+# NO FRIEZE LIGHT ON THE EXTENSION. Its shed eave is 4 ft below the primary's frieze band,
+# so one there floats in mid-air over its roof. The guard used to skip anything NAMED
+# "Ext bath" and silently stopped working the moment these windows were renamed — it built
+# five lights over open air. Paired with the primary still having its own, or this passes
+# for a frieze band that stopped being built at all.
+_fr = [nm for nm in _W if nm.startswith('Frieze - ')]
+_stray = [nm for nm in _fr if _ctr(nm, 0) < wing_w - 0.5]
+check(not _stray and len(_fr) >= 10,
+      f'no frieze light on the extension, and the primary keeps its {len(_fr)} '
+      f'({len(_stray)} stray)')
 
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)

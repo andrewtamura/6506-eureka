@@ -1926,24 +1926,26 @@ def add_side_porch(ctx, lot, rooms_cache, base):
                  ifc_class="IfcBuildingElementProxy")
 
 
-def _east_opening(ctx, base, specs, x_east, cl):
-    """(lo, hi, head) along the wing's EAST face for the upper bathroom window, or None.
+def _band_openings(ctx, base, specs, orient, fixed, cl):
+    """[(lo, hi, head)] along one face for every second-floor window in it — the spans the
+    T1-11 siding has to split around, and the height it closes back over each one.
 
-    Derived from `second_floor_windows`' own spec — the single source the exterior massing
-    and the second-floor shell both read — so the siding's split follows the window if the
-    bathroom rework moves it. Nothing here is a coordinate.
+    Derived from `second_floor_windows`' own specs, the single source the massing's upper
+    row and the second-floor shell both read, so the siding follows the windows if they
+    move. Nothing here is a coordinate.
 
     Expanded by a margin, because the casing and header project past the glass: a split cut
-    to the glass alone leaves a raw edge either side of the opening instead of a joint the
-    casing covers. The head clears the HEADER, not the window head — the header sits above
-    it and would otherwise sit on siding that stopped too low."""
+    to the glass alone leaves a raw edge either side instead of a joint the casing covers.
+    The head clears the HEADER, not the window head — the header sits above it and would
+    otherwise land on siding that stopped too low."""
+    out = []
     for w in specs or ():
-        if w.get("orient") != "V" or abs(w.get("fixed", 0.0) - x_east) > 1e-6:
+        if w.get("orient") != orient or abs(w.get("fixed", 0.0) - fixed) > 1e-6:
             continue
         half = w["width"] / 2 + cl.get("openingMarginFt", 0.7)
         head = base + ctx.story + (w["head"] + cl.get("openingHeadFt", 0.85)) * FT
-        return (w["pos"] - half, w["pos"] + half, head)
-    return None
+        out.append((w["pos"] - half, w["pos"] + half, head))
+    return sorted(out)
 
 
 def wall_disc(ctx, name, px, pz, y, radius_ft, depth_ft, color, thick_ft=None):
@@ -2188,12 +2190,14 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, groups=None):
         fpr = cl.get("faceProudFt", 0.06)
         gw, goc = cl.get("grooveFt", 0.031), cl.get("grooveOcFt", 0.667)
 
-        def clad_face(tag, axis, a_lo, a_hi, fixed, sgn, y_of, opening=None):
+        def clad_face(tag, axis, a_lo, a_hi, fixed, sgn, y_of, openings=()):
             """Skirt, backer and grooved strips on one face.
 
             `sgn` is which way OUT is: +1 where the face looks toward increasing pz or px,
-            -1 where it looks the other way. `opening` is (lo, hi, head) along the face —
-            the siding splits either side of it and runs from `head` up over it."""
+            -1 where it looks the other way. `openings` is a LIST of (lo, hi, head) along
+            the face — the siding splits either side of each and runs from `head` up over
+            it. A list rather than one, because the wing's east wall carries three windows
+            in this band and its south wall two."""
             f_sk = (fixed - sgn * BURY, fixed + sgn * sp)
             f_bk = (fixed - sgn * BURY, fixed + sgn * bpr)
             f_fc = (fixed + sgn * bpr, fixed + sgn * (bpr + fpr))
@@ -2205,25 +2209,32 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, groups=None):
                     part(nm, f[0], f[1], ya, yb, p0, p1, color=TRIM)
 
             def pieces(p0, p1, skip_over=False):
-                """(from, to, base) for a run, split around the opening. The parts either
-                side keep the band's base; the part OVER it starts at the header, so the
-                strips continue above the window and the split reads as a split rather
-                than a notch out of the top. `skip_over` drops that part — for the skirt,
-                which has nothing to do above a window."""
-                if not opening:
-                    return [(p0, p1, lo)]
-                w0, w1, wh = opening
-                o0, o1 = max(p0, w0), min(p1, w1)
-                if o1 <= o0 + 1e-9:
-                    return [(p0, p1, lo)]
-                out = []
-                if o0 > p0 + 1e-9:
-                    out.append((p0, o0, lo))
-                if o1 < p1 - 1e-9:
-                    out.append((o1, p1, lo))
-                if not skip_over:
-                    out.append((o0, o1, wh))
-                return out
+                """(from, to, base) for a run, split around EVERY opening in turn. The
+                parts either side keep the band's base; the part over one starts at that
+                window's header, so the strips continue above it and the split reads as a
+                split rather than a notch out of the top. `skip_over` drops those parts —
+                for the skirt, which has nothing to do above a window.
+
+                Applied one opening at a time to the pieces the last one left, so two
+                windows close together cannot each undo the other's split; `max` on the
+                base is what makes overlapping openings resolve to the higher header
+                instead of the last one written."""
+                segs = [(p0, p1, lo)]
+                for w0, w1, wh in openings:
+                    nxt = []
+                    for q0, q1, qb in segs:
+                        o0, o1 = max(q0, w0), min(q1, w1)
+                        if o1 <= o0 + 1e-9:
+                            nxt.append((q0, q1, qb))
+                            continue
+                        if o0 > q0 + 1e-9:
+                            nxt.append((q0, o0, qb))
+                        if o1 < q1 - 1e-9:
+                            nxt.append((o1, q1, qb))
+                        if not skip_over:
+                            nxt.append((o0, o1, max(qb, wh)))
+                    segs = nxt
+                return segs
 
             # The skirt stops either side of an opening — the upper window's own sill
             # crosses it, and a skirt running over a window is nothing at all.
@@ -2251,10 +2262,12 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, groups=None):
         # level, and with no frieze to die into, so its head is the WALL TOP. The 1.13 ft
         # step that leaves at each east corner is deliberate — the cornice returns over it
         # and stops, which is trim over siding, the right way round.
-        clad_face("N", "x", x_east, x_west, wall_z, +1, soffit)
-        clad_face("S", "x", x_east, x_west, wing_s, -1, soffit)
+        clad_face("N", "x", x_east, x_west, wall_z, +1, soffit,
+                  _band_openings(ctx, base, upper, "H", wall_z, cl))
+        clad_face("S", "x", x_east, x_west, wing_s, -1, soffit,
+                  _band_openings(ctx, base, upper, "H", wing_s, cl))
         clad_face("E", "z", wing_s, wall_z, x_east, -1, lambda _a: wall_top(x_east),
-                  opening=_east_opening(ctx, base, upper, x_east, cl))
+                  _band_openings(ctx, base, upper, "V", x_east, cl))
 
 
     # --- a round window in the lower east bay --------------------------------------
@@ -2975,12 +2988,43 @@ def second_floor_windows(rooms):
         east_prim_x = min(r["bounds"]["x1"] for r in prim_rooms)    # primary east edge (x=-12)
         ext_top = max(r["bounds"]["z2"] for r in ext_rooms)         # extension north edge
         add("Upper - East", "V", east_prim_x, (ext_top + front_z) / 2)
-        # extension en-suite: ONE east-facing upper centred on the double vanity
-        # (between its two flanking mirrors), lighting the vanity / main area.
-        ext_x = min(r["bounds"]["x1"] for r in ext_rooms)    # far (east) wall
-        # A narrower, taller transom over the double vanity: sill ~8 in above the
-        # counter (3.72 ft), raised head (6.5 ft), narrower than the standard upper.
-        add("Upper - Ext bath", "V", ext_x, -3.75, sill=3.72, width=2.0, head=6.5)
+        # EXTENSION: its east and south walls get a bay each, STACKED OVER THE GROUND
+        # OPENINGS — the same rule the north front is locked to, and the absence of which
+        # is why the wing's two windows used to sit 1.7 ft out of line with each other.
+        # Both faces take their bays from the ROOMS BEHIND THEM, so a replan moves the
+        # windows rather than stranding them.
+        #
+        # THEY ARE CLERESTORIES, and that is forced rather than chosen: the wing's second
+        # storey is only 8 ft floor-to-eave, and its frieze/cornice plus the T1-11 band
+        # take most of that. A standard upper (sill 2.5, head 6.0) spans 15.0-18.5 above
+        # grade, which STRADDLES the band's base at 16.37 however the band is sized — so
+        # its sill hangs below the siding on bare stucco and the siding has to be split
+        # around it. Raised to 4.35/6.10 they sit wholly inside the band, and the siding
+        # closes cleanly over and under each one.
+        SILL_X, HEAD_X, W_X = 4.35, 6.10, 2.5
+        eb = [r["bounds"] for r in ext_rooms]
+        ext_x = min(b["x1"] for b in eb)                      # far (east) wall
+        ext_s = min(b["z1"] for b in eb)                      # ...and the south
+        # EAST: the rooms on that wall are very unequal — a 3.47 ft WC and a 12.45 ft
+        # bath. The WC's return CANNOT CARRY A WINDOW AT ALL: trim spans the glass plus
+        # 1.4 ft, so even a 2 ft window fills 3.4 of its 3.47, and anything in the same
+        # family as the rest overruns the corner. So the bays divide the BATHROOM's
+        # stretch and the WC's return stays blank — which is what that wall is: a short
+        # blind return at the corner before the elevation proper starts. Dividing the
+        # whole wall instead put windows through the partition AND past both corners.
+        ez = sorted({v for b in eb if abs(b["x1"] - ext_x) < 1e-6 for v in (b["z1"], b["z2"])})
+        if len(ez) >= 3:
+            a, b2 = ez[1], ez[-1]
+            for i in range(2):
+                add(f"Upper - Ext east {i + 1}", "V", ext_x, a + (b2 - a) * (i + 0.5) / 2,
+                    sill=SILL_X, width=W_X, head=HEAD_X)
+        # SOUTH: its two rooms divide evenly, so the bays are simply their midpoints —
+        # and they come out on the north face's own two axes, the round window's and the
+        # door's, so the wing has two vertical lines every face answers to.
+        sx = sorted({v for b in eb if abs(b["z1"] - ext_s) < 1e-6 for v in (b["x1"], b["x2"])})
+        for i in range(len(sx) - 1):
+            add(f"Upper - Ext south {i + 1}", "H", ext_s, (sx[i] + sx[i + 1]) / 2,
+                sill=SILL_X, width=W_X, head=HEAD_X)
     return front_z, specs
 
 
@@ -3439,8 +3483,21 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
             band = base + 2 * ctx.story            # plate base = floor-2 top
             # short horizontal lights that tuck between the belt course and the
             # dentil course under the cornice (a classic frieze-window band).
+            # ONLY ON THE PRIMARY BLOCK. The frieze band is the primary's raised plate;
+            # the extension is a shed roof whose eave is 4 ft LOWER, so a frieze light on
+            # one of its walls floats in mid-air above its roof. Tested by POSITION rather
+            # than by name — it used to skip anything called "Ext bath", which silently
+            # stopped working the moment the extension's uppers were renamed, and built
+            # five lights over open air. The extension's south wall is COPLANAR with the
+            # primary's, so `fixed` alone cannot tell them apart: the point has to be
+            # inside the primary's footprint, both ways.
+            pb = [rooms_cache[s]["bounds"] for s in prim["rooms"]]
+            px0, px1 = min(b["x1"] for b in pb), max(b["x2"] for b in pb)
+            pz0, pz1 = min(b["z1"] for b in pb), max(b["z2"] for b in pb)
             for w in specs:
-                if "Ext bath" in w["name"]:      # extension is a shed roof — no frieze band
+                wx = w["fixed"] if w["orient"] == "V" else w["pos"]
+                wz = w["pos"] if w["orient"] == "V" else w["fixed"]
+                if not (px0 - 1e-6 <= wx <= px1 + 1e-6 and pz0 - 1e-6 <= wz <= pz1 + 1e-6):
                     continue
                 window(f"Frieze - {w['name']}", w["orient"], w["fixed"], w["pos"], 2.0,
                        band + 0.45 * FT, band + 1.10 * FT, trim="frieze", muntins=False)
