@@ -799,6 +799,73 @@ if we and party is not None and 'Wing frieze' in WE:
         check(near(trel[5] - trel[4], soffit(trel[1]) - wt[5], 0.05),
               f'so the trellis rakes with it too, no wedge left at the high end')
 
+        # --- THE CLADDING in the upper west quadrant, on its belt course -----------
+        cl = we.get('cladding') or {}
+        belt, boards = WE.get('Wing belt course'), WE.get('Wing cladding boards')
+        check(cl and belt and boards, 'the upper west quadrant is clad on a belt course')
+        if cl and belt and boards:
+            # The belt sits ON the second-floor line, measured as crawl + one storey
+            # rather than read back from whatever was authored.
+            check(near(belt[5], floor2, 0.01),
+                  f'the belt tops out on the second-floor line ({belt[5]:.3f} vs {floor2})')
+            check(near(belt[0], wing_e, 0.02) and belt[1] >= wing_w - 0.02,
+                  f'running the full wall, not just the clad bay '
+                  f'({belt[0]:.3f}..{belt[1]:.3f})')
+            rtn = WE.get('Wing belt return')
+            check(rtn is not None and near(wing_n - rtn[2], cl['beltReturnFt'], 0.02),
+                  f"and turning the east corner like the cornice "
+                  f"({'missing' if rtn is None else f'{wing_n - rtn[2]:.2f} ft'})")
+            # THE ONE NUMBER THAT MAKES THE TWO READ TOGETHER. The belt crosses the east
+            # bay, where the trellis is applied OVER it; less proud and it passes behind,
+            # prouder and it drives through the frame. Measured against the built trellis,
+            # not against the two config values, so it holds if either moves.
+            stiles = _parts(ext, 'Wing trellis stile')
+            frame = min(b[3] for _, b in stiles)
+            check(belt[3] < frame - 1e-6,
+                  f'and passing BEHIND the trellis, not through it '
+                  f'(proud to {belt[3]:.3f} against the frame at {frame:.3f})')
+
+            # The field: level base on the belt, head dying into the frieze. BOTH edges —
+            # a single-edge test passes just as well on a panel with a level top.
+            check(near(boards[4], floor2, 0.01),
+                  f'the boarding stands on the belt ({boards[4]:.3f} vs {floor2})')
+            # Measured off the panel's own top EDGE, not its bounding box: the box only
+            # knows the high end, so a box test is satisfied by a panel with a level top.
+            head = _rake_line(ext, 'Wing cladding boards', lo=False)
+            for end, x in (('east', boards[0]), ('west', boards[1])):
+                check(head and near(head(x), soffit(x), 0.02),
+                      f'and its head dies into the frieze at the {end} edge '
+                      f'({head(x):.3f} vs {soffit(x):.3f})')
+            # px increases WEST, so "west of the party wall" is the field's EAST edge
+            # being the greater number — the awning above is tested the same way.
+            check(boards[0] >= party - 1e-6,
+                  f'the clad field stays west of the party wall '
+                  f'({boards[0]:.3f} vs {party:.3f})')
+
+            # The joint the whole scheme's tidiness rests on: the east stile centred on
+            # the party wall AND meeting the trellis. Both, in one place.
+            st = WE.get('Wing cladding stile 0')
+            tre_w = max(b[1] for _, b in stiles)     # the trellis's west face
+            check(st is not None and near((st[0] + st[1]) / 2, party, 0.01)
+                  and near(st[0], tre_w, 0.01),
+                  f'the east stile is centred on the party wall and meets the trellis '
+                  f'({(st[0] + st[1]) / 2:.4f} vs {party:.4f}; {st[0]:.3f} vs {tre_w:.3f})')
+
+            # Battens: plumb, evenly spaced inside the authored pitch, each to the rake.
+            bats = sorted([b for _, b in _parts(ext, 'Wing cladding batten')],
+                          key=lambda b: b[0])
+            # CENTRES against the pitch. The clear between battens is the exposed face,
+            # which is narrower than the board by one batten and would pass any pitch.
+            mid = [(b[0] + b[1]) / 2 for b in bats]
+            step = [mid[i + 1] - mid[i] for i in range(len(mid) - 1)]
+            check(len(bats) >= 3 and max(step) <= cl['boardOcFt'] + 1e-6,
+                  f'{len(bats)} battens at {max(step) * 12:.1f} in centres '
+                  f"(pitch {cl['boardOcFt'] * 12:.0f} in max), "
+                  f'{(max(step) - cl["battenFt"]) * 12:.1f} in of board showing')
+            check(all(near(b[5], soffit((b[0] + b[1]) / 2), 0.02) and near(b[4], floor2, 0.01)
+                      for b in bats),
+                  'each one plumb from the belt to its own height under the rake')
+
     # --- NOTHING CROSSES THE PARTY WALL. This is the collision that actually happened:
     # the awning was authored 6.0 ft wide and overhung the line by 6 in, straight through
     # the trellis stile standing on it.
@@ -813,21 +880,14 @@ if we and party is not None and 'Wing frieze' in WE:
     # The ENTABLATURE is excluded: it spans the whole wall by definition, so counting it
     # would let either upper quadrant pass on trim alone — which is exactly what an empty
     # quadrant looks like from a bounding box.
-    trim = ('Wing cornice', 'Wing frieze', 'Wing corbel')
+    trim = ('Wing cornice', 'Wing frieze', 'Wing corbel', 'Wing belt')
     filled = [(nm, b) for nm, b in _parts(ext, 'Wing') if not nm.startswith(trim)] + \
              _parts(ext, 'Side porch awning') + \
              [('door', (d_e, d_w, wing_n, wing_n, BASE, BASE + model['doorHeight']))]
     for q, (qx0, qx1, qy0, qy1) in quads.items():
         got = [nm for nm, b in filled
                if b[1] > qx0 + 0.05 and b[0] < qx1 - 0.05 and b[5] > qy0 + 0.05 and b[4] < qy1 - 0.05]
-        if q == 'upper west':
-            # DELIBERATELY EMPTY. A blind oculus filled it and read as a porthole stuck on
-            # a rectangular wall. Pinned empty so that the decision about what replaces it
-            # is made on purpose — this fails the moment anything lands there.
-            check(not got, f'{q} quadrant is deliberately open, pending a decision '
-                           f'({len(got)} members)')
-        else:
-            check(got, f'{q} quadrant has something in it ({len(got)} members)')
+        check(got, f'{q} quadrant has something in it ({len(got)} members)')
 else:
     check(False, 'the wing elevation is authored, built, and reads two bays')
 

@@ -1951,7 +1951,7 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
 
         lower west   the door and its awning          (add_side_porch)
         east, both   ONE trellis crossing the pair
-        upper west   deliberately open — see below
+        upper west   board-and-batten on a belt course
         across both  a raking entablature at the wall top
 
     THE WALL TOP RAKES 1 IN 12 — 0.91 ft over 10.9 ft, high toward the primary. That is
@@ -1980,6 +1980,14 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
     # — and matching that cornice is what ties the wing to the house.
     WOOD = (0.60, 0.47, 0.34)
     TRIM = (0.93, 0.92, 0.88)
+    # The yard fence's stain, for the BOARDS behind the battens. Board-and-batten in one
+    # tone is a flat slab here: the battens stand an inch proud and this wall never sees
+    # direct sun, so there is no shadow to find the joints — the third time on this
+    # elevation that relief has read as nothing and only tone has read at all (the
+    # corbels, the oculus, now these). Darker boards with lighter battens is also what
+    # the real thing looks like, the battens catching the light and the boards sitting
+    # back, so the fix is the honest detail rather than a workaround.
+    STAIN = (0.42, 0.30, 0.21)
     BURY = 0.05                                     # plan ft INTO the wall, so no face is coplanar
     B = {k: v["bounds"] for k, v in rooms_cache.items()}
     if not all(k in B for k in EXT_WING):
@@ -2004,6 +2012,17 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
         Za, Zb = ctx.Y(za), ctx.Y(zb)
         poly = [(ctx.X(xa), Za, y_of(xa)), (ctx.X(xb), Za, y_of(xb)),
                 (ctx.X(xb), Za, y_of(xb) - h * FT), (ctx.X(xa), Za, y_of(xa) - h * FT)]
+        v, faces = _prism(poly, (0, Zb - Za, 0))
+        add_brep(ctx, nm, v, faces, color, ifc_class="IfcBuildingElementProxy")
+
+    def rake_panel(nm, xa, xb, y_lo, y_of, za, zb, color=WOOD):
+        """A field with a LEVEL base at `y_lo` and a head following `y_of(px)` — a
+        trapezoid, not a band. rake_band sweeps a constant depth and so cannot describe
+        a panel that stands on a level line under a raking one; that is every clad
+        field on this wall."""
+        Za, Zb = ctx.Y(za), ctx.Y(zb)
+        poly = [(ctx.X(xa), Za, y_lo), (ctx.X(xb), Za, y_lo),
+                (ctx.X(xb), Za, y_of(xb)), (ctx.X(xa), Za, y_of(xa))]
         v, faces = _prism(poly, (0, Zb - Za, 0))
         add_brep(ctx, nm, v, faces, color, ifc_class="IfcBuildingElementProxy")
 
@@ -2093,11 +2112,57 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
         part("Wing frieze return", x_east - fzp, x_east, top - (cn + fz) * FT,
              top - cn * FT, wall_z - ret, wall_z + fzp, color=TRIM)
 
-    # The UPPER WEST quadrant is deliberately left blank. A blind oculus filled it and
-    # read as a porthole stuck on a rectangular wall — nothing about a circle agreed with
-    # the door below it, the trellis beside it or the raking trim above it. Left open
-    # until it is decided what belongs there; ifc_check asserts the emptiness, so the
-    # decision cannot be made by accident.
+    # --- the upper west quadrant: board-and-batten on a belt course ----------------
+    # A blind oculus stood here first and read as a porthole stuck on a rectangular wall.
+    # What replaced it FILLS THE FIELD rather than floating in it, which is the whole
+    # lesson of that failure, and gives the upper west the weight the trellis gives the
+    # east. The WEST BAY only: run across both, vertical boarding would sit behind a
+    # vertical lattice and the two would compete.
+    cl = spec.get("cladding") or {}
+    if cl and banded:
+        bh, bp = cl.get("beltFt", 0.45), cl.get("beltProudFt", 0.12)
+        floor2 = base + ctx.story                   # the second-floor line, derived
+        # The belt runs the FULL wall, not just the clad bay — a belt course is a storey
+        # line and wants to run, and it is the horizontal that finally divides a 19 ft
+        # wall. It is deliberately LESS PROUD than the trellis frame so it passes BEHIND
+        # the trellis in the east bay rather than through it: the belt is on the wall and
+        # the trellis is applied over it, which is both the right construction and the
+        # only way two solids at one height do not fight. Seen through the lattice
+        # openings, which is the point.
+        part("Wing belt course", x_east, x_west, floor2 - bh * FT, floor2,
+             wall_z - BURY, wall_z + bp, color=TRIM)
+        # ...and it turns the east corner like the cornice, for the same reason.
+        rt = cl.get("beltReturnFt", 0.8)
+        part("Wing belt return", x_east - bp, x_east, floor2 - bh * FT, floor2,
+             wall_z - rt, wall_z + bp, color=TRIM)
+
+        # The stiles that frame the field. The EAST one's width is derived as twice the
+        # trellis's inset, so its east face lands on the trellis's west face and its
+        # centre lands on the party wall — both by construction, so a change to the inset
+        # moves them together instead of opening a slot between them.
+        ins = (spec.get("trellis") or {}).get("insetFt", 0.3)
+        st, sp = 2 * ins, cl.get("stileProudFt", 0.18)
+        stiles = ((party - ins, party + ins), (x_west - st, x_west))
+        for i, (xa, xb) in enumerate(stiles):
+            part(f"Wing cladding stile {i}", xa, xb, floor2, soffit((xa + xb) / 2),
+                 wall_z - BURY, wall_z + sp, color=TRIM)
+
+        # The field: a level base on the belt, a head that dies into the frieze and rakes
+        # with it exactly as the trellis's does.
+        fa, fb = party + ins, x_west - st
+        z_back = wall_z + cl.get("backProudFt", 0.06)
+        rake_panel("Wing cladding boards", fa, fb, floor2, soffit,
+                   wall_z - BURY, z_back, color=STAIN)
+        # Battens over it, each to its own height under the rake. DIVISIONS that never
+        # exceed the authored pitch, the reckoning the trellis and the guard both use —
+        # 4.56 ft at 1 ft gives five boards of 10.9 in, a board-and-batten rhythm rather
+        # than whatever a fixed pitch leaves over.
+        bw, bpr = cl.get("battenFt", 0.25), cl.get("battenProudFt", 0.14)
+        n = max(1, int(math.ceil(abs(fb - fa) / cl.get("boardOcFt", 1.0))))
+        for i in range(1, n):
+            c = fa + (fb - fa) * i / n
+            part(f"Wing cladding batten {i}", c - bw / 2, c + bw / 2, floor2,
+                 soffit(c), z_back, z_back + bpr)
 
 
 def add_lot_wall(ctx, lot, rooms_cache, base):

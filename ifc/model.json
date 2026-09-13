@@ -111,7 +111,7 @@
       }
     },
     "wingElevation": {
-      "_note": "The east wing's NORTH face: 10.9 ft wide by 19 ft of blank stucco, and the one wall on the house that takes no windows \u2014 the east bay is the bathroom on BOTH storeys, and its window is on the east face. Composed as four quadrants over the two REAL bays the rooms behind it already make: the wall's centreline is the bath/vestibule party wall, and the door sits dead centre of the west bay, so the door is already symmetrical, just not about the wall. Lower west is the door and its awning; the EAST bay gets one tall trellis crossing both of its quadrants; the upper west is deliberately LEFT OPEN \u2014 a blind oculus filled it and read as a porthole stuck on a rectangular wall, agreeing with neither the door below it, the trellis beside it, nor the raking trim above.",
+      "_note": "The east wing's NORTH face: 10.9 ft wide by 19 ft of blank stucco, and the one wall on the house that takes no windows \u2014 the east bay is the bathroom on BOTH storeys, and its window is on the east face. Composed as four quadrants over the two REAL bays the rooms behind it already make: the wall's centreline is the bath/vestibule party wall, and the door sits dead centre of the west bay, so the door is already symmetrical, just not about the wall. Lower west is the door and its awning; the EAST bay gets one tall trellis crossing both of its quadrants; the upper west is CLAD in board-and-batten on a belt course \u2014 a blind oculus filled it first and read as a porthole stuck on a rectangular wall, agreeing with neither the door below it, the trellis beside it, nor the raking trim above, so what replaced it fills the field instead of floating in it.",
       "_noteDerived": "Neither element is placed by coordinate. The bays come from the rooms behind the wall, the trellis foot sits on the WATER TABLE's top and its head dies into the frieze,. The wall top itself comes from the massing group's storeys and pitch. Only the trim's sections are authored.",
       "entablature": {
         "_note": "The wall top RAKES 1 in 12 \u2014 0.91 ft over 10.9 ft, high toward the primary \u2014 and the wing had NO eave trim at all: the roof slab met the stucco with no overhang on this face, no fascia, no shadow line. Bare, a 5 degree slope reads as a roof that has slipped rather than sloped. The frieze and cornice rake with it; the corbels under them stand VERTICAL, and that contrast is what makes the slope read as deliberate. The corbels are the porch's WOOD where the bands are white: a corbel is small and this wall never sees direct sun, so a white one casts nothing and vanishes against a white frieze. Its geometry is taken from the massing group's own storeys and pitch, never authored here, so the trim cannot drift off the roof it follows.",
@@ -124,6 +124,19 @@
         "corbelProudFt": 0.32,
         "corbelOcFt": 1.35,
         "returnFt": 0.8
+      },
+      "cladding": {
+        "_note": "Board-and-batten filling the UPPER WEST quadrant, on a belt course at the second-floor line with stucco below. It fills the field rather than adding another object to it \u2014 which is why the blind oculus that stood here failed \u2014 and gives the upper west the visual weight the trellis gives the east. Scope is the WEST BAY: run across both bays it would put vertical boarding behind a vertical lattice.",
+        "_noteBelt": "The belt runs the FULL wall, not just the clad bay: a belt course is a storey line and wants to run, and it is the horizontal that finally divides a 19 ft wall. beltProudFt MUST stay under trellis.frameProudFt so it passes BEHIND the trellis in the east bay rather than through it \u2014 correct construction, and the one number that makes the two read together. Its top is derived from crawl + storyHeight, never authored.",
+        "_noteStiles": "The east stile's width is DERIVED as twice trellis.insetFt, so its east face lands on the trellis's west face and its centre lands on the party wall, both by construction. White stiles either side, a white belt below and the white raking frieze above frame the wood field on all four sides \u2014 which is what stops a material change from having a raw vertical edge in the middle of a wall.",
+        "boardOcFt": 1.0,
+        "battenFt": 0.25,
+        "battenProudFt": 0.14,
+        "backProudFt": 0.06,
+        "stileProudFt": 0.18,
+        "beltFt": 0.45,
+        "beltProudFt": 0.12,
+        "beltReturnFt": 0.8
       },
       "trellis": {
         "_noteTop": "topFt is a FALLBACK, used only if no entablature is built. The trellis's head DIES INTO the frieze and rakes with it; stopped level it left a wedge of blank wall widening toward the high end, which is the one thing a full-height panel must not do.",
