@@ -1939,35 +1939,6 @@ def add_side_porch(ctx, lot, rooms_cache, base):
                  ifc_class="IfcBuildingElementProxy")
 
 
-def wall_ring(ctx, name, px, pz, y, radius_ft, thick_ft, depth_ft, color):
-    """A flat ring standing PROUD of a north-facing wall: a hollow circular profile
-    extruded along +Y, the wall's outward normal.
-
-    One product holding one solid. The alternative — a ring approximated by little
-    blocks, the way the dentil course is built — would be dozens of them, and a
-    parametric profile is both exact and free. `IfcCircleHollowProfileDef`'s Radius is
-    the OUTER one and the wall thickness runs inward, so the ring occupies
-    `radius - thick .. radius`.
-
-    The Position's Axis is what turns the profile onto a vertical wall: local Z is
-    global +Y, so the disc stands in the wall plane and the extrusion runs out of it."""
-    m = ctx.model
-    prof = m.create_entity("IfcCircleHollowProfileDef", ProfileType="AREA",
-                           Radius=float(radius_ft * FT), WallThickness=float(thick_ft * FT))
-    solid = m.create_entity(
-        "IfcExtrudedAreaSolid", SweptArea=prof, Depth=float(depth_ft * FT),
-        Position=m.create_entity(
-            "IfcAxis2Placement3D",
-            Location=m.create_entity("IfcCartesianPoint",
-                                     Coordinates=(float(ctx.X(px)), float(ctx.Y(pz)), float(y))),
-            Axis=m.create_entity("IfcDirection", DirectionRatios=(0.0, 1.0, 0.0)),
-            RefDirection=m.create_entity("IfcDirection", DirectionRatios=(1.0, 0.0, 0.0))),
-        ExtrudedDirection=m.create_entity("IfcDirection", DirectionRatios=(0.0, 0.0, 1.0)))
-    style_item(ctx, solid, color)
-    prod = multi_solid_product(ctx, "IfcBuildingElementProxy", name, [solid])
-    run("spatial.assign_container", ctx.model, products=[prod], relating_structure=ctx.storey)
-
-
 def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
     """The east wing's NORTH face — 10.9 ft wide by 19 ft of blank stucco, and the one
     wall on the house that takes no windows: the east bay is the bathroom on BOTH
@@ -1980,7 +1951,7 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
 
         lower west   the door and its awning          (add_side_porch)
         east, both   ONE trellis crossing the pair
-        upper west   a blind oculus on the door's axis
+        upper west   deliberately open — see below
         across both  a raking entablature at the wall top
 
     THE WALL TOP RAKES 1 IN 12 — 0.91 ft over 10.9 ft, high toward the primary. That is
@@ -2001,7 +1972,7 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
     if not spec or base <= 0:
         return
     # The porch's wood for the JOINERY, the primary's white for the TRIM. The first is
-    # measured: white sits 0.06 from this stucco and a thin white ring read as a pencil
+    # measured: white sits 0.06 from this stucco and a thin white member read as a pencil
     # line on a 19 ft wall — the disappearing act addAltExtension documents for its cast
     # stone, on this same palette, and this is a NORTH wall, permanently in shade. The
     # entablature is the exception because it is not thin: it projects, so it reads as a
@@ -2122,20 +2093,11 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
         part("Wing frieze return", x_east - fzp, x_east, top - (cn + fz) * FT,
              top - cn * FT, wall_z - ret, wall_z + fzp, color=TRIM)
 
-    # --- the oculus, centred on the door's axis in the upper west quadrant ---------
-    o = spec.get("oculus") or {}
-    if o:
-        R = o.get("radiusFt", 1.75)
-        cx = (party + x_west) / 2                   # = the door's own centreline
-        cy = (base + ctx.story + soffit(cx)) / 2     # centred between floor line and soffit
-        wall_ring(ctx, "Wing oculus ring", cx, wall_z - BURY, cy,
-                  R, o.get("ringFt", 0.30), o.get("ringProudFt", 0.12) + BURY, WOOD)
-        # A bead just inside the ring and standing prouder — the step is what makes it a
-        # moulding rather than a painted circle, and it is what casts the shadow.
-        ring = o.get("ringFt", 0.30)
-        wall_ring(ctx, "Wing oculus bead", cx, wall_z - BURY, cy,
-                  R - ring + o.get("beadFt", 0.12), o.get("beadFt", 0.12),
-                  o.get("beadProudFt", 0.20) + BURY, WOOD)
+    # The UPPER WEST quadrant is deliberately left blank. A blind oculus filled it and
+    # read as a porthole stuck on a rectangular wall — nothing about a circle agreed with
+    # the door below it, the trellis beside it or the raking trim above it. Left open
+    # until it is decided what belongs there; ifc_check asserts the emptiness, so the
+    # decision cannot be made by accident.
 
 
 def add_lot_wall(ctx, lot, rooms_cache, base):

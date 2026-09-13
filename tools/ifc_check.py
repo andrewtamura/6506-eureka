@@ -735,12 +735,11 @@ _edges = sorted({v for b in _fronting for v in (b['x1'], b['x2'])})
 party = _edges[1] if len(_edges) >= 3 else None
 floor2 = BASE + model['storyHeight']            # the second-floor line, 12.5 ft
 
-if we and party is not None and 'Wing oculus ring' in WE:
+if we and party is not None and 'Wing frieze' in WE:
     tr = extents(ext, lambda nm, p: nm.startswith('Wing trellis'))
     trel = (min(b[0] for b in tr.values()), max(b[1] for b in tr.values()),
             min(b[2] for b in tr.values()), max(b[3] for b in tr.values()),
             min(b[4] for b in tr.values()), max(b[5] for b in tr.values()))
-    ring, bead = WE['Wing oculus ring'], WE['Wing oculus bead']
 
     # --- the trellis is the EAST bay's, and spans BOTH its quadrants -----------
     ins = we['trellis']['insetFt']
@@ -756,32 +755,6 @@ if we and party is not None and 'Wing oculus ring' in WE:
     check(near(trel[4], wt[5], 0.01),
           f"standing on the water table's top ({trel[4]:.3f} vs {wt[5]:.3f})")
 
-    # --- the oculus is BLIND, on the door's own axis, in the UPPER west quadrant ---
-    cx = (ring[0] + ring[1]) / 2
-    check(near(cx, door['pos'], 0.01),
-          f"the oculus is on the door's centreline ({cx:.3f} vs {door['pos']})")
-    check(near(ring[1] - ring[0], 2 * we['oculus']['radiusFt'], 0.02),
-          f"{2 * we['oculus']['radiusFt']} ft across ({ring[1] - ring[0]:.3f}) — and round, "
-          f"since the profile is parametric")
-    check(ring[4] > floor2, f'sitting wholly in the upper quadrant ({ring[4]:.2f} > {floor2})')
-    # BLIND means blind: nothing glazed inside it. The wall takes no windows at all, so
-    # this is cheap insurance against someone "finishing" it later.
-    hits = []
-    for p in ext.by_type('IfcWindow'):
-        try:
-            sh = ifcopenshell.geom.create_shape(S, p)
-        except Exception:
-            continue
-        v = np.array(sh.geometry.verts).reshape(-1, 3)
-        bx, by, bz = -v[:, 0] / FT, v[:, 1] / FT, v[:, 2] / FT
-        if bx.max() > ring[0] and bx.min() < ring[1] and bz.max() > ring[4] and bz.min() < ring[5] \
-           and by.max() > wing_n - 1 and by.min() < wing_n + 1:
-            hits.append(getattr(p, 'Name', '?'))
-    check(not hits, f'and is BLIND — no glazing inside it ({len(hits)} found)')
-    # The two rings are ONE moulding: the bead's outer edge is the ring's inner edge.
-    check(near((bead[1] - bead[0]) / 2, we['oculus']['radiusFt'] - we['oculus']['ringFt']
-               + we['oculus']['beadFt'], 0.02),
-          f'its bead lands on the ring\'s inner edge, one stepped moulding, not two circles')
     # --- THE ENTABLATURE, and the roofline it has to follow ------------------------
     # The wall top rakes 1 in 12. Measured against the BUILT MASSING at both ends, not
     # against the pitch in model.json: what matters is that the trim sits on the roof,
@@ -825,29 +798,36 @@ if we and party is not None and 'Wing oculus ring' in WE:
                   f'{nm} runs right up into the frieze ({b[5]:.3f} vs {soffit(x):.3f})')
         check(near(trel[5] - trel[4], soffit(trel[1]) - wt[5], 0.05),
               f'so the trellis rakes with it too, no wedge left at the high end')
-        # And the oculus sits centred in its own quadrant, under that same soffit.
-        cy = (ring[4] + ring[5]) / 2
-        check(near(cy, (floor2 + soffit(cx)) / 2, 0.03),
-              f'the oculus is centred between the floor line and the soffit '
-              f'({cy:.2f} in {floor2:.2f}..{soffit(cx):.2f})')
 
     # --- NOTHING CROSSES THE PARTY WALL. This is the collision that actually happened:
     # the awning was authored 6.0 ft wide and overhung the line by 6 in, straight through
     # the trellis stile standing on it.
     check(trel[1] <= party + 1e-6, f'the trellis stays east of the party wall ({trel[1]:.3f})')
-    for nm, b in (('the awning', SP['Side porch awning']), ('the oculus', ring)):
-        check(b[0] >= party - 1e-6, f'{nm} stays west of it ({b[0]:.3f} vs {party:.3f})')
+    check(SP['Side porch awning'][0] >= party - 1e-6,
+          f"the awning stays west of it ({SP['Side porch awning'][0]:.3f} vs {party:.3f})")
 
     # --- and every quadrant is now spoken for. The composition, asserted as a whole:
     # the wall was blank in three of its four quadrants.
     quads = {'lower east': (wing_e, party, 0, floor2), 'upper east': (wing_e, party, floor2, 99),
              'lower west': (party, wing_w, 0, floor2), 'upper west': (party, wing_w, floor2, 99)}
-    filled = _parts(ext, 'Wing') + _parts(ext, 'Side porch awning') + \
-             [(nm, b) for nm, b in [('door', (d_e, d_w, wing_n, wing_n, BASE, BASE + model['doorHeight']))]]
+    # The ENTABLATURE is excluded: it spans the whole wall by definition, so counting it
+    # would let either upper quadrant pass on trim alone — which is exactly what an empty
+    # quadrant looks like from a bounding box.
+    trim = ('Wing cornice', 'Wing frieze', 'Wing corbel')
+    filled = [(nm, b) for nm, b in _parts(ext, 'Wing') if not nm.startswith(trim)] + \
+             _parts(ext, 'Side porch awning') + \
+             [('door', (d_e, d_w, wing_n, wing_n, BASE, BASE + model['doorHeight']))]
     for q, (qx0, qx1, qy0, qy1) in quads.items():
         got = [nm for nm, b in filled
                if b[1] > qx0 + 0.05 and b[0] < qx1 - 0.05 and b[5] > qy0 + 0.05 and b[4] < qy1 - 0.05]
-        check(got, f'{q} quadrant has something in it ({len(got)} members)')
+        if q == 'upper west':
+            # DELIBERATELY EMPTY. A blind oculus filled it and read as a porthole stuck on
+            # a rectangular wall. Pinned empty so that the decision about what replaces it
+            # is made on purpose — this fails the moment anything lands there.
+            check(not got, f'{q} quadrant is deliberately open, pending a decision '
+                           f'({len(got)} members)')
+        else:
+            check(got, f'{q} quadrant has something in it ({len(got)} members)')
 else:
     check(False, 'the wing elevation is authored, built, and reads two bays')
 
