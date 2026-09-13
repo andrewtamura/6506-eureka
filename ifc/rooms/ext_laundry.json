@@ -21,17 +21,7 @@
       "doorStyle": "panel"
     }
   ],
-  "windows": [
-    {
-      "name": "Window - Laundry S",
-      "orient": "H",
-      "fixed": -11.9167,
-      "pos": -14.7292,
-      "width": 2.0,
-      "sill": 3.0,
-      "head": 7.0
-    }
-  ],
+  "windows": [],
   "interior": {
     "paneling": {
       "baseboard": 10,

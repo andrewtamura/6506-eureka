@@ -1036,14 +1036,7 @@
       "lo": -17.458,
       "hi": -12,
       "doors": [],
-      "windows": [
-        [
-          -15.729,
-          -13.729,
-          3.0,
-          false
-        ]
-      ],
+      "windows": [],
       "tall": [],
       "transoms": [],
       "sidelights": [],

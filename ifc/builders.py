@@ -3023,13 +3023,19 @@ def second_floor_windows(rooms):
             for i in range(2):
                 add(f"Upper - Ext east {i + 1}", "V", ext_x, a + (b2 - a) * (i + 0.5) / 2,
                     sill=SILL_X, width=W_X, head=HEAD_X)
-        # SOUTH: its two rooms divide evenly, so the bays are simply their midpoints —
-        # and they come out on the north face's own two axes, the round window's and the
-        # door's, so the wing has two vertical lines every face answers to.
+        # SOUTH: its two rooms divide evenly, so the bays are their midpoints — and they
+        # come out on the north face's own two axes, the round window's and the door's, so
+        # the wing has two vertical lines every face answers to.
+        #
+        # ONLY THE EASTERN BAY IS GLAZED. The western one is left blank for now, so the
+        # south carries one stacked pair against 6.5 ft of plain wall. The BAY is still
+        # set out — it is the door's axis and the elevation is still divided on it — so
+        # glazing it later is one line here and one window in ext_laundry.json, not a
+        # re-composition.
         sx = sorted({v for b in eb if abs(b["z1"] - ext_s) < 1e-6 for v in (b["x1"], b["x2"])})
-        for i in range(len(sx) - 1):
-            add(f"Upper - Ext south {i + 1}", "H", ext_s, (sx[i] + sx[i + 1]) / 2,
-                sill=SILL_X, width=W_X, head=HEAD_X)
+        if len(sx) >= 2:                                  # sorted ascending: px grows WEST,
+            add("Upper - Ext south 1", "H", ext_s,        # so sx[0..1] is the EASTERN bay
+                (sx[0] + sx[1]) / 2, sill=SILL_X, width=W_X, head=HEAD_X)
     return front_z, specs
 
 

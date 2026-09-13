@@ -844,15 +844,14 @@ if we and party is not None and 'Wing frieze N' in WE:
                   f'({east_top:.2f} ft)')
 
             _sof_S = _rake_line(ext, 'Wing frieze S', lo=True)
-            _band_specs = {'N': (), 'E': ('east 1', 'east 2'),
-                           'S': ('south 1', 'south 2')}
+            _band_specs = {'N': (), 'E': ('east 1', 'east 2'), 'S': ('south 1',)}
 
             # --- THE SPLIT ROUND THE UPPER WINDOWS --------------------------------
             # Five of them now — three on the east, two on the south — so the siding
             # splits five times. Measured against the BUILT windows and their trim, not
             # the specs that generated both, or the test and the geometry share a bug.
             for tag, ax, names in (('E', 2, ('east 1', 'east 2')),
-                                   ('S', 0, ('south 1', 'south 2'))):
+                                   ('S', 0, ('south 1',))):
                 sid = [b for _, b in faces[tag]] + \
                       [b for _, b in _parts(ext, f'Wing cladding skirt {tag}')]
                 for w in names:
@@ -962,8 +961,7 @@ def _ctr(nm, ax):
 for face, ax, along, pairs in (
         ('east', 0, 1, [('Window - Bath', 'Upper - Ext east 1'),
                         ('Window - Bath N', 'Upper - Ext east 2')]),
-        ('south', 1, 0, [('Window - WC S', 'Upper - Ext south 1'),
-                         ('Window - Laundry S', 'Upper - Ext south 2')])):
+        ('south', 1, 0, [('Window - WC S', 'Upper - Ext south 1')])):
     have = all(g in _W and u in _W for g, u in pairs)
     check(have, f'the {face} wall carries {len(pairs)} stacked bays')
     if not have:
@@ -999,8 +997,7 @@ for face, ax, along, pairs in (
 PIER_MIN = 1.0
 for face, ax, wall, tiers in (
         ('south', 0, (wing_e, wing_w),
-         {'ground': ('Window - WC S', 'Window - Laundry S'),
-          'upper': ('Upper - Ext south 1', 'Upper - Ext south 2')}),
+         {'ground': ('Window - WC S',), 'upper': ('Upper - Ext south 1',)}),
         ('east', 2, (wing_s, wing_n),
          {'ground': ('Window - Bath', 'Window - Bath N'),
           'upper': ('Upper - Ext east 1', 'Upper - Ext east 2')})):
@@ -1030,11 +1027,16 @@ if 'Wing round window ring' in WE and 'Window - WC S' in _W:
                                           + WE['Wing round window ring'][1]) / 2, 0.01),
           "the south's east bay is the round window's axis "
           f"({_ctr('Window - WC S', 0):.4f})")
+# THE WESTERN SOUTH BAY IS DELIBERATELY BLANK, and that is pinned so it stays a decision
+# rather than something that drifts back. The bay itself still exists — it is the door's
+# axis on the north face — so the elevation is divided on it whether or not it is glazed.
 _fd = [d for k in EXT_W for d in json.load(open(f'ifc/rooms/{k}.json')).get('doors', [])
        if d.get('orient') == 'H' and abs(d.get('fixed', 0) - wing_n) < 1e-6]
-if _fd and 'Window - Laundry S' in _W:
-    check(near(_ctr('Window - Laundry S', 0), _fd[0]['pos'], 0.01),
-          f"and its west bay is the door's ({_ctr('Window - Laundry S', 0):.4f} vs {_fd[0]['pos']})")
+_west_bay = [nm for nm in _W if _fd and abs(_ctr(nm, 0) - _fd[0]['pos']) < 0.2
+             and _W[nm][1].max() < wing_s + 0.4]
+check(_fd and not _west_bay,
+      f"the south's western bay is blank, as decided ({len(_west_bay)} windows on the "
+      f"door's axis at {_fd[0]['pos'] if _fd else '?'})")
 
 # NO FRIEZE LIGHT ON THE EXTENSION. Its shed eave is 4 ft below the primary's frieze band,
 # so one there floats in mid-air over its roof. The guard used to skip anything NAMED
