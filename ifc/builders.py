@@ -1926,6 +1926,26 @@ def add_side_porch(ctx, lot, rooms_cache, base):
                  ifc_class="IfcBuildingElementProxy")
 
 
+def _east_opening(ctx, base, specs, x_east, cl):
+    """(lo, hi, head) along the wing's EAST face for the upper bathroom window, or None.
+
+    Derived from `second_floor_windows`' own spec — the single source the exterior massing
+    and the second-floor shell both read — so the siding's split follows the window if the
+    bathroom rework moves it. Nothing here is a coordinate.
+
+    Expanded by a margin, because the casing and header project past the glass: a split cut
+    to the glass alone leaves a raw edge either side of the opening instead of a joint the
+    casing covers. The head clears the HEADER, not the window head — the header sits above
+    it and would otherwise sit on siding that stopped too low."""
+    for w in specs or ():
+        if w.get("orient") != "V" or abs(w.get("fixed", 0.0) - x_east) > 1e-6:
+            continue
+        half = w["width"] / 2 + cl.get("openingMarginFt", 0.7)
+        head = base + ctx.story + (w["head"] + cl.get("openingHeadFt", 0.85)) * FT
+        return (w["pos"] - half, w["pos"] + half, head)
+    return None
+
+
 def wall_disc(ctx, name, px, pz, y, radius_ft, depth_ft, color, thick_ft=None):
     """A disc — or a RING, given `thick_ft` — standing on a north-facing wall: a circular
     profile extruded along +Y, the wall's outward normal.
@@ -1960,7 +1980,7 @@ def wall_disc(ctx, name, px, pz, y, radius_ft, depth_ft, color, thick_ft=None):
     run("spatial.assign_container", ctx.model, products=[prod], relating_structure=ctx.storey)
 
 
-def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
+def add_wing_elevation(ctx, lot, rooms_cache, base, groups=None):
     """The east wing's NORTH face — 10.9 ft wide by 19 ft of blank stucco, and the one
     wall on the house that takes no windows: the east bay is the bathroom on BOTH
     storeys and its window is on the east face.
@@ -2015,6 +2035,16 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
     B = {k: v["bounds"] for k, v in rooms_cache.items()}
     if not all(k in B for k in EXT_WING):
         return
+    # The extension's own massing group, and the SHARED second-floor window specs. Taken
+    # the same way add_fenestration takes them — same function, same 2-storey room set —
+    # so the siding's split round the upper bath window and the window itself cannot
+    # drift apart.
+    groups = groups or {}
+    group = groups.get("extension")
+    upper = None
+    if group and groups.get("primary"):
+        two_storey = list(groups["primary"]["rooms"]) + list(group.get("rooms", []))
+        _, upper = second_floor_windows([rooms_cache[s] for s in two_storey])
     wall_z = max(max(B[k]["z1"], B[k]["z2"]) for k in EXT_WING)   # the north face
     wing_s = min(min(B[k]["z1"], B[k]["z2"]) for k in EXT_WING)   # ...and the south
     edges = wing_bays(rooms_cache)
@@ -2039,15 +2069,27 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
         v, faces = _prism(poly, (0, Zb - Za, 0))
         add_brep(ctx, nm, v, faces, color, ifc_class="IfcBuildingElementProxy")
 
-    def rake_panel(nm, xa, xb, y_lo, y_of, za, zb, color=WOOD):
-        """A field with a LEVEL base at `y_lo` and a head following `y_of(px)` — a
-        trapezoid, not a band. rake_band sweeps a constant depth and so cannot describe
-        a panel that stands on a level line under a raking one; that is every clad
-        field on this wall."""
-        Za, Zb = ctx.Y(za), ctx.Y(zb)
-        poly = [(ctx.X(xa), Za, y_lo), (ctx.X(xb), Za, y_lo),
-                (ctx.X(xb), Za, y_of(xb)), (ctx.X(xa), Za, y_of(xa))]
-        v, faces = _prism(poly, (0, Zb - Za, 0))
+    def rake_panel(nm, axis, a0, a1, f0, f1, y_lo, y_of, color=WOOD):
+        """A field with a LEVEL base at `y_lo` and a head following `y_of(a)`, where `a`
+        runs ALONG the face and f0..f1 is the thickness across it.
+
+        `axis` is which plan axis the face runs on — "x" for the north and south walls,
+        "z" for the east — and it is what lets one helper serve all three: the east wall's
+        polygon lies in a different PLANE from the other two, which no amount of swapping
+        arguments would have fixed.
+
+        A trapezoid, not a band: `rake_band` sweeps a constant depth and so cannot
+        describe a panel standing on a level line under a raking one, which is every clad
+        field here."""
+        if axis == "x":
+            poly = [(ctx.X(a0), ctx.Y(f0), y_lo), (ctx.X(a1), ctx.Y(f0), y_lo),
+                    (ctx.X(a1), ctx.Y(f0), y_of(a1)), (ctx.X(a0), ctx.Y(f0), y_of(a0))]
+            vec = (0.0, ctx.Y(f1) - ctx.Y(f0), 0.0)
+        else:
+            poly = [(ctx.X(f0), ctx.Y(a0), y_lo), (ctx.X(f0), ctx.Y(a1), y_lo),
+                    (ctx.X(f0), ctx.Y(a1), y_of(a1)), (ctx.X(f0), ctx.Y(a0), y_of(a0))]
+            vec = (ctx.X(f1) - ctx.X(f0), 0.0, 0.0)
+        v, faces = _prism(poly, vec)
         add_brep(ctx, nm, v, faces, color, ifc_class="IfcBuildingElementProxy")
 
     # --- where the wall stops. Taken from the massing group's OWN storeys and pitch, the
@@ -2067,42 +2109,51 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
         _flat = spec.get("fallbackTopFt", 18.0) * FT
         wall_top = soffit = lambda px: _flat
 
-    # --- the entablature, across both bays at the wall top -------------------------
+    # --- the entablature: north and south, the two RAKE walls ----------------------
+    # Both are flush — the roof meets the stucco with no overhang on either — so both
+    # need trim to terminate the roof edge. The EAST face gets none: it is the shed's low
+    # eave and the roof already overhangs it 1.5 ft, which gives that wall its own shadow
+    # line. A frieze there would also drive straight through the upper bath window's
+    # header at 19.50-19.76.
     if banded:
-        rake_band("Wing cornice", x_east - cnp, x_west, wall_top, cn,
-                  wall_z - BURY, wall_z + cnp, TRIM)
-        rake_band("Wing frieze", x_east, x_west, lambda px: wall_top(px) - cn * FT, fz,
-                  wall_z - BURY, wall_z + fzp, TRIM)
-        # A short MITRED RETURN round the east corner. Trim that stops dead on a corner
+        for tag, zf, sgn in (("N", wall_z, +1), ("S", wing_s, -1)):
+            rake_band(f"Wing cornice {tag}", x_east - cnp, x_west, wall_top, cn,
+                      zf - sgn * BURY, zf + sgn * cnp, TRIM)
+            rake_band(f"Wing frieze {tag}", x_east, x_west,
+                      lambda px: wall_top(px) - cn * FT, fz,
+                      zf - sgn * BURY, zf + sgn * fzp, TRIM)
+        # A short MITRED RETURN round BOTH east corners. Trim that stops dead on a corner
         # reads as a flat pasted on the front; turning it 9 in and stopping is what makes
-        # it read as going round — the same detail the under-stair crown needed. The east
-        # face is the shed's LOW eave, so the return is LEVEL: it is the one wall of this
-        # wing whose top is.
+        # it read as going round — the same detail the under-stair crown needed. With one
+        # at each end and nothing between, the east face reads as a wall the trim turns
+        # onto and leaves, which is exactly what it is. Both returns are LEVEL and at the
+        # SAME height: the rake runs in px, so both rakes start at the east wall top.
         ret = e.get("returnFt", 0.8)
         top = wall_top(x_east)
-        part("Wing cornice return", x_east - cnp, x_east, top - cn * FT, top,
-             wall_z - ret, wall_z + cnp, color=TRIM)
-        part("Wing frieze return", x_east - fzp, x_east, top - (cn + fz) * FT,
-             top - cn * FT, wall_z - ret, wall_z + fzp, color=TRIM)
+        for tag, zf, sgn in (("NE", wall_z, +1), ("SE", wing_s, -1)):
+            part(f"Wing cornice return {tag}", x_east - cnp, x_east, top - cn * FT, top,
+                 zf - sgn * ret, zf + sgn * cnp, color=TRIM)
+            part(f"Wing frieze return {tag}", x_east - fzp, x_east,
+                 top - (cn + fz) * FT, top - cn * FT,
+                 zf - sgn * ret, zf + sgn * fzp, color=TRIM)
 
     # --- the upper wall: a T1-11 band under the eaves, over a waist course ---------
-    # A band of grooved plywood siding hanging from the roof, plain stucco below it, and
-    # a WAIST COURSE lower down at the second-floor line dividing the storeys.
+    # A band of grooved plywood siding hanging from the roof, WRAPPING three faces, with
+    # plain stucco below it and a WAIST COURSE lower down dividing the storeys.
     #
     # T1-11 IS GROOVED, NOT BATTENED, and that is not a naming quibble: a batten stands
     # proud and a groove is cut in, so one is modelled by adding material and the other
     # by leaving a gap. The face is strips with the gaps between them over a dark backer
-    # that shows through — a groove reads by its SHADOW and this north wall has none, so
-    # the dark backer IS the shadow.
+    # that shows through — a groove reads by its SHADOW and these walls have none, so the
+    # dark backer IS the shadow.
     #
     # Three things this got wrong first, all of them visible only in a render:
     #   - FRAMED OUT on all four sides by corner boards it read as a heavy panel bolted
-    #     to the wall. The siding now runs corner to corner and the only trim is a thin
-    #     skirt at its foot.
+    #     to the wall. The siding runs corner to corner and the only trim is a thin skirt.
     #   - SPRUNG FROM THE SECOND-FLOOR LINE it stood 7 ft tall and read as a whole clad
     #     storey rather than a band under the eaves. It hangs from the soffit now.
     #   - WOOD-TONED it was never what the house is: this is painted siding, and it is
-    #     the one white member this wall can carry, because the grooves give it texture
+    #     the one white member these walls can carry, because the grooves give it texture
     #     where every white member before it had only relief and vanished.
     cl = spec.get("cladding") or {}
     if cl and banded:
@@ -2112,12 +2163,10 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
         # old belt course was doing twice and therefore doing badly.
         #
         # It WRAPS the wing: north face, round the east corner, along the east face and
-        # round again onto the south, where it STOPS at the primary. A storey line that
-        # shows on one elevation and nowhere else is a stripe painted on a front; one
-        # that turns two corners is a course. It stops where the wing does because that
-        # is whose storey line it is — the primary's own floors sit elsewhere, and its
-        # south wall is the same plane, so running on would read as the main house's
-        # band drawn at the wrong height.
+        # round again onto the south, where it STOPS at the primary. It stops where the
+        # wing does because that is whose storey line it is — the primary's own floors sit
+        # elsewhere, and its south wall is the same plane, so running on would read as the
+        # main house's band drawn at the wrong height.
         wf, wp = cl.get("waistFt", 0.30), cl.get("waistProudFt", 0.08)
         y0, y1 = floor2 - wf * FT, floor2
         # The three runs overlap in the corners rather than being mitred: they are one
@@ -2129,31 +2178,83 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
         part("Wing waist course S", x_east - wp, x_west, y0, y1,
              wing_s - wp, wing_s + BURY, color=TRIM)
 
-        # The band hangs from the soffit: `bandFt` is its height at the LOW end, so its
-        # head rakes with the roof while its base stays level. That level base is now the
-        # only thing the rake has to read against, the corbels that used to do it having
-        # gone, so it is doing real work rather than being a convenience.
+        # ONE LEVEL BASE, ALL THE WAY ROUND. `bandFt` is the band's height at the LOW end,
+        # measured down from the soffit, and that single line is what makes a wrap read as
+        # a wrap rather than as three bands that happen to meet. It is also the only thing
+        # the rake has to read against, the corbels that used to do it having gone.
         lo = soffit(x_east) - cl.get("bandFt", 4.5) * FT
         sf, sp = cl.get("skirtFt", 0.25), cl.get("skirtProudFt", 0.10)
-        part("Wing cladding skirt", x_east, x_west, lo - sf * FT, lo,
-             wall_z - BURY, wall_z + sp, color=TRIM)
-
-        # Backer, dark, showing through the grooves; face over it, corner to corner.
-        z_back = wall_z + cl.get("backProudFt", 0.02)
-        z_face = z_back + cl.get("faceProudFt", 0.06)
-        rake_panel("Wing cladding backer", x_east, x_west, lo, soffit,
-                   wall_z - BURY, z_back, color=SHADOW)
-        # DIVISIONS that never exceed the authored spacing, the reckoning the guard's
-        # balusters use, so the grooves stay even whatever the wall works out to. The
-        # outermost strips run into the corners: a groove hard against a corner is an
-        # open edge, not a groove.
+        bpr = cl.get("backProudFt", 0.02)
+        fpr = cl.get("faceProudFt", 0.06)
         gw, goc = cl.get("grooveFt", 0.031), cl.get("grooveOcFt", 0.667)
-        n = max(1, int(math.ceil(abs(x_west - x_east) / goc)))
-        for i in range(n):
-            a0 = x_east + (x_west - x_east) * i / n + (gw / 2 if i else 0.0)
-            a1 = x_east + (x_west - x_east) * (i + 1) / n - (gw / 2 if i < n - 1 else 0.0)
-            rake_panel(f"Wing cladding board {i}", a0, a1, lo, soffit,
-                       z_back, z_face, color=TRIM)
+
+        def clad_face(tag, axis, a_lo, a_hi, fixed, sgn, y_of, opening=None):
+            """Skirt, backer and grooved strips on one face.
+
+            `sgn` is which way OUT is: +1 where the face looks toward increasing pz or px,
+            -1 where it looks the other way. `opening` is (lo, hi, head) along the face —
+            the siding splits either side of it and runs from `head` up over it."""
+            f_sk = (fixed - sgn * BURY, fixed + sgn * sp)
+            f_bk = (fixed - sgn * BURY, fixed + sgn * bpr)
+            f_fc = (fixed + sgn * bpr, fixed + sgn * (bpr + fpr))
+
+            def across(nm, p0, p1, ya, yb, f):
+                if axis == "x":
+                    part(nm, p0, p1, ya, yb, f[0], f[1], color=TRIM)
+                else:
+                    part(nm, f[0], f[1], ya, yb, p0, p1, color=TRIM)
+
+            def pieces(p0, p1, skip_over=False):
+                """(from, to, base) for a run, split around the opening. The parts either
+                side keep the band's base; the part OVER it starts at the header, so the
+                strips continue above the window and the split reads as a split rather
+                than a notch out of the top. `skip_over` drops that part — for the skirt,
+                which has nothing to do above a window."""
+                if not opening:
+                    return [(p0, p1, lo)]
+                w0, w1, wh = opening
+                o0, o1 = max(p0, w0), min(p1, w1)
+                if o1 <= o0 + 1e-9:
+                    return [(p0, p1, lo)]
+                out = []
+                if o0 > p0 + 1e-9:
+                    out.append((p0, o0, lo))
+                if o1 < p1 - 1e-9:
+                    out.append((o1, p1, lo))
+                if not skip_over:
+                    out.append((o0, o1, wh))
+                return out
+
+            # The skirt stops either side of an opening — the upper window's own sill
+            # crosses it, and a skirt running over a window is nothing at all.
+            for j, (q0, q1, _b) in enumerate(pieces(a_lo, a_hi, skip_over=True)):
+                across(f"Wing cladding skirt {tag}{j}", q0, q1, lo - sf * FT, lo, f_sk)
+            for j, (q0, q1, qb) in enumerate(pieces(a_lo, a_hi)):
+                rake_panel(f"Wing cladding backer {tag}{j}", axis, q0, q1, f_bk[0], f_bk[1],
+                           qb, y_of, color=SHADOW)
+            # DIVISIONS that never exceed the authored spacing, the reckoning the guard's
+            # balusters use, so the grooves stay even whatever the face works out to. The
+            # grid runs the WHOLE face and each strip is CLIPPED to the opening rather
+            # than dropped: the grooves then line up above and below the window, and the
+            # gap is the window's width instead of up to 8 in wider on each side, which
+            # the casing would not have covered.
+            n = max(1, int(math.ceil(abs(a_hi - a_lo) / goc)))
+            for i in range(n):
+                s0 = a_lo + (a_hi - a_lo) * i / n + (gw / 2 if i else 0.0)
+                s1 = a_lo + (a_hi - a_lo) * (i + 1) / n - (gw / 2 if i < n - 1 else 0.0)
+                for j, (q0, q1, qb) in enumerate(pieces(s0, s1)):
+                    rake_panel(f"Wing cladding board {tag}{i}.{j}", axis, q0, q1,
+                               f_fc[0], f_fc[1], qb, y_of, color=TRIM)
+
+        # North and south are the RAKE walls and share `soffit` unchanged — it depends
+        # only on px, so the same head line serves both. The EAST face is the low eave:
+        # level, and with no frieze to die into, so its head is the WALL TOP. The 1.13 ft
+        # step that leaves at each east corner is deliberate — the cornice returns over it
+        # and stops, which is trim over siding, the right way round.
+        clad_face("N", "x", x_east, x_west, wall_z, +1, soffit)
+        clad_face("S", "x", x_east, x_west, wing_s, -1, soffit)
+        clad_face("E", "z", wing_s, wall_z, x_east, -1, lambda _a: wall_top(x_east),
+                  opening=_east_opening(ctx, base, upper, x_east, cl))
 
 
     # --- a round window in the lower east bay --------------------------------------
