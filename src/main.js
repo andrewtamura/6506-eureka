@@ -1394,7 +1394,7 @@ async function main() {
       try {
         const ids = await alt.getLocalIds();
         const data = await alt.getItemsData(ids, { attributesDefault: true });
-        const re = /^(Deck terrace E|Deck step E|Hot tub|Yard fence)/;
+        const re = /^(Deck terrace E|Deck step N|Hot tub|Yard fence)/;
         const hide = ids.filter((id, i) => re.test(String(data[i]?.Name?.value ?? "")));
         if (hide.length) { await alt.setVisible(hide, false); await fragments.core.update(true); }
       } catch (e) { console.warn("alt: could not hide the east terrace", e); }

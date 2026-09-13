@@ -1043,18 +1043,19 @@ def deck_extent(rooms_cache, lot, half_wall_ft):
     fence 8 in further south, which is a 30 in drop with a 6 in lip. The yard fence
     needs the same north line the terrace stops on.
 
-    West and east are authored as CLEARANCES from the property lines (`lot.deck`), so
-    the deck follows the parcel. South is the CMU wall's inner face. North is the east
-    extension's north wall FACE: room bounds are wall centrelines, so using the bound
-    itself would leave that wall's corner standing half a wall proud of the deck."""
+    Only the WEST edge is a setback, authored as a clearance in `lot.deck`. South and
+    east both die on the CMU lot wall's inner face — the deck runs to the SE corner.
+    North is the EXISTING deck's north edge, the family room's south wall: taken any
+    further north the terrace climbs the side of the house toward the front and the
+    yard stops being private, which is the whole reason it stops here."""
     f = lot.get("deck") or {}
     B = {k: v["bounds"] for k, v in rooms_cache.items()}
     west, east, south, _, _ = lot_lines(lot, B.values(), half_wall_ft)
-    ext_north = max(max(B[k]["z1"], B[k]["z2"]) for k in EXT_WING if k in B) + half_wall_ft
+    wall_t = 8 / 12
     return (west - f.get("westClearFt", 15),
-            east + f.get("eastClearFt", 15),
-            south + 8 / 12,
-            ext_north)
+            east + wall_t,
+            south + wall_t,
+            min(B["family"]["z1"], B["family"]["z2"]))
 
 
 def add_lot(ctx, lot, rooms):
@@ -1572,10 +1573,13 @@ def add_deck(ctx, lot, rooms_cache, base):
 
     An L along the south face of the house, now grown on both sides: WEST past the
     scullery to `deck.westClearFt` of the west line, and EAST off the house's east wall
-    to `deck.eastClearFt` of the east line, running the full depth from the lot wall's
-    inner face up to the extension's north wall. There are NO guard rails anywhere —
-    the east edge is a full-width flight of steps down to grade instead, and the yard
-    fence stands on the north edge.
+    all the way to the SE corner, dying on the east lot wall exactly as its south edge
+    dies on the south one. It keeps the EXISTING north edge — the family room's south
+    wall — and does not climb the side of the house: taken further north the terrace
+    approaches the front and the yard stops being private.
+
+    There are NO guard rails anywhere. The open edge is the terrace's NORTH one, and
+    that is a full-width flight of steps down to grade.
 
     A flight is `stepCount` RISERS, which is `stepCount - 1` treads plus a paver flush
     with grade. That is worth stating because the older inset flights emitted
@@ -1612,13 +1616,17 @@ def add_deck(ctx, lot, rooms_cache, base):
     # down, so you step off the deck onto the coping and then into the water. Sized
     # and placed off the things it is actually measured from — the lot wall's inner
     # face and the terrace's own width — rather than absolute coordinates.
+    # Tucked into the SE CORNER, 12 in off both lot walls — the most private spot on the
+    # lot now that it is the one place enclosed by two 7 ft walls. The 12 in on each side
+    # is exactly the surround, so the coping dies into both walls.
     ts = tub.get("sizeFt", 7.0)
     sur = tub.get("surroundFt", 1.0)
-    tub_s = deck_south + tub.get("fromWallIn", 12) / 12          # 12" clear of the wall
+    tub_s = deck_south + tub.get("fromWallIn", 12) / 12
     tub_n = tub_s + ts
-    tub_mid = (deck_east + ext_east) / 2                          # centred on the terrace
-    tub_e, tub_w = tub_mid - ts / 2, tub_mid + ts / 2
-    well = (tub_w + sur, tub_e - sur, deck_south, tub_n + sur)    # south side runs to the edge
+    tub_e = deck_east + tub.get("fromEastWallIn", 12) / 12
+    tub_w = tub_e + ts
+    tub_mid = (tub_e + tub_w) / 2
+    well = (tub_w + sur, tub_e - sur, deck_south, tub_n + sur)    # S and E run to the edges
 
     # --- platform, declared as whole rects and then punched ---------------------
     # `Deck terrace E` is named apart from `Deck` on purpose: the alt lot puts a garage
@@ -1627,6 +1635,7 @@ def add_deck(ctx, lot, rooms_cache, base):
     for x1, x2, z1, z2 in rects_minus(terrace, well):
         slab("Deck terrace E", x1, x2, z1, z2, 0.0, base)
     slab("Deck", ext_east, scu_east, deck_south, house_south, 0.0, base)   # main section, notch filled
+
     slab("Deck - scullery", scu_east, deck_west, scu_south, deck_south, 0.0, base)
 
     # --- the tub surround, one riser down, as four named legs (ifc_check measures
@@ -1637,19 +1646,21 @@ def add_deck(ctx, lot, rooms_cache, base):
     slab("Hot tub surround W", tub_w, tub_w + sur, tub_s, tub_n, 0.0, sy)
     slab("Hot tub surround E", tub_e - sur, tub_e, tub_s, tub_n, 0.0, sy)
 
-    # --- steps. EAST: full width of the terrace, descending east off the edge.
-    # WEST: the old inset flight, relocated to descend west off the new edge —
-    # left inset it would have made the whole west extension stair and no deck.
+    # --- steps. NORTH: the terrace's open edge, the full width of it between the east
+    # lot wall and the house, descending north into the yard. The south and east edges
+    # are lot walls and the rest of the north edge is the house, so this is the only
+    # side there is. WEST: the old inset flight, relocated to descend west off the new
+    # edge — left inset it would have made the whole west extension stair and no deck.
     for k in range(nst - 1):
         h = base - (k + 1) * riser                   # k=0 is the top tread, one riser down
-        slab(f"Deck step E{k}", deck_east - k * tread, deck_east - (k + 1) * tread,
-             deck_south, deck_north, 0.0, h)
+        slab(f"Deck step N{k}", deck_east, ext_east,
+             deck_north + k * tread, deck_north + (k + 1) * tread, 0.0, h)
         slab(f"Deck step W{k}", deck_west + k * tread, deck_west + (k + 1) * tread,
              scu_south, deck_south, 0.0, h)
     if d.get("gradePaver", True):                    # a flush landing at the foot of each
         t0 = (nst - 1) * tread
-        slab(f"Deck step E{nst - 1}", deck_east - t0, deck_east - t0 - tread,
-             deck_south, deck_north, -0.05, 0.05)
+        slab(f"Deck step N{nst - 1}", deck_east, ext_east,
+             deck_north + t0, deck_north + t0 + tread, -0.05, 0.05)
         slab(f"Deck step W{nst - 1}", deck_west + t0, deck_west + t0 + tread,
              scu_south, deck_south, -0.05, 0.05)
 
@@ -1827,7 +1838,13 @@ def add_yard_fence(ctx, lot, rooms_cache, base):
     B = {k: v["bounds"] for k, v in rooms_cache.items()}
     half_wall = ctx.T / FT / 2
     _, east, _, _, _ = lot_lines(lot, B.values(), half_wall)
-    _, deck_east, _, fence_z = deck_extent(rooms_cache, lot, half_wall)
+    _, deck_east, deck_south, deck_north = deck_extent(rooms_cache, lot, half_wall)
+    # The fence line is the east wing's north wall FACE — bounds are wall centrelines,
+    # so the bound itself would leave that corner half a wall proud of the fence. NOT
+    # taken from deck_extent: the deck's north edge and the fence line used to be the
+    # same number and are not any more, which is exactly the kind of coincidence that
+    # silently moves a fence when the deck moves.
+    fence_z = max(max(B[k]["z1"], B[k]["z2"]) for k in EXT_WING if k in B) + half_wall
     x_start = min(min(B[k]["x1"], B[k]["x2"]) for k in EXT_WING if k in B)  # NE corner (centreline)
 
     H = f.get("heightFt", 6.0)
@@ -1844,8 +1861,13 @@ def add_yard_fence(ctx, lot, rooms_cache, base):
                      ctx.X((x1 + x2) / 2), ctx.Y((z1 + z2) / 2), z0, color=FENCE)
         run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
-    # east -> west, split where the fence climbs onto the deck
-    segs = [(east, deck_east, 0.0), (deck_east, x_start, base)]
+    # East -> west, split where the fence climbs ONTO the deck — which it only does if
+    # the deck reaches this far north. With the terrace stopped at the house's south
+    # wall for privacy it no longer does, so this is one run on grade; the split stays
+    # because the deck's north edge is a number that has already moved once.
+    over_deck = deck_south - 1e-6 <= fence_z <= deck_north + 1e-6
+    segs = ([(east, deck_east, 0.0), (deck_east, x_start, base)] if over_deck
+            else [(east, x_start, 0.0)])
     for si, (lo, hi, y0) in enumerate(segs):
         if hi - lo <= 1e-6:
             continue

@@ -328,35 +328,42 @@ BASE = 2.5                                          # crawlspaceFt: the deck top
 riser = BASE / dk['stepCount']
 toe = (dk['stepCount'] - 1) * dk['treadFt'] + (dk['treadFt'] if dk.get('gradePaver') else 0)
 
-# --- the two clearances the deck is dimensioned by ---------------------------------
+# --- the deck's four edges. Only the WEST one is a setback; south and east both die
+# on a lot wall, and the north edge is the thing that keeps the yard private.
 w_clear = west_line - D['Deck - scullery'][1]
-e_clear = D['Deck terrace E'][0] - east_line
 check(near(w_clear, dk['westClearFt']),
       f"WEST yard: {dk['westClearFt']} ft, deck edge to the west line ({w_clear:.4f})")
-check(near(e_clear, dk['eastClearFt']),
-      f"EAST yard: {dk['eastClearFt']} ft, terrace edge to the east line ({e_clear:.4f})")
-# ...and the same distances to the STAIR TOES, which is the ground you can actually
-# stand on. A flight projects past the edge it descends from, so the platform figure
-# alone would hide the encroachment entirely.
+e_wall_in = D['Lot wall - east'][1]
+check(near(D['Deck terrace E'][0], e_wall_in),
+      f"the terrace runs to the SE corner, dying on the east wall ({D['Deck terrace E'][0]:.4f} vs {e_wall_in:.4f})")
+# The north edge is the EXISTING deck's: the family room's south wall. Asserted against
+# the other deck section rather than a typed number, because "keep it consistent" is a
+# relationship between the two, and a terrace that crept north is the thing that cost
+# the yard its privacy in the first place.
+check(near(D['Deck terrace E'][3], D['Deck'][3], 0.01),
+      f"and stops on the existing deck's north edge ({D['Deck terrace E'][3]:.4f} vs {D['Deck'][3]:.4f})")
+check(D['Deck terrace E'][3] < -11.0,
+      f"...which is south of the house's south wall, not up its side ({D['Deck terrace E'][3]:.4f})")
+# ...and the west stair toe, the one flight that still projects into a setback.
 w_toe = max(b[1] for nm, b in D.items() if nm.startswith('Deck step W'))
-e_toe = min(b[0] for nm, b in D.items() if nm.startswith('Deck step E'))
 check(near(west_line - w_toe, dk['westClearFt'] - toe),
-      f'clear ground west of the stair toe ({west_line - w_toe:.4f} ft)')
-check(near(e_toe - east_line, dk['eastClearFt'] - toe),
-      f'clear ground east of the stair toe ({e_toe - east_line:.4f} ft)')
+      f'clear ground west of the west stair toe ({west_line - w_toe:.4f} ft)')
 
-# --- the steps: stepCount RISERS is stepCount-1 treads plus a flush grade paver -----
-tre = sorted((nm for nm in D if nm.startswith('Deck step E')), key=lambda n: D[n][0], reverse=True)
+# --- the steps: stepCount RISERS is stepCount-1 treads plus a flush grade paver, now
+# on the terrace's NORTH edge, which is the only side that is not a wall or the house.
+tre = sorted((nm for nm in D if nm.startswith('Deck step N')), key=lambda n: D[n][2])
 check(len(tre) == dk['stepCount'],
-      f"east flight is {dk['stepCount']} risers = {dk['stepCount'] - 1} treads + a grade paver ({len(tre)})")
+      f"north flight is {dk['stepCount']} risers = {dk['stepCount'] - 1} treads + a grade paver ({len(tre)})")
 tops = [D[nm][5] for nm in tre]
 want = [BASE - (k + 1) * riser for k in range(dk['stepCount'] - 1)] + [0.0]
 check(all(near(a, b, 0.02) for a, b in zip(tops, want)),
       f"...rising {riser * 12:.1f} in a tread ({', '.join(f'{t:.3f}' for t in tops)})")
-# and they span the terrace's WHOLE north-south run, which is what "full width" means
-check(all(near(D[nm][2], D['Deck terrace E'][2], 0.02) and near(D[nm][3], D['Deck terrace E'][3], 0.02)
+# and they span the terrace's WHOLE width, which is what "full width" means
+check(all(near(D[nm][0], D['Deck terrace E'][0], 0.02) and near(D[nm][1], D['Deck terrace E'][1], 0.02)
           for nm in tre),
-      'and run the full depth of the terrace, edge to edge')
+      'and run the full width of the terrace, east wall to house')
+check(min(D[nm][2] for nm in tre) >= D['Deck terrace E'][3] - 0.01,
+      'descending NORTH off that edge, into the yard')
 
 # --- the hot tub -------------------------------------------------------------------
 wall_in = D['Lot wall - south'][3]                  # the CMU wall's INNER face
@@ -364,6 +371,10 @@ tub_s, tub_n = D['Hot tub surround S'][3], D['Hot tub surround N'][2]
 tub_w, tub_e = D['Hot tub surround W'][0], D['Hot tub surround E'][1]
 check(near(tub_s - wall_in, tb['fromWallIn'] / 12),
       f"tub sits {tb['fromWallIn']} in off the south wall's inner face ({(tub_s - wall_in) * 12:.2f} in)")
+# ...and off the EAST wall too: it is cornered now, which is the most private spot on
+# the lot — the one place enclosed by two 7 ft walls.
+check(near(tub_e - e_wall_in, tb['fromEastWallIn'] / 12),
+      f"and {tb['fromEastWallIn']} in off the east wall's ({(tub_e - e_wall_in) * 12:.2f} in)")
 check(near(tub_n - tub_s, tb['sizeFt']) and near(tub_w - tub_e, tb['sizeFt']),
       f"tub is {tb['sizeFt']} x {tb['sizeFt']} ft ({tub_w - tub_e:.3f} x {tub_n - tub_s:.3f})")
 check(near(BASE - D['Hot tub surround S'][5], riser * tb['recessRisers'], 0.02),
@@ -407,22 +418,31 @@ boards = {nm: b for nm, b in D.items() if nm.startswith('Yard fence board')}
 check(len(boards) > 20, f'the yard fence is built board by board ({len(boards)} boards)')
 if boards:
     run_lo = min(b[0] for b in boards.values()); run_hi = max(b[1] for b in boards.values())
+    fence_line = (min(b[2] for b in boards.values()) + max(b[3] for b in boards.values())) / 2
     check(near(run_lo, east_line, 0.4), f'the fence reaches the east property line ({run_lo:.3f})')
     check(near(run_hi, -22.9167, 0.4), f"and starts at the extension's NE corner ({run_hi:.3f})")
-    edge = D['Deck terrace E'][0]
-    on_deck = {nm: b for nm, b in boards.items() if b[0] > edge - 1e-6}
-    on_grade = {nm: b for nm, b in boards.items() if b[1] < edge + 1e-6}
-    check(len(on_deck) + len(on_grade) == len(boards),
-          f'every board is wholly on the deck or wholly on grade ({len(on_deck)} + {len(on_grade)}'
-          f' of {len(boards)}) \u2014 the step is at the deck edge, not adrift')
+    # Classified by the height each board STANDS ON, not by where it is in plan. The
+    # first version split on the deck's east edge, which only worked while the fence
+    # happened to cross it; once the terrace moved that test put 61 grade boards "on
+    # the deck" and still passed its own height check for the wrong reason.
+    bases = sorted({round(b[4], 3) for b in boards.values()})
+    check(all(near(v, 0.0, 0.02) or near(v, BASE, 0.02) for v in bases),
+          f"every board stands on grade or on the deck, nothing in between ({', '.join(f'{v:.2f}' for v in bases)} ft)")
     surface = fn.get('heightDatum', 'surface') == 'surface'
-    for label, grp, y0 in (('over the deck', on_deck, BASE), ('on grade', on_grade, 0.0)):
-        if not grp:
-            continue
-        top = fn['heightFt'] + y0 if surface else fn['heightFt']
-        bad = [nm for nm, b in grp.items() if not (near(b[4], y0, 0.02) and near(b[5], top, 0.02))]
-        check(not bad, f"{len(grp)} boards {label} run {y0:.2f} to {top:.2f} ft"
-                       + ('' if not bad else f' \u2014 {len(bad)} off'))
+    if surface:
+        bad = [nm for nm, b in boards.items() if not near(b[5] - b[4], fn['heightFt'], 0.02)]
+        check(not bad, f"and is {fn['heightFt']} ft above it" + ('' if not bad else f' — {len(bad)} off'))
+    else:
+        bad = [nm for nm, b in boards.items() if not near(b[5], fn['heightFt'], 0.02)]
+        check(not bad, f"and tops out at {fn['heightFt']} ft above grade" + ('' if not bad else f' — {len(bad)} off'))
+    # The fence line and the deck's north edge were the same number until the terrace
+    # was pulled back south for privacy. They are independent now, so the fence should
+    # stand entirely on grade — and this is what would catch it silently climbing a
+    # deck that grew back out under it.
+    on_deck = [nm for nm, b in boards.items() if b[4] > 0.1]
+    check(not on_deck,
+          f'the fence stands clear of the deck ({len(on_deck)} boards on it; '
+          f"deck north {D['Deck terrace E'][3]:.3f}, fence line {fence_line:.3f})")
 
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)
