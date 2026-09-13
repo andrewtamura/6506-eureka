@@ -121,6 +121,14 @@
         "corniceProudFt": 0.4,
         "returnFt": 0.8
       },
+      "roundWindow": {
+        "_note": "A small round window in the LOWER EAST bay. A blind oculus was tried on this wall once and removed \u2014 a circle stuck on a rectangular wall, agreeing with nothing around it. The difference here is the whole point: this is a real GLAZED OPENING rather than applied ornament, which is what gives a circle a reason to be there. Its position is derived, not authored: the east bay's centre, on the DOOR HEAD line, so the wall's two openings share a horizontal \u2014 which also puts it 7 ft above the finished floor, where a bathroom wants its glass.",
+        "_noteInterior": "EXTERIOR ONLY for now. The massing fakes every window as a panel on the face, so this one is built the same way; the ground floor has no matching opening. It should become a real authored window in ext_bath when the bathroom layouts are redone.",
+        "radiusFt": 1.0,
+        "ringFt": 0.22,
+        "ringProudFt": 0.1,
+        "glassProudFt": 0.02
+      },
       "cladding": {
         "_note": "T1-11 \u2014 GROOVED plywood siding, not board-and-batten. The distinction is not a naming quibble: a batten stands proud and a groove is cut in, so one is modelled by adding material and the other by leaving a gap. The face is built as strips with the gaps between them over a dark backer that shows through, because a groove reads by its SHADOW and this north wall has none: the dark backer IS the shadow.",
         "_notePaint": "PAINTED, not a wood tone \u2014 the house's own trim white. It is the one element here that can be white and still read, because the grooves carry the texture on their own: every earlier white member on this wall (the oculus, the corbels) vanished against the stucco because it had nothing but relief to show, and this has 14 shadow lines.",

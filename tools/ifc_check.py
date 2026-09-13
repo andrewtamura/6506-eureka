@@ -867,7 +867,7 @@ if we and party is not None and 'Wing frieze' in WE:
             # to stand here, would both pass every test above.
             band = [(nm, b) for nm, b in _parts(ext, 'Wing')
                     if not nm.startswith(('Wing cornice', 'Wing frieze', 'Wing corbel',
-                                          'Wing waist'))]
+                                          'Wing waist', 'Wing round window'))]
             check(band and all(b[4] >= back[4] - 0.3 for _, b in band),
                   f'nothing of the band comes below its own skirt ({len(band)} members)')
             for half, x0, x1 in (('east', wing_e, party), ('west', party, wing_w)):
@@ -875,9 +875,41 @@ if we and party is not None and 'Wing frieze' in WE:
                 check(got, f'the band covers the {half} bay ({len(got)} members)')
             below = [nm for nm, b in _parts(ext, 'Side porch awning') + _parts(ext, 'Wing')
                      if b[4] < floor2 - 0.01 and not nm.startswith('Wing waist')]
-            check(all(nm.startswith('Side porch') for nm in below),
-                  f'and below the waist only the door and its awning '
+            check(all(nm.startswith(('Side porch', 'Wing round window')) for nm in below),
+                  f'and below the waist only the door, its awning and the round window '
                   f'({", ".join(sorted(below)) or "nothing"})')
+
+            # --- THE ROUND WINDOW in the lower east bay -------------------------
+            # A blind oculus was tried on this wall and removed. The difference here is
+            # that this one is a real GLAZED OPENING, so that is what gets asserted: an
+            # IfcWindow, inside its own ring, on lines that already exist.
+            ring, glass = WE.get('Wing round window ring'), WE.get('Wing round window glass')
+            check(ring and glass, 'a round window in the lower east bay')
+            if ring and glass:
+                check(any((getattr(p, 'Name', None) or '') == 'Wing round window glass'
+                          for p in ext.by_type('IfcWindow')),
+                      'GLAZED — an IfcWindow, not the blind ornament that was removed here')
+                check(near(ring[1] - ring[0], 2 * we['roundWindow']['radiusFt'], 0.02)
+                      and near(ring[5] - ring[4], ring[1] - ring[0], 0.02),
+                      f"{2 * we['roundWindow']['radiusFt']} ft across and ROUND — as wide "
+                      f'as it is tall ({ring[1] - ring[0]:.3f} by {ring[5] - ring[4]:.3f})')
+                # Two derived lines, and the second is the reason it is at that height.
+                check(near((ring[0] + ring[1]) / 2, (wing_e + party) / 2, 0.01),
+                      f'centred on the east bay ({(ring[0] + ring[1]) / 2:.4f} vs '
+                      f'{(wing_e + party) / 2:.4f})')
+                check(near((ring[4] + ring[5]) / 2, BASE + model['doorHeight'], 0.02),
+                      f"on the door's head line, so the wall's two openings share a "
+                      f"horizontal ({(ring[4] + ring[5]) / 2:.2f} vs "
+                      f"{BASE + model['doorHeight']})")
+                check(glass[0] > ring[0] + 1e-6 and glass[1] < ring[1] - 1e-6
+                      and glass[3] < ring[3] + 1e-6,
+                      f'its glass set inside the ring and behind it '
+                      f'({glass[1] - glass[0]:.3f} across, proud to {glass[3]:.3f})')
+                _wt = extents(ext, lambda nm, p: nm == 'Water table - extension')
+                _wt = _wt.get('Water table - extension')
+                check(ring[5] < floor2 - 0.5 and _wt and ring[4] > _wt[5],
+                      f'sitting clear in the lower bay, under the waist and over the '
+                      f'water table ({ring[4]:.2f}..{ring[5]:.2f})')
 
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)

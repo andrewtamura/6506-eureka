@@ -1926,6 +1926,40 @@ def add_side_porch(ctx, lot, rooms_cache, base):
                  ifc_class="IfcBuildingElementProxy")
 
 
+def wall_disc(ctx, name, px, pz, y, radius_ft, depth_ft, color, thick_ft=None):
+    """A disc — or a RING, given `thick_ft` — standing on a north-facing wall: a circular
+    profile extruded along +Y, the wall's outward normal.
+
+    One product, one solid. A circle approximated by little blocks, the way the dentil
+    course was built, would be dozens of them; a parametric profile is exact and free.
+    `IfcCircleHollowProfileDef`'s Radius is the OUTER one and the wall thickness runs
+    inward, so a ring occupies `radius - thick .. radius`.
+
+    The Position's Axis is what turns the profile onto a vertical wall: local Z is global
+    +Y, so the circle stands in the wall plane and the extrusion runs out of it."""
+    m = ctx.model
+    if thick_ft:
+        prof = m.create_entity("IfcCircleHollowProfileDef", ProfileType="AREA",
+                               Radius=float(radius_ft * FT),
+                               WallThickness=float(thick_ft * FT))
+    else:
+        prof = m.create_entity("IfcCircleProfileDef", ProfileType="AREA",
+                               Radius=float(radius_ft * FT))
+    solid = m.create_entity(
+        "IfcExtrudedAreaSolid", SweptArea=prof, Depth=float(depth_ft * FT),
+        Position=m.create_entity(
+            "IfcAxis2Placement3D",
+            Location=m.create_entity("IfcCartesianPoint",
+                                     Coordinates=(float(ctx.X(px)), float(ctx.Y(pz)), float(y))),
+            Axis=m.create_entity("IfcDirection", DirectionRatios=(0.0, 1.0, 0.0)),
+            RefDirection=m.create_entity("IfcDirection", DirectionRatios=(1.0, 0.0, 0.0))),
+        ExtrudedDirection=m.create_entity("IfcDirection", DirectionRatios=(0.0, 0.0, 1.0)))
+    style_item(ctx, solid, color)
+    prod = multi_solid_product(ctx, "IfcWindow" if thick_ft is None else
+                               "IfcBuildingElementProxy", name, [solid])
+    run("spatial.assign_container", ctx.model, products=[prod], relating_structure=ctx.storey)
+
+
 def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
     """The east wing's NORTH face — 10.9 ft wide by 19 ft of blank stucco, and the one
     wall on the house that takes no windows: the east bay is the bathroom on BOTH
@@ -1935,7 +1969,8 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
 
         under the eaves   a band of T1-11, hung from the soffit, the full width
         at the floor line a waist course dividing the storeys
-        elsewhere         plain stucco, carrying only the door and its awning
+        elsewhere         plain stucco, carrying the door, its awning, and one
+                          round window in the lower east bay
         at the top        a raking entablature
 
     It began as four quadrants over the two bays the rooms behind it make — the wall's
@@ -2119,6 +2154,30 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, group=None):
             a1 = x_east + (x_west - x_east) * (i + 1) / n - (gw / 2 if i < n - 1 else 0.0)
             rake_panel(f"Wing cladding board {i}", a0, a1, lo, soffit,
                        z_back, z_face, color=TRIM)
+
+
+    # --- a round window in the lower east bay --------------------------------------
+    # A blind oculus was tried on this wall once and removed: a circle stuck on a
+    # rectangular wall, agreeing with nothing around it. This is a different thing and
+    # the difference is the whole point — it is a real GLAZED OPENING rather than applied
+    # ornament, which is what gives a circle a reason to be there.
+    #
+    # Placed on two lines that already exist: the east bay's centre, and the DOOR HEAD,
+    # so the wall's two openings share a horizontal. That also puts it 7 ft above the
+    # finished floor, which is where a bathroom wants its glass.
+    rw = spec.get("roundWindow") or {}
+    if rw:
+        GLASS = (0.42, 0.52, 0.60)                  # as add_fenestration's panels. Blue
+        # over red is how the viewer recognises glazing, so it glows with the others at
+        # night; keep it that way if the tone is ever changed.
+        R = rw.get("radiusFt", 1.0)
+        cx = (x_east + party) / 2                   # the east bay's centre
+        cy = base + ctx.door_h_ft * FT              # ...on the door's head line
+        wall_disc(ctx, "Wing round window glass", cx, wall_z - BURY, cy,
+                  R - rw.get("ringFt", 0.22), rw.get("glassProudFt", 0.02) + BURY, GLASS)
+        wall_disc(ctx, "Wing round window ring", cx, wall_z - BURY, cy,
+                  R, rw.get("ringProudFt", 0.10) + BURY, TRIM,
+                  thick_ft=rw.get("ringFt", 0.22))
 
 
 def add_lot_wall(ctx, lot, rooms_cache, base):
