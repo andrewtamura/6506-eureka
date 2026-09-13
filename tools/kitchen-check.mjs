@@ -196,6 +196,69 @@ const raw = await page.evaluate(() => {
                      yc: (bb.min.y + bb.max.y) / 2 - baseY }); });
     doorLeaves.push({ name: d.name, parts: n, zmin, zmax, xmin, xmax, members });
   }
+  // PROCEDURAL door leaves (the powder room's, the attic bathroom's). Not IFC doors, so
+  // they are absent from __eureka.doors, and they hang off a furniture item's group, so
+  // their meshes are buried in that item's `parts` rather than in `loose`. Measured in
+  // WORLD metres, closed and open: a leaf is only judged on where it actually sweeps.
+  const fdoors = [];
+  for (const m of window.__eureka.furnitureDoors || []) {
+    const d = m.userData.fdoor; if (!d || fdoors.some(f => f.d === d)) continue;
+    const at = (ang) => {
+      const keep = d.pivot.rotation.y; d.pivot.rotation.y = ang;
+      d.pivot.updateMatrixWorld(true);
+      const bb = new B3(); d.pivot.traverse(o => { if (isPart(o)) bb.expandByObject(o); });
+      d.pivot.rotation.y = keep; d.pivot.updateMatrixWorld(true);
+      return [bb.min.x, bb.min.y, bb.min.z, bb.max.x, bb.max.y, bb.max.z];
+    };
+    fdoors.push({ d, openAngle: d.openAngle, shut: at(0), open: at(d.openAngle),
+                  hinge: [d.pivot.position.x, d.pivot.position.y, d.pivot.position.z] });
+  }
+  fdoors.forEach(f => delete f.d);
+
+  // LOOKING UP FROM THE POWDER ROOM. The requirement — "the stair steps are not
+  // visible" — is about what is OVERHEAD, and no bounding box can answer it: the
+  // stringers are sloped planks whose boxes span the whole flight, so a box test says
+  // they reach the floor. So this raycasts, which is the same question the eye asks.
+  // Each object is shot SEPARATELY inside a try: some mesh in the wider scene throws
+  // inside three's intersectObjects, and one bad object must not take the pass down.
+  // Raycaster ignores `visible`, so consolidate.js's hidden originals are still hit;
+  // its merged copies are skipped as duplicates of them.
+  const overhead = [];
+  {
+    const T = window.THREE, FTm = 0.3048;
+    const fy = (() => { let v = null; window.__eureka.world.scene.three.traverse(o => {
+      const it = o.userData && o.userData.item; if (it && it.type === 'island') v = o.position.y; }); return v; })();
+    const bay = new T.Box3(new T.Vector3(-15.4 * FTm, fy - 0.5, -0.2 * FTm),
+                           new T.Vector3(-11.0 * FTm, fy + 11 * FTm, 8.0 * FTm));
+    // THE STAIRCASE'S OWN MESHES, and nothing else. The question is whether any part of
+    // the STAIR shows from below, so the basin, the mirror and the WC are not answers to
+    // it — shot against everything, the first hit over the WC is the WC, at 0.2 ft.
+    const targets = [];
+    let stairGroup = null;
+    window.__eureka.world.scene.three.traverse(o => {
+      const it = o.userData && o.userData.item;
+      if (it && it.type === 'staircase') stairGroup = o;
+    });
+    if (stairGroup) stairGroup.traverse(o => {
+      if (!o.isMesh || o.isInstancedMesh || !isPart(o)) return;
+      if (!o.geometry || !o.geometry.attributes || !o.geometry.attributes.position) return;
+      let bb; try { bb = new B3().setFromObject(o); } catch (e) { return; }
+      if (!bb.isEmpty() && bb.intersectsBox(bay)) targets.push(o);
+    });
+    const rc = new T.Raycaster(); const up = new T.Vector3(0, 1, 0);
+    for (let px = 11.9; px <= 14.6; px += 0.3) for (let pz = -0.8; pz >= -7.2; pz -= 0.3) {
+      rc.set(new T.Vector3(-px * FTm, fy + 0.06, -pz * FTm), up); rc.far = 12;
+      let best = null, hit = null;
+      for (const t of targets) {
+        let h; try { h = rc.intersectObject(t, false); } catch (e) { continue; }
+        for (const q of h) if (best == null || q.distance < best) { best = q.distance; hit = q.object; }
+      }
+      overhead.push({ px: +px.toFixed(2), pz: +pz.toFixed(2),
+                      y: best == null ? null : (best + 0.06) / FTm,
+                      soffit: !!(hit && hit.userData && hit.userData.soffit) });
+    }
+  }
+
   // The ceiling plane, so the skylight wells can be checked against the thing they
   // actually have to meet rather than against their own nominal height.
   const ceilingY = window.__eureka.modelViews[0].box.max.y;
@@ -234,7 +297,7 @@ const raw = await page.evaluate(() => {
     lighting[pick] = { lit: litPerLevel(), says: window.__eureka.litModel() };
   }
   window.__eureka.selectLighting("auto");
-  return { items, loose, doorLeaves, lights, ceilingY, sky: { night, noon }, lighting };
+  return { items, loose, doorLeaves, fdoors, overhead, lights, ceilingY, sky: { night, noon }, lighting };
 });
 await b.close();
   return raw;
@@ -1510,19 +1573,16 @@ console.log('EXTENSION');
   const west = L.filter(onWest);
   A(west.length > 0, `the foyer's west wall carries wall finish at all (${west.length} members)`);
 
-  // 1) the RAKED crown: one SLOPING MOULDING beside the upper flight. It has to be
-  // told apart from the big plain field panels, which are also tall and long — the
-  // moulding PROJECTS ~5 in from the wall, a field band is 0.04 ft of skim.
+  // 1) NO RAKED CROWN beside the flight. One was built here and then removed: it runs
+  // pz -7.69..-2.20, which is entirely SOUTH of the under-stair box's end wall at
+  // pz -0.40 — i.e. sealed inside the enclosure, invisible from the foyer, and (with a
+  // powder room going in there) a raking crown inside a WC. That is also why no camera
+  // could ever be got onto it. Asserted as an absence so it cannot come back unnoticed.
+  // A raking moulding PROJECTS ~5 in from the wall; the big plain field panels are also
+  // tall and long but are 0.04 ft of skim, which is what this filter separates.
   const proud = (m) => (m.pxHi - m.pxLo) > 0.2;
   const raked = west.filter(m => proud(m) && (m.yHi - m.yLo) > 3 && (m.pzHi - m.pzLo) > 4);
-  A(raked.length === 1, `one raked crown climbs beside the stair (${raked.length})`);
-  if (raked[0]) {
-    const r = raked[0];
-    A(r.pzLo > -8.2 && r.pzHi < -1.8,
-      `it runs the flight, pz ${R(r.pzLo,2)}..${R(r.pzHi,2)} (inside the stair's reach)`);
-    A(r.yLo > 3.2 && r.yLo < 4.2, `springing from the landing height (${R(r.yLo,2)} ft)`);
-    A(r.yHi > 7.6 && r.yHi < 8.6, `and meeting the level crown line (${R(r.yHi,2)} ft)`);
-  }
+  A(raked.length === 0, `no raked crown sealed inside the under-stair box (${raked.length})`);
 
   // 2) the LEVEL crown runs the north end and STOPS SHORT of the stair. Asserted on the
   // southernmost crown member, not on "is there one south of X" — the level run is a
@@ -1576,6 +1636,90 @@ console.log('EXTENSION');
     && m.pzLo > -12 && m.pzHi < 10.3);
   A(west.length > 0,
     `...and the same filter still finds them on the foyer's west wall (${west.length})`);
+
+  // THE CROWN WRAPS THE UNDER-STAIR BOX. Coming south along the west wall it meets the
+  // box's north face (an INSIDE corner), runs across it, turns an OUTSIDE corner onto the
+  // east face and terminates. The box is built by the stair builder, so compute_paneling
+  // cannot derive those two faces from the room's bounds — they are authored as
+  // `extraWalls`. Measured on the crown band (springline 7.575 to top 8.184, LOOSE_DY low).
+  const crownBand = (m) => m.yLo > 7.4 && m.yLo < 7.8 && m.yHi > 8.0 && m.yHi < 8.4;
+  // Windows widened at the corner end of each: an OUTSIDE corner makes every member run
+  // PAST the wall line by its own projection (see the mitre block below), so the north
+  // run starts west of px 11.4833 and the return ends north of pz -0.40.
+  const onBoxFace = L.filter(m => crownBand(m) && near((m.pzLo + m.pzHi) / 2, -0.30, 0.45)
+    && m.pxLo > 11.0 && m.pxHi < 15.3 && (m.pxHi - m.pxLo) > 2.5);
+  A(onBoxFace.length > 0, `the crown runs across the box's north face (${onBoxFace.length} runs)`);
+  // > 0.6 ft of pz so this is the RUN and not the mitred return's wedge, which sits on
+  // the same line, in the same band, and is exactly one projection long.
+  const onReturn = L.filter(m => crownBand(m) && near((m.pxLo + m.pxHi) / 2, 11.28, 0.45)
+    && m.pzLo > -1.4 && m.pzHi < 0.2 && (m.pzHi - m.pzLo) > 0.6);
+  A(onReturn.length > 0, `...and returns round the outside corner (${onReturn.length} runs)`);
+  // and the west wall's own crown now STOPS at the box rather than running behind it
+  const westCrown = L.filter(m => crownBand(m) && near((m.pxLo + m.pxHi) / 2, 14.65, 0.35)
+    && (m.pzHi - m.pzLo) > (m.pxHi - m.pxLo));
+  const southMostW = westCrown.length ? Math.min(...westCrown.map(m => m.pzLo)) : -99;
+  A(westCrown.length > 0 && southMostW > -0.9,
+    `the west wall's crown stops at the box (southernmost pz ${R(southMostW, 2)}, box face -0.40)`);
+
+  // THE OUTSIDE CORNER IS MITRED. The INSIDE corner at the west wall needs nothing —
+  // each run's square end hides behind its neighbour. The OUTSIDE one at (px 11.4833,
+  // pz -0.40) is the opposite: both runs turn AWAY from the room, so a square cut leaves
+  // both end faces staring out with a P5-square notch between them. That is the fault the
+  // owner saw. The fix is two things, and both are asserted here because either alone
+  // still reads wrong: every member REACHES past the wall line by its own projection
+  // (that is where the neighbour's front face is), and the crown is SHEARED so its long
+  // point is at the FRONT, which is what makes the profile turn.
+  const P5 = 0.127 * (((9.5 - 7.0) / 2 * FT) / 0.39) / FT;   // crown projection, plan feet
+  const boxCrownN = onBoxFace.reduce((a, m) => (a && a.pxLo < m.pxLo ? a : m), null);
+  const boxCrownE = onReturn.reduce((a, m) => (a && a.pzHi > m.pzHi ? a : m), null);
+  A(boxCrownN && near(boxCrownN.pxLo, 11.4833 - P5, 0.03),
+    `the north run reaches past the corner by its own projection (pxLo ${R(boxCrownN.pxLo, 3)}, want ${R(11.4833 - P5, 3)})`);
+  A(boxCrownE && near(boxCrownE.pzHi, -0.40 + P5, 0.03),
+    `...and the east return reaches the same point (pzHi ${R(boxCrownE.pzHi, 3)}, want ${R(-0.40 + P5, 3)})`);
+  // THE SHEAR, which a bounding box CANNOT see — a square-cut run extended by P5 has
+  // exactly the same one. Solid VOLUME separates them: the mitre eats a wedge off the
+  // end, so a mitred run is lighter than a square cut of its own length. The section is
+  // not derivable from the box (the profile is a cove, not a rectangle), so take it from
+  // an unmitred crown run in the same room — the west wall's — as volume per foot. That
+  // reference is also what proves the comparison is against a real crown section rather
+  // than an arbitrary number.
+  const refRun = westCrown.reduce((a, m) => (a && (a.pzHi - a.pzLo) > (m.pzHi - m.pzLo) ? a : m), null);
+  const sectA = refRun ? refRun.vol / (refRun.pzHi - refRun.pzLo) : 0;   // sq ft of section
+  // Every mitred end eats the SAME wedge — one section's worth of material over the
+  // projection, less the section's own centroid — so the two runs cross-check each other
+  // rather than each being compared to a number typed in here. The north run has ONE
+  // mitred end (the outside corner); the east return has TWO (that corner and the mitred
+  // return at its far end), so its loss must be exactly twice. A square-cut run shows no
+  // loss at all, and a shear shorn the wrong way shows a different one.
+  const lenN = boxCrownN ? boxCrownN.pxHi - boxCrownN.pxLo : 0;
+  const lenE = boxCrownE ? boxCrownE.pzHi - boxCrownE.pzLo : 0;
+  const lossN = sectA * lenN - (boxCrownN ? boxCrownN.vol : 0);
+  const lossE = sectA * lenE - (boxCrownE ? boxCrownE.vol : 0);
+  A(sectA > 0 && lossN > sectA * P5 * 0.3 && lossN < sectA * P5 * 0.95,
+    `the north run's one mitred end eats a wedge (${R(lossN, 4)} cu ft off a square ${R(sectA * lenN, 4)})`);
+  A(lossN > 0 && near(lossE, 2 * lossN, lossN * 0.08),
+    `...and the east return's TWO mitred ends eat exactly two of them (${R(lossE, 4)} against ${R(2 * lossN, 4)})`);
+
+  // THE FAR END OF THE RETURN IS MITRED BACK INTO THE WALL. It has no neighbour to carry
+  // the profile on, so a square cap would show the section end-on as a flat face 8 ft up.
+  // The wedge is the same section turned to look along the wall: one projection square in
+  // plan, sitting on the run's line at its south end, thick at the wall and dying at the
+  // front. Three things pin it down, because any one alone is weak — a plain block would
+  // pass on position, and a full-length offcut would pass on position and vertex count:
+  //   PLAN SIZE, P5 x P5 (a longer piece is a run, not a return);
+  //   VERTEX COUNT, which says it carries the swept profile rather than being a box;
+  //   VOLUME, which says it is a WEDGE. A square block of the same box would be
+  //     sectA x P5; the wedge is that times the section's own centroid fraction, ~1/3.
+  const wedge = L.filter(m => crownBand(m) && near((m.pxLo + m.pxHi) / 2, 11.28, 0.45)
+    && near((m.pzHi - m.pzLo), P5, 0.06) && near((m.pxHi - m.pxLo), P5, 0.06)
+    && near(m.pzLo, -0.90, 0.06));
+  A(wedge.length === 1, `the return's far end dies into the wall on a mitred wedge (${wedge.length})`);
+  if (wedge[0]) {
+    const wv = wedge[0], block = sectA * P5;
+    A(wv.nv > 24, `...carrying the crown's own profile, not a block (${wv.nv} vertices, a box is 24)`);
+    A(wv.vol > block * 0.15 && wv.vol < block * 0.6,
+      `...and it is a WEDGE, thick at the wall and dying at the front (${R(wv.vol, 4)} cu ft against ${R(block, 4)} for a full block)`);
+  }
 
   // The glazing reaches the FINISHED FLOOR now, so a baseboard would run across the
   // bottom of the glass — the same fault as the battens, one band lower. `sides` carries
@@ -1715,6 +1859,158 @@ console.log('EXTENSION');
     A(ft.every(d => Math.abs(d - want) < 0.05),
       `${lamp} reaches ${want} ft (${[...new Set(ft.map(d => R(d, 2)))].join(', ')}) \u00d7${own.length}`);
   }
+}
+
+// THE UNDER-STAIR POWDER ROOM. Its walls belong to three different things — the foyer's
+// west wall is IFC, the east (well) wall and the north end wall are the stair's own
+// drywall panels — so nothing but this checks that the room they enclose is the size the
+// fixtures were laid out for. Everything here is measured from the BUILT geometry.
+{
+  console.log('\nPOWDER ROOM');
+  const near = (v, want, tol = 0.03) => Math.abs(v - want) < tol;
+  const EAST = 11.6533, WEST = 14.8147;          // the two finished faces, plan feet
+  const CLEAR = WEST - EAST;                     // 3.162 ft = 37.9 in
+  const DOOR = [11.984, 14.484], HEAD = 7.0;
+
+  // 1) THE ROOM, measured off the two BUILT faces rather than off the authored numbers.
+  // They come from different modules — the well wall is the stair's drywall panel, the
+  // west face is the foyer's trim program running on through under the stair — and every
+  // clearance below is only worth something if the gap between them is real. A WC needs
+  // 30 in of clear width; this is what says the bay has it.
+  // Both faces are found by CONTAINING the bay, not by lying inside it: the well wall
+  // runs the whole flight and the foyer's field band runs the whole west wall, from the
+  // south end of the room to the dining opening. A filter scoped to the bay finds
+  // neither. And the exposed face is the one at the SMALLER px on the west wall (px
+  // increases west, so trim projects toward lower px) and the LARGER px on the east.
+  const stair = pick('staircase');
+  // yLo near the floor is what separates the WALL from run 2's east STRINGER, which sits
+  // on the same line, is the same slim px section, and spans the same length — it just
+  // starts at the landing, 4 ft up. Without that clause this found two.
+  const well = meshes(stair).filter(m => near(m.pxLo, 11.4833, 0.05) && (m.pxHi - m.pxLo) < 0.3
+    && m.yLo < 0.5 && m.yHi > 6 && m.pzLo < -6.5 && m.pzHi > -1.0);
+  const westField = L.filter(m => near(m.pxLo, WEST, 0.03) && m.yLo < 3 && m.yHi > 5
+    && m.pzLo < -7.0 && m.pzHi > -0.5);
+  A(well.length === 1 && westField.length > 0,
+    `the bay's two faces are built (well wall ${well.length}, west field ${westField.length})`);
+  const east = well.length ? Math.max(...well.map(m => m.pxHi)) : NaN;
+  const west = westField.length ? Math.min(...westField.map(m => m.pxLo)) : NaN;
+  A(near(east, EAST, 0.03) && near(west, WEST, 0.03),
+    `and where the layout assumed (east ${R(east, 3)} want ${EAST}, west ${R(west, 3)} want ${WEST})`);
+  A(west - east > 30 / 12, `the bay is ${R((west - east) * 12, 1)} in clear — a WC needs 30 in`);
+
+  // 2) THE DOOR. The hole is cut by the stair builder and the casing drawn by the trim
+  // program, from two separately authored numbers; ifc_check asserts those agree, and
+  // this asserts the built result. The CASING is the visible half: without it the opening
+  // is a raw edge of drywall in a room whose every other opening is architraved.
+  const casing = L.filter(m => m.yLo > -0.2 && m.yLo < 0.3 && m.yHi > HEAD - 0.5
+    && (m.pxHi - m.pxLo) < 0.6 && near((m.pzLo + m.pzHi) / 2, -0.35, 0.25)
+    && [DOOR[0], DOOR[1]].some(e => near((m.pxLo + m.pxHi) / 2, e, 0.25)));
+  A(casing.length >= 2, `the opening is cased, both jambs (${casing.length} members)`);
+  const head = L.filter(m => m.yLo > HEAD - 0.4 && m.yLo < HEAD + 0.3 && m.yHi < HEAD + 0.6
+    && (m.pxHi - m.pxLo) > 2.0 && near((m.pzLo + m.pzHi) / 2, -0.35, 0.25));
+  A(head.length >= 1, `...and across the head (${head.length})`);
+
+  // 3) THE LEAF, and that it SWINGS OUT. An inswing is the thing this layout cannot have:
+  // a 2 ft 6 in leaf hinged inside sweeps a quarter-disc off the hinge that covers the
+  // whole north end of a 3 ft 2 in room, basin included. So the test is not "a door
+  // exists" but "its swept box stays north of the wall" — which is the decision, and the
+  // one thing a later edit could silently undo.
+  const F = (raw.fdoors || []).map(f => ({ openAngle: f.openAngle,
+    shut: { pxLo: -f.shut[3] / FT, pxHi: -f.shut[0] / FT, pzLo: -f.shut[5] / FT, pzHi: -f.shut[2] / FT,
+            yLo: (f.shut[1] - FY) / FT, yHi: (f.shut[4] - FY) / FT },
+    open: { pxLo: -f.open[3] / FT, pxHi: -f.open[0] / FT, pzLo: -f.open[5] / FT, pzHi: -f.open[2] / FT } }));
+  const leaf = F.find(f => near((f.shut.pxLo + f.shut.pxHi) / 2, (DOOR[0] + DOOR[1]) / 2, 0.4)
+    && near((f.shut.pzLo + f.shut.pzHi) / 2, -0.40, 0.4));
+  A(!!leaf, `the opening has a leaf (${F.length} procedural leaves in the scene)`);
+  if (leaf) {
+    A(near(leaf.shut.pxHi - leaf.shut.pxLo, DOOR[1] - DOOR[0], 0.08),
+      `it fills the opening shut (${R(leaf.shut.pxHi - leaf.shut.pxLo, 2)} ft against a ${R(DOOR[1] - DOOR[0], 2)} ft hole)`);
+    A(near(leaf.shut.yHi - leaf.shut.yLo, HEAD, 0.1) && leaf.shut.yLo < 0.1,
+      `full height, off the floor (${R(leaf.shut.yLo, 2)}..${R(leaf.shut.yHi, 2)} ft)`);
+    A(leaf.open.pzHi > 0.5 && leaf.open.pzLo > -0.75,
+      `it swings OUT into the foyer, clear of the room (open pz ${R(leaf.open.pzLo, 2)}..${R(leaf.open.pzHi, 2)}, wall at -0.40)`);
+  }
+
+  // 4) THE FIXTURES, against the clearances a WC actually needs. Measured from the BUILT
+  // meshes: `at` in the manifest is an anchor, and where a toilet's bowl front lands
+  // depends on the builder's own dimensions, not on that anchor.
+  // Found by BEING IN THE ROOM rather than at a coordinate: these positions get tuned
+  // (the WC has already moved once, to buy the 21 in below), and an assertion keyed to
+  // the old number fails for the one reason that is not a defect.
+  const inBay = (r) => r.px > EAST - 0.7 && r.px < WEST + 0.7 && r.pz < -0.4 && r.pz > -7.4;
+  const wc = P.find(r => r.type === 'toilet' && inBay(r));
+  const van = P.find(r => r.type === 'vanity' && inBay(r));
+  A(!!wc && !!van, `a WC and a basin are in the room (${wc ? 'wc' : '-'}, ${van ? 'basin' : '-'})`);
+  if (wc && van) {
+    const wb = meshes(wc), vb = meshes(van);
+    const wcPxLo = Math.min(...wb.map(m => m.pxLo)), wcPxHi = Math.max(...wb.map(m => m.pxHi));
+    const wcFront = Math.max(...wb.map(m => m.pzHi));         // the bowl, facing north
+    const vanFront = Math.min(...vb.map(m => m.pxLo));        // the cabinet's face, into the room
+    const vanSouth = Math.min(...vb.map(m => m.pzLo));
+    A(wcPxLo > EAST && wcPxHi < WEST,
+      `the WC is inside the walls (px ${R(wcPxLo, 2)}..${R(wcPxHi, 2)} in ${R(EAST, 2)}..${R(WEST, 2)})`);
+    // 15 in from the WC's centreline to anything either side is the code clearance, and
+    // it is the number that decides this room works at all.
+    const wcMid = (wcPxLo + wcPxHi) / 2;
+    A(Math.min(wcMid - EAST, WEST - wcMid) > 15 / 12,
+      `15 in each side of its centreline (${R(Math.min(wcMid - EAST, WEST - wcMid) * 12, 1)} in)`);
+    // 21 in clear in FRONT of the bowl — and the basin is the thing that could eat it,
+    // which is why the two are measured against each other rather than against the wall.
+    A(vanSouth - wcFront > 21 / 12,
+      `21 in clear in front of the bowl (${R((vanSouth - wcFront) * 12, 1)} in to the basin)`);
+    A(vanFront > EAST + 1.5,
+      `and the basin leaves a passage past it (${R((vanFront - EAST) * 12, 1)} in)`);
+  }
+
+  // 5) THE CEILING. The requirement is "the stair steps are not visible", so the test is
+  // what you HIT looking up, at every point on a grid across the room — not whether a
+  // soffit mesh exists. A soffit that existed but sat above one step corner would pass
+  // an existence test and fail in the room, which is the failure worth guarding.
+  const OH = (raw.overhead || []).filter(o => o.px > EAST && o.px < WEST && o.pz < -0.6 && o.pz > -7.3);
+  const openSky = OH.filter(o => o.y == null);
+  const stepHits = OH.filter(o => o.y != null && !o.soffit);
+  A(OH.length > 100, `the room was probed overhead (${OH.length} points)`);
+  A(openSky.length === 0,
+    `the stair is overhead everywhere in the room (${openSky.length} points see none of it — a gap at the edge of the sheet)`);
+  A(stepHits.length === 0,
+    `every point looks up at the SOFFIT, not the stair (${stepHits.length} points see something else` +
+    `${stepHits.length ? ': ' + stepHits.slice(0, 3).map(o => `px ${o.px} pz ${o.pz} at ${R(o.y, 2)} ft`).join('; ') : ''})`);
+  // ...and that the ceiling it gives is a usable one. These are the heights the layout
+  // was chosen for, so they are the ones that must not quietly erode.
+  const hAt = (pz) => { const c = OH.filter(o => near(o.pz, pz, 0.2) && o.y != null);
+                        return c.length ? Math.min(...c.map(o => o.y)) : NaN; };
+  A(hAt(-0.9) > 8.5, `8 ft 6 in of ceiling at the door (${R(hAt(-0.9), 2)} ft)`);
+  A(hAt(-1.45) > 8.0, `and over the basin (${R(hAt(-1.45), 2)} ft)`);
+  A(hAt(-5.05) > 5.2, `and 5 ft over the WC seat (${R(hAt(-5.05), 2)} ft) — sitting height`);
+  // A FLAT sheet, which is what was asked for. Tested by FITTING A PLANE to every probe
+  // and looking at the worst residual: a stepped profile, a fold, or a sheet that sloped
+  // across the room as well as along it all show up as points off the fit. Differencing
+  // neighbouring heights does NOT work here and was the first attempt — the probe grid
+  // is 0.3 ft and the sampling window caught one row in some places and two in others,
+  // which reported a "slope" wandering between 0.41 and 1.24 on a plane that is dead
+  // flat. The fit is over pz only, so any fall ACROSS the room lands in the residual too.
+  const pts = OH.filter(o => o.y != null);
+  const n = pts.length;
+  const sx = pts.reduce((t, o) => t + o.pz, 0), sy = pts.reduce((t, o) => t + o.y, 0);
+  const sxx = pts.reduce((t, o) => t + o.pz * o.pz, 0);
+  const sxy = pts.reduce((t, o) => t + o.pz * o.y, 0);
+  const b = (n * sxy - sx * sy) / (n * sxx - sx * sx), a0 = (sy - b * sx) / n;
+  const resid = Math.max(...pts.map(o => Math.abs(o.y - (a0 + b * o.pz))));
+  A(n > 100 && resid < 0.01,
+    `it is ONE FLAT plane, not a stepped profile (falls ${R(b, 3)} ft per ft going south, ` +
+    `worst point ${R(resid, 4)} ft off the fit)`);
+
+  // 6) FINISHED FLOORING, and the hardwood stopping for it. The tile is instanced hex, so
+  // it is checked through the manifest the viewer drives it from; the hardwood is checked
+  // by its coverings having been SPLIT, since a single un-split Foyer covering means the
+  // planks are being drawn straight through the powder room under the tile.
+  const names = (f) => { try { return JSON.parse(readFileSync(`public/${f}`, 'utf8')).map(e => e.name); }
+                         catch (e) { return []; } };
+  const tiles = names('ground.tiles.json'), woods = names('ground.floors.json');
+  A(tiles.some(t => /Powder/i.test(t)), `the floor is tiled (${tiles.filter(t => /Powder/i.test(t)).join(', ') || 'none'})`);
+  const foyerFloors = woods.filter(t => /Foyer/i.test(t));
+  A(foyerFloors.length > 1,
+    `and the foyer's hardwood stops for it (${foyerFloors.length} coverings — one would mean planks under the tile)`);
 }
 
 console.log(fail ? `\n${fail} FAILURES` : '\nALL CHECKS PASSED');

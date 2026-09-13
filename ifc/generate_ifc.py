@@ -170,6 +170,38 @@ def compute_paneling(ctx, rooms):
                 "rakedCornice": raked.get(side, []),
             })
 
+        # EXTRA WALLS: faces the four-sided derivation cannot see, because they belong to
+        # something the VIEWER builds — the under-stair box, whose north face and short
+        # east return both want the crown. Same record shape, with no openings, so
+        # wall-finish treats them like any other wall and needs no change.
+        for ew in pan.get("extraWalls", []):
+            ctx.paneling.append({
+                "along": ew["along"], "at": round(ew["at"], 4),
+                "normal": ew["normal"], "side": ew.get("side", "X"),
+                "lo": round(min(ew["lo"], ew["hi"]), 3),
+                "hi": round(max(ew["lo"], ew["hi"]), 3),
+                # An opening in a wall the VIEWER builds still wants the trim program's
+                # casing, baseboard break and field break, which all key off `doors` —
+                # so the span is authored here in plan feet and the viewer cuts the
+                # matching hole. ifc_check asserts the two agree; nothing else would.
+                "doors": [[round(min(d), 3), round(max(d), 3)] for d in ew.get("doors", [])],
+                "windows": [], "tall": [], "transoms": [],
+                "sidelights": [], "bareDoors": [],
+                "noCornice": bool(ew.get("noCornice", False)),
+                "noBattens": bool(ew.get("noBattens", True)),
+                "wainscot": bool(ew.get("wainscot", False)),
+                "coved": bool(ew.get("coved", True)),
+                # an OUTSIDE corner at that end: the run reaches past the wall line by
+                # its own projection and the crown is mitred to turn.
+                "mitreLo": bool(ew.get("mitreLo", False)),
+                "mitreHi": bool(ew.get("mitreHi", False)),
+                # a MITRED RETURN at that end: nothing carries the profile on, so the
+                # crown is mitred on the spot and a wedge turns it back into the wall.
+                "returnLo": bool(ew.get("returnLo", False)),
+                "returnHi": bool(ew.get("returnHi", False)),
+                "corniceBreaks": [], "rakedCornice": [],
+            })
+
 
 def emit_stairwells(ctx, rooms, up=True, wall_top=None, roof=None):
     """Re-emit each room's staircase as a viewer "stairwell2" item so an upper
@@ -236,7 +268,11 @@ def build_level(cfg, rooms_cache, level):
     if kind == "full":
         B.build_walls(ctx, rooms)
         for r in rooms:
-            B.add_slab(ctx, r)
+            # `slab: false` for a room carved out of another one — the under-stair
+            # powder room sits inside the foyer, which already has the slab under it,
+            # and a second one there is two coplanar boxes fighting over the underside.
+            if r.get("slab", True):
+                B.add_slab(ctx, r)
             B.add_space(ctx, r)
             B.add_doors(ctx, r)
             B.add_windows(ctx, r)

@@ -1182,6 +1182,7 @@ async function main() {
   };
   const exhibitCeilingMats = [];                        // second-floor flat ceilings: same opaque-POV / translucent-overview toggle
   const furnitureDoorMeshes = [];                       // procedural door leaves (e.g. attic bathroom): double-tap to toggle
+
   const modelViews = [{ id: groundLevel.id, label: groundLevel.label || groundLevel.storey, box: buildingBox(model.object), obj: model.object }];
   const labelViews = [{ label: groundLevel.label || groundLevel.storey, box: modelBox }];
   const placeExhibit = async (lvl, toEast) => {
@@ -1432,7 +1433,12 @@ async function main() {
 
   // Debug handle (used by the headless smoke test; harmless in production).
   window.THREE = THREE;
-  window.__eureka = { components, world, fragments, model, loaded: true };
+  // `furnitureDoors` for the same reason `doors` (set further down) is exposed: these
+  // leaves are NOT IFC doors and never appear in that list, so without this a harness
+  // cannot see them at all — they hang off a furniture item's group, which buries their
+  // meshes in that item's parts rather than the loose list where trim is measured.
+  window.__eureka = { components, world, fragments, model, loaded: true,
+                      furnitureDoors: furnitureDoorMeshes };
 
   // --- selection + properties --------------------------------------------
   // Tapping an element still names it in the panel; it is no longer RECOLOURED.

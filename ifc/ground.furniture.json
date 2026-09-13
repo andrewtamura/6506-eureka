@@ -344,6 +344,13 @@
       "run2Width": 3.0,
       "margin": 0.6,
       "firstRunSide": "west",
+      "underDoor": {
+        "posFt": 13.234,
+        "widthFt": 2.5,
+        "headFt": 7.0,
+        "hingeHi": true,
+        "_note": "into the powder room. Centred on the CLEAR bay (11.653..14.815), not on the wall span, so the reveals inside the room are even. Hinged at the high-px (west) jamb so the open leaf parks against the foyer's west wall instead of standing in the route past the stair. ifc_check asserts this matches the extraWalls door span below."
+      },
       "material": "oak",
       "railMaterial": "walnut",
       "opening": {
@@ -793,6 +800,40 @@
       "ceilFt": 9.0,
       "pitch": 0.45,
       "datumPz": -18.875
+    },
+    {
+      "type": "vanity",
+      "px": 14.215,
+      "pz": -1.45,
+      "rot": 0.0,
+      "faces": "E",
+      "widthFt": 1.6,
+      "depthFt": 1.2,
+      "cols": 1,
+      "rows": 1,
+      "cabinet": "walnut",
+      "mirrorWFt": 1.2,
+      "mirrorHFt": 1.7,
+      "mirrorTopFt": 5.9,
+      "_note": "small: the bay is 3 ft 2 in clear, so a 1 ft 2 in deep cabinet leaves 2 ft of passage"
+    },
+    {
+      "type": "toilet",
+      "px": 13.234,
+      "pz": -5.05,
+      "rot": 0.0,
+      "faces": "N",
+      "_note": "centred on the clear bay. Bowl front lands at pz -4.15, which is 22.8 in clear to the basin \u2014 21 in is the minimum and the first position, 6 in north of this, measured 20.1. The soffit is 5 ft 11 in over the seat and 7 ft 3 in where you stand in front of it."
+    },
+    {
+      "type": "sconce",
+      "px": 14.78,
+      "pz": -1.45,
+      "rot": 0.0,
+      "faces": "E",
+      "atFt": 6.35,
+      "intensity": 1.3,
+      "_note": "over the mirror. No recessed downlight here: the ceiling is the raking underside of the flight, so there is no flat soffit to cut one into."
     }
   ]
 }

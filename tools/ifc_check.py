@@ -284,5 +284,36 @@ for stem, room in rooms_s.items():
                   f"({sc.get('liteFt')} vs {w.get('liteFt')}) — so both divide alike")
 check(screened > 0, f'a glazed screen with a door in it exists to check ({screened})')
 
+# A DOOR IN A WALL THE VIEWER BUILDS is declared TWICE, and has to be. The under-stair
+# box is the stair builder's drywall, so the HOLE is cut there, from the staircase item's
+# `underDoor`; but the CASING, the baseboard break and the field break around it are the
+# trim program's, and it only knows about openings listed as `doors` on the wall's
+# `extraWalls` record. Two numbers, two files, one opening. Nothing at runtime notices
+# them drifting — the casing simply stops lining up with the hole — so it is checked here.
+print('\nUNDER-STAIR DOOR: HOLE AND CASING AGREE')
+checked_ud = 0
+for stem, room in rooms_s.items():
+    for it in (room.get('interior') or {}).get('furniture', []):
+        ud = it.get('underDoor')
+        if not ud:
+            continue
+        half = ud.get('widthFt', 2.5) / 2
+        lo, hi = ud['posFt'] - half, ud['posFt'] + half
+        spans = [d for ew in ((room.get('interior') or {}).get('paneling') or {}).get('extraWalls', [])
+                 for d in ew.get('doors', [])]
+        check(len(spans) == 1,
+              f"{stem}: the box's trim program carries exactly one opening ({len(spans)})")
+        for a, b in spans:
+            checked_ud += 1
+            check(abs(min(a, b) - lo) < 0.01 and abs(max(a, b) - hi) < 0.01,
+                  f"{stem}: the casing spans the hole "
+                  f"({round(min(a, b), 3)}..{round(max(a, b), 3)} against {round(lo, 3)}..{round(hi, 3)})")
+        # and the head has to sit ON the trim program's head line, or the casing's own
+        # head member floats above or cuts through the opening.
+        check(abs(ud.get('headFt', 7.0) - model_s['headHeight']) < 0.01,
+              f"{stem}: the head is the house's head line "
+              f"({ud.get('headFt')} against {model_s['headHeight']})")
+check(checked_ud > 0, f'an under-stair door exists to check ({checked_ud})')
+
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)
