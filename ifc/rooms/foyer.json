@@ -51,7 +51,14 @@
   "windows": [],
   "interior": {
     "flooring": {
-      "material": "hardwood"
+      "material": "hardwood",
+      "hole": {
+        "x1": 11.5683,
+        "x2": 15.0833,
+        "z1": -7.317,
+        "z2": -0.485,
+        "_note": "the powder room, which has its own tile. Same rectangle as powder.json's bounds, so the two meet on the wall centrelines and the joint falls under the door leaf."
+      }
     },
     "furniture": [
       {
@@ -70,6 +77,13 @@
         "run2Width": 3.0,
         "margin": 0.6,
         "firstRunSide": "west",
+      "underDoor": {
+        "posFt": 13.234,
+        "widthFt": 2.5,
+        "headFt": 7.0,
+        "hingeHi": true,
+        "_note": "into the powder room. Centred on the CLEAR bay (11.653..14.815), not on the wall span, so the reveals inside the room are even. Hinged at the high-px (west) jamb so the open leaf parks against the foyer's west wall instead of standing in the route past the stair. ifc_check asserts this matches the extraWalls door span below."
+      },
         "material": "oak",
         "railMaterial": "walnut"
       }
@@ -100,7 +114,8 @@
           ],
           "noBattens": true,
           "coved": true,
-          "mitreLo": true
+          "mitreLo": true,
+          "doors": [[11.984, 14.484]]
         },
         {
           "side": "E",

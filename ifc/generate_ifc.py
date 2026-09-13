@@ -180,7 +180,12 @@ def compute_paneling(ctx, rooms):
                 "normal": ew["normal"], "side": ew.get("side", "X"),
                 "lo": round(min(ew["lo"], ew["hi"]), 3),
                 "hi": round(max(ew["lo"], ew["hi"]), 3),
-                "doors": [], "windows": [], "tall": [], "transoms": [],
+                # An opening in a wall the VIEWER builds still wants the trim program's
+                # casing, baseboard break and field break, which all key off `doors` —
+                # so the span is authored here in plan feet and the viewer cuts the
+                # matching hole. ifc_check asserts the two agree; nothing else would.
+                "doors": [[round(min(d), 3), round(max(d), 3)] for d in ew.get("doors", [])],
+                "windows": [], "tall": [], "transoms": [],
                 "sidelights": [], "bareDoors": [],
                 "noCornice": bool(ew.get("noCornice", False)),
                 "noBattens": bool(ew.get("noBattens", True)),
@@ -263,7 +268,11 @@ def build_level(cfg, rooms_cache, level):
     if kind == "full":
         B.build_walls(ctx, rooms)
         for r in rooms:
-            B.add_slab(ctx, r)
+            # `slab: false` for a room carved out of another one — the under-stair
+            # powder room sits inside the foyer, which already has the slab under it,
+            # and a second one there is two coplanar boxes fighting over the underside.
+            if r.get("slab", True):
+                B.add_slab(ctx, r)
             B.add_space(ctx, r)
             B.add_doors(ctx, r)
             B.add_windows(ctx, r)

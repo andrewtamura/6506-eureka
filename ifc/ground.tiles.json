@@ -22,5 +22,9 @@
   {
     "name": "Ext Laundry - Tile Flooring",
     "pattern": "hexagon"
+  },
+  {
+    "name": "Powder Room - Tile Flooring",
+    "pattern": "hexagon"
   }
 ]

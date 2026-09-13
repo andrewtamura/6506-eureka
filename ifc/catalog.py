@@ -101,36 +101,59 @@ def _plank_floor(ctx, r, base, material):
     th = 0.05 * FT
     pw, rgap = 0.5 * FT, 0.012 * FT     # board width 6" (across grain, N-S)
     seg, egap = 10.0 * FT, 0.03 * FT    # board length 10' (along grain, E-W)
-
-    solids = []
-    base_solid = B.positioned_solid(ctx, x2 - x1, y2 - y1, th * 0.5,
-                                    (x1 + x2) / 2, (y1 + y2) / 2, 0.0)
-    B.style_item(ctx, base_solid, groove)
-    solids.append(base_solid)
-
     zt = th * 0.5
-    # Rows indexed on a global grid (k = world-Y band) so adjacent rooms share
-    # row lines; joints offset per row by a global pseudo-random stagger.
-    for k in range(math.floor(y1 / pw), math.ceil(y2 / pw)):
-        ry0, ry1 = max(k * pw, y1), min((k + 1) * pw, y2)
-        depth = (ry1 - rgap) - ry0
-        if depth < 0.03:
-            continue
-        cy = (ry0 + ry1 - rgap) / 2
-        off = _hash(k) * seg
-        for j in range(math.floor((x1 - off) / seg), math.ceil((x2 - off) / seg)):
-            px0 = off + j * seg
-            a, b = max(px0, x1), min(px0 + seg - egap, x2)
-            if b - a < 0.05:
-                continue
-            s = B.positioned_solid(ctx, b - a, depth, th, (a + b) / 2, cy, zt)
-            B.style_item(ctx, s, shades[int(_hash(k * 131.7 + j * 7.31) * len(shades)) % len(shades)])
-            solids.append(s)
 
-    name = f"{r['name']} - {material.title()} Flooring"
-    cov = B.multi_solid_product(ctx, "IfcCovering", name, solids, predefined="FLOORING")
-    run("spatial.assign_container", ctx.model, products=[cov], relating_structure=ctx.storey)
-    ctx.plank_floors.append({"name": name, "rgb": [round(c, 4) for c in base]})
+    # A HOLE, for a room carved out of this one with a floor of its own — the
+    # under-stair powder room inside the foyer. It has to become SEPARATE coverings
+    # rather than one covering with a notch in its solids, because the viewer
+    # re-renders planks over each covering's BOUNDING BOX (wood-floor.js): a notched
+    # solid still reports the full box and the planks fill the hole straight back in.
+    # Four bands around the hole, the same decomposition add_hardwood_finish uses; a
+    # hole against an edge simply makes one of them empty.
+    X1, X2 = sorted((x1, x2))
+    Y1, Y2 = sorted((y1, y2))
+    hole = ((r.get("interior") or {}).get("flooring") or {}).get("hole")
+    if hole:
+        hx1, hx2 = sorted((ctx.X(hole["x1"]), ctx.X(hole["x2"])))
+        hy1, hy2 = sorted((ctx.Y(hole["z1"]), ctx.Y(hole["z2"])))
+        hx1, hx2 = max(hx1, X1), min(hx2, X2)
+        hy1, hy2 = max(hy1, Y1), min(hy2, Y2)
+        rects = [(X1, X2, Y1, hy1), (X1, X2, hy2, Y2),
+                 (X1, hx1, hy1, hy2), (hx2, X2, hy1, hy2)]
+    else:
+        rects = [(X1, X2, Y1, Y2)]
+
+    for i, (rx1, rx2, ry_1, ry_2) in enumerate(rects):
+        if rx2 - rx1 < 1e-4 or ry_2 - ry_1 < 1e-4:
+            continue
+        solids = []
+        base_solid = B.positioned_solid(ctx, rx2 - rx1, ry_2 - ry_1, th * 0.5,
+                                        (rx1 + rx2) / 2, (ry_1 + ry_2) / 2, 0.0)
+        B.style_item(ctx, base_solid, groove)
+        solids.append(base_solid)
+        # Rows indexed on a GLOBAL grid (k = world-Y band) so adjacent rooms — and the
+        # bands of one split room — share row lines; joints offset per row by a global
+        # pseudo-random stagger, so a split is invisible in the laid floor.
+        for k in range(math.floor(ry_1 / pw), math.ceil(ry_2 / pw)):
+            r0, r1 = max(k * pw, ry_1), min((k + 1) * pw, ry_2)
+            depth = (r1 - rgap) - r0
+            if depth < 0.03:
+                continue
+            cy = (r0 + r1 - rgap) / 2
+            off = _hash(k) * seg
+            for j in range(math.floor((rx1 - off) / seg), math.ceil((rx2 - off) / seg)):
+                px0 = off + j * seg
+                a, b = max(px0, rx1), min(px0 + seg - egap, rx2)
+                if b - a < 0.05:
+                    continue
+                s = B.positioned_solid(ctx, b - a, depth, th, (a + b) / 2, cy, zt)
+                B.style_item(ctx, s, shades[int(_hash(k * 131.7 + j * 7.31) * len(shades)) % len(shades)])
+                solids.append(s)
+
+        name = f"{r['name']} - {material.title()} Flooring" + (f" {i}" if hole else "")
+        cov = B.multi_solid_product(ctx, "IfcCovering", name, solids, predefined="FLOORING")
+        run("spatial.assign_container", ctx.model, products=[cov], relating_structure=ctx.storey)
+        ctx.plank_floors.append({"name": name, "rgb": [round(c, 4) for c in base]})
 
 
 def _item_color(item, default):

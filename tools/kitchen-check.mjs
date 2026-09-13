@@ -196,6 +196,25 @@ const raw = await page.evaluate(() => {
                      yc: (bb.min.y + bb.max.y) / 2 - baseY }); });
     doorLeaves.push({ name: d.name, parts: n, zmin, zmax, xmin, xmax, members });
   }
+  // PROCEDURAL door leaves (the powder room's, the attic bathroom's). Not IFC doors, so
+  // they are absent from __eureka.doors, and they hang off a furniture item's group, so
+  // their meshes are buried in that item's `parts` rather than in `loose`. Measured in
+  // WORLD metres, closed and open: a leaf is only judged on where it actually sweeps.
+  const fdoors = [];
+  for (const m of window.__eureka.furnitureDoors || []) {
+    const d = m.userData.fdoor; if (!d || fdoors.some(f => f.d === d)) continue;
+    const at = (ang) => {
+      const keep = d.pivot.rotation.y; d.pivot.rotation.y = ang;
+      d.pivot.updateMatrixWorld(true);
+      const bb = new B3(); d.pivot.traverse(o => { if (isPart(o)) bb.expandByObject(o); });
+      d.pivot.rotation.y = keep; d.pivot.updateMatrixWorld(true);
+      return [bb.min.x, bb.min.y, bb.min.z, bb.max.x, bb.max.y, bb.max.z];
+    };
+    fdoors.push({ d, openAngle: d.openAngle, shut: at(0), open: at(d.openAngle),
+                  hinge: [d.pivot.position.x, d.pivot.position.y, d.pivot.position.z] });
+  }
+  fdoors.forEach(f => delete f.d);
+
   // The ceiling plane, so the skylight wells can be checked against the thing they
   // actually have to meet rather than against their own nominal height.
   const ceilingY = window.__eureka.modelViews[0].box.max.y;
@@ -234,7 +253,7 @@ const raw = await page.evaluate(() => {
     lighting[pick] = { lit: litPerLevel(), says: window.__eureka.litModel() };
   }
   window.__eureka.selectLighting("auto");
-  return { items, loose, doorLeaves, lights, ceilingY, sky: { night, noon }, lighting };
+  return { items, loose, doorLeaves, fdoors, lights, ceilingY, sky: { night, noon }, lighting };
 });
 await b.close();
   return raw;
@@ -1796,6 +1815,120 @@ console.log('EXTENSION');
     A(ft.every(d => Math.abs(d - want) < 0.05),
       `${lamp} reaches ${want} ft (${[...new Set(ft.map(d => R(d, 2)))].join(', ')}) \u00d7${own.length}`);
   }
+}
+
+// THE UNDER-STAIR POWDER ROOM. Its walls belong to three different things — the foyer's
+// west wall is IFC, the east (well) wall and the north end wall are the stair's own
+// drywall panels — so nothing but this checks that the room they enclose is the size the
+// fixtures were laid out for. Everything here is measured from the BUILT geometry.
+{
+  console.log('\nPOWDER ROOM');
+  const near = (v, want, tol = 0.03) => Math.abs(v - want) < tol;
+  const EAST = 11.6533, WEST = 14.8147;          // the two finished faces, plan feet
+  const CLEAR = WEST - EAST;                     // 3.162 ft = 37.9 in
+  const DOOR = [11.984, 14.484], HEAD = 7.0;
+
+  // 1) THE ROOM, measured off the two BUILT faces rather than off the authored numbers.
+  // They come from different modules — the well wall is the stair's drywall panel, the
+  // west face is the foyer's trim program running on through under the stair — and every
+  // clearance below is only worth something if the gap between them is real. A WC needs
+  // 30 in of clear width; this is what says the bay has it.
+  // Both faces are found by CONTAINING the bay, not by lying inside it: the well wall
+  // runs the whole flight and the foyer's field band runs the whole west wall, from the
+  // south end of the room to the dining opening. A filter scoped to the bay finds
+  // neither. And the exposed face is the one at the SMALLER px on the west wall (px
+  // increases west, so trim projects toward lower px) and the LARGER px on the east.
+  const stair = pick('staircase');
+  // yLo near the floor is what separates the WALL from run 2's east STRINGER, which sits
+  // on the same line, is the same slim px section, and spans the same length — it just
+  // starts at the landing, 4 ft up. Without that clause this found two.
+  const well = meshes(stair).filter(m => near(m.pxLo, 11.4833, 0.05) && (m.pxHi - m.pxLo) < 0.3
+    && m.yLo < 0.5 && m.yHi > 6 && m.pzLo < -6.5 && m.pzHi > -1.0);
+  const westField = L.filter(m => near(m.pxLo, WEST, 0.03) && m.yLo < 3 && m.yHi > 5
+    && m.pzLo < -7.0 && m.pzHi > -0.5);
+  A(well.length === 1 && westField.length > 0,
+    `the bay's two faces are built (well wall ${well.length}, west field ${westField.length})`);
+  const east = well.length ? Math.max(...well.map(m => m.pxHi)) : NaN;
+  const west = westField.length ? Math.min(...westField.map(m => m.pxLo)) : NaN;
+  A(near(east, EAST, 0.03) && near(west, WEST, 0.03),
+    `and where the layout assumed (east ${R(east, 3)} want ${EAST}, west ${R(west, 3)} want ${WEST})`);
+  A(west - east > 30 / 12, `the bay is ${R((west - east) * 12, 1)} in clear — a WC needs 30 in`);
+
+  // 2) THE DOOR. The hole is cut by the stair builder and the casing drawn by the trim
+  // program, from two separately authored numbers; ifc_check asserts those agree, and
+  // this asserts the built result. The CASING is the visible half: without it the opening
+  // is a raw edge of drywall in a room whose every other opening is architraved.
+  const casing = L.filter(m => m.yLo > -0.2 && m.yLo < 0.3 && m.yHi > HEAD - 0.5
+    && (m.pxHi - m.pxLo) < 0.6 && near((m.pzLo + m.pzHi) / 2, -0.35, 0.25)
+    && [DOOR[0], DOOR[1]].some(e => near((m.pxLo + m.pxHi) / 2, e, 0.25)));
+  A(casing.length >= 2, `the opening is cased, both jambs (${casing.length} members)`);
+  const head = L.filter(m => m.yLo > HEAD - 0.4 && m.yLo < HEAD + 0.3 && m.yHi < HEAD + 0.6
+    && (m.pxHi - m.pxLo) > 2.0 && near((m.pzLo + m.pzHi) / 2, -0.35, 0.25));
+  A(head.length >= 1, `...and across the head (${head.length})`);
+
+  // 3) THE LEAF, and that it SWINGS OUT. An inswing is the thing this layout cannot have:
+  // a 2 ft 6 in leaf hinged inside sweeps a quarter-disc off the hinge that covers the
+  // whole north end of a 3 ft 2 in room, basin included. So the test is not "a door
+  // exists" but "its swept box stays north of the wall" — which is the decision, and the
+  // one thing a later edit could silently undo.
+  const F = (raw.fdoors || []).map(f => ({ openAngle: f.openAngle,
+    shut: { pxLo: -f.shut[3] / FT, pxHi: -f.shut[0] / FT, pzLo: -f.shut[5] / FT, pzHi: -f.shut[2] / FT,
+            yLo: (f.shut[1] - FY) / FT, yHi: (f.shut[4] - FY) / FT },
+    open: { pxLo: -f.open[3] / FT, pxHi: -f.open[0] / FT, pzLo: -f.open[5] / FT, pzHi: -f.open[2] / FT } }));
+  const leaf = F.find(f => near((f.shut.pxLo + f.shut.pxHi) / 2, (DOOR[0] + DOOR[1]) / 2, 0.4)
+    && near((f.shut.pzLo + f.shut.pzHi) / 2, -0.40, 0.4));
+  A(!!leaf, `the opening has a leaf (${F.length} procedural leaves in the scene)`);
+  if (leaf) {
+    A(near(leaf.shut.pxHi - leaf.shut.pxLo, DOOR[1] - DOOR[0], 0.08),
+      `it fills the opening shut (${R(leaf.shut.pxHi - leaf.shut.pxLo, 2)} ft against a ${R(DOOR[1] - DOOR[0], 2)} ft hole)`);
+    A(near(leaf.shut.yHi - leaf.shut.yLo, HEAD, 0.1) && leaf.shut.yLo < 0.1,
+      `full height, off the floor (${R(leaf.shut.yLo, 2)}..${R(leaf.shut.yHi, 2)} ft)`);
+    A(leaf.open.pzHi > 0.5 && leaf.open.pzLo > -0.75,
+      `it swings OUT into the foyer, clear of the room (open pz ${R(leaf.open.pzLo, 2)}..${R(leaf.open.pzHi, 2)}, wall at -0.40)`);
+  }
+
+  // 4) THE FIXTURES, against the clearances a WC actually needs. Measured from the BUILT
+  // meshes: `at` in the manifest is an anchor, and where a toilet's bowl front lands
+  // depends on the builder's own dimensions, not on that anchor.
+  // Found by BEING IN THE ROOM rather than at a coordinate: these positions get tuned
+  // (the WC has already moved once, to buy the 21 in below), and an assertion keyed to
+  // the old number fails for the one reason that is not a defect.
+  const inBay = (r) => r.px > EAST - 0.7 && r.px < WEST + 0.7 && r.pz < -0.4 && r.pz > -7.4;
+  const wc = P.find(r => r.type === 'toilet' && inBay(r));
+  const van = P.find(r => r.type === 'vanity' && inBay(r));
+  A(!!wc && !!van, `a WC and a basin are in the room (${wc ? 'wc' : '-'}, ${van ? 'basin' : '-'})`);
+  if (wc && van) {
+    const wb = meshes(wc), vb = meshes(van);
+    const wcPxLo = Math.min(...wb.map(m => m.pxLo)), wcPxHi = Math.max(...wb.map(m => m.pxHi));
+    const wcFront = Math.max(...wb.map(m => m.pzHi));         // the bowl, facing north
+    const vanFront = Math.min(...vb.map(m => m.pxLo));        // the cabinet's face, into the room
+    const vanSouth = Math.min(...vb.map(m => m.pzLo));
+    A(wcPxLo > EAST && wcPxHi < WEST,
+      `the WC is inside the walls (px ${R(wcPxLo, 2)}..${R(wcPxHi, 2)} in ${R(EAST, 2)}..${R(WEST, 2)})`);
+    // 15 in from the WC's centreline to anything either side is the code clearance, and
+    // it is the number that decides this room works at all.
+    const wcMid = (wcPxLo + wcPxHi) / 2;
+    A(Math.min(wcMid - EAST, WEST - wcMid) > 15 / 12,
+      `15 in each side of its centreline (${R(Math.min(wcMid - EAST, WEST - wcMid) * 12, 1)} in)`);
+    // 21 in clear in FRONT of the bowl — and the basin is the thing that could eat it,
+    // which is why the two are measured against each other rather than against the wall.
+    A(vanSouth - wcFront > 21 / 12,
+      `21 in clear in front of the bowl (${R((vanSouth - wcFront) * 12, 1)} in to the basin)`);
+    A(vanFront > EAST + 1.5,
+      `and the basin leaves a passage past it (${R((vanFront - EAST) * 12, 1)} in)`);
+  }
+
+  // 5) FINISHED FLOORING, and the hardwood stopping for it. The tile is instanced hex, so
+  // it is checked through the manifest the viewer drives it from; the hardwood is checked
+  // by its coverings having been SPLIT, since a single un-split Foyer covering means the
+  // planks are being drawn straight through the powder room under the tile.
+  const names = (f) => { try { return JSON.parse(readFileSync(`public/${f}`, 'utf8')).map(e => e.name); }
+                         catch (e) { return []; } };
+  const tiles = names('ground.tiles.json'), woods = names('ground.floors.json');
+  A(tiles.some(t => /Powder/i.test(t)), `the floor is tiled (${tiles.filter(t => /Powder/i.test(t)).join(', ') || 'none'})`);
+  const foyerFloors = woods.filter(t => /Foyer/i.test(t));
+  A(foyerFloors.length > 1,
+    `and the foyer's hardwood stops for it (${foyerFloors.length} coverings — one would mean planks under the tile)`);
 }
 
 console.log(fail ? `\n${fail} FAILURES` : '\nALL CHECKS PASSED');
