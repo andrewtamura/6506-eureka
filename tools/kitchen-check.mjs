@@ -215,6 +215,50 @@ const raw = await page.evaluate(() => {
   }
   fdoors.forEach(f => delete f.d);
 
+  // LOOKING UP FROM THE POWDER ROOM. The requirement — "the stair steps are not
+  // visible" — is about what is OVERHEAD, and no bounding box can answer it: the
+  // stringers are sloped planks whose boxes span the whole flight, so a box test says
+  // they reach the floor. So this raycasts, which is the same question the eye asks.
+  // Each object is shot SEPARATELY inside a try: some mesh in the wider scene throws
+  // inside three's intersectObjects, and one bad object must not take the pass down.
+  // Raycaster ignores `visible`, so consolidate.js's hidden originals are still hit;
+  // its merged copies are skipped as duplicates of them.
+  const overhead = [];
+  {
+    const T = window.THREE, FTm = 0.3048;
+    const fy = (() => { let v = null; window.__eureka.world.scene.three.traverse(o => {
+      const it = o.userData && o.userData.item; if (it && it.type === 'island') v = o.position.y; }); return v; })();
+    const bay = new T.Box3(new T.Vector3(-15.4 * FTm, fy - 0.5, -0.2 * FTm),
+                           new T.Vector3(-11.0 * FTm, fy + 11 * FTm, 8.0 * FTm));
+    // THE STAIRCASE'S OWN MESHES, and nothing else. The question is whether any part of
+    // the STAIR shows from below, so the basin, the mirror and the WC are not answers to
+    // it — shot against everything, the first hit over the WC is the WC, at 0.2 ft.
+    const targets = [];
+    let stairGroup = null;
+    window.__eureka.world.scene.three.traverse(o => {
+      const it = o.userData && o.userData.item;
+      if (it && it.type === 'staircase') stairGroup = o;
+    });
+    if (stairGroup) stairGroup.traverse(o => {
+      if (!o.isMesh || o.isInstancedMesh || !isPart(o)) return;
+      if (!o.geometry || !o.geometry.attributes || !o.geometry.attributes.position) return;
+      let bb; try { bb = new B3().setFromObject(o); } catch (e) { return; }
+      if (!bb.isEmpty() && bb.intersectsBox(bay)) targets.push(o);
+    });
+    const rc = new T.Raycaster(); const up = new T.Vector3(0, 1, 0);
+    for (let px = 11.9; px <= 14.6; px += 0.3) for (let pz = -0.8; pz >= -7.2; pz -= 0.3) {
+      rc.set(new T.Vector3(-px * FTm, fy + 0.06, -pz * FTm), up); rc.far = 12;
+      let best = null, hit = null;
+      for (const t of targets) {
+        let h; try { h = rc.intersectObject(t, false); } catch (e) { continue; }
+        for (const q of h) if (best == null || q.distance < best) { best = q.distance; hit = q.object; }
+      }
+      overhead.push({ px: +px.toFixed(2), pz: +pz.toFixed(2),
+                      y: best == null ? null : (best + 0.06) / FTm,
+                      soffit: !!(hit && hit.userData && hit.userData.soffit) });
+    }
+  }
+
   // The ceiling plane, so the skylight wells can be checked against the thing they
   // actually have to meet rather than against their own nominal height.
   const ceilingY = window.__eureka.modelViews[0].box.max.y;
@@ -253,7 +297,7 @@ const raw = await page.evaluate(() => {
     lighting[pick] = { lit: litPerLevel(), says: window.__eureka.litModel() };
   }
   window.__eureka.selectLighting("auto");
-  return { items, loose, doorLeaves, fdoors, lights, ceilingY, sky: { night, noon }, lighting };
+  return { items, loose, doorLeaves, fdoors, overhead, lights, ceilingY, sky: { night, noon }, lighting };
 });
 await b.close();
   return raw;
@@ -1918,7 +1962,45 @@ console.log('EXTENSION');
       `and the basin leaves a passage past it (${R((vanFront - EAST) * 12, 1)} in)`);
   }
 
-  // 5) FINISHED FLOORING, and the hardwood stopping for it. The tile is instanced hex, so
+  // 5) THE CEILING. The requirement is "the stair steps are not visible", so the test is
+  // what you HIT looking up, at every point on a grid across the room — not whether a
+  // soffit mesh exists. A soffit that existed but sat above one step corner would pass
+  // an existence test and fail in the room, which is the failure worth guarding.
+  const OH = (raw.overhead || []).filter(o => o.px > EAST && o.px < WEST && o.pz < -0.6 && o.pz > -7.3);
+  const openSky = OH.filter(o => o.y == null);
+  const stepHits = OH.filter(o => o.y != null && !o.soffit);
+  A(OH.length > 100, `the room was probed overhead (${OH.length} points)`);
+  A(openSky.length === 0,
+    `the stair is overhead everywhere in the room (${openSky.length} points see none of it — a gap at the edge of the sheet)`);
+  A(stepHits.length === 0,
+    `every point looks up at the SOFFIT, not the stair (${stepHits.length} points see something else` +
+    `${stepHits.length ? ': ' + stepHits.slice(0, 3).map(o => `px ${o.px} pz ${o.pz} at ${R(o.y, 2)} ft`).join('; ') : ''})`);
+  // ...and that the ceiling it gives is a usable one. These are the heights the layout
+  // was chosen for, so they are the ones that must not quietly erode.
+  const hAt = (pz) => { const c = OH.filter(o => near(o.pz, pz, 0.2) && o.y != null);
+                        return c.length ? Math.min(...c.map(o => o.y)) : NaN; };
+  A(hAt(-0.9) > 8.5, `8 ft 6 in of ceiling at the door (${R(hAt(-0.9), 2)} ft)`);
+  A(hAt(-1.45) > 8.0, `and over the basin (${R(hAt(-1.45), 2)} ft)`);
+  A(hAt(-5.05) > 5.2, `and 5 ft over the WC seat (${R(hAt(-5.05), 2)} ft) — sitting height`);
+  // A FLAT sheet, which is what was asked for. Tested by FITTING A PLANE to every probe
+  // and looking at the worst residual: a stepped profile, a fold, or a sheet that sloped
+  // across the room as well as along it all show up as points off the fit. Differencing
+  // neighbouring heights does NOT work here and was the first attempt — the probe grid
+  // is 0.3 ft and the sampling window caught one row in some places and two in others,
+  // which reported a "slope" wandering between 0.41 and 1.24 on a plane that is dead
+  // flat. The fit is over pz only, so any fall ACROSS the room lands in the residual too.
+  const pts = OH.filter(o => o.y != null);
+  const n = pts.length;
+  const sx = pts.reduce((t, o) => t + o.pz, 0), sy = pts.reduce((t, o) => t + o.y, 0);
+  const sxx = pts.reduce((t, o) => t + o.pz * o.pz, 0);
+  const sxy = pts.reduce((t, o) => t + o.pz * o.y, 0);
+  const b = (n * sxy - sx * sy) / (n * sxx - sx * sx), a0 = (sy - b * sx) / n;
+  const resid = Math.max(...pts.map(o => Math.abs(o.y - (a0 + b * o.pz))));
+  A(n > 100 && resid < 0.01,
+    `it is ONE FLAT plane, not a stepped profile (falls ${R(b, 3)} ft per ft going south, ` +
+    `worst point ${R(resid, 4)} ft off the fit)`);
+
+  // 6) FINISHED FLOORING, and the hardwood stopping for it. The tile is instanced hex, so
   // it is checked through the manifest the viewer drives it from; the hardwood is checked
   // by its coverings having been SPLIT, since a single un-split Foyer covering means the
   // planks are being drawn straight through the powder room under the tile.

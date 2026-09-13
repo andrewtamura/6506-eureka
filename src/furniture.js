@@ -367,7 +367,7 @@ function stairKit(g, mats) {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3));
     geo.computeVertexNormals();
-    g.add(new THREE.Mesh(geo, mat));
+    const me = new THREE.Mesh(geo, mat); g.add(me); return me;
   };
   // one flight: painted risers + wood tread caps + two skirt stringers
   const flight = (L, eoC, footNO, dir, nR, baseH, rw) => {
@@ -440,7 +440,7 @@ function stairMats(p) {
 // Built from the bottom of the flight at local y=0.
 function addFullStair(K, L, mats, endWall = true, wellWall = true, underDoor = null) {
   const { landingN, southClear, eastClear, westClear, landD, landingH, f2f, footNO1,
-          n1, n2, going2, riser, railH, run1Eo, run2Eo, wEo1, wEo2, hw, rw1, rw2 } = L;
+          n1, n2, going2, riser, tread, railH, run1Eo, run2Eo, wEo1, wEo2, hw, rw1, rw2 } = L;
   const clearW = eastClear - westClear, landMidNO = (southClear + landingN) / 2;
   K.boxAt(0, landMidNO, landingH / 2, clearW, landingH, landD, mats.white);   // landing block
   K.boxAt(0, landMidNO, landingH - 0.06, clearW, 0.12, landD, mats.woodT);    // landing top
@@ -462,6 +462,35 @@ function addFullStair(K, L, mats, endWall = true, wellWall = true, underDoor = n
   if (wellWall)
     K.prismPanel([[wEo2, landingN, 0], [wEo2, topNO, 0], [wEo2, topNO, f2f], [wEo2, landingN, landingH]],
                  [Math.sign(run2Eo) * t, 0, 0], mats.dry);        // well-side wall (sloped soffit)
+  // A DRYWALL SOFFIT under the flight, so the boxed-in space has a CEILING instead of
+  // the underside of the steps. One flat sheet, as it is built: drywall goes on furring
+  // under the carriage and reads as a single raking plane, not as a stepped profile.
+  //
+  // Where that plane can sit is fixed by two DIFFERENT things, and which one binds
+  // changes along the length — that is the whole difficulty:
+  //   the STEP CORNERS, on riser/tread (the inside corner of every step), and
+  //   the STRINGER's lower edge, on the flight's CHORD, which is steeper because the
+  //     run is (n-1) treads while the rise is n risers (the top riser meets the floor
+  //     above and carries no tread).
+  // The stringer hangs lower at the landing end, the steps hang lower at the top, and
+  // the two cross in between. A plane parallel to either one cuts through the other.
+  // The lower envelope of two straight lines is CONCAVE, so the chord joining its two
+  // END values lies at or below it everywhere between — which is what this uses, and
+  // why no clearance sweep along the length is needed to be sure the steps are hidden.
+  if (endWall && wellWall) {
+    const mStep = riser / tread;                       // through the step corners
+    const mChord = (n2 * riser) / going2;              // the stringer's own slope
+    // The stringer is a 0.85 ft plank centred on the nosing line + 0.2; its lower edge
+    // is half that width PERPENDICULAR to the line, which is (w/2)*hypot(1,m) in y.
+    const strDrop = 0.2 - (0.85 / 2) * Math.hypot(1, mChord);
+    const env = (u) => Math.min(landingH + u * mStep, landingH + strDrop + u * mChord);
+    const CLEAR = 0.04;                                // the drywall hangs just clear
+    const y0 = env(0) - CLEAR, y1 = env(going2) - CLEAR;
+    const soffit = K.prismPanel(
+      [[wEo2, landingN, y0], [wallEdge, landingN, y0], [wallEdge, topNO, y1], [wEo2, topNO, y1]],
+      [0, 0, -0.05], mats.dry);                        // ~1/2 in board, measured vertically
+    soffit.userData.soffit = true;                     // kitchen-check raycasts against this
+  }
   if (endWall && !underDoor)
     K.prismPanel([[wEo2, topNO, 0], [wallEdge, topNO, 0], [wallEdge, topNO, f2f], [wEo2, topNO, f2f]],
                  [0, -t, 0], mats.dry);                           // end wall (encloses the under-stair)
