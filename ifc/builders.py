@@ -1694,7 +1694,7 @@ def add_deck(ctx, lot, rooms_cache, base):
 
 def add_side_porch(ctx, lot, rooms_cache, base):
     """A small board porch at the east wing's outside door: a landing level with the
-    floor, a flight down to grade, and a shed canopy keeping the rain off the door.
+    floor, a flight down to grade, and a free-standing awning over the door.
 
     It fills the reentrant corner between the wing's north wall and the primary
     block's east wall, so it is sheltered on two sides before any roof is added. Kept
@@ -1704,9 +1704,9 @@ def add_side_porch(ctx, lot, rooms_cache, base):
     Four things are DERIVED, and each is why a number here is not a coordinate:
 
       - the DOOR is found by geometry — the one exterior opening on the wing's north
-        wall — so moving it in the room file moves the steps and the canopy with it;
+        wall — so moving it in the room file moves the steps and the awning with it;
       - the WIDTH is the wing's own, bound to bound, which is the ~11 ft asked for;
-      - the flight and the canopy are centred on the door and then SNAPPED flush to
+      - the flight and the awning are centred on the door and then SNAPPED flush to
         the primary's east wall, which they both land within a few inches of. Centred
         exactly, the stair would leave a 3 in sliver of deck against the house, which
         reads as a mistake where a flush edge reads as built;
@@ -1790,39 +1790,40 @@ def add_side_porch(ctx, lot, rooms_cache, base):
         slab(f"Side porch step {nst - 1}", se, die_in(sw), pz_n + t0, pz_n + t0 + tread,
              -0.05, 0.05)
 
-    # --- the canopy: a shed roof on two posts at the landing's north edge, falling
-    # away from the house. Its west edge dies INTO the primary's east wall and so takes
-    # no overhang there; north and east do, which is what puts cover over the top tread.
-    c = p.get("canopy") or {}
+    # --- the awning. FREE-STANDING: it projects off the wall on its own brackets and
+    # nothing lands on the deck, so the porch floor and the head of the stair are clear.
+    # Carried on posts it read as a doorframe — two uprights at the deck's north edge
+    # framing the flight — which is a canopy, not the awning this wanted to be.
+    #
+    # It runs to the primary's east wall on the west rather than stopping a few inches
+    # short: the door sits 2.7 ft off that wall, so anything wide enough to cover the
+    # door reaches it anyway, and the alternative is a 3 in slot nobody would build.
+    c = p.get("awning") or {}
     ce, cw = centred(c.get("widthFt", 6.0))
-    post, head = c.get("postFt", 0.5), c.get("headFt", 8.0)
-    beam, rise, oh = c.get("beamFt", 0.6), c.get("riseFt", 0.75), c.get("overhangFt", 0.5)
-    for i, (x1, x2) in enumerate(((ce, ce + post), (die_in(cw), cw - post))):
-        slab(f"Side porch post {i}", x1, x2, pz_n - post, pz_n,
-             base, head * FT, cls="IfcBuildingElementProxy")
-    slab("Side porch beam", ce, die_in(cw), pz_n - post, pz_n, base + head * FT,
-         beam * FT, cls="IfcBuildingElementProxy")
-    # Knee braces. Without them the two posts and the beam read as a goalpost rather
-    # than as a canopy — which is what the first render showed — and they are how a
-    # bracket of this span is actually carried.
-    brc, hb = c.get("braceFt", 1.25), base + head * FT
-    for i, (xi, sgn) in enumerate(((ce + post, -1), (cw - post, +1))):
-        tri = [(ctx.X(xi), ctx.Y(pz_n), hb), (ctx.X(xi), ctx.Y(pz_n), hb - brc * FT),
-               (ctx.X(xi - sgn * brc), ctx.Y(pz_n), hb)]
-        v, faces = _prism(tri, (0, (ctx.Y(pz_n - post) - ctx.Y(pz_n)), 0))
-        add_brep(ctx, f"Side porch brace {i}", v, faces, DECK,
-                 ifc_class="IfcBuildingElementProxy")
+    prj, spring = c.get("projectFt", 4.0), c.get("springFt", 8.25)
+    drop, thk = c.get("dropFt", 1.0), c.get("thickFt", 0.2)
+    pz_o = pz_s + prj                               # the outer edge
+    top_w, top_o = base + spring * FT, base + (spring - drop) * FT
+    poly = [(ctx.X(ce), ctx.Y(pz_s - BURY), top_w),
+            (ctx.X(die_in(cw)), ctx.Y(pz_s - BURY), top_w),
+            (ctx.X(die_in(cw)), ctx.Y(pz_o), top_o),
+            (ctx.X(ce), ctx.Y(pz_o), top_o)]
+    v, faces = _prism(poly, (0, 0, -thk * FT))
+    add_brep(ctx, "Side porch awning", v, faces, ROOF, predefined="SHED_ROOF")
 
-    # The roof is swept UP from its UNDERSIDE, which lands on the top of the beam.
-    # Swept down from the top face instead it buried a third of the beam inside it and
-    # the beam read as a thin line in the render.
-    y0 = base + (head + beam) * FT
-    poly = [(ctx.X(ce - oh), ctx.Y(pz_s - BURY), y0 + rise * FT),
-            (ctx.X(die_in(cw)), ctx.Y(pz_s - BURY), y0 + rise * FT),
-            (ctx.X(die_in(cw)), ctx.Y(pz_n + oh), y0),
-            (ctx.X(ce - oh), ctx.Y(pz_n + oh), y0)]
-    v, faces = _prism(poly, (0, 0, c.get("thickFt", 0.33) * FT))
-    add_brep(ctx, "Side porch canopy", v, faces, ROOF, predefined="SHED_ROOF")
+    # Brackets: one at each end, a gusset off the WALL reaching up under the awning.
+    # Inset from the ends rather than centred on them — the west end is the primary's
+    # east wall, and a bracket centred there would be half buried inside the house.
+    bt = c.get("bracketThickFt", 0.25)
+    reach, bdrop = c.get("bracketReachFt", 2.75), c.get("bracketDropFt", 2.0)
+    y_at = lambda z: top_w - (top_w - top_o) * (z - pz_s) / prj - thk * FT   # underside
+    for i, x1 in enumerate((ce, cw - bt)):
+        tri = [(ctx.X(x1), ctx.Y(pz_s), y_at(pz_s)),
+               (ctx.X(x1), ctx.Y(pz_s), y_at(pz_s) - bdrop * FT),
+               (ctx.X(x1), ctx.Y(pz_s + reach), y_at(pz_s + reach))]
+        v, faces = _prism(tri, (ctx.X(x1 + bt) - ctx.X(x1), 0, 0))
+        add_brep(ctx, f"Side porch bracket {i}", v, faces, DECK,
+                 ifc_class="IfcBuildingElementProxy")
 
 
 def add_lot_wall(ctx, lot, rooms_cache, base):

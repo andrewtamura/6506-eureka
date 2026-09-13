@@ -83,19 +83,20 @@
     },
     "sidePorch": {
       "_note": "The side entrance: a small board porch at the east wing's outside door, filling the reentrant corner between that wing's north wall and the primary block's east wall. Dimensioned as a DEPTH only \u2014 its width is the wing's own ~11 ft and its south edge is the wing's north bound, so it follows the house rather than a coordinate. Deliberately plain: this is the door off the drive, not a second front stoop, so it gets a board deck where add_porch gets a stucco skirt and splayed cheek walls.",
-      "_noteSteps": "stepCount and treadFt are NOT authored here \u2014 the flight reads lot.deck's, so every set of steps on the lot climbs the same 7.5 in riser. stepWidthFt and the canopy width are CENTRED ON THE DOOR and then snapped flush to the primary's east wall, which both land within a few inches of: a 3 in sliver of deck beside a stair reads as a mistake where a flush edge reads as built.",
+      "_noteSteps": "stepCount and treadFt are NOT authored here \u2014 the flight reads lot.deck's, so every set of steps on the lot climbs the same 7.5 in riser. stepWidthFt and the awning width are CENTRED ON THE DOOR and then snapped flush to the primary's east wall, which both land within a few inches of: a 3 in sliver of deck beside a stair reads as a mistake where a flush edge reads as built.",
       "depthFt": 5.0,
       "stepWidthFt": 5.0,
-      "canopy": {
-        "_note": "A shed roof over the door, on two posts at the porch's north edge, knee-braced. headFt is the underside of the beam above the porch FLOOR, so it clears the 7 ft door head by a foot. Its west edge dies into the primary's east wall and so takes no overhang there; north and east get overhangFt, which is what puts cover over the top tread.",
+      "awning": {
+        "_note": "A FREE-STANDING projection over the door \u2014 it stands clear of the porch on its own brackets, with nothing landing on the deck. springFt is the top of it AT THE WALL, above the porch floor, and it falls dropFt over its projection; the underside of the outer edge is what has to stay above head height, so that is what ifc_check measures rather than the mounting height.",
+        "_noteWidth": "Wider than the door, and it runs to the corner rather than stopping a few inches short of it: the door sits 2.7 ft off the primary's east wall, so anything that covers the door properly reaches that wall anyway, and a 3 in gap there reads as a mistake.",
         "widthFt": 6.0,
-        "headFt": 8.0,
-        "beamFt": 0.6,
-        "postFt": 0.5,
-        "braceFt": 1.25,
-        "riseFt": 0.75,
-        "overhangFt": 0.5,
-        "thickFt": 0.33
+        "projectFt": 4.0,
+        "springFt": 8.25,
+        "dropFt": 1.0,
+        "thickFt": 0.2,
+        "bracketReachFt": 2.75,
+        "bracketDropFt": 2.0,
+        "bracketThickFt": 0.25
       }
     },
     "frontage": {

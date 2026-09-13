@@ -527,7 +527,7 @@ _door = [d for k in EXT_W for d in json.load(open(f'ifc/rooms/{k}.json')).get('d
          if d.get('orient') == 'H' and abs(d.get('fixed', 0.0) - wing_n) < 1e-6]
 
 if sp and 'Side porch deck' in SP and len(_door) == 1:
-    deck, cnpy, beam = SP['Side porch deck'], SP['Side porch canopy'], SP['Side porch beam']
+    deck, cnpy = SP['Side porch deck'], SP['Side porch awning']
     door = _door[0]
     d_e, d_w = door['pos'] - door['width'] / 2, door['pos'] + door['width'] / 2
 
@@ -570,37 +570,41 @@ if sp and 'Side porch deck' in SP and len(_door) == 1:
           f"and does not land in the driveway ({fl[0]:.2f}..{fl[1]:.2f} vs "
           f"{'none' if drv is None else f'{drv[0]:.2f}..{drv[1]:.2f}'})")
 
-    # --- the canopy. The point of it is the DOOR, so that is what it is measured against.
+    # --- the awning. The point of it is the DOOR, so that is what it is measured
+    # against; and it is FREE-STANDING, which is the assertion that matters most here
+    # because the first build carried it on two posts landing on the deck.
+    aw = sp['awning']
     check(cnpy[0] <= d_e + 1e-6 and cnpy[1] >= d_w - 1e-6,
-          f"the canopy covers the door's full {door['width']} ft ({cnpy[0]:.3f}..{cnpy[1]:.3f} "
+          f"the awning covers the door's full {door['width']} ft ({cnpy[0]:.3f}..{cnpy[1]:.3f} "
           f"over {d_e:.3f}..{d_w:.3f})")
-    check(cnpy[3] >= deck[3] - 1e-6,
-          f'and its overhang reaches past the top tread ({cnpy[3]:.3f} vs {deck[3]:.3f})')
-    # Headroom under the beam, and a foot of it over the door head.
-    head_y = BASE + model['doorHeight']
-    check(near(beam[4] - deck[5], sp['canopy']['headFt'], 0.02),
-          f"{sp['canopy']['headFt']} ft clear under the beam ({beam[4] - deck[5]:.3f})")
-    check(beam[4] >= head_y + 0.9,
-          f'which clears the door head by {beam[4] - head_y:.2f} ft')
-    # It must SHED, and away from the house: highest at the wall, lowest at the eave.
-    wall_hi = max(b[5] for nm, b in _parts(ext, 'Side porch canopy'))
-    check(near(wall_hi, cnpy[5], 0.001) and cnpy[5] - cnpy[4] > sp['canopy']['riseFt'],
-          f"it slopes away from the wall, {sp['canopy']['riseFt']} ft over the projection "
+    check(near(cnpy[3] - wing_n, aw['projectFt'], 0.02),
+          f"projecting {aw['projectFt']} ft off the wall ({cnpy[3] - wing_n:.3f})")
+    check(cnpy[3] - wing_n >= 3.0,
+          f'which is enough to stand at the door under ({cnpy[3] - wing_n:.2f} ft)')
+    # FREE-STANDING: nothing in the assembly comes down to the deck. Measured as the
+    # LOWEST point of the awning and its brackets together, which is the one number a
+    # post or a leg would break no matter how it was named.
+    assembly = _parts(ext, 'Side porch awning') + _parts(ext, 'Side porch bracket')
+    low = min(b[4] for _, b in assembly)
+    check(low - deck[5] > 3.0,
+          f'and it stands free — nothing lands on the porch, lowest part {low - deck[5]:.2f} ft '
+          f'above the deck ({len(assembly)} members)')
+    # What actually has to clear your head is the UNDERSIDE OF THE OUTER EDGE, not the
+    # height it is mounted at: the awning falls away from the wall, so the mounting
+    # height is the generous end of it.
+    check(cnpy[4] - deck[5] >= 7.0,
+          f'you walk under its outer edge ({cnpy[4] - deck[5]:.2f} ft clear)')
+    check(near(cnpy[5] - cnpy[4], aw['dropFt'] + aw['thickFt'], 0.02),
+          f"it sheds away from the wall, {aw['dropFt']} ft over the projection "
           f"({cnpy[4]:.3f}..{cnpy[5]:.3f})")
-    # The roof has to sit ON the beam. Swept the wrong way it buries a third of the
-    # beam inside itself and the beam reads as a thin line — which is what shipped
-    # first, and is invisible in a measurement of the roof alone.
-    check(near(cnpy[4], beam[5], 0.01),
-          f"its underside lands on top of the beam ({cnpy[4]:.3f} vs {beam[5]:.3f})")
-    braces = _parts(ext, 'Side porch brace')
-    check(len(braces) == 2 and all(near(b[5], beam[4], 0.01) for _, b in braces),
-          f'a knee brace under each end of the beam ({len(braces)})')
-    # Both posts must stand ON the porch, not beside it.
-    posts = _parts(ext, 'Side porch post')
-    check(len(posts) == 2, f'two posts carry it ({len(posts)})')
-    check(all(near(b[4], deck[5], 0.01) and b[2] >= deck[2] - 1e-6 and b[3] <= deck[3] + 1e-6
-              for _, b in posts),
-          'both standing on the deck, inside its edges')
+    # A bracket has to reach BOTH ways — bear on the wall and meet the awning — or it
+    # is a decoration hanging in the air.
+    brk = _parts(ext, 'Side porch bracket')
+    check(len(brk) == 2, f'a bracket at each end carries it ({len(brk)})')
+    check(all(near(b[2], wing_n, 0.02) and b[5] >= cnpy[4] - 0.02 for _, b in brk),
+          'each one bears on the wall and reaches the awning')
+    check(all(b[0] >= cnpy[0] - 1e-6 and b[1] <= cnpy[1] + 1e-6 for _, b in brk),
+          'and sits within its width, not buried in the house wall')
 
     # --- the yard fence's terminal post shares this corner BY CONSTRUCTION, so the
     # deck is punched around it. Paired with a positive control: without it, "no deck
