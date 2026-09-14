@@ -61,12 +61,19 @@
         "diaFt": 0.5
       },
       {
-        "type": "toilet",
+        "type": "shower",
         "at": [
-          -18.7872,
-          -10.1835
+          -20.1875,
+          -10.188
         ],
-        "faces": "E"
+        "opens": "N",
+        "widthFt": 5.0,
+        "depthFt": 3.0,
+        "ponyFt": 2.5,
+        "ponySide": "E",
+        "curb": false,
+        "heads": 1,
+        "heightFt": 9.0
       },
       {
         "type": "recessed",

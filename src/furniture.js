@@ -1275,7 +1275,12 @@ function buildVanity(p) {
   let q;
   // Custom cabinetry: recessed toe-kick, a body sitting on it, and a grid of
   // pullout drawer fronts (each proud, with a slim bar pull).
-  const kbH = 0.33, cabTop = 2.9;
+  // The COUNTER height is a parameter, and the cabinet derives from it: a vanity under a
+  // window has to sit under the window's stool — the WC's east window has its sill at
+  // 36 in, and the 36.6 in default drove the slab through the stool's underside. At 34 in
+  // (a standard vanity height) the stool becomes the counter's back cap, which is the
+  // detail a window over a counter actually gets. Default unchanged for every other one.
+  const kbH = 0.33, counter = p.counterFt ?? 3.05, cabTop = counter - 0.15;
   q = pl(-0.13, 0, Dp - 0.28, Wd - 0.15); box(q[0], q[1], kbH / 2, q[2], q[3], kbH, toekick);          // recessed toe-kick
   q = pl(0, 0, Dp, Wd);                    box(q[0], q[1], kbH + (cabTop - kbH) / 2, q[2], q[3], cabTop - kbH, woodv, 0.02); // cabinet body
   // Front layout is a parameter. The default 3x3 is nine drawer fronts, which on a
@@ -1287,13 +1292,13 @@ function buildVanity(p) {
     q = pl(Dp / 2 + 0.02, ds, 0.04, colW - 0.07); box(q[0], q[1], yc, q[2], q[3], rowH - 0.07, woodv, 0.015);  // drawer front (proud)
     q = pl(Dp / 2 + 0.06, ds, 0.04, colW * 0.5);   box(q[0], q[1], yc + rowH / 2 - 0.14, q[2], q[3], 0.05, chrome); // slim bar pull
   }
-  q = pl(0.05, 0, Dp + 0.1, Wd + 0.15); box(q[0], q[1], 2.97, q[2], q[3], 0.16, porc, 0.02); // countertop
+  q = pl(0.05, 0, Dp + 0.1, Wd + 0.15); box(q[0], q[1], counter - 0.08, q[2], q[3], 0.16, porc, 0.02); // countertop
   // Two sinks flank a central gap (a window sits above it); one sink is centred.
   const off = sinks === 2 ? Wd / 2 - 1.25 : 0;
   const dsList = sinks === 2 ? [-off, off] : [0];
   for (const ds of dsList) {
-    q = pl(0.05, ds, 0, 0);             cyl(q[0], q[1], 3.02, 0.5, 0.16, porc);            // basin
-    q = pl(-(Dp / 2 - 0.35), ds, 0, 0); cyl(q[0], q[1], 3.2, 0.05, 0.6, chrome);          // faucet
+    q = pl(0.05, ds, 0, 0);             cyl(q[0], q[1], counter - 0.03, 0.5, 0.16, porc);   // basin
+    q = pl(-(Dp / 2 - 0.35), ds, 0, 0); cyl(q[0], q[1], counter + 0.15, 0.05, 0.6, chrome); // faucet
   }
   // A mirror over each sink (double) or one wide mirror (single); skip if `mirror:false`.
   // Mount proud of the wall's inner face (the cabinet back sits at the ~0.46 ft-thick

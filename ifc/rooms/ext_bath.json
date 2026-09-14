@@ -18,7 +18,8 @@
       "pos": -0.7389,
       "width": 2.0,
       "sill": 3.0,
-      "head": 7.0
+      "head": 7.0,
+      "plainBelow": true
     }
   ],
   "interior": {
@@ -28,41 +29,33 @@
     },
     "furniture": [
       {
-        "type": "shower",
-        "at": [
-          -20.1875,
-          1.771
-        ],
-        "opens": "S",
-        "widthFt": 5.0,
-        "depthFt": 4.0,
-        "ponyFt": 2.5,
-        "ponySide": "E",
-        "curb": false,
-        "heads": 1,
-        "heightFt": 9.0
-      },
-      {
         "type": "vanity",
         "at": [
           -21.7729,
-          -2.004
+          -0.7389
         ],
         "faces": "W",
         "widthFt": 3.1,
         "depthFt": 1.83,
+        "counterFt": 2.85,
         "sinks": 1,
         "cols": 2,
         "rows": 1,
-        "mirrorWFt": 2.1,
-        "mirrorHFt": 3.1,
-        "mirrorTopFt": 6.5
+        "mirror": false
+      },
+      {
+        "type": "toilet",
+        "at": [
+          -18.787,
+          2.25
+        ],
+        "faces": "E"
       },
       {
         "type": "sconce",
         "at": [
           -22.688,
-          -0.625
+          1.1
         ],
         "faces": "W",
         "atFt": 5.0,
@@ -78,7 +71,7 @@
         "type": "sconce",
         "at": [
           -22.688,
-          -3.383
+          -2.6
         ],
         "faces": "W",
         "atFt": 5.0,
@@ -94,7 +87,7 @@
         "type": "recessed",
         "at": [
           -20.1875,
-          1.8
+          2.25
         ],
         "ceilFt": 9.0,
         "diaFt": 0.5
@@ -102,8 +95,8 @@
       {
         "type": "recessed",
         "at": [
-          -20.1875,
-          -2.3
+          -21.2,
+          -0.7389
         ],
         "ceilFt": 9.0,
         "diaFt": 0.5
