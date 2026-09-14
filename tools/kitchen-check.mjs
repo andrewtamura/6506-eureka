@@ -339,8 +339,8 @@ const raw = await page.evaluate(() => {
     return out;
   }, { xs: man.xs, zs: man.zs, ft: FT, fy: FYp, probes: [
     { label: 'wc-round', from: [-20.1875, 1.5, 7.0], to: [-20.1875, 8.0, 7.0] },
-    { label: 'shower-transom', from: [-20.1875, -9.0, 5.5], to: [-20.1875, -14.0, 8.5] },   // meets the wall at y 7.1, mid-glass
-    { label: 'laundry-transom', from: [-14.7292, -8.0, 5.0], to: [-14.7292, -13.0, 8.0] },   // over the uppers (6.55 at their face), y 7.2 at the wall
+    { label: 'shower-transom', from: [-20.1875, -9.0, 6.0], to: [-20.1875, -14.0, 9.5] },   // meets the wall at y 7.9, mid-glass (7.5..8.75)
+    { label: 'laundry-transom', from: [-14.7292, -8.0, 5.5], to: [-14.7292, -13.0, 9.0] },   // over the uppers (7.3 at their face), y 8.1 at the wall
     // The shower's ARCHED entry, probed from the bath side heading south. `open` is the
     // front line (pz -8.688); the probes start 0.7 ft north of it. Low and centred passes
     // to the back wall; low at the jamb and centred above the apex meet the front; and
