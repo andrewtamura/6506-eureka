@@ -1206,11 +1206,9 @@ console.log('EXTENSION FIXTURES');
   };
   const bathTrim = eastTrim(bathWin), wcTrim = eastTrim(wcWinE);
 
-  // THE COMPARTMENT: a WALL-HUNG toilet on the EAST wall facing west. The door is at the
-  // west end of the compartment wall swinging in, so a toilet on the west wall would
-  // stand in its swing; on the east wall the bowl's front is what the leaf's line has to
-  // clear, and a wall-hung bowl (1.85 ft) buys the clearance a floor-standing one (2.0)
-  // does not. 15 in each side of the centreline, 21 in in front to the west wall.
+  // THE COMPARTMENT: a WALL-HUNG toilet on the EAST wall facing west — no pedestal, so
+  // the floor of a 31 in compartment stays clear. 15 in each side of the centreline,
+  // 21 in in front to the west wall. The door is a pocket door, so nothing swings here.
   { const t = ext.find(r => r.type === 'wall_toilet');
     A(!!t, 'a WALL-HUNG toilet in the water closet');
     A(!ext.some(r => r.type === 'toilet'), 'and no floor-standing one left in the wing');
@@ -1222,10 +1220,6 @@ console.log('EXTENSION FIXTURES');
       A(t.pz - (PART + 0.22915) >= 1.25 - 0.01,
         `${R((t.pz - PART - 0.22915) * 12, 1)} in centreline to the compartment wall (15 min)`);
       A(BW - t.pxHi >= 1.75, `${R((BW - t.pxHi) * 12, 0)} in in front of the bowl to the west wall (21 min)`);
-      const spec = wcJ.doors.find(d => d.name === 'Bath -> WC');
-      const hingeE = spec.pos - spec.width / 2;                  // the leaf's line when open
-      A(hingeE - t.pxHi >= 0.25,
-        `bowl front ${R((hingeE - t.pxHi) * 12, 1)} in clear of the door's hinge line (3 in min)`);
       const low = meshes(t).filter(m => m.yLo < 0.7);
       A(low.length === 0, `clear floor under it — no pedestal (${low.length} members below 8 in)`);
       const clear = BN - (PART + 0.22915);
@@ -1376,25 +1370,27 @@ console.log('EXTENSION');
 { const leaf = (re) => (raw.doorLeaves || []).find(d => re.test(d.name));
   const midPx = (d) => (d.pxLo + d.pxHi) / 2, midPz = (d) => (d.pzLo + d.pzHi) / 2;
 
-  // WC DOOR: at the WEST end of the compartment wall — on the aisle past the vanity —
-  // hung on its EAST jamb and swinging IN, so the open leaf stands inside the compartment
-  // between the door and the wall-hung bowl on the east wall, with its tip short of the
-  // north wall. Every number is the room file's.
+  // WC DOOR: a POCKET DOOR at the WEST end of the compartment wall — on the aisle past
+  // the vanity — sliding EAST into the wall. A 31 in compartment has no room for any
+  // swing, and the pocket can only go east: west of the jamb there is the 6 in return.
+  // That caps the leaf at 27 in (4.5 - W >= W); it is 26. Every number is the room file's.
   { const d = leaf(/Bath -> WC/);
     A(!!d, 'WC door leaf found');
     if (d) {
       const wcJ2 = JSON.parse(readFileSync('ifc/rooms/wc.json', 'utf8'));
       const spec = wcJ2.doors.find(x => x.name === 'Bath -> WC');
       const eastJamb = spec.pos - spec.width / 2, westJamb = spec.pos + spec.width / 2, wall = wcJ2.bounds.z1;
-      const BW2 = -17.687, BN2 = 3.771;
+      const BW2 = -17.687;
+      A(spec.sliding === true, 'authored as a pocket door');
       A(Math.abs((BW2 - westJamb) - 0.5) < 0.03,
         `opening at the WEST end, ${R((BW2 - westJamb) * 12, 1)} in of casing return to the party wall`);
-      A(Math.abs(midPx(d) - eastJamb) < 0.04, `hung on the EAST jamb (px ${R(midPx(d), 3)} vs ${R(eastJamb, 3)})`);
-      A(d.pzLo >= wall - 0.02 && d.pzHi > wall + 2.0,
-        `swings IN to the water closet (pz ${R(d.pzLo, 2)}..${R(d.pzHi, 2)}, wall at ${R(wall, 3)})`);
-      A(d.pzHi < BN2 - 0.1, `its tip clears the north wall by ${R((BN2 - d.pzHi) * 12, 1)} in`);
-      const t = P.find(r => r.type === 'wall_toilet');
-      if (t) A(t.pxHi < eastJamb - 0.25, `the leaf's line clears the bowl by ${R((eastJamb - t.pxHi) * 12, 1)} in`);
+      A(Math.abs(midPz(d) - wall) < 0.12, `the open leaf lies in the wall's plane (pz ${R(midPz(d), 3)} vs ${R(wall, 3)})`);
+      // px increases WEST, so the leaf's EAST end is pxLo (toward the corner at -22.688)
+      // and its west end pxHi, which stops a pull's width short of the jamb.
+      A(d.pxHi < eastJamb + 0.25 && d.pxHi > eastJamb - 0.05 && d.pxLo > -22.688 - 0.05,
+        `...in the pocket east of the jamb (px ${R(d.pxLo, 2)}..${R(d.pxHi, 2)}, jamb ${R(eastJamb, 3)}, corner -22.688)`);
+      const wide = Math.abs(d.pxHi - d.pxLo);
+      A(Math.abs(wide - spec.width) < 0.06, `${R(wide * 12, 0)} in leaf`);
     } }
 
   // LAUNDRY -> BATH is a POCKET DOOR. Its 3 ft in-swing used to stand in the middle of a

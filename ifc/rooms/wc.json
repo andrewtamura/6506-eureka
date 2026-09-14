@@ -14,10 +14,11 @@
       "name": "Bath -> WC",
       "orient": "H",
       "fixed": 0.97,
-      "pos": -19.354,
-      "width": 2.33,
+      "pos": -19.27,
+      "width": 2.167,
       "hinge": "max",
-      "swing": "neg"
+      "swing": "neg",
+      "sliding": true
     }
   ],
   "windows": [

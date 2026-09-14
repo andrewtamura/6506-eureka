@@ -1149,21 +1149,33 @@ _bb = _rooms['ext_bath']
 check(near(_bb['z1'], wing_s, 1e-6) and near(_bb['z2'], _wcb['z1'], 1e-6),
       f"the bath is one open room from the south wall to the compartment ({_bb['z1']:.3f}..{_bb['z2']:.3f})")
 
-# THE LAUNDRY DOOR IS A POCKET DOOR. A 3 ft leaf swinging into a 5 ft wide room stood in
-# the middle of it, a hand's width off the shower glass. Asserted in the IFC — the door
-# itself says it slides — and on the wall: the pocket is the party wall beyond the hinge
-# jamb, and there has to be a leaf's width of it before the corner.
-_ld = next((d for d in json.load(open('ifc/rooms/ext_laundry.json'))['doors']
-            if d['name'] == 'Laundry -> Bath'), None)
-_ifc_ld = next((d for d in gnd.by_type('IfcDoor') if (d.Name or '') == 'Laundry -> Bath'), None)
-check(_ld is not None and _ld.get('sliding') is True, 'Laundry -> Bath is authored as a pocket door')
-check(_ifc_ld is not None and getattr(_ifc_ld, 'OperationType', None) == 'SLIDING_TO_LEFT',
-      f"...and the IfcDoor says so (OperationType {getattr(_ifc_ld, 'OperationType', None)})")
-if _ld:
-    _jamb_s = _ld['pos'] - _ld['width'] / 2
-    _pocket = _jamb_s - (wing_s + _WALL / 2)
-    check(_pocket >= _ld['width'],
-          f"{_pocket:.2f} ft of wall south of the jamb for a {_ld['width']:.2f} ft leaf to slide into")
+# THE WING'S POCKET DOORS. The laundry door's 3 ft in-swing stood in the middle of a 5 ft
+# room a hand's width off the shower glass; the water closet's 28 in in-swing filled a
+# 31 in compartment. Both slide now. Asserted for EVERY door in the wing authored
+# `sliding`: the IfcDoor itself says it slides (OperationType), and the wall beyond the
+# hinge jamb — the pocket — is at least a leaf's width before the room's corner. For a
+# V door the pocket runs along pz toward the hinge (`max` = south here); for an H door
+# along px (`max` = the east jamb, since IFC X = -px).
+_wing_rooms = {k: json.load(open(f'ifc/rooms/{k}.json')) for k in EXT_W}
+_sliders = [(k, d) for k, r in _wing_rooms.items() for d in r.get('doors', []) if d.get('sliding')]
+check(len(_sliders) == 2, f'two pocket doors in the wing ({[d["name"] for _, d in _sliders]})')
+for k, d in _sliders:
+    ifc_d = next((x for x in gnd.by_type('IfcDoor') if (x.Name or '') == d['name']), None)
+    check(ifc_d is not None and getattr(ifc_d, 'OperationType', None) == 'SLIDING_TO_LEFT',
+          f"{d['name']}: the IfcDoor says it slides (OperationType {getattr(ifc_d, 'OperationType', None)})")
+    b = _wing_rooms[k]['bounds']
+    hinge_max = d.get('hinge') == 'max'
+    if d['orient'] == 'V':
+        # slides along pz; the pocket is the wall between the hinge jamb and the corner
+        jamb = d['pos'] - d['width'] / 2 if hinge_max else d['pos'] + d['width'] / 2
+        corner = min(b['z1'], b['z2']) + _WALL / 2 if hinge_max else max(b['z1'], b['z2']) - _WALL / 2
+    else:
+        jamb = d['pos'] - d['width'] / 2 if hinge_max else d['pos'] + d['width'] / 2
+        corner = min(b['x1'], b['x2']) + _WALL / 2 if hinge_max else max(b['x1'], b['x2']) - _WALL / 2
+    pocket = abs(jamb - corner)
+    check(pocket >= d['width'],
+          f"{d['name']}: {pocket:.2f} ft of wall beyond the {'east/south' if hinge_max else 'west/north'} "
+          f"jamb for a {d['width']:.2f} ft leaf to slide into")
 
 # THE ROUND WINDOW IS A REAL OPENING INTO THE WATER CLOSET. It began as ornament on the
 # massing — a disc laid on the face — and the room file now authors it (`round: true`), so
