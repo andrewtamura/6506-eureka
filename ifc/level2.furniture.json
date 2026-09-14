@@ -390,23 +390,23 @@
       "faces": "N"
     },
     {
-      "_note": "En-suite lighting, kept simple: the vanity's own two sconces (`sconces: true` on the vanity item), two recessed over the shower, one over the toilet, one inside the entry. Each of the two ground-room boxes this level reuses holds a fixture, so no generic ceiling light appears.",
+      "_note": "En-suite lighting, kept simple: the vanity's own two sconces (`sconces: true` on the vanity item), two recessed over the shower (2.7 ft off its end walls), one over the toilet (3.8 ft off the shower's arch wall), two along the entry. Each of the two ground-room boxes this level reuses holds a fixture, so no generic ceiling light appears.",
       "type": "recessed",
       "px": -14.73,
-      "pz": -9.5,
+      "pz": -9.0,
       "ceilFt": 9.0,
       "diaFt": 0.5
     },
     {
       "type": "recessed",
       "px": -14.73,
-      "pz": -5.9,
+      "pz": -6.4,
       "ceilFt": 9.0,
       "diaFt": 0.5
     },
     {
       "type": "recessed",
-      "px": -20.1875,
+      "px": -21.0,
       "pz": -9.5,
       "ceilFt": 9.0,
       "diaFt": 0.5
@@ -419,15 +419,22 @@
       "diaFt": 0.5
     },
     {
-      "_note": "Linen cabinet on the west wall directly north of the shower: a tall run 3.5 ft long, 1.5 ft deep, to the 7 ft door head, between the shower's end wall (-3.688) and the door's south jamb (0.60) with 0.4 ft clear at each.",
+      "_note": "Linen closet backing onto the SHOWER'S north end wall (its north face at z -3.538), west end on the west wall face, facing north into the room: a tall run 3.5 ft long, 1.5 ft deep, to the 7 ft door head. Spans x -12.229..-15.729, z -3.538..-2.038; the west wall between it and the door is free.",
       "type": "cabinet_run",
       "kind": "tall",
-      "px": -12.979,
-      "pz": -1.54,
-      "faces": "E",
+      "px": -13.979,
+      "pz": -2.788,
+      "faces": "N",
       "lenFt": 3.5,
       "depthFt": 1.5,
       "topFt": 7.0
+    },
+    {
+      "type": "recessed",
+      "px": -16.6,
+      "pz": 1.93,
+      "ceilFt": 9.0,
+      "diaFt": 0.5
     }
   ]
 }
