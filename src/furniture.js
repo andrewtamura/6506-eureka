@@ -1316,19 +1316,23 @@ function buildShower(p) {
   } else {
     q = pl(Dp / 2, -(Wd / 4), 0.05, Wd / 2); box(q[0], q[1], 3.3, q[2], q[3], 6.6, glass);  // fixed glass over half
   }
-  if (p.headSide) {
-    // HEAD AND VALVES ON A SIDE WALL, `headSide` a compass direction resolved against the
+  const headSides = p.headSides || (p.headSide ? [p.headSide] : null);
+  if (headSides) {
+    // HEAD AND VALVES ON A SIDE WALL — or one set on EACH side wall for a two-person
+    // shower (`headSides: ["E","W"]`). Compass directions resolved against the
     // across-axis like `ponySide`. The head sits HIGH (`headFt`, 6 ft 10 default — arm
     // at the top, head just under it), the valve trim and handle at hand height
-    // (`valveFt`) on the same wall, so the plumbing is on one wall and the back wall,
-    // which carries the transom here, stays clear.
-    const d = DIR[p.headSide];
-    const sgn = Math.sign(d[0] * P[0] + d[1] * P[1]) || 1;
+    // (`valveFt`) on the same wall, so the plumbing is on the side walls and the back
+    // wall, which carries the transom(s), stays clear.
     const hy = p.headFt ?? 6.8, vy = p.valveFt ?? 3.75;
-    q = pl(0, sgn * (Wd / 2 - 0.35), 0.14, 0.7);   box(q[0], q[1], hy, q[2], q[3], 0.14, chrome);        // arm off the side wall
-    q = pl(0, sgn * (Wd / 2 - 0.7), 0.55, 0.55);   box(q[0], q[1], hy - 0.1, q[2], q[3], 0.12, chrome);  // head
-    q = pl(0, sgn * (Wd / 2 - 0.03), 0.6, 0.06);   box(q[0], q[1], vy, q[2], q[3], 0.6, chrome);         // valve trim plate
-    q = pl(0, sgn * (Wd / 2 - 0.12), 0.08, 0.2);   box(q[0], q[1], vy, q[2], q[3], 0.08, chrome);        // handle
+    for (const side of headSides) {
+      const d = DIR[side];
+      const sgn = Math.sign(d[0] * P[0] + d[1] * P[1]) || 1;
+      q = pl(0, sgn * (Wd / 2 - 0.35), 0.14, 0.7);   box(q[0], q[1], hy, q[2], q[3], 0.14, chrome);        // arm off the side wall
+      q = pl(0, sgn * (Wd / 2 - 0.7), 0.55, 0.55);   box(q[0], q[1], hy - 0.1, q[2], q[3], 0.12, chrome);  // head
+      q = pl(0, sgn * (Wd / 2 - 0.03), 0.6, 0.06);   box(q[0], q[1], vy, q[2], q[3], 0.6, chrome);         // valve trim plate
+      q = pl(0, sgn * (Wd / 2 - 0.12), 0.08, 0.2);   box(q[0], q[1], vy, q[2], q[3], 0.08, chrome);        // handle
+    }
   } else {
     const heads = p.heads ?? 1, hOff = heads === 2 ? Wd * 0.23 : 0;   // twin wall-mounted heads for a 2-person shower
     for (const hs of (heads === 2 ? [-hOff, hOff] : [0])) {
