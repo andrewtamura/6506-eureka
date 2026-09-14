@@ -1237,7 +1237,28 @@ function buildShower(p) {
       const oC = p.ponyWalls ? 0 : Wd / 4;
       q = pl(Dp / 2, oC, 0.34, oW); box(q[0], q[1], 0.14, q[2], q[3], 0.28, curbMat);       // threshold curb
     } }
-  q = pl(-(Dp / 2), 0, wt, Wd);    box(q[0], q[1], H / 2, q[2], q[3], H, tile);            // back wall
+  // BACK WALL. Where the wall it backs onto carries a window, the tile is built AROUND the
+  // opening — below, above and either side — instead of across it; `cutouts` come from
+  // the generator, derived from the room's own window specs (ifc/catalog.py), in this
+  // frame: `ds` along P from the centre, sill and head above the floor. One 5 x 9 ft
+  // tiled box across the south wall is how the wing's transom came to be lost.
+  const cuts = (p.cutouts || []).filter(c => c.widthFt > 0 && c.headFt > c.sillFt);
+  if (!cuts.length) {
+    q = pl(-(Dp / 2), 0, wt, Wd);  box(q[0], q[1], H / 2, q[2], q[3], H, tile);            // back wall
+  } else {
+    // pieces between the cutouts, full height; then a sill piece and a head piece per cutout
+    const edges = cuts.map(c => [c.ds - c.widthFt / 2, c.ds + c.widthFt / 2]).sort((a, b) => a[0] - b[0]);
+    let cur = -Wd / 2;
+    for (const [a, b2] of edges) {
+      if (a > cur + 0.01) { q = pl(-(Dp / 2), (cur + a) / 2, wt, a - cur); box(q[0], q[1], H / 2, q[2], q[3], H, tile); }
+      cur = Math.max(cur, b2);
+    }
+    if (Wd / 2 > cur + 0.01) { q = pl(-(Dp / 2), (cur + Wd / 2) / 2, wt, Wd / 2 - cur); box(q[0], q[1], H / 2, q[2], q[3], H, tile); }
+    for (const c of cuts) {
+      if (c.sillFt > 0.01) { q = pl(-(Dp / 2), c.ds, wt, c.widthFt); box(q[0], q[1], c.sillFt / 2, q[2], q[3], c.sillFt, tile); }
+      if (H > c.headFt + 0.01) { q = pl(-(Dp / 2), c.ds, wt, c.widthFt); box(q[0], q[1], (c.headFt + H) / 2, q[2], q[3], H - c.headFt, tile); }
+    }
+  }
   for (const s of [-1, 1]) { q = pl(0, s * (Wd / 2), Dp, wt); box(q[0], q[1], H / 2, q[2], q[3], H, tile); } // sides
   if (p.ponyWalls) {
     // Central walk-in opening flanked by half-height pony walls (glass above). A bench

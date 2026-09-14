@@ -119,6 +119,7 @@ const raw = await page.evaluate(() => {
              + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6; }
       vol += mv; mvols.push(Math.abs(mv)); });
     items.push({ type: it.type, kind: it.kind || '', px: it.px, pz: it.pz, floorY: o.position.y,
+      cutouts: it.cutouts || null,      // a shower's derived window openings (ifc/catalog.py)
       lw: lb.max.x - lb.min.x, ld: lb.max.z - lb.min.z, vol: Math.abs(vol), mvols,
       min: [bb.min.x, bb.min.y, bb.min.z], max: [bb.max.x, bb.max.y, bb.max.z], parts,
       top: (() => { let best = null, area = -1;
@@ -299,6 +300,48 @@ const raw = await page.evaluate(() => {
   window.__eureka.selectLighting("auto");
   return { items, loose, doorLeaves, fdoors, overhead, lights, ceilingY, sky: { night, noon }, lighting };
 });
+// SEE-THROUGH PROBES. What a window is for is looking out of it, and nothing above can
+// tell whether one actually reads through: the fragments model is raycast with the
+// viewer's OWN pick routine (model.raycastAll — the same call tap-to-inspect makes), so the
+// first thing the ray meets is what a visitor sees, wall or glass; and a three Raycaster
+// over our procedural meshes reports the first opaque one of OURS on the same line — a
+// tiled shower back or a field panel with no hole in it. Both, because each has failed:
+// the round window's "holed" panel had no hole, and the shower's tile ran across its transom.
+{ const man = JSON.parse(readFileSync('ifc/ground.furniture.json', 'utf8'));
+  const FYp = (raw.items.find(r => r.type === 'island') || raw.items[0]).floorY;
+  raw.seeThrough = await page.evaluate(async ({ xs, zs, ft, fy, probes }) => {
+    const E = window.__eureka, world = E.world, model = E.model;
+    const mod = await import('/node_modules/three/build/three.module.js');
+    const W = (px, pz, y) => new mod.Vector3(xs * px * ft, fy + y * ft, -(zs * pz * ft));
+    const dom = world.renderer.three.domElement;
+    const out = [];
+    for (const pr of probes) {
+      const from = W(...pr.from), to = W(...pr.to);
+      // A camera of our own on the probe line. Driving the viewer's camera through
+      // camera-controls leaves its matrix where it was until the controls update on the
+      // next frame, and the pick then fires along the OLD view — which is how a probe aimed
+      // at the shower's transom reported the round window on the far wall.
+      const cam = new mod.PerspectiveCamera(50, dom.clientWidth / Math.max(1, dom.clientHeight), 0.02, 200);
+      cam.position.copy(from); cam.lookAt(to); cam.updateMatrixWorld(true);
+      const hits = await model.raycastAll({ camera: cam, mouse: new mod.Vector2(dom.clientWidth / 2, dom.clientHeight / 2), dom }) || [];
+      const sorted = hits.sort((a, b2) => a.point.distanceTo(from) - b2.point.distanceTo(from)).slice(0, 4);
+      const data = sorted.length ? await model.getItemsData(sorted.map(h => h.localId), { attributesDefault: true }) : [];
+      const frag = sorted.map((h, i) => ({ d: h.point.distanceTo(from), name: String(data[i]?.Name?.value ?? ''), cat: String(data[i]?._category?.value ?? '') }));
+      // our meshes: everything that is not a fragments mesh (those throw on multi-material)
+      const rc = new mod.Raycaster(from, to.clone().sub(from).normalize(), 0, 30);
+      const res = [];
+      world.scene.three.traverse(m => { if (!m.isMesh || Array.isArray(m.material)) return; try { rc.intersectObject(m, false, res); } catch (e) { /* fragments */ } });
+      const opaque = res.filter(h => !(h.object.material.transparent && h.object.material.opacity < 0.9))
+        .sort((a, b2) => a.distance - b2.distance).slice(0, 3)
+        .map(h => ({ d: h.distance, nv: h.object.geometry.attributes.position.count, merged: !!h.object.userData.merged }));
+      out.push({ label: pr.label, frag, ours: opaque });
+    }
+    return out;
+  }, { xs: man.xs, zs: man.zs, ft: FT, fy: FYp, probes: [
+    { label: 'wc-round', from: [-20.1875, 1.5, 7.0], to: [-20.1875, 8.0, 7.0] },
+    { label: 'shower-transom', from: [-20.1875, -9.0, 5.2], to: [-20.1875, -14.0, 6.6] },
+  ] });
+}
 await b.close();
   return raw;
 }
@@ -1185,7 +1228,7 @@ console.log('EXTENSION FIXTURES');
   const bathJ = JSON.parse(readFileSync('ifc/rooms/ext_bath.json', 'utf8'));
   const wcJ = JSON.parse(readFileSync('ifc/rooms/wc.json', 'utf8'));
   const lauJ = JSON.parse(readFileSync('ifc/rooms/ext_laundry.json', 'utf8'));
-  const bathWin = bathJ.windows.find(w => w.name === 'Window - Bath E');
+  const bathWin = wcJ.windows.find(w => w.name === 'Window - Bath E');   // in the WATER CLOSET now
   const wcWinE = bathJ.windows.find(w => w.name === 'Window - WC E');
   const wcWinS = bathJ.windows.find(w => w.orient === 'H');
   const lauDoor = lauJ.doors.find(d => d.name === 'Laundry -> Bath');
@@ -1206,24 +1249,28 @@ console.log('EXTENSION FIXTURES');
   };
   const bathTrim = eastTrim(bathWin), wcTrim = eastTrim(wcWinE);
 
-  // THE COMPARTMENT: a WALL-HUNG toilet on the EAST wall facing west — no pedestal, so
-  // the floor of a 31 in compartment stays clear. 15 in each side of the centreline,
-  // 21 in in front to the west wall. The door is a pocket door, so nothing swings here.
+  // THE COMPARTMENT takes in the north east window now, so it is 5.9 ft deep: the
+  // WALL-HUNG toilet sits on the NORTH wall under the round window, facing south, with
+  // the 30 in door's swing well clear of its bowl. 15 in each side of the centreline
+  // (plenty, across a 5 ft room), 21 in in front to the compartment wall.
   { const t = ext.find(r => r.type === 'wall_toilet');
     A(!!t, 'a WALL-HUNG toilet in the water closet');
     A(!ext.some(r => r.type === 'toilet'), 'and no floor-standing one left in the wing');
     if (t) {
       A(t.pz > PART, `north of the compartment wall (${R(t.pz, 2)} vs ${R(PART, 3)})`);
-      A(Math.abs(t.pxLo - BE) < 0.08, `flush plate on the EAST wall (${R(t.pxLo, 3)})`);
-      A(t.pxHi - BE > 1.7 && t.pxHi - BE < 2.0, `bowl projects ${R((t.pxHi - BE) * 12, 1)} in from the wall`);
-      A(BN - t.pz >= 1.25 - 0.01, `${R((BN - t.pz) * 12, 1)} in centreline to the north wall (15 min)`);
-      A(t.pz - (PART + 0.22915) >= 1.25 - 0.01,
-        `${R((t.pz - PART - 0.22915) * 12, 1)} in centreline to the compartment wall (15 min)`);
-      A(BW - t.pxHi >= 1.75, `${R((BW - t.pxHi) * 12, 0)} in in front of the bowl to the west wall (21 min)`);
+      A(Math.abs(t.pzHi - BN) < 0.08, `flush plate on the NORTH wall (${R(t.pzHi, 3)})`);
+      A(BN - t.pzLo > 1.7 && BN - t.pzLo < 2.0, `bowl projects ${R((BN - t.pzLo) * 12, 1)} in from the wall`);
+      const rw = wcJ.windows.find(w => w.round);
+      if (rw) A(Math.abs(t.px - rw.pos) < 0.02, `on the round window's axis (${R(t.px, 4)} vs ${rw.pos})`);
+      A(Math.min(t.px - BE, BW - t.px) >= 1.25, `${R(Math.min(t.px - BE, BW - t.px) * 12, 0)} in centreline to the nearer side wall (15 min)`);
+      A(t.pzLo - (PART + 0.22915) >= 1.75, `${R((t.pzLo - PART - 0.22915) * 12, 0)} in in front of the bowl to the compartment wall (21 min)`);
       const low = meshes(t).filter(m => m.yLo < 0.7);
       A(low.length === 0, `clear floor under it — no pedestal (${low.length} members below 8 in)`);
       const clear = BN - (PART + 0.22915);
       A(clear >= 2.5, `the compartment is ${R(clear * 12, 1)} in clear (30 min)`);
+      // the north window is INSIDE the compartment, casing and all
+      if (bathWin && bathTrim.posts.length) A(Math.min(...bathTrim.posts.map(m => m.pzLo)) > PART + 0.22915 + 0.05,
+        `the north window and its casing sit inside the compartment (${R(Math.min(...bathTrim.posts.map(m => m.pzLo)), 3)} vs wall face ${R(PART + 0.22915, 3)})`);
     } }
 
   // SHOWER: south end, against the south wall on the transom's axis. 5 x 3 — a 60 x 36
@@ -1259,29 +1306,63 @@ console.log('EXTENSION FIXTURES');
       A(mm.filter(m => m.yHi > 8.9).length >= 3, 'back and both sides all reach it');
       A(!mm.some(m => m.yHi < 0.4 && m.yHi > 0.15 && (m.pxHi - m.pxLo) > 1.0), 'curbless — no threshold across the opening');
       A(!!wcWinS && wcWinS.sill >= 5.5, `the transom over it sills at ${wcWinS ? wcWinS.sill : '?'} ft`);
+      // THE TRANSOM SHOWS THROUGH THE TILE. The back is built around the opening (the
+      // cutout is derived from the room's window spec by ifc/catalog.py), so: the
+      // manifest carries a cutout matching the window, no tile crosses the glass, the
+      // back is in pieces, and the viewer's own pick from inside the shower meets the
+      // glass first with none of our meshes in front of it.
+      if (wcWinS) {
+        const cuts = sh.cutouts || [];
+        A(cuts.length === 1, `the manifest carries the transom as a cutout (${cuts.length})`);
+        if (cuts.length === 1) {
+          const c = cuts[0];
+          A(Math.abs(c.ds - -(wcWinS.pos - sh.px)) < 0.01 && Math.abs(c.widthFt - wcWinS.width) < 0.01
+            && Math.abs(c.sillFt - wcWinS.sill) < 0.01 && Math.abs(c.headFt - 7.0) < 0.01,
+            `...matching the window spec (ds ${R(c.ds, 3)}, ${c.widthFt} wide, ${c.sillFt}..${c.headFt})`);
+        }
+        const gx0 = wcWinS.pos - wcWinS.width / 2, gx1 = wcWinS.pos + wcWinS.width / 2;
+        const back = mm.filter(m => m.pzLo < LS + 0.2);
+        const across = back.filter(m => m.pxLo < gx1 - 0.05 && m.pxHi > gx0 + 0.05 && m.yLo < 7.0 - 0.05 && m.yHi > wcWinS.sill + 0.05);
+        A(across.length === 0, `no tile runs across the glass (${across.length} members)`);
+        A(back.length >= 4, `the back is built around the opening — ${back.length} pieces`);
+        A(back.some(m => m.yHi > 8.9) && back.some(m => m.yLo < 0.1 && m.yHi < wcWinS.sill + 0.05), 'tile above the head and below the sill');
+        // a tiled reveal: no wood casing, stool or apron on the south wall at the opening
+        // Moulded members only (nv >= 100): the flat field bands either side of and above
+        // the opening are boxes and belong there; casing, stool and apron are swept.
+        const trimS = L.filter(m => m.nv >= 100 && m.pzLo > LS - 0.05 && m.pzHi < LS + 0.4 && m.pxLo < gx1 + 0.3 && m.pxHi > gx0 - 0.3 && m.yLo < 7.4 && m.yHi > wcWinS.sill - 0.4);
+        A(trimS.length === 0, `bare opening — no casing, stool or apron through the tile (${trimS.length} moulded members)`);
+        const st = (raw.seeThrough || []).find(x => x.label === 'shower-transom');
+        A(!!st && st.frag.length > 0 && st.frag[0].name === 'Window - WC S',
+          `the first IFC surface from inside the shower is the transom's glass (${st && st.frag[0] ? st.frag[0].name : 'nothing'})`);
+        if (st && st.frag.length) {
+          const blocker = st.ours.find(o => o.d < st.frag[0].d + 0.3);
+          A(!blocker, `and no tile of ours in front of it (${blocker ? `hit at ${R(blocker.d, 2)} m` : 'clear'})`);
+        }
+      }
     } }
 
-  // VANITY: on the east wall BETWEEN the two windows, centred on their midpoint, with a
-  // mirror between the casings and a sconce each side of it. The counter is the default
-  // height — nothing sits over it now.
+  // VANITY: on the east wall between the south window's casing and the compartment wall,
+  // centred between them, with a mirror and a sconce each side of it. The counter is the
+  // default height — nothing sits over it. (It was centred between the two windows until
+  // the compartment took the north one.)
   const v = ext.find(r => r.type === 'vanity');
-  const mid = (bathWin.pos + wcWinE.pos) / 2;
-  const casN = bathTrim.posts.length ? Math.min(...bathTrim.posts.map(m => m.pzLo)) : NaN;   // north window's south casing edge
   const casS = wcTrim.posts.length ? Math.max(...wcTrim.posts.map(m => m.pzHi)) : NaN;       // south window's north casing edge
+  const casN = PARTS;                                                                          // the compartment wall's south face
+  const mid = (casS + casN) / 2;
   let mir = null;
   { A(!!v, 'vanity in the bath');
     if (v) {
-      A(Math.abs(v.pz - mid) < 0.02, `centred on the wall BETWEEN the two east windows (${R(v.pz, 4)} vs ${R(mid, 4)})`);
+      A(Math.abs(v.pz - mid) < 0.03, `centred between the south window's casing and the compartment wall (${R(v.pz, 4)} vs ${R(mid, 4)})`);
       A(Math.abs(v.pxLo - BE) < 0.12, `backs onto the east wall (${R(v.pxLo, 3)})`);
       A(!isNaN(casN) && !isNaN(casS) && v.pzHi < casN - 1 / 12 && v.pzLo > casS + 1 / 12,
-        `counter clears both casings (${R((casN - v.pzHi) * 12, 1)} in north, ${R((v.pzLo - casS) * 12, 1)} in south)`);
+        `counter clears the compartment wall and the casing (${R((casN - v.pzHi) * 12, 1)} in north, ${R((v.pzLo - casS) * 12, 1)} in south)`);
       A(v.pxHi - v.pxLo > 1.7, `${R(v.pxHi - v.pxLo, 2)} ft deep`);
       A(!!vanSpec && v.pzHi - v.pzLo > vanSpec.widthFt, `${R(v.pzHi - v.pzLo, 2)} ft of counter over a ${vanSpec ? vanSpec.widthFt : '?'} ft cabinet`);
       const mm = meshes(v);
       mir = mm.filter(m => m.yHi > 5.0 && (m.pxHi - m.pxLo) < 0.25).sort((a2, b2) => b2.yHi - a2.yHi)[0] || null;
       A(!!mir && Math.abs(mir.yHi - 6.5) < 0.08, `mirror tops out at ${R((mir ? mir.yHi : 0) * 12, 0)} in`);
       A(!!mir && mir.yLo > 3.1, `its foot clears the counter by ${R(((mir ? mir.yLo : 0) - 3.05) * 12, 1)} in`);
-      A(!!mir && mir.pzLo > casS && mir.pzHi < casN, 'and it hangs between the two casings');
+      A(!!mir && mir.pzLo > casS && mir.pzHi < casN, 'and it hangs between the casing and the compartment wall');
       const top = Math.max(...mm.filter(m => (m.pzHi - m.pzLo) > 2.5).map(m => m.yHi));
       A(Math.abs(top - 3.05) < 0.03, `counter at ${R(top * 12, 1)} in — the default, with nothing over it`);
       const fronts = mm.filter(m => (m.pxHi - m.pxLo) < 0.12 && m.yHi < 3.0
@@ -1298,14 +1379,14 @@ console.log('EXTENSION FIXTURES');
       A(sc.every(m => m.pxHi - m.pxLo < 0.9), `each projects ${R(Math.max(...sc.map(m => m.pxHi - m.pxLo)) * 12, 1)} in`);
       const pz = sc.map(m => m.pz).sort((a2, b2) => a2 - b2);
       A(pz[0] < mir.pzLo - 0.15 && pz[1] > mir.pzHi + 0.15 && pz[0] > casS + 0.15 && pz[1] < casN - 0.15,
-        `one each side of the mirror, clear of it and of the casings (${R(casS, 2)} | ${R(pz[0], 2)} | mirror ${R(mir.pzLo, 2)}..${R(mir.pzHi, 2)} | ${R(pz[1], 2)} | ${R(casN, 2)})`);
+        `one each side of the mirror, clear of it, the casing and the wall (${R(casS, 2)} | ${R(pz[0], 2)} | mirror ${R(mir.pzLo, 2)}..${R(mir.pzHi, 2)} | ${R(pz[1], 2)} | ${R(casN, 2)})`);
       A(sc.every(m => Math.abs((m.yLo + m.yHi) / 2 - 5.0) < 0.5), 'hung at 5 ft');
     }
     const cans = ext.filter(r => r.type === 'recessed');
-    A(cans.length === 5, `five downlights — four in the bath, one in the WC (${cans.length})`);
+    A(cans.length === 5, `five downlights — three in the bath, two in the WC (${cans.length})`);
     A(cans.every(c => Math.abs(c.yHi - 9.0) < 0.06), 'all flush with the ceiling');
     const nB = cans.filter(c => c.pz < PART).length, nW = cans.filter(c => c.pz > PART).length;
-    A(nB === 4 && nW === 1, `four bath, one WC (${nB}/${nW}) about the compartment wall at ${R(PART, 3)}`);
+    A(nB === 3 && nW === 2, `three bath, two WC (${nB}/${nW}) about the compartment wall at ${R(PART, 3)}`);
     A(cans.some(c => Math.abs(c.pz - mid) < 0.05 && c.px < -20.8), 'one of them over the vanity');
     const hung = L.filter(m => m.pxLo > -22.75 && m.pxHi < -17.6 && m.pzLo > -11.75 && m.pzHi < 3.85
       && (m.yLo + m.yHi) / 2 > 7.9 && (m.yLo + m.yHi) / 2 < 8.8
@@ -1313,8 +1394,8 @@ console.log('EXTENSION FIXTURES');
     A(hung.length === 0, `no ceiling fixture hanging in either room (${hung.length})`);
   }
 
-  // WINDOW TRIM on the east wall, both windows: jambs, stool AND apron on each — nothing
-  // sits under either now, so the apron is back on the north one.
+  // WINDOW TRIM on the east wall, both windows (the north one is the water closet's now):
+  // jambs, stool AND apron on each — nothing sits under either.
   for (const [label, win, trim] of [['north', bathWin, bathTrim], ['south', wcWinE, wcTrim]]) {
     const want = [win.pos - win.width / 2, win.pos + win.width / 2].map(v2 => R(v2, 2));
     A(trim.posts.length === 2, `a jamb casing each side of the ${label} window (${trim.posts.length} of 2)`);
@@ -1360,6 +1441,19 @@ console.log('EXTENSION FIXTURES');
       A(ring.length >= 1, `a ring casing centred on the glass, ${R(ring[0] ? ring[0].pxHi - ring[0].pxLo : 0, 2)} ft across`);
       A(ring.length >= 1 && Math.abs((ring[0].yHi - ring[0].yLo) - (ring[0].pxHi - ring[0].pxLo)) < 0.03, '...and round');
       A(ring.length >= 1 && ring[0].nv >= 200, `...a revolved casing profile, not a torus (${ring[0] ? ring[0].nv : 0} verts)`);
+      // AND IT READS THROUGH. The viewer's own pick, from inside the compartment along the
+      // window's axis: the first thing in the IFC is the glass, not the wall — which is
+      // also what proves web-ifc honoured the circular void — and nothing opaque of ours
+      // (the field panel) stands in front of it. The panel passed the vertex count with
+      // its hole triangulated shut; this is the check that would have caught it.
+      const st = (raw.seeThrough || []).find(x => x.label === 'wc-round');
+      A(!!st && st.frag.length > 0, `see-through probe ran (${st ? st.frag.length : 0} IFC hits)`);
+      if (st && st.frag.length) {
+        A(st.frag[0].name === 'Window - WC Round', `the first IFC surface on the window's axis is the glass, not the wall (${st.frag[0].name} / ${st.frag[0].cat} at ${R(st.frag[0].d, 2)} m)`);
+        const glassD = st.frag[0].d;
+        const blocker = st.ours.find(o => o.d < glassD + 0.5);
+        A(!blocker, `nothing opaque of ours in front of the glass (${blocker ? `hit at ${R(blocker.d, 2)} m, ${blocker.nv} verts` : 'clear'})`);
+      }
     } }
 }
 
@@ -1370,27 +1464,28 @@ console.log('EXTENSION');
 { const leaf = (re) => (raw.doorLeaves || []).find(d => re.test(d.name));
   const midPx = (d) => (d.pxLo + d.pxHi) / 2, midPz = (d) => (d.pzLo + d.pzHi) / 2;
 
-  // WC DOOR: a POCKET DOOR at the WEST end of the compartment wall — on the aisle past
-  // the vanity — sliding EAST into the wall. A 31 in compartment has no room for any
-  // swing, and the pocket can only go east: west of the jamb there is the 6 in return.
-  // That caps the leaf at 27 in (4.5 - W >= W); it is 26. Every number is the room file's.
+  // WC DOOR: a full 30 in SWINGING door at the WEST end of the compartment wall, hung on
+  // the west jamb so the open leaf parks along the party wall, swinging IN — the
+  // compartment is 5.9 ft deep now that it takes in the north window, so the leaf's tip
+  // stops well short of the wall-hung bowl on the north wall. Every number is the room
+  // file's.
   { const d = leaf(/Bath -> WC/);
     A(!!d, 'WC door leaf found');
     if (d) {
       const wcJ2 = JSON.parse(readFileSync('ifc/rooms/wc.json', 'utf8'));
       const spec = wcJ2.doors.find(x => x.name === 'Bath -> WC');
-      const eastJamb = spec.pos - spec.width / 2, westJamb = spec.pos + spec.width / 2, wall = wcJ2.bounds.z1;
+      const westJamb = spec.pos + spec.width / 2, wall = wcJ2.bounds.z1;
       const BW2 = -17.687;
-      A(spec.sliding === true, 'authored as a pocket door');
+      A(!spec.sliding && Math.abs(spec.width - 2.5) < 1e-6, `a swinging ${R(spec.width * 12, 0)} in door — the compartment can take it now`);
       A(Math.abs((BW2 - westJamb) - 0.5) < 0.03,
         `opening at the WEST end, ${R((BW2 - westJamb) * 12, 1)} in of casing return to the party wall`);
-      A(Math.abs(midPz(d) - wall) < 0.12, `the open leaf lies in the wall's plane (pz ${R(midPz(d), 3)} vs ${R(wall, 3)})`);
-      // px increases WEST, so the leaf's EAST end is pxLo (toward the corner at -22.688)
-      // and its west end pxHi, which stops a pull's width short of the jamb.
-      A(d.pxHi < eastJamb + 0.25 && d.pxHi > eastJamb - 0.05 && d.pxLo > -22.688 - 0.05,
-        `...in the pocket east of the jamb (px ${R(d.pxLo, 2)}..${R(d.pxHi, 2)}, jamb ${R(eastJamb, 3)}, corner -22.688)`);
-      const wide = Math.abs(d.pxHi - d.pxLo);
-      A(Math.abs(wide - spec.width) < 0.06, `${R(wide * 12, 0)} in leaf`);
+      A(Math.abs(midPx(d) - westJamb) < 0.04, `hung on the WEST jamb (px ${R(midPx(d), 3)} vs ${R(westJamb, 3)})`);
+      A(d.pzLo >= wall - 0.02 && d.pzHi > wall + 2.3,
+        `swings IN to the water closet (pz ${R(d.pzLo, 2)}..${R(d.pzHi, 2)}, wall at ${R(wall, 3)})`);
+      const t = P.find(r => r.type === 'wall_toilet');
+      if (t) A(d.pzHi < t.pzLo - 0.5, `its tip clears the bowl by ${R((t.pzLo - d.pzHi) * 12, 0)} in`);
+      const swept = Math.abs(d.pzHi - d.pzLo);
+      A(Math.abs(swept - spec.width) < 0.06, `${R(swept * 12, 0)} in leaf`);
     } }
 
   // LAUNDRY -> BATH is a POCKET DOOR. Its 3 ft in-swing used to stand in the middle of a

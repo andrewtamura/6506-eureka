@@ -82,7 +82,10 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     // apron; the field is cut round the glass as one holed panel over its span and the
     // casing profile is revolved into a ring. The span is what the 1-D program sees.
     const rounds = w.rounds || [];
-    const roundX = rounds.map(([p, , R]) => [p - R - 0.02, p + R + 0.02]);
+    // The span is R + 0.1 ft each side: the hole is cut at R + 0.01 m, and at R + 0.02 ft
+    // the hole crossed the panel's outline by 4 mm and the triangulator FILLED it — a
+    // "holed" panel with no hole, which read as an opaque disc from inside the room.
+    const roundX = rounds.map(([p, , R]) => [p - R - 0.1, p + R + 0.1]);
     const caseInset = caseW / ft + 0.05; // feet — keep field/battens off the casing
 
     // --- real mouldings, swept ----------------------------------------------------
@@ -341,7 +344,7 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     // glass, which is what makes the round window read as the others' cousin rather than
     // a porthole. No stool, no apron: a circle has no sill to sit on.
     const roundWindow = ([pos, cyFt, R], yTop) => {
-      const u0 = pos - R - 0.02, u1 = pos + R + 0.02;
+      const u0 = pos - R - 0.1, u1 = pos + R + 0.1;   // matches roundX above
       const L = (u1 - u0) * ft, cy = cyFt * ft, r = R * ft;
       if (yTop - bbH < 0.05) return;
       const sh = new THREE.Shape();

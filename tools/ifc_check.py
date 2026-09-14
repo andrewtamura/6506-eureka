@@ -1121,11 +1121,11 @@ if all(n in _W for n in ('Upper - Ext south 1', 'Upper - Ext east 1')):
 # to move — equal piers put a window's trim through it — and it had never been asserted.
 # Measured against the rooms as authored, so a later partition change cannot silently put
 # a window through a wall again.
-# Both east windows are in the BATH now: the partition between the old WC and bath is
-# gone (the shower and the vanity share one open room) and the water closet is a
-# compartment at the north end, past the second window.
+# The south east window is the BATH's; the north one is the WATER CLOSET's — the
+# compartment wall sits south of it, which is what made the compartment deep enough for a
+# 30 in in-swing door. Each window wholly inside its own room, measured on the trim.
 _rooms = {k: json.load(open(f'ifc/rooms/{k}.json'))['bounds'] for k in EXT_W}
-for nm, key in (('Window - WC E', 'ext_bath'), ('Window - Bath E', 'ext_bath')):
+for nm, key in (('Window - WC E', 'ext_bath'), ('Window - Bath E', 'wc')):
     tr = [b for n, b in _parts(ext, '') if n.endswith(nm)]
     if not tr:
         check(False, f'{nm} is built')
@@ -1135,11 +1135,9 @@ for nm, key in (('Window - WC E', 'ext_bath'), ('Window - Bath E', 'ext_bath')):
     check(z0 - 1e-6 <= lo and hi <= z1 + 1e-6,
           f'{nm} sits wholly inside {key} (trim {lo:.3f}..{hi:.3f} in {z0:.3f}..{z1:.3f})')
 
-# THE WATER CLOSET IS A COMPARTMENT, and it has to be one a toilet fits across: 30 in
-# clear is the code minimum, and with the vanity centred under the window at -0.74 the
-# compartment wall has nowhere to go but 0.92, which leaves 31.5 in. Asserted on the
-# authored bounds less the wall, so a vanity change that pushes the wall north fails
-# here rather than building a 29 in room.
+# THE WATER CLOSET IS A COMPARTMENT that takes in the north east window: its wall sits
+# south of that window's casing, which makes it deep enough for a 30 in in-swing door
+# (it was 31 in deep and could take no swing at all). 30 in clear stays the floor.
 _WALL = 0.4583                                    # wall thickness, ft (two half-walls)
 _wcb = _rooms['wc']
 _wc_depth = abs(_wcb['z2'] - _wcb['z1']) - _WALL
@@ -1158,7 +1156,9 @@ check(near(_bb['z1'], wing_s, 1e-6) and near(_bb['z2'], _wcb['z1'], 1e-6),
 # along px (`max` = the east jamb, since IFC X = -px).
 _wing_rooms = {k: json.load(open(f'ifc/rooms/{k}.json')) for k in EXT_W}
 _sliders = [(k, d) for k, r in _wing_rooms.items() for d in r.get('doors', []) if d.get('sliding')]
-check(len(_sliders) == 2, f'two pocket doors in the wing ({[d["name"] for _, d in _sliders]})')
+check([d['name'] for _, d in _sliders] == ['Laundry -> Bath'],
+      f'one pocket door in the wing, the laundry\'s ({[d["name"] for _, d in _sliders]}) — '
+      f'the water closet is deep enough to swing its own again')
 for k, d in _sliders:
     ifc_d = next((x for x in gnd.by_type('IfcDoor') if (x.Name or '') == d['name']), None)
     check(ifc_d is not None and getattr(ifc_d, 'OperationType', None) == 'SLIDING_TO_LEFT',
@@ -1206,6 +1206,23 @@ if _rw:
               and near((_ring[4] + _ring[5]) / 2, BASE + (g_[4] + g_[5]) / 2, 0.02),
               'the exterior ring and the interior opening are ONE hole (centres agree)')
 
+# THE SHOWER'S TRANSOM IS A BARE OPENING IN A TILED WALL. The shower backs onto the bath's
+# south wall, the transom is in that wall, and the viewer builds the tile around it from
+# the room's own spec (ifc/catalog.py). What the IFC side can assert is the two facts that
+# derivation rests on: the shower's back IS the south wall, and the window is authored
+# `bare` — a tiled reveal, not wood casing, a stool and an apron poking through the tile.
+_bath = json.load(open('ifc/rooms/ext_bath.json'))
+_shw = next((f for f in _bath['interior']['furniture'] if f['type'] == 'shower'), None)
+_trs = next((w for w in _bath['windows'] if w['orient'] == 'H' and w['fixed'] == _bath['bounds']['z1']), None)
+check(_shw is not None and _trs is not None, 'the bath has its shower and its south transom')
+if _shw and _trs:
+    _back = _shw['at'][1] - _shw['depthFt'] / 2 if _shw.get('opens', 'N') == 'N' else None
+    check(_back is not None and near(_back, _bath['bounds']['z1'] + _WALL / 2, 0.02),
+          f'the shower backs onto the south wall ({_back:.3f} vs face {_bath["bounds"]["z1"] + _WALL / 2:.3f})')
+    check(abs(_trs['pos'] - _shw['at'][0]) + _trs['width'] / 2 <= _shw['widthFt'] / 2,
+          "the transom falls within the shower's width")
+    check(_trs.get('bare') is True, f"{_trs['name']} is a bare opening (tiled reveal, no wood trim)")
+
 # THE WATER CLOSET DOOR sits at the WEST end of the compartment wall — on the aisle past
 # the vanity — with a casing return to the party wall, and in the compartment wall.
 _wcd = next((d for d in json.load(open('ifc/rooms/wc.json'))['doors'] if d['name'] == 'Bath -> WC'), None)
@@ -1216,6 +1233,12 @@ if _wcd:
     _ret = (max(_wcb['x1'], _wcb['x2']) - _WALL / 2) - (_wcd['pos'] + _wcd['width'] / 2)
     check(near(_wcd['fixed'], _wcb['z1'], 1e-6), 'in the compartment wall')
     check(0.45 <= _ret <= 0.6, f'{_ret * 12:.1f} in of casing return to the party wall (6 in wanted)')
+    check(near(_wcd['width'], 2.5, 1e-6) and not _wcd.get('sliding'),
+          f"a full 30 in swinging door ({_wcd['width'] * 12:.0f} in)")
+    # ...which needs a compartment deeper than the leaf plus the toilet it must not hit:
+    # leaf 2.5 + 21 in in front of a bowl that projects 1.85 = 6.1 ft is the comfortable
+    # figure; what is asserted is the geometric one, leaf clear of the bowl's front.
+    check(_wc_depth >= 2.5 + 0.25 + 1.85, f'deep enough to swing it clear of the bowl ({_wc_depth:.2f} ft)')
 
 # NO FRIEZE LIGHT ON THE EXTENSION. Its shed eave is 4 ft below the primary's frieze band,
 # so one there floats in mid-air over its roof. The guard used to skip anything NAMED

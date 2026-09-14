@@ -192,6 +192,40 @@ def _solid(ctx, r, ifc_class, label, cx_ft, cz_ft, w_ft, d_ft, h_ft, base_ft,
     return prod
 
 
+_DIR = {"N": (0, 1), "S": (0, -1), "E": (-1, 0), "W": (1, 0)}   # plan: px increases WEST
+
+
+def shower_cutouts(ctx, r, item, at):
+    """[{ds, widthFt, sillFt, headFt}] for every window of room `r` that falls in the wall
+    a shower backs onto — see the call site. Empty when the back is not on a room wall."""
+    A = _DIR[item.get("opens", "N")]
+    P = (-A[1], A[0])
+    depth = float(item.get("depthFt", 3.2))
+    width = float(item.get("widthFt", 3.6))
+    # the back wall line, in plan: the shower's centre moved depth/2 AWAY from the open side
+    bx, bz = at[0] - A[0] * depth / 2, at[1] - A[1] * depth / 2
+    b = r["bounds"]
+    out = []
+    for w in r.get("windows", []):
+        if w.get("round") or w.get("blind"):
+            continue
+        if w["orient"] == "H":
+            if abs(w["fixed"] - bz) > 0.35 or abs(P[0]) < 0.5:
+                continue                      # not on the back wall / back not along px
+            ds = (w["pos"] - at[0]) * P[0]
+        else:
+            if abs(w["fixed"] - bx) > 0.35 or abs(P[1]) < 0.5:
+                continue
+            ds = (w["pos"] - at[1]) * P[1]
+        half = abs(w["width"]) / 2
+        if abs(ds) + half > width / 2 + 1e-6:
+            continue                          # runs past the shower's side wall
+        head = float(w["head"]) if w.get("transom") else float(ctx.head_ft)
+        out.append({"ds": round(ds, 4), "widthFt": float(w["width"]),
+                    "sillFt": float(w["sill"]), "headFt": head})
+    return out
+
+
 def _box_item(ctx, r, ifc_class, name, item, default_h, predefined=None, default_color=None):
     """A furniture/fixture/rug item placed at a plan ``at`` point. Supports
     ``rot`` (degrees about vertical), per-item ``color``/``material``, a named
@@ -214,6 +248,17 @@ def _box_item(ctx, r, ifc_class, name, item, default_h, predefined=None, default
             rec[k] = v
         if item.get("type") == "staircase" and r.get("floorOpening"):
             rec["opening"] = r["floorOpening"]   # so the viewer can open the ceiling above the stairwell
+        if item.get("type") == "shower":
+            # A window in the wall the shower BACKS ONTO has to show through its tiled
+            # back, so the viewer gets the openings as cutouts — derived from the room's
+            # own window specs rather than authored twice, which is how the transom over
+            # the wing's shower came to sit behind 9 ft of tile. `ds` runs along the
+            # shower's across-axis P = (-A[1], A[0]) from its centre, the frame
+            # buildShower places in; the head is the house's uniform head line, as
+            # add_windows cuts it, unless the window is a transom that authors its own.
+            cuts = shower_cutouts(ctx, r, item, at)
+            if cuts:
+                rec["cutouts"] = cuts
         ctx.furniture.append(rec)
         return
     # plan rotation -> IFC rotation (the cardinal flip reverses the turn sense)

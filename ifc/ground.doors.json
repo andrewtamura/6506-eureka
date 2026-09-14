@@ -35,10 +35,9 @@
   },
   {
     "name": "Bath -> WC",
-    "hingeMax": true,
-    "swingSign": -1,
-    "style": "panel",
-    "sliding": true
+    "hingeMax": false,
+    "swingSign": 1,
+    "style": "panel"
   },
   {
     "name": "Family -> Ext Vestibule",
