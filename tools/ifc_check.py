@@ -1290,7 +1290,8 @@ if len(_l2) == 4 and _l2pan:
         nm = getattr(p_, 'Name', None) or ''
         if nm.startswith('Upper - Ext '):
             _uppers[nm] = _W.get(nm)
-    E, S, Wl = _bys.get('E'), _bys.get('S'), _bys.get('W')
+    # (`Sw`, not `S`: S is the geometry settings every create_shape below still needs.)
+    E, Sw, Wl = _bys.get('E'), _bys.get('S'), _bys.get('W')
     check(E and len(E['windows']) == 2 and not E['sidelights'],
           f"E wall: both east windows cased ({len(E['windows']) if E else 0}), stool and casing")
     if E:
@@ -1300,10 +1301,10 @@ if len(_l2) == 4 and _l2pan:
             check(nm in _W and near(ctr, _ctr(nm, 1), 0.01), f'...on "{nm}" ({ctr:.3f})')
         check(spans[1][3] is True and spans[0][3] is False,
               'the north one (over the vanity) has no apron; the south one keeps its')
-    check(S and len(S['windows']) == 1 and len(S['sidelights']) == 1,
-          f"S wall: the east transom cased ({len(S['windows']) if S else 0}), the west one bare in the shower's wall ({len(S['sidelights']) if S else 0})")
-    if S and S['sidelights']:
-        sd = S['sidelights'][0]
+    check(Sw and len(Sw['windows']) == 1 and len(Sw['sidelights']) == 1,
+          f"S wall: the east transom cased ({len(Sw['windows']) if Sw else 0}), the west one bare in the shower's wall ({len(Sw['sidelights']) if Sw else 0})")
+    if Sw and Sw['sidelights']:
+        sd = Sw['sidelights'][0]
         check(near((sd[0] + sd[1]) / 2, _ctr('Upper - Ext south 2', 0), 0.01) and near(sd[3], 6.10, 0.02),
               f'...the bare one is "Upper - Ext south 2" with its own head ({sd[3]:.2f})')
     check(Wl and len(Wl['doors']) == 1 and abs((Wl['doors'][0][1] - Wl['doors'][0][0]) - 2.667) < 0.01,
@@ -1339,6 +1340,128 @@ _stray = [nm for nm in _fr if _ctr(nm, 0) < wing_w - 0.5]
 check(not _stray and len(_fr) >= 10,
       f'no frieze light on the extension, and the primary keeps its {len(_fr)} '
       f'({len(_stray)} stray)')
+
+
+# THE WING'S UPSTAIRS CEILING IS THE SHED ROOF'S UNDERSIDE: 8 ft 0 at the east eave rising
+# 1:12 to 8 ft 11 at the primary, level along z — not the flat 9.5 the rest of the shell
+# carries. model.json `slopedCeiling` names the roof group, and the shell derives the
+# plane from that group's storeys/trimFt/pitch, the SAME arithmetic the massing springs
+# the roof from, so the first thing asserted is that the two models agree: the plane is
+# the exterior wing's wall top less the crawl and a storey, at both ends. Then that the
+# plane is actually built — the covering's underside sits on it, the wing's walls stop at
+# it (a box to the low eave so the windows still cut, a wedge on top rising with it), the
+# primary's walls do not — and that everything hung from it was told where it is: the trim
+# program's `ceil` per wall, and the en-suite's cans and shower in the furniture manifest.
+print('\nSECOND FLOOR CEILING')
+_l2ifc = ifcopenshell.open('ifc/level2.ifc')
+_sc = next((lv.get('slopedCeiling') for lv in model['levels'] if lv['id'] == 'level2'), None)
+check(_sc is not None, 'level2 declares a sloped ceiling under a roof group')
+if _sc:
+    _sg = None
+    for lv in model['levels']:
+        _sg = (lv.get('roofGroups') or {}).get(_sc['group']) or _sg
+    _story = model.get('storyHeight', model['wallHeight'])
+    _low = (_sg['storeys'] * _story - _sg.get('trimFt', 0) + _sg.get('eaveWallFt', 0)
+            - (_sg['storeys'] - 1) * _story)
+    _zof = lambda px: _low + _sg['pitch'] * (px - wing_e)
+    check(near(_zof(wing_e), 8.0, 1e-6) and near(_zof(wing_w), 8.909, 0.001),
+          f'the plane: {_zof(wing_e):.3f} ft at the east wall rising to {_zof(wing_w):.3f} at the primary')
+    _rl = _rake_line(ext, 'Massing - extension', lo=False)
+    check(_rl is not None, 'the exterior wing massing is measurable')
+    if _rl:
+        for end, x in (('east', wing_e), ('west', wing_w)):
+            check(near(_rl(x) - BASE - _story, _zof(x), 0.005),
+                  f'...which is the massing top at the {end} end less the crawl and a storey '
+                  f'({_rl(x):.3f} - {BASE + _story:.1f} = {_rl(x) - BASE - _story:.3f})')
+    # The covering.
+    _cl = _rake_line(_l2ifc, 'Wing ceiling', lo=True)
+    _cb = extents(_l2ifc, lambda nm, p: nm == 'Wing ceiling' and p.is_a('IfcCovering')).get('Wing ceiling')
+    check(_cl is not None and _cb is not None, 'a "Wing ceiling" IfcCovering in level2.ifc')
+    if _cl and _cb:
+        check(near(_cb[0], wing_e + _WALL / 2, 0.01) and near(_cb[1], wing_w - _WALL / 2, 0.01)
+              and near(_cb[2], wing_s + _WALL / 2, 0.01) and near(_cb[3], wing_n - _WALL / 2, 0.01),
+              'spanning the wing, inner wall face to inner wall face')
+        for x in (_cb[0], (_cb[0] + _cb[1]) / 2, _cb[1]):
+            check(near(_cl(x), _zof(x), 0.005),
+                  f'underside on the plane at px {x:.2f} ({_cl(x):.3f} vs {_zof(x):.3f})')
+        check(near(_cb[4], _zof(_cb[0]), 0.005) and near(_cb[5], _zof(_cb[1]) + 0.06 / FT, 0.005),
+              f'60 mm thick, {_cb[4]:.3f}..{_cb[5]:.3f}')
+    # The walls. Per PRODUCT: every wall is named "Wall" and extents() would union them.
+    _wp = _parts(_l2ifc, 'Wall')
+    _in_wing = lambda b: b[1] < wing_w + 0.5 and b[2] > wing_s - 0.5 and b[3] < wing_n + 0.5
+    _east = [b for nm, b in _wp if nm == 'Wall' and near(b[0], wing_e - _WALL / 2, 0.02)
+             and b[1] - b[0] < 1 and _in_wing(b)]
+    check(len(_east) == 1 and near(_east[0][5], _zof(wing_e), 1e-3),
+          f"the east wall stops at the eave ({_east[0][5] if _east else 0:.3f} ft)")
+
+    def _wedge(zline):
+        """(bottom, top_line(px)) of the "Wall rake" wedge on the wall at pz `zline`."""
+        for p_ in _l2ifc.by_type('IfcWall'):
+            if (getattr(p_, 'Name', None) or '') != 'Wall rake':
+                continue
+            sh_ = ifcopenshell.geom.create_shape(S, p_)
+            v_ = np.array(sh_.geometry.verts).reshape(-1, 3)
+            px_, pz_, y_ = -v_[:, 0] / FT, v_[:, 1] / FT, v_[:, 2] / FT
+            if not near((pz_.min() + pz_.max()) / 2, zline, 0.02):
+                continue
+            a_, b_ = px_.min(), px_.max()
+            ya_, yb_ = y_[px_ < a_ + 1e-4].max(), y_[px_ > b_ - 1e-4].max()
+            return y_.min(), (lambda x, a=a_, b=b_, ya=ya_, yb=yb_: ya + (yb - ya) * (x - a) / (b - a))
+        return None, None
+
+    for tag, zline in (('N', wing_n), ('S', wing_s)):
+        box_ = [b for nm, b in _wp if nm == 'Wall' and near((b[2] + b[3]) / 2, zline, 0.02)
+                and near(b[0], wing_e - _WALL / 2, 0.02) and near(b[1], wing_w + _WALL / 2, 0.02)]
+        check(len(box_) == 1 and near(box_[0][5], _zof(wing_e), 1e-3),
+              f"{tag} wall: one box the wing's length to the low eave ({box_[0][5] if box_ else 0:.3f})")
+        wb, wt = _wedge(zline)
+        check(wt is not None and near(wb, _zof(wing_e), 1e-3),
+              f'{tag} wall: a wedge sitting on it ({wb if wb is not None else 0:.3f})')
+        if wt:
+            for x in (wing_e, (wing_e + wing_w) / 2, wing_w):
+                check(near(wt(x), _zof(x), 0.005),
+                      f'{tag} wall: top on the plane at px {x:.2f} ({wt(x):.3f} vs {_zof(x):.3f})')
+    _prim = [b for nm, b in _wp if nm == 'Wall' and b[1] > wing_w + 1]
+    check(_prim and all(near(b[5], model['wallHeight'], 1e-3) for b in _prim),
+          f"the primary's {len(_prim)} walls keep the flat {model['wallHeight']} ft")
+    # The windows still cut: the host boxes changed height under them.
+    _upn = sorted(nm for nm in _W if nm.startswith('Upper - Ext '))
+    _l2w = extents(_l2ifc, lambda nm, p: nm in _upn and p.is_a('IfcWindow'))
+    check(len(_upn) >= 4 and all(nm in _l2w for nm in _upn),
+          f'all {len(_upn)} upper wing windows are in level2.ifc ({len(_l2w)})')
+    for op_ in _l2ifc.by_type('IfcOpeningElement'):
+        nm_ = (op_.Name or '').replace('Opening - ', '')
+        if nm_ not in _upn:
+            continue
+        host_ = op_.VoidsElements[0].RelatingBuildingElement
+        hb_ = extents(_l2ifc, lambda nm, p, h=host_: p == h)
+        htop_ = max(b[5] for b in hb_.values()) if hb_ else 0
+        check(host_.is_a('IfcWall') and htop_ >= _l2w[nm_][5] - 1e-3,
+              f'"{nm_}" cuts a wall that reaches over its head ({htop_:.2f} vs {_l2w[nm_][5]:.2f})')
+    # The trim program was told.
+    for w_ in _l2:
+        c_ = w_.get('ceil')
+        if w_['along'] == 'x':
+            want = [[w_['lo'], _zof(w_['lo'])], [w_['hi'], _zof(w_['hi'])]]
+        else:
+            want = [[w_['lo'], _zof(w_['at'])], [w_['hi'], _zof(w_['at'])]]
+        check(c_ is not None and all(near(c_[i][0], want[i][0], 1e-3) and near(c_[i][1], want[i][1], 1e-3) for i in (0, 1)),
+              f"{w_['side']} wall's ceil line {c_} follows the plane")
+    # And so was the furniture manifest.
+    _l2f = json.load(open('ifc/level2.furniture.json'))['items']
+    _inb = lambda it: wing_e < it['px'] < wing_w and wing_s < it['pz'] < wing_n
+    _cans = [it for it in _l2f if it['type'] == 'recessed' and _inb(it)]
+    check(len(_cans) == 5 and all(near(it['ceilFt'], _zof(it['px']), 0.02) for it in _cans),
+          f"the en-suite's {len(_cans)} cans sit in the raked plane "
+          f"({', '.join(f'{it[chr(99)+chr(101)+chr(105)+chr(108)+chr(70)+chr(116)]:.2f}/{_zof(it[chr(112)+chr(120)]):.2f}' for it in _cans)})")
+    _part = next((it for it in _l2f if it['type'] == 'partition' and near(it['px'], wing_w, 1e-3) and _inb(dict(it, px=it['px'] - 0.1))), None)
+    check(_part is not None and (_part.get('heightFt', 9.0) >= _zof(wing_w - _WALL / 2) - 1e-3),
+          f"the bedroom partition reaches the ceiling at its east face ({(_part or {}).get('heightFt', 9.0)} vs {_zof(wing_w - _WALL / 2):.3f})")
+    _shw = next((it for it in _l2f if it['type'] == 'shower' and _inb(it)), None)
+    if _shw:
+        _lowest = _zof(_shw['px'] - _shw['depthFt'] / 2)   # the shower's EAST face, where the ceiling is lowest over it
+        check(_lowest - 0.15 <= _shw['heightFt'] <= _lowest,
+              f"the shower's tile stops level just under the lowest ceiling over it ({_shw['heightFt']} vs {_lowest:.3f})")
 
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)

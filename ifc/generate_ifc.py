@@ -305,9 +305,23 @@ def build_level(cfg, rooms_cache, level):
             run_hook(ctx, r)
         compute_paneling(ctx, rooms)
     elif kind == "shell":
-        B.add_shell(ctx, rooms)
+        # A SLOPED CEILING under a shed roof group (model.json `slopedCeiling`): the wing's
+        # second floor has no flat ceiling, its plaster is the roof's underside, 8 ft at
+        # the east eave rising 1:12 to the primary. The plane is derived from the roof
+        # group (one formula with the massing), the wing's perimeter walls are raked to
+        # it, an IfcCovering is laid on it, and the trim program is told where it is.
+        sloped = level.get("slopedCeiling")
+        rake = None
+        if sloped:
+            sgrp = None
+            for lv in cfg["levels"]:
+                sgrp = (lv.get("roofGroups") or {}).get(sloped["group"]) or sgrp
+            rake = B.shed_ceiling(ctx, sgrp, rooms_cache)
+        B.add_shell(ctx, rooms, rake=rake)
         if level.get("upperWindows"):     # second-floor windows, synced to the exterior
             B.add_shell_windows(ctx, rooms)
+        if rake:
+            B.add_wing_ceiling(ctx, *rake)
         emit_stairwells(ctx, rooms, up=True)              # 2nd-floor hall: run up to the attic
         # Per-level floor override: rooms not listed get hardwood (like the ground
         # floor); listed rooms get tile so the primary en-suite runs one continuous
@@ -352,7 +366,23 @@ def build_level(cfg, rooms_cache, level):
             room = {"_stem": f"{pan['group']}-shell", "bounds": {"x1": x1, "x2": x2, "z1": z1, "z2": z2},
                     "windows": wins, "doors": list(pan.get("doors", [])),
                     "interior": {"paneling": dict(pan.get("program", {"baseboard": 10, "noCornice": True, "battens": False}))}}
+            n0 = len(ctx.paneling)
             compute_paneling(ctx, [room])
+            if rake:
+                # Each wall under the sloped ceiling carries `ceil`: the ceiling height (ft)
+                # at its two ends, in the wall's own along-coordinate. Constant on a wall
+                # running along z (the plane rakes in x), so the viewer's field panels are
+                # trapezoids on the north and south walls and plain bands on the east.
+                sbox, z_of = rake
+                for w in ctx.paneling[n0:]:
+                    if w["along"] == "x":
+                        under = sbox["z1"] - 0.5 <= w["at"] <= sbox["z2"] + 0.5
+                        ends = (z_of(w["lo"]), z_of(w["hi"]))
+                    else:
+                        under = sbox["x1"] - 0.5 <= w["at"] <= sbox["x2"] + 0.5
+                        ends = (z_of(w["at"]), z_of(w["at"]))
+                    if under:
+                        w["ceil"] = [[w["lo"], round(ends[0], 4)], [w["hi"], round(ends[1], 4)]]
     elif kind == "attic":
         # Habitable attic: shaped to the exterior roof (single source of truth
         # for type + pitch) rather than drawn as a full-height storey.

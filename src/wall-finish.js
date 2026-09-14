@@ -85,6 +85,17 @@ export async function buildWallFinish({ scene, parent = scene, floorY, ceilingY,
     // apron; the field is cut round the glass as one holed panel over its span and the
     // casing profile is revolved into a ring. The span is what the 1-D program sees.
     const rounds = w.rounds || [];
+    // A RAKED CEILING: `ceil` is [[s, ftHigh], [s, ftHigh]] at the wall's two ends (the shell
+    // emits it for a wall under a shed roof — the wing's second floor, 8 ft at the east
+    // wall rising 1:12 to the primary). `topAt(s)` is the ceiling over any point of the
+    // run, in metres above the floor; without `ceil` it is the flat `wallTop` as ever.
+    const ceil = w.ceil && w.ceil.length === 2 ? w.ceil : null;
+    const topAt = (s) => {
+      if (!ceil) return wallTop;
+      const [s0, y0] = ceil[0], [s1, y1] = ceil[1];
+      const t = Math.abs(s1 - s0) < 1e-9 ? 0 : (s - s0) / (s1 - s0);
+      return (y0 + (y1 - y0) * t) * ft;
+    };
     // The span is R + 0.1 ft each side: the hole is cut at R + 0.01 m, and at R + 0.02 ft
     // the hole crossed the panel's outline by 4 mm and the triangulator FILLED it — a
     // "holed" panel with no hole, which read as an opaque disc from inside the room.
@@ -355,6 +366,22 @@ export async function buildWallFinish({ scene, parent = scene, floorY, ceilingY,
     // — the same architrave section as every rectangular window, turned once round the
     // glass, which is what makes the round window read as the others' cousin rather than
     // a porthole. No stool, no apron: a circle has no sill to sit on.
+    // A field panel with a RAKED top: a trapezoid in (along-wall, height) drawn from P(s0),
+    // extruded into the room and placed exactly as the round window's panel is — the one
+    // shape `band()` cannot make, since a box has one top. Used wherever a wall runs under
+    // a sloped ceiling.
+    const trap = (s0, s1, y0, top0, top1, depth, m = field) => {
+      const L = (s1 - s0) * ft; if (L < 0.02 || Math.max(top0, top1) - y0 < 0.02) return;
+      const sh = new THREE.Shape();
+      sh.moveTo(0, y0); sh.lineTo(L, y0); sh.lineTo(L, Math.max(y0, top1)); sh.lineTo(0, Math.max(y0, top0)); sh.lineTo(0, y0);
+      const panel = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: false }), m);
+      const lz = new THREE.Vector3(Math.sin(rotY), 0, Math.cos(rotY));
+      const off = lz.dot(Nw) > 0 ? 0 : depth;
+      const A0 = P(s0);
+      panel.position.set(A0.x + Nw.x * off, floorY, A0.z + Nw.z * off);
+      panel.rotation.y = rotY; panel.castShadow = true; panel.receiveShadow = true;
+      parent.add(panel);
+    };
     const roundWindow = ([pos, cyFt, R], yTop) => {
       const u0 = pos - R - 0.1, u1 = pos + R + 0.1;   // matches roundX above
       const L = (u1 - u0) * ft, cy = cyFt * ft, r = R * ft;
@@ -624,18 +651,24 @@ export async function buildWallFinish({ scene, parent = scene, floorY, ceilingY,
       // the block above, so without this the wall is bare from 7'0" up.
       // A room with no entablature can still be coved (the sitting and family rooms are):
       // the field then stops at the cove's spring line instead of running to the ceiling.
-      const fieldTop = w.coved ? wallTop - COVE_H : wallTop;
+      const fieldTopAt = (s) => (w.coved ? topAt(s) - COVE_H : topAt(s));
+      const fieldTop = fieldTopAt((w.lo + w.hi) / 2);
+      // Under a RAKED ceiling the band from the head line up is a trapezoid, not a box.
       // Round windows too: a circle centred on the head line straddles it, and this band
       // subtracted only `tallX` and `trans` — the same way a transom used to be
       // plastered over (see above). The cove still runs across; the panel stops under it.
       for (const [s0, s1] of subtract(w.lo, w.hi, [...tallX, ...trans, ...roundX, ...highSides], 0, 0.05)) {
-        band(s0, s1, headY, fieldTop, 0.012, field);
+        if (ceil) trap(s0, s1, headY, fieldTopAt(s0), fieldTopAt(s1), 0.012, field);
+        else band(s0, s1, headY, fieldTop, 0.012, field);
         if (w.coved) sweepCove(s0, s1, fieldTop);
       }
       for (const [s0, s1] of highSides) if (w.coved) sweepCove(s0, s1, fieldTop);
       for (const [s0, s1] of roundX) if (w.coved) sweepCove(s0, s1, fieldTop);
-      for (const [a, b, th] of tall) band(a, b, th * ft, wallTop, 0.012, field);
-      for (const r of rounds) roundWindow(r, fieldTop);
+      for (const [a, b, th] of tall) {
+        if (ceil) trap(a, b, th * ft, topAt(a), topAt(b), 0.012, field);
+        else band(a, b, th * ft, wallTop, 0.012, field);
+      }
+      for (const r of rounds) roundWindow(r, fieldTopAt(r[0]));
     }
     // A corniced wall carries the frieze on the head line, so a round window there can
     // only sit below it; its panel then runs to the head line like the rest of the field.
