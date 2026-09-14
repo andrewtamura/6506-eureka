@@ -1260,6 +1260,14 @@ async function main() {
       const ef = await buildFurniture({ scene, parent: m.object, floorY: 0, baseUrl: BASE, manifestFile: lvl.manifests.furniture + VER, invalidate });
       if (ef?.doorMeshes) furnitureDoorMeshes.push(...ef.doorMeshes);
     }
+    // Wall finish for the exhibit — the generator writes a paneling manifest for a shell
+    // level's finished rooms (the en-suite: casings on its four windows and its door,
+    // baseboard, plain field). Parented like the furniture; the ceiling is the shell's
+    // wall top, which for a shell with no roof of its own is the model's top.
+    if (lvl.id !== "exterior" && lvl.manifests?.paneling) {
+      const top = new THREE.Box3().setFromObject(m.object).max.y - m.object.position.y;
+      await buildWallFinish({ scene, parent: m.object, floorY: 0, ceilingY: top, baseUrl: BASE, manifestFile: lvl.manifests.paneling + VER });
+    }
     // hardwood floor (instanced planks), same as the ground floor; floorY is this
     // level's finish (the model sits with its slab top at object.position.y).
     if (lvl.id !== "exterior" && lvl.manifests?.floors)

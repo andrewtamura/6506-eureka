@@ -1272,6 +1272,46 @@ if _lups and _lwin:
           f"...ending, crown included, at {_ctop:.2f} ft — the transom frame's bottom bar ({_lwin['sill'] - 0.33:.2f})")
     check(_lups[0].get('crownFt', 0) >= 0.2, f"...with a {_lups[0].get('crownFt', 0) * 12:.1f} in crown")
 
+# THE SECOND FLOOR'S TRIM PROGRAM. A shell level authors one finished room (model.json
+# `levels[].paneling`): the extension's box with the UPPER windows on its walls and the
+# viewer's door. Every one of the four windows and the door must be in the manifest the
+# viewer cases, on the wall it actually sits in, with the two special cases flagged: the
+# transom inside the shower's tiled end wall is BARE (a hole, no wood) and the window over
+# the vanity has no apron. Nothing measures the exhibits in the browser, so the manifest
+# is what is asserted.
+print('\nSECOND FLOOR TRIM')
+_l2 = json.load(open('ifc/level2.paneling.json'))['walls']
+_l2pan = next((lv.get('paneling') for lv in model['levels'] if lv['id'] == 'level2'), None)
+check(_l2pan is not None and len(_l2) == 4, f'the en-suite is one finished room of four walls ({len(_l2)})')
+_bys = {w['side']: w for w in _l2}
+if len(_l2) == 4 and _l2pan:
+    _uppers = {}
+    for p_ in ext.by_type('IfcWindow'):
+        nm = getattr(p_, 'Name', None) or ''
+        if nm.startswith('Upper - Ext '):
+            _uppers[nm] = _W.get(nm)
+    E, S, Wl = _bys.get('E'), _bys.get('S'), _bys.get('W')
+    check(E and len(E['windows']) == 2 and not E['sidelights'],
+          f"E wall: both east windows cased ({len(E['windows']) if E else 0}), stool and casing")
+    if E:
+        spans = sorted(E['windows'])
+        for sp_, nm in zip(spans, ('Upper - Ext east 1', 'Upper - Ext east 2')):
+            ctr = (sp_[0] + sp_[1]) / 2
+            check(nm in _W and near(ctr, _ctr(nm, 1), 0.01), f'...on "{nm}" ({ctr:.3f})')
+        check(spans[1][3] is True and spans[0][3] is False,
+              'the north one (over the vanity) has no apron; the south one keeps its')
+    check(S and len(S['windows']) == 1 and len(S['sidelights']) == 1,
+          f"S wall: the east transom cased ({len(S['windows']) if S else 0}), the west one bare in the shower's wall ({len(S['sidelights']) if S else 0})")
+    if S and S['sidelights']:
+        sd = S['sidelights'][0]
+        check(near((sd[0] + sd[1]) / 2, _ctr('Upper - Ext south 2', 0), 0.01) and near(sd[3], 6.10, 0.02),
+              f'...the bare one is "Upper - Ext south 2" with its own head ({sd[3]:.2f})')
+    check(Wl and len(Wl['doors']) == 1 and abs((Wl['doors'][0][1] - Wl['doors'][0][0]) - 2.667) < 0.01,
+          f"W wall: the bedroom door cased ({len(Wl['doors']) if Wl else 0}, {Wl['doors'][0] if Wl and Wl['doors'] else '-'})")
+    if Wl and Wl['doors']:
+        check(near(Wl['doors'][0][1], wing_n - _WALL / 2 - 0.5, 0.02), 'a 6 in return from the north face')
+    check(all(w['noCornice'] for w in _l2) and all(w['noBattens'] for w in _l2), 'plain field, baseboard, no cornice, no battens — as the wing downstairs')
+
 # THE WATER CLOSET DOOR sits at the WEST end of the compartment wall — on the aisle past
 # the vanity — with a casing return to the party wall, and in the compartment wall.
 _wcd = next((d for d in json.load(open('ifc/rooms/wc.json'))['doors'] if d['name'] == 'Bath -> WC'), None)
