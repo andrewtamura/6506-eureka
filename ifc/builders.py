@@ -1937,14 +1937,22 @@ def _band_openings(ctx, base, specs, orient, fixed, cl):
     Expanded by a margin, because the casing and header project past the glass: a split cut
     to the glass alone leaves a raw edge either side instead of a joint the casing covers.
     The head clears the HEADER, not the window head — the header sits above it and would
-    otherwise land on siding that stopped too low."""
+    otherwise land on siding that stopped too low.
+
+    The fourth value is where the siding stops BENEATH the glass, `openingSillFt` under it
+    — the sill board's depth plus a shadow gap, so the strips tuck under the board rather
+    than butting its underside. It matters once a sill rides above the band's base: the
+    south transoms sit a foot up inside the band, and with nothing closing under them
+    there was 0.65 ft of bare stucco in the siding beneath each one, and a hole in the
+    skirt. `clad_face` builds the under-piece only when this line is above the base."""
     out = []
     for w in specs or ():
         if w.get("orient") != orient or abs(w.get("fixed", 0.0) - fixed) > 1e-6:
             continue
         half = w["width"] / 2 + cl.get("openingMarginFt", 0.7)
         head = base + ctx.story + (w["head"] + cl.get("openingHeadFt", 0.85)) * FT
-        out.append((w["pos"] - half, w["pos"] + half, head))
+        sill = base + ctx.story + (w["sill"] - cl.get("openingSillFt", 0.35)) * FT
+        out.append((w["pos"] - half, w["pos"] + half, head, sill))
     return sorted(out)
 
 
@@ -2194,10 +2202,11 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, groups=None):
             """Skirt, backer and grooved strips on one face.
 
             `sgn` is which way OUT is: +1 where the face looks toward increasing pz or px,
-            -1 where it looks the other way. `openings` is a LIST of (lo, hi, head) along
-            the face — the siding splits either side of each and runs from `head` up over
-            it. A list rather than one, because the wing's east wall carries three windows
-            in this band and its south wall two."""
+            -1 where it looks the other way. `openings` is a LIST of (lo, hi, head, sill)
+            along the face — the siding splits either side of each, runs from `head` up
+            over it and, where `sill` rides above the band's base, from the base up to
+            `sill` beneath it. A list rather than one, because the wing's east wall carries
+            two windows in this band and its south wall two."""
             f_sk = (fixed - sgn * BURY, fixed + sgn * sp)
             f_bk = (fixed - sgn * BURY, fixed + sgn * bpr)
             f_fc = (fixed + sgn * bpr, fixed + sgn * (bpr + fpr))
@@ -2208,41 +2217,58 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, groups=None):
                 else:
                     part(nm, f[0], f[1], ya, yb, p0, p1, color=TRIM)
 
-            def pieces(p0, p1, skip_over=False):
-                """(from, to, base) for a run, split around EVERY opening in turn. The
-                parts either side keep the band's base; the part over one starts at that
-                window's header, so the strips continue above it and the split reads as a
-                split rather than a notch out of the top. `skip_over` drops those parts —
-                for the skirt, which has nothing to do above a window.
+            def pieces(p0, p1, skirt=False):
+                """(from, to, base, top) for a run, split around EVERY opening in turn. The
+                parts either side keep the band's base and run to the raking head (`top`
+                None); the part over one starts at that window's header, so the strips
+                continue above it and the split reads as a split rather than a notch out
+                of the top; and where the window's sill line rides above the base, a part
+                UNDER it runs from the base to a LEVEL top at that line, so the siding
+                closes beneath the window as well as above it.
+
+                `skirt` is the skirt's view of the same split: it has nothing to do above
+                a window, so it keeps only the pieces either side — and the piece beneath,
+                where there is one, since a skirt under a raised sill is just a skirt. The
+                east face's sills reach the base, so there it stops either side as before.
 
                 Applied one opening at a time to the pieces the last one left, so two
                 windows close together cannot each undo the other's split; `max` on the
                 base is what makes overlapping openings resolve to the higher header
-                instead of the last one written."""
-                segs = [(p0, p1, lo)]
-                for w0, w1, wh in openings:
+                instead of the last one written, and an under-piece is only cut where the
+                sill line is above whatever base the piece already has."""
+                segs = [(p0, p1, lo, None)]
+                for w0, w1, wh, ws in openings:
                     nxt = []
-                    for q0, q1, qb in segs:
+                    for q0, q1, qb, qt in segs:
                         o0, o1 = max(q0, w0), min(q1, w1)
                         if o1 <= o0 + 1e-9:
-                            nxt.append((q0, q1, qb))
+                            nxt.append((q0, q1, qb, qt))
                             continue
                         if o0 > q0 + 1e-9:
-                            nxt.append((q0, o0, qb))
+                            nxt.append((q0, o0, qb, qt))
                         if o1 < q1 - 1e-9:
-                            nxt.append((o1, q1, qb))
-                        if not skip_over:
-                            nxt.append((o0, o1, max(qb, wh)))
+                            nxt.append((o1, q1, qb, qt))
+                        under = ws > qb + 1e-6 and (qt is None or ws < qt - 1e-6)
+                        if skirt:
+                            if under:
+                                nxt.append((o0, o1, qb, qt))
+                            continue
+                        if qt is None:
+                            nxt.append((o0, o1, max(qb, wh), None))
+                        if under:
+                            nxt.append((o0, o1, qb, ws))
                     segs = nxt
                 return segs
 
-            # The skirt stops either side of an opening — the upper window's own sill
-            # crosses it, and a skirt running over a window is nothing at all.
-            for j, (q0, q1, _b) in enumerate(pieces(a_lo, a_hi, skip_over=True)):
+            def head_of(qt):
+                """The piece's head: the raking soffit, or a level line under a sill."""
+                return y_of if qt is None else (lambda _a, t=qt: t)
+
+            for j, (q0, q1, _b, _t) in enumerate(pieces(a_lo, a_hi, skirt=True)):
                 across(f"Wing cladding skirt {tag}{j}", q0, q1, lo - sf * FT, lo, f_sk)
-            for j, (q0, q1, qb) in enumerate(pieces(a_lo, a_hi)):
+            for j, (q0, q1, qb, qt) in enumerate(pieces(a_lo, a_hi)):
                 rake_panel(f"Wing cladding backer {tag}{j}", axis, q0, q1, f_bk[0], f_bk[1],
-                           qb, y_of, color=SHADOW)
+                           qb, head_of(qt), color=SHADOW)
             # DIVISIONS that never exceed the authored spacing, the reckoning the guard's
             # balusters use, so the grooves stay even whatever the face works out to. The
             # grid runs the WHOLE face and each strip is CLIPPED to the opening rather
@@ -2253,9 +2279,9 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, groups=None):
             for i in range(n):
                 s0 = a_lo + (a_hi - a_lo) * i / n + (gw / 2 if i else 0.0)
                 s1 = a_lo + (a_hi - a_lo) * (i + 1) / n - (gw / 2 if i < n - 1 else 0.0)
-                for j, (q0, q1, qb) in enumerate(pieces(s0, s1)):
+                for j, (q0, q1, qb, qt) in enumerate(pieces(s0, s1)):
                     rake_panel(f"Wing cladding board {tag}{i}.{j}", axis, q0, q1,
-                               f_fc[0], f_fc[1], qb, y_of, color=TRIM)
+                               f_fc[0], f_fc[1], qb, head_of(qt), color=TRIM)
 
         # North and south are the RAKE walls and share `soffit` unchanged — it depends
         # only on px, so the same head line serves both. The EAST face is the low eave:
@@ -2936,8 +2962,9 @@ def second_floor_windows(rooms):
       - EAST: one upper on the primary east wall (the stretch exposed north of the
         extension), plus TWO east-facing uppers on the extension's far wall (its
         second-floor bathroom).
-    All 2.5' wide, sill 2.5' / head 6' above the second floor. Shared by the
-    exterior massing's upper row and the second-floor shell so they stay in sync."""
+    The primary's are 2.5' wide, sill 2.5' / head 6' above the second floor; the
+    extension's five are 2' wide and sit high inside its T1-11 band (see below). Shared
+    by the exterior massing's upper row and the second-floor shell so they stay in sync."""
     front_z = max(r["bounds"]["z2"] for r in rooms)   # North (street) wall — locked
     rear_z  = min(r["bounds"]["z1"] for r in rooms)    # South wall
     west_x  = max(r["bounds"]["x2"] for r in rooms)    # West exterior wall
@@ -2994,13 +3021,17 @@ def second_floor_windows(rooms):
         # Both faces take their bays from the ROOMS BEHIND THEM, so a replan moves the
         # windows rather than stranding them.
         #
-        # THEY ARE CLERESTORIES, and that is forced rather than chosen: the wing's second
-        # storey is only 8 ft floor-to-eave, and its frieze/cornice plus the T1-11 band
-        # take most of that. A standard upper (sill 2.5, head 6.0) spans 15.0-18.5 above
-        # grade, which STRADDLES the band's base at 16.37 however the band is sized — so
-        # its sill hangs below the siding on bare stucco and the siding has to be split
-        # around it. Raised to 4.35/6.10 they sit wholly inside the band, and the siding
-        # closes cleanly over and under each one.
+        # THEY SIT HIGH, and that is forced rather than chosen: the wing's second storey
+        # is only 8 ft floor-to-eave, and its frieze/cornice plus the T1-11 band take most
+        # of that. A standard upper (sill 2.5, head 6.0) spans 15.0-18.5 above grade,
+        # which STRADDLES the band's base at 16.37 however the band is sized — so its sill
+        # hangs below the siding on bare stucco and the siding has to be split around it.
+        # Raised to 4.35/6.10 they sit wholly inside the band, and the siding closes
+        # cleanly over each one.
+        # THE HEAD IS PINNED at 6.10 by the frieze: the trim's header tops out 0.76 ft
+        # above the glass and the siding needs `openingHeadFt` (0.85) over that, and at
+        # the low bay the frieze soffit is 19.456 above grade — 12.5 + 6.10 + 0.85 =
+        # 19.45. There is 1/16 in in it. It cannot go higher on this wall.
         # 2.0 ft wide, and that is the WALL's number rather than a taste: trim spans the
         # glass plus ~1.3 ft, and the wing's own north face keeps 1.2-1.7 ft of pier at
         # every corner and party line. At 3.5 ft the south windows left 3.4 IN at the
@@ -3039,12 +3070,26 @@ def second_floor_windows(rooms):
         # BOTH BAYS are glazed again. The western one was blanked while the rooms behind
         # the south wall were a WC and a laundry; with a shower moving to that wall on
         # both floors it earns a window, and the pair keeps the two-bay rhythm the north
-        # face sets. Upstairs these are already clerestories inside the T1-11 band —
-        # transoms in all but name — so only the second bay had to come back.
+        # face sets.
+        #
+        # AND THEY ARE TRANSOMS, the same light as the ground row's: the ground transoms
+        # are 2.0 x 1.25 and these were 2.0 x 1.75, and a near-square light over a
+        # landscape one reads as a small window over a transom, not as one device carried
+        # up the wall. The head cannot move (above), so the match is made at the SILL:
+        # the ground row's glass height, taken from its own spec so the two rows stay one
+        # light if it changes, is carried up under the pinned head. That puts the sill
+        # 4.85 above the second floor — a foot up inside the band, which is why the
+        # siding now closes UNDER these as well as over them (`_band_openings`).
+        # The EAST uppers keep 4.35: they light a bathroom's side wall, not a shower, and
+        # they share the 6.10 head, which is the line that turns the corner.
         sx = sorted({v for b in eb if abs(b["z1"] - ext_s) < 1e-6 for v in (b["x1"], b["x2"])})
+        ground_s = [w for r in ext_rooms for w in r.get("windows", [])
+                    if w["orient"] == "H" and abs(w["fixed"] - ext_s) < 1e-6]
+        glass_h = min((w["head"] - w["sill"] for w in ground_s), default=HEAD_X - SILL_X)
+        sill_s = HEAD_X - glass_h
         for i in range(len(sx) - 1):
             add(f"Upper - Ext south {i + 1}", "H", ext_s, (sx[i] + sx[i + 1]) / 2,
-                sill=SILL_X, width=W_X, head=HEAD_X)
+                sill=sill_s, width=W_X, head=HEAD_X)
     return front_z, specs
 
 

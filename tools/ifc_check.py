@@ -880,13 +880,39 @@ if we and party is not None and 'Wing frieze N' in WE:
                     check(y0 > lo + 1e-9 and y1 < top + 1e-9,
                           f'{tag}: "{w}" wholly inside the band '
                           f'(+{y0 - lo:.3f} below, +{top - y1:.3f} above)')
+                    # AND CLOSES UNDER IT where the sill rides above the base. The south
+                    # transoms sit a foot up inside the band, and the split used to run
+                    # the siding either side and over a window only — which left 0.65 ft
+                    # of bare stucco in the siding beneath each one and a hole in the
+                    # skirt. Both are asserted: strips standing on the base and reaching
+                    # up to the sill board (with the shadow gap `openingSillFt` leaves),
+                    # and a skirt with no gap across the window's span. Confirmed to fail
+                    # on the build before the under-pieces existed.
+                    if y0 > lo + 0.3:
+                        under = [b for b in sid if b[ax + 1] > a0 and b[ax] < a1
+                                 and near(b[4], lo, 0.01) and b[5] <= y0 + 1e-6]
+                        reach = max((b[5] for b in under), default=lo)
+                        check(under and y0 - reach < cl.get('openingSillFt', 0.35) * 0.3,
+                              f'{tag}: ...and closes UNDER it, {len(under)} strips to '
+                              f'{(y0 - reach) * 12:.2f} in of the sill board')
+                        sk = sorted([b for _, b in _parts(ext, f'Wing cladding skirt {tag}')
+                                     if b[ax + 1] > a0 - 0.5 and b[ax] < a1 + 0.5],
+                                    key=lambda b: b[ax])
+                        sgaps = [sk[i + 1][ax] - sk[i][ax + 1] for i in range(len(sk) - 1)]
+                        check(sk and max(sgaps, default=0.0) < 0.01,
+                              f'{tag}: the skirt runs on beneath it '
+                              f'({len(sk)} pieces, widest gap {max(sgaps, default=0.0) * 12:.2f} in)')
 
             # GROOVES, per face, as the GAPS BETWEEN consecutive full-height strips —
             # what a groove is here, and the one thing separating this from the
             # board-and-batten it replaced. Only full-height strips: the pieces over the
             # window share an along-range with them and would read as overlaps.
+            # Full-height means base ON the band's base AND head well above it: the pieces
+            # under a raised sill stand on the base too, at 0.65 ft tall, and they share
+            # an along-range with the strips either side just as the over-pieces do.
             for tag, ax in (('N', 0), ('E', 2), ('S', 0)):
-                full = sorted([b for _, b in faces[tag] if near(b[4], lo, 0.01)],
+                full = sorted([b for _, b in faces[tag]
+                               if near(b[4], lo, 0.01) and b[5] - b[4] > 2.0],
                               key=lambda b: b[ax])
                 gaps = [full[i + 1][ax] - full[i][ax + 1] for i in range(len(full) - 1)]
                 fine = [g for g in gaps if g < 0.2]
@@ -1066,6 +1092,25 @@ for nm in ('Window - WC S', 'Window - Laundry S'):
                        f'eye level (5.5 ft min)')
     check(near(head, model['headHeight'], 0.02),
           f"...with its head still on the house's {model['headHeight']} ft line ({head:.2f})")
+
+# THE UPPER TRANSOMS. The uppers cannot match the ground row's SILL — the frieze pins their
+# head at 6.10 above the second floor (its soffit is 19.456 above grade at the low bay and
+# the trim's header plus the siding's clearance land at 19.45) — so they match its GLASS:
+# the same 2.0 x 1.25 light, landscape, carried up under the pinned head. Glass to glass,
+# because that is what the eye compares. And the head still turns the corner onto the east
+# uppers, which is the line someone "fixing" the south by moving its head would break.
+for g, u in (('Window - WC S', 'Upper - Ext south 1'),
+             ('Window - Laundry S', 'Upper - Ext south 2')):
+    if g not in _W or u not in _W:
+        continue
+    gw, gh = _W[g][0].max() - _W[g][0].min(), _W[g][2].max() - _W[g][2].min()
+    uw, uh = _W[u][0].max() - _W[u][0].min(), _W[u][2].max() - _W[u][2].min()
+    check(near(gw, uw, 0.01) and near(gh, uh, 0.01),
+          f'"{u}" is the same light as "{g}" ({uw:.2f} x {uh:.2f} against {gw:.2f} x {gh:.2f})')
+    check(uh < uw - 0.3, f'...and landscape — a transom, not a small window ({uw:.2f} x {uh:.2f})')
+if all(n in _W for n in ('Upper - Ext south 1', 'Upper - Ext east 1')):
+    hs, he = _W['Upper - Ext south 1'][2].max(), _W['Upper - Ext east 1'][2].max()
+    check(near(hs, he, 0.01), f'the upper head line turns the corner ({hs:.3f} south, {he:.3f} east)')
 
 # EACH EAST WINDOW WHOLLY INSIDE ONE ROOM. This is the failure that forced the partition
 # to move — equal piers put a window's trim through it — and it had never been asserted.
