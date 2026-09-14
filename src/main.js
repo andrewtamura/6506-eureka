@@ -1262,11 +1262,13 @@ async function main() {
     }
     // Wall finish for the exhibit — the generator writes a paneling manifest for a shell
     // level's finished rooms (the en-suite: casings on its four windows and its door,
-    // baseboard, plain field). Parented like the furniture; the ceiling is the shell's
-    // wall top, which for a shell with no roof of its own is the model's top.
+    // baseboard, plain field). Parented like the furniture. The ceiling is `ceilHt`, the
+    // same floor-to-ceiling height the level-2 slab below is placed at — NOT the model
+    // object's bounding box: that box holds everything parented to the model, including
+    // the hall's stair running up to the attic, and a first cut took the ceiling from it
+    // and ran the en-suite's field panels 10 ft over the roofline like a tower.
     if (lvl.id !== "exterior" && lvl.manifests?.paneling) {
-      const top = new THREE.Box3().setFromObject(m.object).max.y - m.object.position.y;
-      await buildWallFinish({ scene, parent: m.object, floorY: 0, ceilingY: top, baseUrl: BASE, manifestFile: lvl.manifests.paneling + VER });
+      await buildWallFinish({ scene, parent: m.object, floorY: 0, ceilingY: ceilHt, baseUrl: BASE, manifestFile: lvl.manifests.paneling + VER });
     }
     // hardwood floor (instanced planks), same as the ground floor; floorY is this
     // level's finish (the model sits with its slab top at object.position.y).
