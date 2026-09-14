@@ -1237,6 +1237,17 @@ if _shw and _trs:
           "the transom falls within the shower's width")
     check(_trs.get('bare') is True, f"{_trs['name']} is a bare opening (tiled reveal, no wood trim)")
 
+# THE LAUNDRY'S UPPERS STOP UNDER ITS TRANSOM. One short band over the machines, its top
+# below the transom frame's bottom bar (0.33 ft under the glass), so the window lights the
+# room from above the cabinets instead of sitting behind them.
+_lau = json.load(open('ifc/rooms/ext_laundry.json'))
+_lwin = next((w for w in _lau['windows'] if w['orient'] == 'H'), None)
+_lups = [f for f in _lau['interior']['furniture'] if f['type'] == 'cabinet_run' and f.get('kind') == 'wall']
+check(len(_lups) == 1 and _lwin is not None, f'one band of wall cabinets in the laundry ({len(_lups)})')
+if _lups and _lwin:
+    check(_lups[0]['topFt'] <= _lwin['sill'] - 0.33 - 0.02,
+          f"...topping out at {_lups[0]['topFt']} ft, under the transom's frame at {_lwin['sill'] - 0.33:.2f}")
+
 # THE WATER CLOSET DOOR sits at the WEST end of the compartment wall — on the aisle past
 # the vanity — with a casing return to the party wall, and in the compartment wall.
 _wcd = next((d for d in json.load(open('ifc/rooms/wc.json'))['doors'] if d['name'] == 'Bath -> WC'), None)

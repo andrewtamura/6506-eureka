@@ -340,6 +340,7 @@ const raw = await page.evaluate(() => {
   }, { xs: man.xs, zs: man.zs, ft: FT, fy: FYp, probes: [
     { label: 'wc-round', from: [-20.1875, 1.5, 7.0], to: [-20.1875, 8.0, 7.0] },
     { label: 'shower-transom', from: [-20.1875, -9.0, 5.5], to: [-20.1875, -14.0, 8.5] },   // meets the wall at y 7.1, mid-glass
+    { label: 'laundry-transom', from: [-14.7292, -8.0, 5.0], to: [-14.7292, -13.0, 8.0] },   // over the uppers (6.55 at their face), y 7.2 at the wall
     // The shower's ARCHED entry, probed from the bath side heading south. `open` is the
     // front line (pz -8.688); the probes start 0.7 ft north of it. Low and centred passes
     // to the back wall; low at the jamb and centred above the apex meet the front; and
@@ -1113,19 +1114,34 @@ console.log('EXTENSION FIXTURES');
         // no toe kick, no doors. Only the counter and its splash.
         A(!meshes(base).some(m => m.yHi < 0.5 && m.yHi > 0.1), 'no toe kick — the bay is all machine');
       }
+      // THE UPPERS STOP UNDER THE TRANSOM. They ran to the ceiling in two bands and the
+      // south transom sat behind them; now one short band hangs over the machines and
+      // the transom lights the room from above it. The cabinet top has to clear the
+      // transom's frame (a 0.33 ft bar under the glass), read from the room's spec.
       const ups = runs.filter(r => r.kind === 'wall');
-      A(ups.length === 2, `wall cabinets above, in two bands (${ups.length})`);
-      if (ups.length && base) {
+      const lauWin = JSON.parse(readFileSync('ifc/rooms/ext_laundry.json', 'utf8')).windows.find(w => w.orient === 'H');
+      A(ups.length === 1, `wall cabinets above, in ONE short band (${ups.length})`);
+      if (ups.length && base && lauWin) {
         const mm = ups.flatMap(meshes);
         const lo = Math.min(...mm.map(m => m.yLo)), hi = Math.max(...mm.map(m => m.yHi));
-        A(Math.abs(lo - 4.75) < 0.08, `start at ${R(lo * 12, 0)} in`);
-        A(Math.abs(hi - 9.0) < 0.08, `run to ${R(hi * 12, 0)} in — the ceiling`);
-        // The break sits on the 7 ft head line, as it does in the scullery.
-        const tops = ups.map(r => Math.max(...meshes(r).map(m => m.yHi))).sort((a, b) => a - b);
-        A(Math.abs(tops[0] - 7.0) < 0.08, `the two bands meet on the head line (${R(tops[0], 2)})`);
+        const frameBot = lauWin.sill - 0.33;
+        A(hi < frameBot - 0.02, `top at ${R(hi * 12, 0)} in, under the transom's frame at ${R(frameBot * 12, 0)} in`);
+        A(hi - lo > 1.4, `${R((hi - lo) * 12, 0)} in tall — a cabinet, not a shelf`);
         A(lo - Math.max(...meshes(base).map(m => m.yHi)) > 1.1,
           `${R((lo - Math.max(...meshes(base).map(m => m.yHi))) * 12, 1)} in of clear splash between counter and cabinet`);
         A(ups.every(r => Math.abs(r.pzLo - LS) < 0.08), 'hung on the south wall, over the machines');
+        // nothing of the cabinetry in the transom's rectangle
+        const gx0 = lauWin.pos - lauWin.width / 2, gx1 = lauWin.pos + lauWin.width / 2;
+        const across = mm.filter(m => m.pxLo < gx1 && m.pxHi > gx0 && m.yHi > lauWin.sill && m.yLo < lauWin.head);
+        A(across.length === 0, `no cabinet across the glass (${across.length} members)`);
+        // and the transom READS from the room, over the cabinets: the viewer's own pick
+        const st = (raw.seeThrough || []).find(x => x.label === 'laundry-transom');
+        A(!!st && st.frag.length > 0 && st.frag[0].name === 'Window - Laundry S',
+          `the first IFC surface on a line over the cabinets is the transom's glass (${st && st.frag[0] ? st.frag[0].name : 'nothing'})`);
+        if (st && st.frag.length) {
+          const blocker = st.ours.find(o => o.d < st.frag[0].d - 0.05);
+          A(!blocker, `and nothing of ours in front of it (${blocker ? `hit at ${R(blocker.d, 2)} m` : 'clear'})`);
+        }
       }
     } }
 
