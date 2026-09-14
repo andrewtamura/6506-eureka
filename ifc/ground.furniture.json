@@ -583,7 +583,8 @@
       "lenFt": 5.0,
       "depthFt": 1.1,
       "bottomFt": 4.5,
-      "topFt": 6.1
+      "topFt": 6.87,
+      "crownFt": 0.3
     },
     {
       "type": "cabinet_run",

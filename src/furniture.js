@@ -1872,6 +1872,63 @@ function buildCabinetRun(p) {
       }
     }
   }
+  if (kind === "wall" && p.crownFt) {
+    // CROWN on a wall run: a SPRUNG moulding along the top front edge, returned round both
+    // ends and MITRED at the corners — one profile, drawn once and swept three times. The
+    // laundry's uppers wear it so their top reads as a finished cap under the transom
+    // rather than a carcass edge. `crownFt` is its height; the top of the crown is where
+    // the cabinet ENDS, so `topFt + crownFt` is the number that meets a sill.
+    const H = p.crownFt, PJ = p.crownProjFt ?? 0.22;
+    const prof = (() => {
+      const sh = new THREE.Shape(), h = H * ft, pj = PJ * ft;
+      sh.moveTo(0, 0); sh.lineTo(0, h); sh.lineTo(pj, h);                    // back against the face, flat top
+      sh.lineTo(pj, h - 0.015);                                              // lip
+      sh.quadraticCurveTo(pj * 0.55, h * 0.78, pj * 0.62, h * 0.52);         // COVE, sweeping in
+      sh.quadraticCurveTo(pj * 0.74, h * 0.26, pj * 0.28, h * 0.10);         // OVOLO, back to the fillet
+      sh.lineTo(pj * 0.28, 0); sh.lineTo(0, 0);
+      return sh;
+    })();
+    const upV = new THREE.Vector3(0, 1, 0);
+    const wdir = (v) => new THREE.Vector3(-v[0], 0, -v[1]).normalize();      // plan direction -> world
+    // One piece: profile X along `xPlan` (its projection, outward), swept `len` ft along
+    // local Z = X x up from the plan point `at` (da, ds) at height y1; the caps sheared to
+    // 45 deg — z := -x at the near cap, len + x at the far — which is a mitre plane through
+    // the corner, the long point at the front (see src/wall-finish.js on why that way).
+    const piece = (xPlan, at, len, mitre) => {
+      const geo = new THREE.ExtrudeGeometry(prof, { depth: len * ft, bevelEnabled: false, curveSegments: 8 });
+      const pos = geo.getAttribute("position");
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i), z = pos.getZ(i);
+        if (mitre[0] && z < len * ft / 2) pos.setZ(i, -x);
+        if (mitre[1] && z >= len * ft / 2) pos.setZ(i, len * ft + x);
+      }
+      geo.computeVertexNormals();
+      const xw = wdir(xPlan), zw = new THREE.Vector3().crossVectors(xw, upV).normalize();
+      const m = new THREE.Mesh(geo, wood); m.castShadow = true; m.receiveShadow = true;
+      m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xw, upV, zw));
+      const [opx, opz] = pl(at[0], at[1], 0, 0);
+      m.position.copy(V(opx, opz, y1));
+      g.add(m);
+      return zw;
+    };
+    const Pw = wdir(P), Aw = wdir(A);
+    for (const [a, b] of segs) {
+      if (b - a < 0.3) continue;
+      // FRONT: projection along A (out of the face), running the segment along P. Its Z
+      // is X x up; start it at whichever end that points away from.
+      const zF = new THREE.Vector3().crossVectors(Aw, upV);
+      const fromA = zF.dot(Pw) > 0;                                            // Z runs +ds
+      piece(A, [D / 2, fromA ? a : b], b - a, [true, true]);
+      // RETURNS: projection outward along -+P at each end, running from the front back
+      // to the wall along -A. Mitred at the front end only; square where it meets the wall.
+      for (const [end, sgn] of [[a, -1], [b, +1]]) {
+        const xPlan = [P[0] * sgn, P[1] * sgn];
+        const zR = new THREE.Vector3().crossVectors(wdir(xPlan), upV);
+        const toWall = zR.dot(Aw) < 0;                                         // Z runs toward the wall
+        piece(xPlan, [toWall ? D / 2 : -D / 2, end], D, toWall ? [true, false] : [false, true]);
+      }
+    }
+  }
   if (kind === "base") {
     // Countertop: full length, minus any gap that breaks it (a slide-in range).
     const brk = gaps.filter((x) => x.counter === false).sort((u, v) => u.a - v.a);

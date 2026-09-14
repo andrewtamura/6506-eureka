@@ -340,7 +340,7 @@ const raw = await page.evaluate(() => {
   }, { xs: man.xs, zs: man.zs, ft: FT, fy: FYp, probes: [
     { label: 'wc-round', from: [-20.1875, 1.5, 7.0], to: [-20.1875, 8.0, 7.0] },
     { label: 'shower-transom', from: [-20.1875, -9.0, 6.0], to: [-20.1875, -14.0, 9.5] },   // meets the wall at y 7.9, mid-glass (7.5..8.75)
-    { label: 'laundry-transom', from: [-14.7292, -8.0, 5.5], to: [-14.7292, -13.0, 9.0] },   // over the uppers (7.3 at their face), y 8.1 at the wall
+    { label: 'laundry-transom', from: [-14.7292, -8.0, 6.0], to: [-14.7292, -13.0, 9.2] },   // over the crown (7.5 at its lip), y 8.4 at the wall
     // The shower's ARCHED entry, probed from the bath side heading south. `open` is the
     // front line (pz -8.688); the probes start 0.7 ft north of it. Low and centred passes
     // to the back wall; low at the jamb and centred above the apex meet the front; and
@@ -1123,10 +1123,31 @@ console.log('EXTENSION FIXTURES');
       A(ups.length === 1, `wall cabinets above, in ONE short band (${ups.length})`);
       if (ups.length && base && lauWin) {
         const mm = ups.flatMap(meshes);
+        const upSpec = JSON.parse(readFileSync('ifc/rooms/ext_laundry.json', 'utf8')).interior.furniture.find(f => f.type === 'cabinet_run' && f.kind === 'wall');
         const lo = Math.min(...mm.map(m => m.yLo)), hi = Math.max(...mm.map(m => m.yHi));
         const frameBot = lauWin.sill - 0.33;
-        A(hi < frameBot - 0.02, `top at ${R(hi * 12, 0)} in, under the transom's frame at ${R(frameBot * 12, 0)} in`);
-        A(hi - lo > 1.4, `${R((hi - lo) * 12, 0)} in tall — a cabinet, not a shelf`);
+        // The cabinets END AT the transom: the crown's top meets the frame's bottom bar.
+        A(hi <= frameBot + 0.01 && hi > frameBot - 0.05, `top at ${R(hi * 12, 1)} in, meeting the transom's frame at ${R(frameBot * 12, 1)} in`);
+        A(hi - lo > 2.3, `${R((hi - lo) * 12, 0)} in tall, crown included`);
+        // THE CROWN: three swept pieces above the carcass — a front running the length and
+        // projecting past the doors, and a return at each end running back to the wall.
+        const carcassTop = upSpec.topFt;
+        const crown = mm.filter(m => m.yLo > carcassTop - 0.02);
+        A(crown.length === 3, `a crown in three pieces over the carcass (${crown.length})`);
+        if (crown.length === 3) {
+          const frontC = crown.sort((u, v2) => (v2.pxHi - v2.pxLo) - (u.pxHi - u.pxLo))[0];
+          // the DOOR fronts, not the knobs (which stand a further inch proud and are tiny)
+          const doorFace = Math.max(...mm.filter(m => m.yHi <= carcassTop + 0.01 && (m.pxHi - m.pxLo) > 0.5).map(m => m.pzHi));
+          A(frontC.pxHi - frontC.pxLo > upSpec.lenFt + 0.3, `the front runs the length and past both ends (${R(frontC.pxHi - frontC.pxLo, 2)} ft)`);
+          A(frontC.pzHi > doorFace + 0.12, `...and stands ${R((frontC.pzHi - doorFace) * 12, 1)} in proud of the doors — sprung, not a flat board`);
+          A(crown.every(m => Math.abs(m.yHi - hi) < 0.01), 'all three top out on one line');
+          const rets = crown.filter(m => m !== frontC);
+          A(rets.every(m => (m.pzHi - m.pzLo) > 1.0 && (m.pxHi - m.pxLo) < 0.6), 'the returns run the depth back to the wall');
+          // the moulded section: solid volume against a flat board of the same envelope
+          const env = (frontC.pxHi - frontC.pxLo) * (frontC.pzHi - frontC.pzLo) * (frontC.yHi - frontC.yLo);
+          const volFt = frontC.vol / (FT * FT * FT);
+          A(volFt < 0.8 * env && volFt > 0.3 * env, `moulded — ${R(volFt / env * 100, 0)}% of its envelope, not a box`);
+        }
         A(lo - Math.max(...meshes(base).map(m => m.yHi)) > 1.1,
           `${R((lo - Math.max(...meshes(base).map(m => m.yHi))) * 12, 1)} in of clear splash between counter and cabinet`);
         A(ups.every(r => Math.abs(r.pzLo - LS) < 0.08), 'hung on the south wall, over the machines');

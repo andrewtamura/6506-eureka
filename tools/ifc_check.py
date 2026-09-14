@@ -1245,8 +1245,10 @@ _lwin = next((w for w in _lau['windows'] if w['orient'] == 'H'), None)
 _lups = [f for f in _lau['interior']['furniture'] if f['type'] == 'cabinet_run' and f.get('kind') == 'wall']
 check(len(_lups) == 1 and _lwin is not None, f'one band of wall cabinets in the laundry ({len(_lups)})')
 if _lups and _lwin:
-    check(_lups[0]['topFt'] <= _lwin['sill'] - 0.33 - 0.02,
-          f"...topping out at {_lups[0]['topFt']} ft, under the transom's frame at {_lwin['sill'] - 0.33:.2f}")
+    _ctop = _lups[0]['topFt'] + _lups[0].get('crownFt', 0.0)
+    check(_lwin['sill'] - 0.33 - 0.05 < _ctop <= _lwin['sill'] - 0.33 + 0.01,
+          f"...ending, crown included, at {_ctop:.2f} ft — the transom frame's bottom bar ({_lwin['sill'] - 0.33:.2f})")
+    check(_lups[0].get('crownFt', 0) >= 0.2, f"...with a {_lups[0].get('crownFt', 0) * 12:.1f} in crown")
 
 # THE WATER CLOSET DOOR sits at the WEST end of the compartment wall — on the aisle past
 # the vanity — with a casing return to the party wall, and in the compartment wall.
