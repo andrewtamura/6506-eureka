@@ -1956,34 +1956,39 @@ def _band_openings(ctx, base, specs, orient, fixed, cl):
     return sorted(out)
 
 
+def _disc_solid(ctx, radius_m, depth_m, x, y, z, thick_m=None):
+    """A circle — or a RING, given `thick_m` — standing in a wall that runs along X,
+    extruded `depth_m` along +Y from (x, y, z). `IfcCircleHollowProfileDef`'s Radius is
+    the OUTER one and the wall thickness runs inward, so a ring occupies
+    `radius - thick .. radius`. The Position's Axis is what turns the profile onto a
+    vertical wall: local Z is global +Y, so the circle stands in the wall plane and the
+    extrusion runs out of it. One recipe for the massing's ornament disc and the real
+    round opening, so the two cannot drift in how they are built."""
+    m = ctx.model
+    if thick_m:
+        prof = m.create_entity("IfcCircleHollowProfileDef", ProfileType="AREA",
+                               Radius=float(radius_m), WallThickness=float(thick_m))
+    else:
+        prof = m.create_entity("IfcCircleProfileDef", ProfileType="AREA", Radius=float(radius_m))
+    return m.create_entity(
+        "IfcExtrudedAreaSolid", SweptArea=prof, Depth=float(depth_m),
+        Position=m.create_entity(
+            "IfcAxis2Placement3D",
+            Location=m.create_entity("IfcCartesianPoint",
+                                     Coordinates=(float(x), float(y), float(z))),
+            Axis=m.create_entity("IfcDirection", DirectionRatios=(0.0, 1.0, 0.0)),
+            RefDirection=m.create_entity("IfcDirection", DirectionRatios=(1.0, 0.0, 0.0))),
+        ExtrudedDirection=m.create_entity("IfcDirection", DirectionRatios=(0.0, 0.0, 1.0)))
+
+
 def wall_disc(ctx, name, px, pz, y, radius_ft, depth_ft, color, thick_ft=None):
     """A disc — or a RING, given `thick_ft` — standing on a north-facing wall: a circular
     profile extruded along +Y, the wall's outward normal.
 
     One product, one solid. A circle approximated by little blocks, the way the dentil
-    course was built, would be dozens of them; a parametric profile is exact and free.
-    `IfcCircleHollowProfileDef`'s Radius is the OUTER one and the wall thickness runs
-    inward, so a ring occupies `radius - thick .. radius`.
-
-    The Position's Axis is what turns the profile onto a vertical wall: local Z is global
-    +Y, so the circle stands in the wall plane and the extrusion runs out of it."""
-    m = ctx.model
-    if thick_ft:
-        prof = m.create_entity("IfcCircleHollowProfileDef", ProfileType="AREA",
-                               Radius=float(radius_ft * FT),
-                               WallThickness=float(thick_ft * FT))
-    else:
-        prof = m.create_entity("IfcCircleProfileDef", ProfileType="AREA",
-                               Radius=float(radius_ft * FT))
-    solid = m.create_entity(
-        "IfcExtrudedAreaSolid", SweptArea=prof, Depth=float(depth_ft * FT),
-        Position=m.create_entity(
-            "IfcAxis2Placement3D",
-            Location=m.create_entity("IfcCartesianPoint",
-                                     Coordinates=(float(ctx.X(px)), float(ctx.Y(pz)), float(y))),
-            Axis=m.create_entity("IfcDirection", DirectionRatios=(0.0, 1.0, 0.0)),
-            RefDirection=m.create_entity("IfcDirection", DirectionRatios=(1.0, 0.0, 0.0))),
-        ExtrudedDirection=m.create_entity("IfcDirection", DirectionRatios=(0.0, 0.0, 1.0)))
+    course was built, would be dozens of them; a parametric profile is exact and free."""
+    solid = _disc_solid(ctx, radius_ft * FT, depth_ft * FT, ctx.X(px), ctx.Y(pz), y,
+                        thick_ft * FT if thick_ft else None)
     style_item(ctx, solid, color)
     prod = multi_solid_product(ctx, "IfcWindow" if thick_ft is None else
                                "IfcBuildingElementProxy", name, [solid])
@@ -2305,6 +2310,12 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, groups=None):
     # Placed on two lines that already exist: the east bay's centre, and the DOOR HEAD,
     # so the wall's two openings share a horizontal. That also puts it 7 ft above the
     # finished floor, which is where a bathroom wants its glass.
+    #
+    # It is a REAL WINDOW now, authored in the water closet's room file (`round: true`),
+    # and the massing takes its position and radius from there — one source, so the
+    # ornament outside and the hole inside cannot drift apart. The derivation below is
+    # the fallback for a model with no such window, and is what the authored numbers
+    # were set to.
     rw = spec.get("roundWindow") or {}
     if rw:
         GLASS = (0.42, 0.52, 0.60)                  # as add_fenestration's panels. Blue
@@ -2313,6 +2324,13 @@ def add_wing_elevation(ctx, lot, rooms_cache, base, groups=None):
         R = rw.get("radiusFt", 1.0)
         cx = (x_east + party) / 2                   # the east bay's centre
         cy = base + ctx.door_h_ft * FT              # ...on the door's head line
+        authored = next((w for k in EXT_WING for w in rooms_cache[k].get("windows", [])
+                         if w.get("round") and w["orient"] == "H"
+                         and abs(w["fixed"] - wall_z) < 1e-6), None)
+        if authored:
+            cx = authored["pos"]
+            cy = base + authored["centerFt"] * FT
+            R = authored.get("radiusFt", R)
         wall_disc(ctx, "Wing round window glass", cx, wall_z - BURY, cy,
                   R - rw.get("ringFt", 0.22), rw.get("glassProudFt", 0.02) + BURY, GLASS)
         wall_disc(ctx, "Wing round window ring", cx, wall_z - BURY, cy,
@@ -3505,6 +3523,8 @@ def add_fenestration(ctx, groups, rooms_cache, base=0.0):
         for s in g["rooms"]:
             r = rooms_cache[s]
             for win in r.get("windows", []):
+                if win.get("round"):
+                    continue      # the wing elevation draws its ring and glass
                 o, f, p = win["orient"], win["fixed"], win["pos"]
                 if not is_exterior(o, f, p):
                     continue
@@ -3790,14 +3810,63 @@ def cut_opening(ctx, fill_class, name, orient, fixed_ft, pos_ft, width_ft,
     return fill
 
 
+def disc_opening(ctx, name, orient, fixed_ft, pos_ft, center_ft, radius_ft):
+    """A ROUND opening through a wall, and the glass disc that fills it — the real
+    version of the massing's `wall_disc` ornament. `center_ft` is the circle's centre
+    above the floor (a round window has no sill), `pos_ft` its centre along the wall.
+
+    Unlike `rect_rep`, whose extrusion starts at the placement origin (the sill) and runs
+    up, the circle is extruded THROUGH the wall along its normal from `depth/2` behind
+    the centreline, so both the void and the glass are centred on the wall. Walls along X
+    only: the one round window in the house is on the wing's north face, and nothing
+    asks for the other orientation yet."""
+    m = ctx.model
+    if orient != "H":
+        raise ValueError(f"{name}: a round opening is only built in an H wall (got {orient})")
+    fixed_m, pos_m = ctx.Y(fixed_ft), ctx.X(pos_ft)
+    host = find_wall(ctx, orient, fixed_m, pos_m)
+    if host is None:
+        print(f"  ! skip {name}: no wall at {orient} fixed={fixed_m:.3f} pos={pos_m:.3f}")
+        return None
+    r_m, z_m, depth = radius_ft * FT, center_ft * FT, ctx.T + 0.1
+
+    def rep(solid):
+        return m.create_entity("IfcShapeRepresentation", ContextOfItems=ctx.body,
+                               RepresentationIdentifier="Body",
+                               RepresentationType="SweptSolid", Items=[solid])
+
+    opening = run("root.create_entity", m, ifc_class="IfcOpeningElement", name=f"Opening - {name}")
+    run("geometry.assign_representation", m, product=opening,
+        representation=rep(_disc_solid(ctx, r_m, depth, pos_m, fixed_m - depth / 2, z_m)))
+    run("geometry.edit_object_placement", m, product=opening, matrix=matrix())
+    run("feature.add_feature", m, feature=opening, element=host["wall"])
+    fill = run("root.create_entity", m, ifc_class="IfcWindow", name=name)
+    fill.OverallHeight = fill.OverallWidth = float(2 * r_m)
+    pd = 0.05
+    prep = rep(_disc_solid(ctx, r_m, pd, pos_m, fixed_m - pd / 2, z_m))
+    assign_color(ctx, prep, (0.6, 0.8, 0.92), transparency=0.7)  # see-through glass
+    run("geometry.assign_representation", m, product=fill, representation=prep)
+    run("geometry.edit_object_placement", m, product=fill, matrix=matrix())
+    run("feature.add_filling", m, opening=opening, element=fill)
+    run("spatial.assign_container", m, products=[fill], relating_structure=ctx.storey)
+    return fill
+
+
 def add_doors(ctx, r):
     for d in r.get("doors", []):
         opening = d.get("opening", False)
         head = float(d.get("headFt", ctx.head_ft))   # tall built-in openings override the head
-        cut_opening(ctx, "IfcDoor", d["name"], d["orient"], d["fixed"], d["pos"],
-                    d["width"], 0.0, head, leaf=not opening)
+        fill = cut_opening(ctx, "IfcDoor", d["name"], d["orient"], d["fixed"], d["pos"],
+                           d["width"], 0.0, head, leaf=not opening)
         if opening:
             continue
+        # A POCKET DOOR slides into the wall beyond its `hinge` jamb instead of swinging.
+        # The IfcDoor says so (OperationType), and the viewer's leaf translates along the
+        # wall instead of pivoting — the one door here is the laundry's into the bath,
+        # whose 3 ft in-swing stood in the middle of a 5 ft room.
+        sliding = bool(d.get("sliding"))
+        if sliding and fill is not None and hasattr(fill, "OperationType"):
+            fill.OperationType = "SLIDING_TO_LEFT"
         # Record hinge/swing for the viewer's swinging-leaf overlay.
         default_sign = -1 if d["orient"] == "H" else 1
         sw = d.get("swing")
@@ -3810,6 +3879,8 @@ def add_doors(ctx, r):
             # plain slab from inside. The viewer's leaf needs it too.
             "style": d.get("doorStyle", "panel"),
         })
+        if sliding:
+            ctx.door_meta[-1]["sliding"] = True
         # `openDeg` overrides the viewer's default 90 deg swing for this door only.
         # A leaf can only lie flat against its own wall if the wall RETURNS past the
         # jamb by at least the leaf width; where it does not, this is how far it goes.
@@ -3909,6 +3980,12 @@ def add_glazed_frame(ctx, r, w, sill, head):
 
 def add_windows(ctx, r):
     for w in r.get("windows", []):
+        if w.get("round"):
+            # A round window: centre and radius rather than sill and head, cut by its
+            # own routine. The massing's ring outside derives from this same spec.
+            disc_opening(ctx, w["name"], w["orient"], w["fixed"], w["pos"],
+                         w["centerFt"], w.get("radiusFt", 1.0))
+            continue
         if w.get("blind"):
             continue          # blind bay: exterior trim only, the wall stays solid
         if w.get("bay"):      # bay window: cut the hole, the glazing is in the bay itself

@@ -1960,12 +1960,20 @@ async function main() {
   // A door "unit" may have 1 leaf (single) or 2 (double); tapping any leaf
   // toggles the whole unit so both leaves swing together.
   const toggleDoor = (leaf) => { leaf.unit.open = !leaf.unit.open; };
+  // `current` runs 0..openAngle for every leaf. A hinged leaf turns by it; a POCKET
+  // leaf treats it as a fraction and slides that far along the wall into the pocket
+  // beyond its hinge jamb — so the same ease, the same toggle and the same headless
+  // measurement serve both without a second code path.
+  const applyDoor = (d) => {
+    if (d.slide) d.pivot.position.copy(d.slide.from).addScaledVector(d.slide.axis, d.slide.dist * (d.current / d.openAngle));
+    else d.pivot.rotation.y = d.current;
+  };
   (function animateDoors() {
     for (const d of doors) {
       const target = d.unit.open ? d.openAngle : 0;
       if (Math.abs(d.current - target) > 1e-3) {
         d.current += (target - d.current) * 0.2; // ease toward target
-        d.pivot.rotation.y = d.current;
+        applyDoor(d);
         invalidate();                            // a swinging door is a reason to draw
       }
     }
@@ -2383,13 +2391,22 @@ async function main() {
       const mkLeaf = (hx, hz, leafW, dirSign, openAngle) => {
         const pivot = new THREE.Group();
         pivot.position.set(hx, bx.min.y, hz);
-        pivot.rotation.y = openAngle;            // start in the open position
         const { grp, meshes } = leafParts(leafW, dirSign);
         if (!alongX) grp.rotation.y = -Math.PI / 2;   // local +X becomes world +Z
         pivot.add(grp);
         pivot.userData.dynamic = true;          // live transform: consolidate.js skips it
         world.scene.three.add(pivot);
         const leaf = { pivot, openAngle, current: openAngle, unit, name: nm };
+        if (m.sliding) {
+          // POCKET DOOR. The leaf is built from the hinge jamb outward by `dirSign`, so
+          // the pocket is the wall on the OTHER side of that jamb and the leaf travels
+          // -dirSign along the wall's axis — world X for an E-W door, world Z for a N-S
+          // one (leafParts' local X after the turn above). It stops 2 in short of fully
+          // buried, the way a real pocket door leaves a pull showing.
+          const axis = alongX ? new THREE.Vector3(-dirSign, 0, 0) : new THREE.Vector3(0, 0, -dirSign);
+          leaf.slide = { from: pivot.position.clone(), axis, dist: Math.max(0.1, leafW - 0.05) };
+        }
+        applyDoor(leaf);                        // start in the open position
         for (const mesh of meshes) { mesh.userData.door = leaf; doorMeshes.push(mesh); }
         doors.push(leaf);
       };

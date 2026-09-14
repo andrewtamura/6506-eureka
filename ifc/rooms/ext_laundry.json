@@ -18,7 +18,8 @@
       "width": 3.0,
       "hinge": "max",
       "swing": "neg",
-      "doorStyle": "panel"
+      "doorStyle": "panel",
+      "sliding": true
     }
   ],
   "windows": [

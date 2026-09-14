@@ -36,8 +36,9 @@
   {
     "name": "Bath -> WC",
     "hingeMax": true,
-    "swingSign": 1,
-    "style": "panel"
+    "swingSign": -1,
+    "style": "panel",
+    "sliding": true
   },
   {
     "name": "Family -> Ext Vestibule",
@@ -55,7 +56,8 @@
     "name": "Laundry -> Bath",
     "hingeMax": true,
     "swingSign": -1,
-    "style": "panel"
+    "style": "panel",
+    "sliding": true
   },
   {
     "name": "Back Door",

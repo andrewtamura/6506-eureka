@@ -78,6 +78,11 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     const bare = w.bareDoors || [];
     const winX = wins.map((q) => [q[0], q[1]]);
     const tallX = tall.map((t) => [t[0], t[1]]);   // full-height built-in openings (e.g. the hutch)
+    // ROUND windows: [pos, centre height, radius] in plan feet. No sill, no stool, no
+    // apron; the field is cut round the glass as one holed panel over its span and the
+    // casing profile is revolved into a ring. The span is what the 1-D program sees.
+    const rounds = w.rounds || [];
+    const roundX = rounds.map(([p, , R]) => [p - R - 0.02, p + R + 0.02]);
     const caseInset = caseW / ft + 0.05; // feet — keep field/battens off the casing
 
     // --- real mouldings, swept ----------------------------------------------------
@@ -294,8 +299,8 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     //    the openings, plus a continuous strip under each window (bbH..sill). It
     //    runs right up to the opening edges (the casing overlays it), so there are
     //    no gaps next to the trim.
-    const openings = [...doors, ...winX, ...tallX, ...sides].map(([a, b]) => [Math.min(a, b), Math.max(a, b)]);
-    for (const [a, b] of subtract(w.lo, w.hi, [...doors, ...winX, ...tallX, ...sides], 0, 0.02))
+    const openings = [...doors, ...winX, ...tallX, ...sides, ...roundX].map(([a, b]) => [Math.min(a, b), Math.max(a, b)]);
+    for (const [a, b] of subtract(w.lo, w.hi, [...doors, ...winX, ...tallX, ...sides, ...roundX], 0, 0.02))
       band(a, b, bbH, headY, 0.012, field);
     for (const [a, b, sill] of wins) {
       const sy = sill * ft; if (sy - bbH < 0.06) continue;
@@ -311,7 +316,7 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     // A room can keep the recessed field, baseboard and casings but drop the vertical
     // strapping over them (`battens: false`).
     for (let g = w.noBattens ? w.hi : w.lo + BATTEN_SPACING_FT; g < w.hi - 0.05; g += BATTEN_SPACING_FT) {
-      if ([...doors, ...tallX].some(([a, b]) => g > Math.min(a, b) && g < Math.max(a, b))) continue; // in a doorway / built-in
+      if ([...doors, ...tallX, ...roundX].some(([a, b]) => g > Math.min(a, b) && g < Math.max(a, b))) continue; // in a doorway / built-in / round window's panel
       if (openings.some(([oa, ob]) => Math.abs(g - oa) < battenClear || Math.abs(g - ob) < battenClear)) continue; // would touch a jamb
       // A SIDELIGHT is glass, so a batten cannot cross it. The `wins` loop below stops a
       // batten at a window's sill, but sidelights are filed under `sides` (they carry
@@ -325,6 +330,43 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       if (yTop - bbH < 0.25) continue; // skip stubby battens (e.g. under a low sill)
       post(g, bbH, yTop, BATTEN_W, 0.03);
     }
+
+    // ROUND WINDOW: the field over its span is ONE panel with a circular hole — the 1-D
+    // `subtract` cannot make a hole in a flat box, so the box bands stop either side of
+    // the span (above) and this fills it, floor-of-field to `yTop`, with a `Shape` whose
+    // hole is the glass plus a reveal. Then the CASING PROFILE is revolved into a ring:
+    // `casingShape` is drawn as (projection, across) with the opening edge at across =
+    // caseW, so a point sits at radius R + (caseW - across) and stands `projection` proud
+    // — the same architrave section as every rectangular window, turned once round the
+    // glass, which is what makes the round window read as the others' cousin rather than
+    // a porthole. No stool, no apron: a circle has no sill to sit on.
+    const roundWindow = ([pos, cyFt, R], yTop) => {
+      const u0 = pos - R - 0.02, u1 = pos + R + 0.02;
+      const L = (u1 - u0) * ft, cy = cyFt * ft, r = R * ft;
+      if (yTop - bbH < 0.05) return;
+      const sh = new THREE.Shape();
+      sh.moveTo(0, bbH); sh.lineTo(L, bbH); sh.lineTo(L, yTop); sh.lineTo(0, yTop); sh.lineTo(0, bbH);
+      const hole = new THREE.Path(); hole.absarc((pos - u0) * ft, cy, r + 0.01, 0, Math.PI * 2, false);
+      sh.holes.push(hole);
+      const depth = 0.012;
+      const panel = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth, bevelEnabled: false, curveSegments: 24 }), field);
+      // Local +X runs along the wall from P(u0) (the rotation band() uses); the extrude
+      // runs along local +Z, which is +/-Nw depending on the wall's side, so shift the
+      // mesh by the depth where it would otherwise extrude INTO the wall.
+      const lz = new THREE.Vector3(Math.sin(rotY), 0, Math.cos(rotY));
+      const off = lz.dot(Nw) > 0 ? 0 : depth;
+      const A0 = P(u0);
+      panel.position.set(A0.x + Nw.x * off, floorY, A0.z + Nw.z * off);
+      panel.rotation.y = rotY;
+      scene.add(panel);
+      // the ring: casing profile revolved about the wall normal, proud of the panel
+      const pts = casingShape.getPoints(6).map((q) => new THREE.Vector2(r + (caseW - q.y), q.x));
+      const ring = new THREE.Mesh(new THREE.LatheGeometry(pts, 48), mill);
+      ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), Nw);
+      const C = P(pos);
+      ring.position.set(C.x + Nw.x * depth, floorY + cy, C.z + Nw.z * depth);
+      scene.add(ring);
+    };
 
     // 2b) WAINSCOT — a framed dado on the walls that ask for it. Real relief in three
     //     planes: the wall's own recessed field (0.012), a panel ground proud of it,
@@ -568,12 +610,20 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       // A room with no entablature can still be coved (the sitting and family rooms are):
       // the field then stops at the cove's spring line instead of running to the ceiling.
       const fieldTop = w.coved ? wallTop - COVE_H : wallTop;
-      for (const [s0, s1] of subtract(w.lo, w.hi, [...tallX, ...trans], 0, 0.05)) {
+      // Round windows too: a circle centred on the head line straddles it, and this band
+      // subtracted only `tallX` and `trans` — the same way a transom used to be
+      // plastered over (see above). The cove still runs across; the panel stops under it.
+      for (const [s0, s1] of subtract(w.lo, w.hi, [...tallX, ...trans, ...roundX], 0, 0.05)) {
         band(s0, s1, headY, fieldTop, 0.012, field);
         if (w.coved) sweepCove(s0, s1, fieldTop);
       }
+      for (const [s0, s1] of roundX) if (w.coved) sweepCove(s0, s1, fieldTop);
       for (const [a, b, th] of tall) band(a, b, th * ft, wallTop, 0.012, field);
+      for (const r of rounds) roundWindow(r, fieldTop);
     }
+    // A corniced wall carries the frieze on the head line, so a round window there can
+    // only sit below it; its panel then runs to the head line like the rest of the field.
+    if (!w.noCornice) for (const r of rounds) roundWindow(r, headY);
 
     // 4) window casing: moulded jambs + HEAD + a stool with mitred returns + apron
     for (const [a, b, sill, plainBelow] of wins) {

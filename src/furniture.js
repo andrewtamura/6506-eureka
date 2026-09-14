@@ -773,35 +773,13 @@ function buildBathroom(p) {
   // mirror on the EAST wall, centred above the vanity
   box(x1 + 0.06, vcz, 4.2, 0.08, 2.2, 2.5, glass);
 
-  // --- WALL-MOUNTED (wall-hung) toilet: a floating china bowl cantilevered off the
-  // wall (no floor pedestal), an elongated seat, and a flush actuator plate on the
-  // wall (cistern concealed in-wall). Built in a LOCAL frame (+X = front, -X = wall
-  // side) then placed/rotated. Wall-hung = clear floor under it -> more door swing.
+  // --- WALL-MOUNTED (wall-hung) toilet. The parts are shared with the `wall_toilet`
+  // manifest builder (`wallToiletParts`); this room places them positionally.
   const bowlInt = new THREE.MeshStandardMaterial({ color: 0xcdd2d2, roughness: 0.2, side: THREE.DoubleSide });
   const plateM = new THREE.MeshStandardMaterial({ color: 0xedeef0, roughness: 0.4 });
-  const oval = (rx, ry, cxs = 0) => { const s = new THREE.Shape(); s.absellipse(cxs * ft, 0, rx * ft, ry * ft, 0, Math.PI * 2); return s; };
   // (plx,plz) = bowl-centre plan position; rotY rotates the local +X = front about Y.
   const makeToilet = (plx, plz, rotY = 0) => {
-    const grp = new THREE.Group();
-    // floating bowl: revolved UPPER-bowl profile only (no pedestal to the floor)
-    const prof = [[0.00, 0.86], [0.30, 0.88], [0.45, 1.00], [0.54, 1.20], [0.57, 1.40],
-                  [0.57, 1.48], [0.40, 1.49], [0.34, 1.34], [0.30, 1.15], [0.16, 1.05],
-                  [0.00, 1.03]].map(([r, y]) => new THREE.Vector2(r * ft, y * ft));
-    const bowl = new THREE.Mesh(new THREE.LatheGeometry(prof, 44), porc);
-    bowl.scale.x = 1.5; bowl.material.side = THREE.DoubleSide;
-    bowl.position.set(0.35 * ft, 0, 0);                  // shift forward so the back tucks to the wall
-    grp.add(bowl);
-    const water = new THREE.Mesh(new THREE.CircleGeometry(0.26 * ft, 24), bowlInt);
-    water.rotation.x = -Math.PI / 2; water.scale.x = 1.5; water.position.set(0.37 * ft, 1.12 * ft, 0); grp.add(water);
-    // elongated oval seat
-    const seatSh = oval(0.62, 0.46, 0.05); seatSh.holes.push((() => { const h = new THREE.Path(); h.absellipse(0.09 * ft, 0, 0.34 * ft, 0.3 * ft, 0, Math.PI * 2); return h; })());
-    const seat = new THREE.Mesh(new THREE.ExtrudeGeometry(seatSh, { depth: 0.06 * ft, bevelEnabled: false }), porc);
-    seat.rotation.x = -Math.PI / 2; seat.position.set(0.35 * ft, 1.5 * ft, 0); grp.add(seat);
-    // flush actuator plate on the wall, above the bowl
-    const plate = new THREE.Mesh(new RoundedBoxGeometry(0.05 * ft, 1.0 * ft, 0.7 * ft, 3, 0.03), plateM);
-    plate.position.set(-0.62 * ft, 3.1 * ft, 0); grp.add(plate);
-    const btn = new THREE.Mesh(new THREE.BoxGeometry(0.03 * ft, 0.34 * ft, 0.4 * ft), chrome);
-    btn.position.set(-0.585 * ft, 3.25 * ft, 0); grp.add(btn);
+    const grp = wallToiletParts({ porc, chrome, bowlInt, plateM });
     grp.rotation.y = rotY;
     grp.position.copy(V(plx - px, plz - pz, 0));
     g.add(grp);
@@ -1095,6 +1073,59 @@ function buildNightstand(p) {
 
 // Floor-standing toilet. Anchor (px,pz) = footprint centre; `faces` = the
 // direction the bowl/seat point (the tank backs onto the opposite wall).
+// WALL-HUNG TOILET parts, in a LOCAL frame: -X is the wall, +X the front, origin at the
+// bowl's plan centre on the floor. A floating china bowl cantilevered off the wall (a
+// revolved UPPER-bowl profile only — no pedestal, so the floor under it is clear, which
+// is what a wall-hung buys: more room for a door to swing), an elongated seat, and the
+// flush plate on the wall over a cistern concealed in it. Shared by `buildBathroom`,
+// which places it positionally, and the `wall_toilet` manifest builder below.
+function wallToiletParts({ porc, chrome, bowlInt, plateM }) {
+  const ft = FT, grp = new THREE.Group();
+  const oval = (rx, ry, cxs = 0) => { const s = new THREE.Shape(); s.absellipse(cxs * ft, 0, rx * ft, ry * ft, 0, Math.PI * 2); return s; };
+  const prof = [[0.00, 0.86], [0.30, 0.88], [0.45, 1.00], [0.54, 1.20], [0.57, 1.40],
+                [0.57, 1.48], [0.40, 1.49], [0.34, 1.34], [0.30, 1.15], [0.16, 1.05],
+                [0.00, 1.03]].map(([r, y]) => new THREE.Vector2(r * ft, y * ft));
+  const bowl = new THREE.Mesh(new THREE.LatheGeometry(prof, 44), porc);
+  bowl.scale.x = 1.5; bowl.material.side = THREE.DoubleSide;
+  bowl.position.set(0.35 * ft, 0, 0);                  // shift forward so the back tucks to the wall
+  grp.add(bowl);
+  const water = new THREE.Mesh(new THREE.CircleGeometry(0.26 * ft, 24), bowlInt);
+  water.rotation.x = -Math.PI / 2; water.scale.x = 1.5; water.position.set(0.37 * ft, 1.12 * ft, 0); grp.add(water);
+  // elongated oval seat
+  const seatSh = oval(0.62, 0.46, 0.05); seatSh.holes.push((() => { const h = new THREE.Path(); h.absellipse(0.09 * ft, 0, 0.34 * ft, 0.3 * ft, 0, Math.PI * 2); return h; })());
+  const seat = new THREE.Mesh(new THREE.ExtrudeGeometry(seatSh, { depth: 0.06 * ft, bevelEnabled: false }), porc);
+  seat.rotation.x = -Math.PI / 2; seat.position.set(0.35 * ft, 1.5 * ft, 0); grp.add(seat);
+  // flush actuator plate on the wall, above the bowl
+  const plate = new THREE.Mesh(new RoundedBoxGeometry(0.05 * ft, 1.0 * ft, 0.7 * ft, 3, 0.03), plateM);
+  plate.position.set(-0.62 * ft, 3.1 * ft, 0); grp.add(plate);
+  const btn = new THREE.Mesh(new THREE.BoxGeometry(0.03 * ft, 0.34 * ft, 0.4 * ft), chrome);
+  btn.position.set(-0.585 * ft, 3.25 * ft, 0); grp.add(btn);
+  grp.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+  return grp;
+}
+const WALL_TOILET_BACK = 0.645;   // wall face to bowl centre, ft (the plate's back face)
+
+// Wall-hung toilet as a manifest item. Anchor (px,pz) = the WALL LINE at the bowl's
+// centre (as `wall_basin`), `faces` = the way the bowl points into the room. The bowl
+// front lands 1.85 ft off the wall, against 2.0 for the floor-standing `toilet` — and
+// nothing on the floor, which is the clearance a tight water closet is after.
+function buildWallToilet(p) {
+  const ft = FT, g = new THREE.Group();
+  const A = DIR[p.faces || "W"];
+  const porc = new THREE.MeshStandardMaterial({ color: 0xf7f7f4, roughness: 0.25 });
+  const chrome = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.25, metalness: 0.8 });
+  const bowlInt = new THREE.MeshStandardMaterial({ color: 0xcdd2d2, roughness: 0.2, side: THREE.DoubleSide });
+  const plateM = new THREE.MeshStandardMaterial({ color: 0xedeef0, roughness: 0.4 });
+  const grp = wallToiletParts({ porc, chrome, bowlInt, plateM });
+  // Local +X (the front) has to point along A. V() maps plan (dx,dz) to world (-dx,.,-dz),
+  // so A is world (-A[0], 0, -A[1]); a rotation th about Y sends +X to (cos th, 0, -sin th).
+  grp.rotation.y = Math.atan2(A[1], -A[0]);
+  // The anchor is the wall line; the bowl's centre sits BACK off it, along A.
+  grp.position.set(-A[0] * WALL_TOILET_BACK * ft, 0, -A[1] * WALL_TOILET_BACK * ft);
+  g.add(grp);
+  return g;
+}
+
 function buildToilet(p) {
   const ft = FT, g = new THREE.Group();
   const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
@@ -1275,7 +1306,12 @@ function buildVanity(p) {
   let q;
   // Custom cabinetry: recessed toe-kick, a body sitting on it, and a grid of
   // pullout drawer fronts (each proud, with a slim bar pull).
-  const kbH = 0.33, cabTop = 2.9;
+  // The COUNTER height is a parameter, and the cabinet derives from it: a vanity under a
+  // window has to sit under the window's stool — the WC's east window has its sill at
+  // 36 in, and the 36.6 in default drove the slab through the stool's underside. At 34 in
+  // (a standard vanity height) the stool becomes the counter's back cap, which is the
+  // detail a window over a counter actually gets. Default unchanged for every other one.
+  const kbH = 0.33, counter = p.counterFt ?? 3.05, cabTop = counter - 0.15;
   q = pl(-0.13, 0, Dp - 0.28, Wd - 0.15); box(q[0], q[1], kbH / 2, q[2], q[3], kbH, toekick);          // recessed toe-kick
   q = pl(0, 0, Dp, Wd);                    box(q[0], q[1], kbH + (cabTop - kbH) / 2, q[2], q[3], cabTop - kbH, woodv, 0.02); // cabinet body
   // Front layout is a parameter. The default 3x3 is nine drawer fronts, which on a
@@ -1287,13 +1323,13 @@ function buildVanity(p) {
     q = pl(Dp / 2 + 0.02, ds, 0.04, colW - 0.07); box(q[0], q[1], yc, q[2], q[3], rowH - 0.07, woodv, 0.015);  // drawer front (proud)
     q = pl(Dp / 2 + 0.06, ds, 0.04, colW * 0.5);   box(q[0], q[1], yc + rowH / 2 - 0.14, q[2], q[3], 0.05, chrome); // slim bar pull
   }
-  q = pl(0.05, 0, Dp + 0.1, Wd + 0.15); box(q[0], q[1], 2.97, q[2], q[3], 0.16, porc, 0.02); // countertop
+  q = pl(0.05, 0, Dp + 0.1, Wd + 0.15); box(q[0], q[1], counter - 0.08, q[2], q[3], 0.16, porc, 0.02); // countertop
   // Two sinks flank a central gap (a window sits above it); one sink is centred.
   const off = sinks === 2 ? Wd / 2 - 1.25 : 0;
   const dsList = sinks === 2 ? [-off, off] : [0];
   for (const ds of dsList) {
-    q = pl(0.05, ds, 0, 0);             cyl(q[0], q[1], 3.02, 0.5, 0.16, porc);            // basin
-    q = pl(-(Dp / 2 - 0.35), ds, 0, 0); cyl(q[0], q[1], 3.2, 0.05, 0.6, chrome);          // faucet
+    q = pl(0.05, ds, 0, 0);             cyl(q[0], q[1], counter - 0.03, 0.5, 0.16, porc);   // basin
+    q = pl(-(Dp / 2 - 0.35), ds, 0, 0); cyl(q[0], q[1], counter + 0.15, 0.05, 0.6, chrome); // faucet
   }
   // A mirror over each sink (double) or one wide mirror (single); skip if `mirror:false`.
   // Mount proud of the wall's inner face (the cabinet back sits at the ~0.46 ft-thick
@@ -2927,7 +2963,7 @@ function buildWallMirror(p) {
 }
 
 const BUILDERS = { wall_basin: buildWallBasin, chandelier: buildChandelier, hot_tub: buildHotTub, mudroom_bench: buildMudroomBench, wall_mirror: buildWallMirror, recessed: buildRecessed, pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight,
-  range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, open_shelves: buildOpenShelves, counter_stool: buildCounterStool, banquette: buildBanquette, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, bentwood_chair: buildBentwoodChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
+  range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, open_shelves: buildOpenShelves, counter_stool: buildCounterStool, banquette: buildBanquette, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, bentwood_chair: buildBentwoodChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, wall_toilet: buildWallToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 // Re-export a few individual builders so the viewer can drop single procedural
 // pieces (e.g. patio furniture on the alt roof deck) without going through the
 // furniture.json manifest.

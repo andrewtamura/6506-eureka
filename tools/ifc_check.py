@@ -240,16 +240,21 @@ for stem, room in rooms_g.items():
     for w in room.get('windows', []):
         if w.get('blind'):
             continue
-        half = abs(w['width']) / 2
+        # A ROUND window has a centre and a radius rather than a width and a head; its
+        # top is what would run through a cornice (the one in the house straddles the
+        # head line by a foot, in a room with none).
+        rnd = bool(w.get('round'))
+        half = w.get('radiusFt', 1.0) if rnd else abs(w['width']) / 2
+        top = w['centerFt'] + half if rnd else w['head']
         wlo, whi = w['pos'] - half, w['pos'] + half
         hit = [c for c in corniced if c[1] == w['orient'] and abs(c[2] - w['fixed']) < 0.3
                and min(whi, c[4]) - max(wlo, c[3]) > 0.05]
         if not hit:
             continue
-        over = w['head'] - head_ft
+        over = top - head_ft
         if over > 0.01:
             bad += 1
-            check(False, f"{w['name']}: head {w['head']} ft is {over:.2f} ft ABOVE the "
+            check(False, f"{w['name']}: head {top} ft is {over:.2f} ft ABOVE the "
                          f"{head_ft} ft line, through {hit[0][0]}'s cornice")
 check(bad == 0, f"no glazing runs up through a cornice ({len(corniced)} corniced walls checked)")
 
@@ -1116,8 +1121,11 @@ if all(n in _W for n in ('Upper - Ext south 1', 'Upper - Ext east 1')):
 # to move — equal piers put a window's trim through it — and it had never been asserted.
 # Measured against the rooms as authored, so a later partition change cannot silently put
 # a window through a wall again.
+# Both east windows are in the BATH now: the partition between the old WC and bath is
+# gone (the shower and the vanity share one open room) and the water closet is a
+# compartment at the north end, past the second window.
 _rooms = {k: json.load(open(f'ifc/rooms/{k}.json'))['bounds'] for k in EXT_W}
-for nm, key in (('Window - WC E', 'wc'), ('Window - Bath E', 'ext_bath')):
+for nm, key in (('Window - WC E', 'ext_bath'), ('Window - Bath E', 'ext_bath')):
     tr = [b for n, b in _parts(ext, '') if n.endswith(nm)]
     if not tr:
         check(False, f'{nm} is built')
@@ -1126,6 +1134,88 @@ for nm, key in (('Window - WC E', 'wc'), ('Window - Bath E', 'ext_bath')):
     z0, z1 = _rooms[key]['z1'], _rooms[key]['z2']
     check(z0 - 1e-6 <= lo and hi <= z1 + 1e-6,
           f'{nm} sits wholly inside {key} (trim {lo:.3f}..{hi:.3f} in {z0:.3f}..{z1:.3f})')
+
+# THE WATER CLOSET IS A COMPARTMENT, and it has to be one a toilet fits across: 30 in
+# clear is the code minimum, and with the vanity centred under the window at -0.74 the
+# compartment wall has nowhere to go but 0.92, which leaves 31.5 in. Asserted on the
+# authored bounds less the wall, so a vanity change that pushes the wall north fails
+# here rather than building a 29 in room.
+_WALL = 0.4583                                    # wall thickness, ft (two half-walls)
+_wcb = _rooms['wc']
+_wc_depth = abs(_wcb['z2'] - _wcb['z1']) - _WALL
+check(_wc_depth >= 2.5, f'the water closet is {_wc_depth * 12:.1f} in clear front to back (30 min)')
+check(near(_wcb['z2'], wing_n, 1e-6), 'and it sits against the north wall')
+_bb = _rooms['ext_bath']
+check(near(_bb['z1'], wing_s, 1e-6) and near(_bb['z2'], _wcb['z1'], 1e-6),
+      f"the bath is one open room from the south wall to the compartment ({_bb['z1']:.3f}..{_bb['z2']:.3f})")
+
+# THE WING'S POCKET DOORS. The laundry door's 3 ft in-swing stood in the middle of a 5 ft
+# room a hand's width off the shower glass; the water closet's 28 in in-swing filled a
+# 31 in compartment. Both slide now. Asserted for EVERY door in the wing authored
+# `sliding`: the IfcDoor itself says it slides (OperationType), and the wall beyond the
+# hinge jamb — the pocket — is at least a leaf's width before the room's corner. For a
+# V door the pocket runs along pz toward the hinge (`max` = south here); for an H door
+# along px (`max` = the east jamb, since IFC X = -px).
+_wing_rooms = {k: json.load(open(f'ifc/rooms/{k}.json')) for k in EXT_W}
+_sliders = [(k, d) for k, r in _wing_rooms.items() for d in r.get('doors', []) if d.get('sliding')]
+check(len(_sliders) == 2, f'two pocket doors in the wing ({[d["name"] for _, d in _sliders]})')
+for k, d in _sliders:
+    ifc_d = next((x for x in gnd.by_type('IfcDoor') if (x.Name or '') == d['name']), None)
+    check(ifc_d is not None and getattr(ifc_d, 'OperationType', None) == 'SLIDING_TO_LEFT',
+          f"{d['name']}: the IfcDoor says it slides (OperationType {getattr(ifc_d, 'OperationType', None)})")
+    b = _wing_rooms[k]['bounds']
+    hinge_max = d.get('hinge') == 'max'
+    if d['orient'] == 'V':
+        # slides along pz; the pocket is the wall between the hinge jamb and the corner
+        jamb = d['pos'] - d['width'] / 2 if hinge_max else d['pos'] + d['width'] / 2
+        corner = min(b['z1'], b['z2']) + _WALL / 2 if hinge_max else max(b['z1'], b['z2']) - _WALL / 2
+    else:
+        jamb = d['pos'] - d['width'] / 2 if hinge_max else d['pos'] + d['width'] / 2
+        corner = min(b['x1'], b['x2']) + _WALL / 2 if hinge_max else max(b['x1'], b['x2']) - _WALL / 2
+    pocket = abs(jamb - corner)
+    check(pocket >= d['width'],
+          f"{d['name']}: {pocket:.2f} ft of wall beyond the {'east/south' if hinge_max else 'west/north'} "
+          f"jamb for a {d['width']:.2f} ft leaf to slide into")
+
+# THE ROUND WINDOW IS A REAL OPENING INTO THE WATER CLOSET. It began as ornament on the
+# massing — a disc laid on the face — and the room file now authors it (`round: true`), so
+# the ground model carries an IfcOpeningElement through the north wall and a glass
+# IfcWindow in it, and the massing's ring derives from the same spec. Asserted both ways:
+# the interior opening is where and how big the spec says, and the exterior ring is
+# centred on it to 0.01 ft — one hole, seen from both sides.
+_rw = next((w for w in json.load(open('ifc/rooms/wc.json'))['windows'] if w.get('round')), None)
+check(_rw is not None, 'a round window is authored in the water closet')
+if _rw:
+    GW = extents(gnd, lambda nm, p: nm in ('Window - WC Round', 'Opening - Window - WC Round'))
+    g_, o_ = GW.get('Window - WC Round'), GW.get('Opening - Window - WC Round')
+    check(g_ is not None and o_ is not None,
+          f'the ground model has the round IfcWindow and its IfcOpeningElement ({sorted(GW)})')
+    if g_ and o_:
+        check(near(g_[1] - g_[0], 2 * _rw['radiusFt'], 0.02) and near(g_[5] - g_[4], g_[1] - g_[0], 0.02),
+              f"{2 * _rw['radiusFt']} ft across and ROUND ({g_[1] - g_[0]:.3f} by {g_[5] - g_[4]:.3f})")
+        # ground.ifc is FLOOR-relative (its storey sits at 0; the viewer lifts it), where
+        # the exterior model is at grade — so the interior centre is `centerFt` bare, and
+        # the ring outside is `BASE` above it.
+        check(near((g_[0] + g_[1]) / 2, _rw['pos'], 0.01)
+              and near((g_[4] + g_[5]) / 2, _rw['centerFt'], 0.02),
+              f"centred where authored ({(g_[0] + g_[1]) / 2:.4f}, {(g_[4] + g_[5]) / 2:.2f} ft above the floor)")
+        check(near((g_[2] + g_[3]) / 2, wing_n, 0.05), f'in the north wall ({(g_[2] + g_[3]) / 2:.3f})')
+        check(o_[3] - o_[2] > 0.4583, f'the void runs right through the wall ({o_[3] - o_[2]:.3f} ft deep)')
+        _ring = globals().get('WE', {}).get('Wing round window ring')
+        check(_ring is not None and near((_ring[0] + _ring[1]) / 2, (g_[0] + g_[1]) / 2, 0.01)
+              and near((_ring[4] + _ring[5]) / 2, BASE + (g_[4] + g_[5]) / 2, 0.02),
+              'the exterior ring and the interior opening are ONE hole (centres agree)')
+
+# THE WATER CLOSET DOOR sits at the WEST end of the compartment wall — on the aisle past
+# the vanity — with a casing return to the party wall, and in the compartment wall.
+_wcd = next((d for d in json.load(open('ifc/rooms/wc.json'))['doors'] if d['name'] == 'Bath -> WC'), None)
+check(_wcd is not None, 'the water closet has its door')
+if _wcd:
+    # The compartment's OWN west bound — the party wall with the vestibule — not the
+    # wing's west edge (`wing_w`), which is the laundry's outer wall 5.5 ft further on.
+    _ret = (max(_wcb['x1'], _wcb['x2']) - _WALL / 2) - (_wcd['pos'] + _wcd['width'] / 2)
+    check(near(_wcd['fixed'], _wcb['z1'], 1e-6), 'in the compartment wall')
+    check(0.45 <= _ret <= 0.6, f'{_ret * 12:.1f} in of casing return to the party wall (6 in wanted)')
 
 # NO FRIEZE LIGHT ON THE EXTENSION. Its shed eave is 4 ft below the primary's frieze band,
 # so one there floats in mid-air over its roof. The guard used to skip anything NAMED

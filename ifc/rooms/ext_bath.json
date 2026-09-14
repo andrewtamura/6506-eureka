@@ -5,12 +5,21 @@
   "bounds": {
     "x1": -22.9167,
     "x2": -17.4583,
-    "z1": -3.9584,
-    "z2": 4
+    "z1": -11.9167,
+    "z2": 0.97
   },
   "walls": true,
   "doors": [],
   "windows": [
+    {
+      "name": "Window - WC E",
+      "orient": "V",
+      "fixed": -22.9167,
+      "pos": -7.1778,
+      "width": 2.0,
+      "sill": 3.0,
+      "head": 7.0
+    },
     {
       "name": "Window - Bath E",
       "orient": "V",
@@ -18,6 +27,15 @@
       "pos": -0.7389,
       "width": 2.0,
       "sill": 3.0,
+      "head": 7.0
+    },
+    {
+      "name": "Window - WC S",
+      "orient": "H",
+      "fixed": -11.9167,
+      "pos": -20.1875,
+      "width": 2.0,
+      "sill": 5.75,
       "head": 7.0
     }
   ],
@@ -31,11 +49,11 @@
         "type": "shower",
         "at": [
           -20.1875,
-          1.771
+          -10.188
         ],
-        "opens": "S",
+        "opens": "N",
         "widthFt": 5.0,
-        "depthFt": 4.0,
+        "depthFt": 3.0,
         "ponyFt": 2.5,
         "ponySide": "E",
         "curb": false,
@@ -46,7 +64,7 @@
         "type": "vanity",
         "at": [
           -21.7729,
-          -2.004
+          -3.9584
         ],
         "faces": "W",
         "widthFt": 3.1,
@@ -62,7 +80,7 @@
         "type": "sconce",
         "at": [
           -22.688,
-          -0.625
+          -5.43
         ],
         "faces": "W",
         "atFt": 5.0,
@@ -78,7 +96,7 @@
         "type": "sconce",
         "at": [
           -22.688,
-          -3.383
+          -2.49
         ],
         "faces": "W",
         "atFt": 5.0,
@@ -94,7 +112,7 @@
         "type": "recessed",
         "at": [
           -20.1875,
-          1.8
+          -10.184
         ],
         "ceilFt": 9.0,
         "diaFt": 0.5
@@ -103,7 +121,25 @@
         "type": "recessed",
         "at": [
           -20.1875,
-          -2.3
+          -7.1
+        ],
+        "ceilFt": 9.0,
+        "diaFt": 0.5
+      },
+      {
+        "type": "recessed",
+        "at": [
+          -21.2,
+          -3.9584
+        ],
+        "ceilFt": 9.0,
+        "diaFt": 0.5
+      },
+      {
+        "type": "recessed",
+        "at": [
+          -20.1875,
+          -0.74
         ],
         "ceilFt": 9.0,
         "diaFt": 0.5

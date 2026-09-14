@@ -5,39 +5,31 @@
   "bounds": {
     "x1": -22.9167,
     "x2": -17.4583,
-    "z1": -11.9167,
-    "z2": -3.9584
+    "z1": 0.97,
+    "z2": 4
   },
   "walls": true,
   "doors": [
     {
       "name": "Bath -> WC",
       "orient": "H",
-      "fixed": -3.9584,
-      "pos": -21.023,
-      "width": 2.33,
+      "fixed": 0.97,
+      "pos": -19.27,
+      "width": 2.167,
       "hinge": "max",
-      "swing": "pos"
+      "swing": "neg",
+      "sliding": true
     }
   ],
   "windows": [
     {
-      "name": "Window - WC E",
-      "orient": "V",
-      "fixed": -22.9167,
-      "pos": -7.1778,
-      "width": 2.0,
-      "sill": 3.0,
-      "head": 7.0
-    },
-    {
-      "name": "Window - WC S",
+      "name": "Window - WC Round",
       "orient": "H",
-      "fixed": -11.9167,
+      "fixed": 4.0,
       "pos": -20.1875,
-      "width": 2.0,
-      "sill": 5.75,
-      "head": 7.0
+      "round": true,
+      "radiusFt": 1.0,
+      "centerFt": 7.0
     }
   ],
   "interior": {
@@ -52,27 +44,18 @@
     },
     "furniture": [
       {
-        "type": "recessed",
+        "type": "wall_toilet",
         "at": [
-          -20.1875,
-          -6.4
+          -22.688,
+          2.485
         ],
-        "ceilFt": 9.0,
-        "diaFt": 0.5
-      },
-      {
-        "type": "toilet",
-        "at": [
-          -18.7872,
-          -10.1835
-        ],
-        "faces": "E"
+        "faces": "W"
       },
       {
         "type": "recessed",
         "at": [
           -20.1875,
-          -10.184
+          2.485
         ],
         "ceilFt": 9.0,
         "diaFt": 0.5

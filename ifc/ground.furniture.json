@@ -397,11 +397,11 @@
     {
       "type": "shower",
       "px": -20.1875,
-      "pz": 1.771,
+      "pz": -10.188,
       "rot": 0.0,
-      "opens": "S",
+      "opens": "N",
       "widthFt": 5.0,
-      "depthFt": 4.0,
+      "depthFt": 3.0,
       "ponyFt": 2.5,
       "ponySide": "E",
       "curb": false,
@@ -411,7 +411,7 @@
     {
       "type": "vanity",
       "px": -21.7729,
-      "pz": -2.004,
+      "pz": -3.9584,
       "rot": 0.0,
       "faces": "W",
       "widthFt": 3.1,
@@ -426,7 +426,7 @@
     {
       "type": "sconce",
       "px": -22.688,
-      "pz": -0.625,
+      "pz": -5.43,
       "rot": 0.0,
       "faces": "W",
       "atFt": 5.0,
@@ -441,7 +441,7 @@
     {
       "type": "sconce",
       "px": -22.688,
-      "pz": -3.383,
+      "pz": -2.49,
       "rot": 0.0,
       "faces": "W",
       "atFt": 5.0,
@@ -456,38 +456,46 @@
     {
       "type": "recessed",
       "px": -20.1875,
-      "pz": 1.8,
-      "rot": 0.0,
-      "ceilFt": 9.0,
-      "diaFt": 0.5
-    },
-    {
-      "type": "recessed",
-      "px": -20.1875,
-      "pz": -2.3,
-      "rot": 0.0,
-      "ceilFt": 9.0,
-      "diaFt": 0.5
-    },
-    {
-      "type": "recessed",
-      "px": -20.1875,
-      "pz": -6.4,
-      "rot": 0.0,
-      "ceilFt": 9.0,
-      "diaFt": 0.5
-    },
-    {
-      "type": "toilet",
-      "px": -18.7872,
-      "pz": -10.1835,
-      "rot": 0.0,
-      "faces": "E"
-    },
-    {
-      "type": "recessed",
-      "px": -20.1875,
       "pz": -10.184,
+      "rot": 0.0,
+      "ceilFt": 9.0,
+      "diaFt": 0.5
+    },
+    {
+      "type": "recessed",
+      "px": -20.1875,
+      "pz": -7.1,
+      "rot": 0.0,
+      "ceilFt": 9.0,
+      "diaFt": 0.5
+    },
+    {
+      "type": "recessed",
+      "px": -21.2,
+      "pz": -3.9584,
+      "rot": 0.0,
+      "ceilFt": 9.0,
+      "diaFt": 0.5
+    },
+    {
+      "type": "recessed",
+      "px": -20.1875,
+      "pz": -0.74,
+      "rot": 0.0,
+      "ceilFt": 9.0,
+      "diaFt": 0.5
+    },
+    {
+      "type": "wall_toilet",
+      "px": -22.688,
+      "pz": 2.485,
+      "rot": 0.0,
+      "faces": "W"
+    },
+    {
+      "type": "recessed",
+      "px": -20.1875,
+      "pz": 2.485,
       "rot": 0.0,
       "ceilFt": 9.0,
       "diaFt": 0.5
