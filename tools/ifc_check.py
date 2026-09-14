@@ -892,9 +892,18 @@ if we and party is not None and 'Wing frieze N' in WE:
                     # The band's head, per face: the east runs to the wall top (no
                     # frieze), the south dies into its own raking frieze soffit.
                     top = east_top if tag == 'E' else _sof_S((a0 + a1) / 2)
-                    check(y0 > lo + 1e-9 and y1 < top + 1e-9,
-                          f'{tag}: "{w}" wholly inside the band '
-                          f'(+{y0 - lo:.3f} below, +{top - y1:.3f} above)')
+                    if tag == 'E':
+                        # THE EAST UPPERS MATCH THE GROUND WINDOWS, so their 3 ft sills
+                        # hang below the band's base BY DESIGN — asserted as such, so a
+                        # quiet return to clerestories fails here — while the trim still
+                        # sits under the band's head and the siding splits clear of them.
+                        check(y0 < lo - 0.3 and y1 < top + 1e-9,
+                              f'{tag}: "{w}" hangs {lo - y0:.2f} ft below the band\'s base (the ground '
+                              f'window stacked), trim {top - y1:.3f} under its head')
+                    else:
+                        check(y0 > lo + 1e-9 and y1 < top + 1e-9,
+                              f'{tag}: "{w}" wholly inside the band '
+                              f'(+{y0 - lo:.3f} below, +{top - y1:.3f} above)')
                     # AND CLOSES UNDER IT where the sill rides above the base. The south
                     # transoms sit a foot up inside the band, and the split used to run
                     # the siding either side and over a window only — which left 0.65 ft
@@ -903,6 +912,12 @@ if we and party is not None and 'Wing frieze N' in WE:
                     # up to the sill board (with the shadow gap `openingSillFt` leaves),
                     # and a skirt with no gap across the window's span. Confirmed to fail
                     # on the build before the under-pieces existed.
+                    if tag == 'E' and y0 < lo:
+                        skE = sorted([b for _, b in _parts(ext, 'Wing cladding skirt E')
+                                      if b[ax + 1] > a0 - 0.5 and b[ax] < a1 + 0.5], key=lambda b: b[ax])
+                        gap = max((skE[i + 1][ax] - skE[i][ax + 1] for i in range(len(skE) - 1)), default=0.0)
+                        check(gap > (a1 - a0) - 0.05,
+                              f'{tag}: the skirt stops either side of "{w}" ({gap:.2f} ft gap for a {a1 - a0:.2f} ft window)')
                     if y0 > lo + 0.3:
                         under = [b for b in sid if b[ax + 1] > a0 and b[ax] < a1
                                  and near(b[4], lo, 0.01) and b[5] <= y0 + 1e-6]
@@ -1112,24 +1127,31 @@ for nm in ('Window - WC S', 'Window - Laundry S'):
           f"...a {head - sill:.2f} ft light with its head at {head:.2f}, above the "
           f"house's {model['headHeight']} ft line by design")
 
-# THE UPPER TRANSOMS. The uppers cannot match the ground row's SILL — the frieze pins their
-# head at 6.10 above the second floor (its soffit is 19.456 above grade at the low bay and
-# the trim's header plus the siding's clearance land at 19.45) — so they match its GLASS:
-# the same 2.0 x 1.25 light, landscape, carried up under the pinned head. Glass to glass,
-# because that is what the eye compares. And the head still turns the corner onto the east
-# uppers, which is the line someone "fixing" the south by moving its head would break.
-for g, u in (('Window - WC S', 'Upper - Ext south 1'),
-             ('Window - Laundry S', 'Upper - Ext south 2')):
+# THE UPPER ROWS. EAST: the upper IS the ground window, stacked — same width, sill and
+# head, read from one spec, so the bay reads as two identical windows. SOUTH: the shower's
+# windows, 26 in x 1.9 ft — the biggest the wall allows: the head is pinned by the frieze,
+# the sill by the band's base (window plus sill board above it), and the width by the
+# 12 in corner piers, since the bays sit 2.73 ft in from the corners. They were 2.0 x 1.25
+# copies of the ground transoms; asked for larger, this is +65% of glass.
+for g, u in (('Window - WC E', 'Upper - Ext east 1'), ('Window - Bath E', 'Upper - Ext east 2')):
     if g not in _W or u not in _W:
         continue
-    gw, gh = _W[g][0].max() - _W[g][0].min(), _W[g][2].max() - _W[g][2].min()
+    gw, uw = _W[g][1].max() - _W[g][1].min(), _W[u][1].max() - _W[u][1].min()
+    gs, gh = _W[g][2].min() - BASE, _W[g][2].max() - BASE
+    us, uh = _W[u][2].min() - BASE - model['storyHeight'], _W[u][2].max() - BASE - model['storyHeight']
+    check(near(gw, uw, 0.01) and near(gs, us, 0.02) and near(gh, uh, 0.02),
+          f'"{u}" is "{g}" stacked: {uw:.2f} wide, {us:.2f}..{uh:.2f} over its floor against {gw:.2f}, {gs:.2f}..{gh:.2f}')
+for u in ('Upper - Ext south 1', 'Upper - Ext south 2'):
+    if u not in _W:
+        continue
     uw, uh = _W[u][0].max() - _W[u][0].min(), _W[u][2].max() - _W[u][2].min()
-    check(near(gw, uw, 0.01) and near(gh, uh, 0.01),
-          f'"{u}" is the same light as "{g}" ({uw:.2f} x {uh:.2f} against {gw:.2f} x {gh:.2f})')
-    check(uh < uw - 0.3, f'...and landscape — a transom, not a small window ({uw:.2f} x {uh:.2f})')
-if all(n in _W for n in ('Upper - Ext south 1', 'Upper - Ext east 1')):
-    hs, he = _W['Upper - Ext south 1'][2].max(), _W['Upper - Ext east 1'][2].max()
-    check(near(hs, he, 0.01), f'the upper head line turns the corner ({hs:.3f} south, {he:.3f} east)')
+    head = _W[u][2].max() - BASE - model['storyHeight']
+    check(near(uw, 2.167, 0.01) and uh > 1.85 and near(head, 6.10, 0.02),
+          f'"{u}" is {uw:.2f} x {uh:.2f} ft with its head on the frieze-pinned 6.10 line ({head:.2f})')
+    check(uw * uh > 1.5 * 2.5, f'...{uw * uh:.2f} sq ft of glass, well over the 2.5 it had')
+# The upper head line no longer turns the corner, and should not: the east uppers are the
+# ground windows stacked (head 7.0) and the south ones are pinned by the frieze (6.10).
+# Each is asserted against its own rule above.
 
 # EACH EAST WINDOW WHOLLY INSIDE ONE ROOM. This is the failure that forced the partition
 # to move — equal piers put a window's trim through it — and it had never been asserted.
@@ -1249,6 +1271,46 @@ if _lups and _lwin:
     check(_lwin['sill'] - 0.33 - 0.05 < _ctop <= _lwin['sill'] - 0.33 + 0.01,
           f"...ending, crown included, at {_ctop:.2f} ft — the transom frame's bottom bar ({_lwin['sill'] - 0.33:.2f})")
     check(_lups[0].get('crownFt', 0) >= 0.2, f"...with a {_lups[0].get('crownFt', 0) * 12:.1f} in crown")
+
+# THE SECOND FLOOR'S TRIM PROGRAM. A shell level authors one finished room (model.json
+# `levels[].paneling`): the extension's box with the UPPER windows on its walls and the
+# viewer's door. Every one of the four windows and the door must be in the manifest the
+# viewer cases, on the wall it actually sits in, with the two special cases flagged: the
+# transom inside the shower's tiled end wall is BARE (a hole, no wood) and the window over
+# the vanity has no apron. Nothing measures the exhibits in the browser, so the manifest
+# is what is asserted.
+print('\nSECOND FLOOR TRIM')
+_l2 = json.load(open('ifc/level2.paneling.json'))['walls']
+_l2pan = next((lv.get('paneling') for lv in model['levels'] if lv['id'] == 'level2'), None)
+check(_l2pan is not None and len(_l2) == 4, f'the en-suite is one finished room of four walls ({len(_l2)})')
+_bys = {w['side']: w for w in _l2}
+if len(_l2) == 4 and _l2pan:
+    _uppers = {}
+    for p_ in ext.by_type('IfcWindow'):
+        nm = getattr(p_, 'Name', None) or ''
+        if nm.startswith('Upper - Ext '):
+            _uppers[nm] = _W.get(nm)
+    E, S, Wl = _bys.get('E'), _bys.get('S'), _bys.get('W')
+    check(E and len(E['windows']) == 2 and not E['sidelights'],
+          f"E wall: both east windows cased ({len(E['windows']) if E else 0}), stool and casing")
+    if E:
+        spans = sorted(E['windows'])
+        for sp_, nm in zip(spans, ('Upper - Ext east 1', 'Upper - Ext east 2')):
+            ctr = (sp_[0] + sp_[1]) / 2
+            check(nm in _W and near(ctr, _ctr(nm, 1), 0.01), f'...on "{nm}" ({ctr:.3f})')
+        check(spans[1][3] is True and spans[0][3] is False,
+              'the north one (over the vanity) has no apron; the south one keeps its')
+    check(S and len(S['windows']) == 1 and len(S['sidelights']) == 1,
+          f"S wall: the east transom cased ({len(S['windows']) if S else 0}), the west one bare in the shower's wall ({len(S['sidelights']) if S else 0})")
+    if S and S['sidelights']:
+        sd = S['sidelights'][0]
+        check(near((sd[0] + sd[1]) / 2, _ctr('Upper - Ext south 2', 0), 0.01) and near(sd[3], 6.10, 0.02),
+              f'...the bare one is "Upper - Ext south 2" with its own head ({sd[3]:.2f})')
+    check(Wl and len(Wl['doors']) == 1 and abs((Wl['doors'][0][1] - Wl['doors'][0][0]) - 2.667) < 0.01,
+          f"W wall: the bedroom door cased ({len(Wl['doors']) if Wl else 0}, {Wl['doors'][0] if Wl and Wl['doors'] else '-'})")
+    if Wl and Wl['doors']:
+        check(near(Wl['doors'][0][1], wing_n - _WALL / 2 - 0.5, 0.02), 'a 6 in return from the north face')
+    check(all(w['noCornice'] for w in _l2) and all(w['noBattens'] for w in _l2), 'plain field, baseboard, no cornice, no battens — as the wing downstairs')
 
 # THE WATER CLOSET DOOR sits at the WEST end of the compartment wall — on the aisle past
 # the vanity — with a casing return to the party wall, and in the compartment wall.

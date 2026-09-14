@@ -3073,6 +3073,19 @@ def second_floor_windows(rooms):
         # between the two windows' trim, giving each room exactly one bay.
         GROUND_W, CASING = 2.0, 1.4
         ez = sorted({v for b in eb if abs(b["x1"] - ext_x) < 1e-6 for v in (b["z1"], b["z2"])})
+        # THE EAST UPPERS ARE THE GROUND WINDOWS, STACKED: same width, same sill, same
+        # head, read from the ground east windows' own spec so the two tiers cannot drift.
+        # The east face has no frieze — the band runs to the wall top, 8 ft over the second
+        # floor — so a 7 ft head fits (header at 7.76, siding closes at 7.85). The 3 ft
+        # sill does hang 0.87 ft BELOW the T1-11 band's base: the siding splits either
+        # side and the skirt stops at the jambs. That was avoided when the uppers were
+        # clerestories; it is the price of two identical windows a bay, and is the owner's
+        # call, made.
+        ground_e = [w for r in ext_rooms for w in r.get("windows", [])
+                    if w["orient"] == "V" and abs(w["fixed"] - ext_x) < 1e-6]
+        e_sill = min((w["sill"] for w in ground_e), default=SILL_X)
+        e_head = max((w["head"] for w in ground_e), default=HEAD_X)
+        e_w = max((w["width"] for w in ground_e), default=W_X)
         if len(ez) >= 2:
             a, b2 = ez[0], ez[-1]
             t = GROUND_W + CASING
@@ -3080,7 +3093,7 @@ def second_floor_windows(rooms):
             for i in range(2):
                 add(f"Upper - Ext east {i + 1}", "V", ext_x,
                     a + pier + t / 2 + i * (pier + t),
-                    sill=SILL_X, width=W_X, head=HEAD_X)
+                    sill=e_sill, width=e_w, head=e_head)
         # SOUTH: its two rooms divide evenly, so the bays are their midpoints — and they
         # come out on the north face's own two axes, the round window's and the door's, so
         # the wing has two vertical lines every face answers to.
@@ -3090,24 +3103,20 @@ def second_floor_windows(rooms):
         # both floors it earns a window, and the pair keeps the two-bay rhythm the north
         # face sets.
         #
-        # AND THEY ARE TRANSOMS, the same light as the ground row's: the ground transoms
-        # are 2.0 x 1.25 and these were 2.0 x 1.75, and a near-square light over a
-        # landscape one reads as a small window over a transom, not as one device carried
-        # up the wall. The head cannot move (above), so the match is made at the SILL:
-        # the ground row's glass height, taken from its own spec so the two rows stay one
-        # light if it changes, is carried up under the pinned head. That puts the sill
-        # 4.85 above the second floor — a foot up inside the band, which is why the
-        # siding now closes UNDER these as well as over them (`_band_openings`).
-        # The EAST uppers keep 4.35: they light a bathroom's side wall, not a shower, and
-        # they share the 6.10 head, which is the line that turns the corner.
+        # THE SHOWER'S WINDOWS: 26 in x 1.9 ft, the biggest light the wall allows. The
+        # head is pinned at 6.10 by the frieze (above) and cannot rise; the SILL is set so
+        # the window AND its 0.33 ft sill board stay above the band's base (3.87 + 0.33) —
+        # an inch lower and the siding's one level base line is cut; and the WIDTH is set
+        # by the corner piers: the bays are the north face's two axes, 2.73 ft in from each
+        # corner, so a window's trim (glass + 1.25) may reach at most 1.73 ft from its axis
+        # to leave the 12 in pier — 2.5 ft of glass left 10.2 in, 2.167 leaves 12.2. They
+        # were 2.0 x 1.25 copies of the ground transoms; the owner asked for larger and
+        # higher, and this is the larger the frieze and the piers permit.
+        S_W, S_SILL = 2.167, 4.2
         sx = sorted({v for b in eb if abs(b["z1"] - ext_s) < 1e-6 for v in (b["x1"], b["x2"])})
-        ground_s = [w for r in ext_rooms for w in r.get("windows", [])
-                    if w["orient"] == "H" and abs(w["fixed"] - ext_s) < 1e-6]
-        glass_h = min((w["head"] - w["sill"] for w in ground_s), default=HEAD_X - SILL_X)
-        sill_s = HEAD_X - glass_h
         for i in range(len(sx) - 1):
             add(f"Upper - Ext south {i + 1}", "H", ext_s, (sx[i] + sx[i + 1]) / 2,
-                sill=sill_s, width=W_X, head=HEAD_X)
+                sill=S_SILL, width=S_W, head=HEAD_X)
     return front_z, specs
 
 

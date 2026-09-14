@@ -309,6 +309,14 @@
         "ext_laundry"
       ],
       "upperWindows": true,
+      "_notePaneling": "The Second Floor is a SHELL: perimeter walls, slabs and the upper windows, with its rooms laid out by hand in level2.furniture.json — so the per-room trim program has nothing true to run on. `paneling` gives it one finished room instead: the extension's box, with the UPPER windows on its walls (from second_floor_windows) and the doors the viewer's partitions cut, so casings, stools, aprons and baseboard land on the real openings. `bare` names windows that get a hole and no wood (the transom inside the shower's tiled end wall); `plainBelow` drops the apron under a window that sits over a counter (the vanity's).",
+      "paneling": {
+        "group": "extension",
+        "program": {"baseboard": 10, "noCornice": true, "battens": false},
+        "doors": [{"name": "Bedroom -> En-suite", "orient": "V", "fixed": -12, "pos": 1.93, "width": 2.667}],
+        "bare": ["Upper - Ext south 2"],
+        "plainBelow": ["Upper - Ext east 2"]
+      },
       "floorOverrides": {
         "ext_bath": {
           "material": "tile",

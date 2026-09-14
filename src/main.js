@@ -1260,6 +1260,14 @@ async function main() {
       const ef = await buildFurniture({ scene, parent: m.object, floorY: 0, baseUrl: BASE, manifestFile: lvl.manifests.furniture + VER, invalidate });
       if (ef?.doorMeshes) furnitureDoorMeshes.push(...ef.doorMeshes);
     }
+    // Wall finish for the exhibit — the generator writes a paneling manifest for a shell
+    // level's finished rooms (the en-suite: casings on its four windows and its door,
+    // baseboard, plain field). Parented like the furniture; the ceiling is the shell's
+    // wall top, which for a shell with no roof of its own is the model's top.
+    if (lvl.id !== "exterior" && lvl.manifests?.paneling) {
+      const top = new THREE.Box3().setFromObject(m.object).max.y - m.object.position.y;
+      await buildWallFinish({ scene, parent: m.object, floorY: 0, ceilingY: top, baseUrl: BASE, manifestFile: lvl.manifests.paneling + VER });
+    }
     // hardwood floor (instanced planks), same as the ground floor; floorY is this
     // level's finish (the model sits with its slab top at object.position.y).
     if (lvl.id !== "exterior" && lvl.manifests?.floors)
@@ -1275,9 +1283,9 @@ async function main() {
     // vanity light over the bathroom mirror. Daylight (dormers) does the rest.
     if (lvl.id === "attic") addAtticLighting(m.object, (light, emiss) => registerFixture(light, "attic", emiss));
     // Second floor is an open shell with no IfcSpaces -> give it ONE flat ceiling
-    // over its whole footprint, plus a central semi-flush fixture in EACH room (the
-    // only nighttime light source per room). Ceiling toggles opaque (POV) /
-    // translucent (overview), like the others.
+    // over its whole footprint, plus a central semi-flush fixture in each room that
+    // does not light itself (the only nighttime light source in those). Ceiling
+    // toggles opaque (POV) / translucent (overview), like the others.
     if (lvl.id === "level2") {
       const FT = 0.3048;
       const WALL = 0.4583 * FT;                          // land the ceiling on the perimeter wall centerline
@@ -1298,8 +1306,9 @@ async function main() {
         ["SW bedroom",       23.04,  -6.46, 3.2],
         ["Primary bedroom",  -4.0,   -3.0,  3.4],
         ["Walk-in closet",   -4.04,  11.04, 2.6],
-        ["En-suite",        -17.46,  -4.0,  3.0],
-        ["En-suite WC",     -17.46,  -9.7,  2.2],
+        // The en-suite lights itself now — the vanity's sconces and its authored
+        // downlights in level2.furniture.json — so it takes no generic fixture: two of
+        // them here were what made its lighting read as "too much going on".
         ["West bath",        25.54,   2.5,  2.8],
         ["Family room",       9.5,   11.04, 3.4],
         ["E-W landing",       9.5,    2.8,  3.0],

@@ -20,95 +20,421 @@
       "px": 9.5,
       "pz": -6.1233,
       "up": true,
-      "opening": { "x1": 8.5167, "x2": 15.0833, "z1": -7.317, "z2": -0.33 }
+      "opening": {
+        "x1": 8.5167,
+        "x2": 15.0833,
+        "z1": -7.317,
+        "z2": -0.33
+      }
     },
-
-    { "_note": "EAST landing wall NORTH segment (z 6..16.0833): separates the family room (west) from the walk-in closet (east). Solid. Mirrors the west landing wall's north segment.",
-      "type": "partition", "px": 3.9167, "pz": 11.0417, "axis": "z", "lenFt": 10.0833 },
-    { "_note": "EAST landing wall SOUTH segment (z -11.9167..-1): separates the landing/hall from the primary bedroom. Solid. The z -1..6 gap between the segments is the OPEN MOUTH of the east central hall - mirror of the west alcove mouth (the old single primary-entry door is replaced by this open mouth).",
-      "type": "partition", "px": 3.9167, "pz": -6.4583, "axis": "z", "lenFt": 10.9167 },
-    { "_note": "Walk-in divider along z=6 (x -12..3.9167). TWO doors: (1) hall->walk-in at x1.4167 (36\", hinge W, opens N), and (2) a NEW primary-bedroom->walk-in door near the EAST exterior wall (x-10, 32\", hinge E, opens N into the closet) so the walk-in joins the primary suite.",
-      "type": "partition", "px": -4.0417, "pz": 6, "axis": "x", "lenFt": 15.9167,
+    {
+      "_note": "EAST landing wall NORTH segment (z 6..16.0833): separates the family room (west) from the walk-in closet (east). Solid. Mirrors the west landing wall's north segment.",
+      "type": "partition",
+      "px": 3.9167,
+      "pz": 11.0417,
+      "axis": "z",
+      "lenFt": 10.0833
+    },
+    {
+      "_note": "EAST landing wall SOUTH segment (z -11.9167..-1): separates the landing/hall from the primary bedroom. Solid. The z -1..6 gap between the segments is the OPEN MOUTH of the east central hall - mirror of the west alcove mouth (the old single primary-entry door is replaced by this open mouth).",
+      "type": "partition",
+      "px": 3.9167,
+      "pz": -6.4583,
+      "axis": "z",
+      "lenFt": 10.9167
+    },
+    {
+      "_note": "Walk-in divider along z=6 (x -12..3.9167). TWO doors: (1) hall->walk-in at x1.4167 (36\", hinge W, opens N), and (2) a NEW primary-bedroom->walk-in door near the EAST exterior wall (x-10, 32\", hinge E, opens N into the closet) so the walk-in joins the primary suite.",
+      "type": "partition",
+      "px": -4.0417,
+      "pz": 6,
+      "axis": "x",
+      "lenFt": 15.9167,
       "doors": [
-        { "atFt": 1.4167, "widthFt": 3.0, "hinge": "W", "opens": "N" },
-        { "atFt": -10.0, "widthFt": 2.667, "hinge": "E", "opens": "N" }
-      ] },
-    { "_note": "EAST CENTRAL HALL south wall (z=-1, x -1.0833..3.9167): now SOLID. The primary-bedroom entry moved to the hall's EAST wall.",
-      "type": "partition", "px": 1.4167, "pz": -1, "axis": "x", "lenFt": 5.0 },
-    { "_note": "EAST CENTRAL HALL back (east) wall (x=-1.0833, z -1..6): the PRIMARY BEDROOM entry (moved here from the hall's south wall). 36\" door centered at z2.5, hinge on the NORTH jamb, opens E into the bedroom.",
-      "type": "partition", "px": -1.0833, "pz": 2.5, "axis": "z", "lenFt": 7.0,
-      "door": { "atFt": 2.5, "widthFt": 3.0, "hinge": "N", "opens": "E" } },
-    { "_note": "Primary <-> en-suite (extension) separator at x=-12; door from the primary bedroom into the en-suite.",
-      "type": "partition", "px": -12, "pz": -3.9583, "axis": "z", "lenFt": 15.9167,
-      "door": { "atFt": -6, "widthFt": 2.667, "hinge": "S", "opens": "E" } },
-
-    { "_note": "West landing wall NORTH segment (z 6..16.0833): family-room + NW-bedroom east wall. Solid.",
-      "type": "partition", "px": 15.0833, "pz": 11.0417, "axis": "z", "lenFt": 10.0833 },
-    { "_note": "West landing wall SOUTH segment (z -11.9167..-1): SW-bedroom east wall (backs the stair). Solid. The z -1..5 gap between the segments is OPEN — the old central hall is now merged into the E-W hall/landing.",
-      "type": "partition", "px": 15.0833, "pz": -6.4583, "axis": "z", "lenFt": 10.9167 },
-    { "_note": "NW bedroom / alcove divider (z=6). The 5 ft alcove wall (x 15.0833..20.0833): a 36\" door centered with 12\" of wall each side. Opens N into the NW bedroom.",
-      "type": "partition", "px": 17.5833, "pz": 6, "axis": "x", "lenFt": 5.0,
-      "door": { "atFt": 17.5833, "widthFt": 3.0, "hinge": "E", "opens": "N" } },
-    { "_note": "SW bedroom / alcove divider (z=-1). The 5 ft alcove wall: a 36\" door centered with 12\" of wall each side. Opens S into the SW bedroom.",
-      "type": "partition", "px": 17.5833, "pz": -1, "axis": "x", "lenFt": 5.0,
-      "door": { "atFt": 17.5833, "widthFt": 3.0, "hinge": "E", "opens": "S" } },
-    { "_note": "WEST BATH east wall (x=20.0833, z -1..6): the SINGLE bathroom entry, off the alcove (west end of the E-W hall). 2'8\" door centered on the alcove (z2.5), opens W into the bath, hinged on the NORTH jamb so the leaf swings toward the open north side, clear of the toilet.",
-      "type": "partition", "px": 20.0833, "pz": 2.5, "axis": "z", "lenFt": 7.0,
-      "door": { "atFt": 2.5, "widthFt": 2.667, "hinge": "N", "opens": "W" } },
-    { "_note": "WEST BATH north wall (z=6, x 20.0833..31): SOLID. The NW bedroom no longer opens into the bath - the bath is entered only from the alcove.",
-      "type": "partition", "px": 25.5417, "pz": 6, "axis": "x", "lenFt": 10.9167 },
-    { "_note": "WEST BATH south wall (z=-1, x 20.0833..31): SOLID. The SW bedroom no longer opens into the bath.",
-      "type": "partition", "px": 25.5417, "pz": -1, "axis": "x", "lenFt": 10.9167 },
-
-    { "_note": "FAMILY ROOM south wall = north wall of the E-W hall (z=6, aligned with the NW-bedroom south wall). A 6 ft opening with a PAIR of 8-lite FRENCH DOORS (divided-light glass) that swing OUT into the hall (south).",
-      "type": "partition", "px": 9.5, "pz": 6, "axis": "x", "lenFt": 11.1666,
-      "door": { "atFt": 9.5, "widthFt": 6.0, "french": true, "lites": 8, "opens": "S", "openDeg": 80, "headFt": 6.85 } },
-
-    { "_note": "PRIMARY BEDROOM king: CENTERED on the WEST (landing) wall (px3.9167, its south segment z-11.9167..-1), headboard on the west wall, foot pointing EAST so the bed faces east. Flanked by a matching night table on each side.",
-      "type": "bed", "px": 0.4, "pz": -6.46, "head": "W", "widthFt": 6.33, "lenFt": 6.75 },
-    { "_note": "Night tables flanking the king (against the west wall, at the head).",
-      "type": "nightstand", "px": 3.1, "pz": -2.5, "faces": "E" },
-    { "type": "nightstand", "px": 3.1, "pz": -10.4, "faces": "E" },
-
-    { "_note": "WALK-IN CLOSET north wall cabinetry (full-height, full-depth, faces S into the closet). Two window bays frame the north windows (x1.125 and x-7.25, sill2.5/head6.0): drawers below the sill, framed opening, uppers above the head. Solid bays are full-height hanging + a drawers-over-hanging bay + a west-corner drawer tower; upper cabinets across the top. Run spans x-12..3.9167.",
-      "type": "closet_run", "px": -4.0417, "pz": 14.85, "faces": "S", "lenFt": 15.9167, "depthFt": 2.0, "heightFt": 8.6,
+        {
+          "atFt": 1.4167,
+          "widthFt": 3.0,
+          "hinge": "W",
+          "opens": "N"
+        },
+        {
+          "atFt": -10.0,
+          "widthFt": 2.667,
+          "hinge": "E",
+          "opens": "N"
+        }
+      ]
+    },
+    {
+      "_note": "EAST CENTRAL HALL south wall (z=-1, x -1.0833..3.9167): now SOLID. The primary-bedroom entry moved to the hall's EAST wall.",
+      "type": "partition",
+      "px": 1.4167,
+      "pz": -1,
+      "axis": "x",
+      "lenFt": 5.0
+    },
+    {
+      "_note": "EAST CENTRAL HALL back (east) wall (x=-1.0833, z -1..6): the PRIMARY BEDROOM entry (moved here from the hall's south wall). 36\" door centered at z2.5, hinge on the NORTH jamb, opens E into the bedroom.",
+      "type": "partition",
+      "px": -1.0833,
+      "pz": 2.5,
+      "axis": "z",
+      "lenFt": 7.0,
+      "door": {
+        "atFt": 2.5,
+        "widthFt": 3.0,
+        "hinge": "N",
+        "opens": "E"
+      }
+    },
+    {
+      "_note": "Primary <-> en-suite (extension) separator at x=-12. The door is near the NORTH-WEST corner of the bath (opening z 0.60..3.27, a 6 in return from the north face), hinged on its north jamb and opening east, so the leaf parks toward the north wall and the whole west wall south of it is the shower's.",
+      "type": "partition",
+      "px": -12,
+      "pz": -3.9583,
+      "axis": "z",
+      "lenFt": 15.9167,
+      "door": {
+        "atFt": 1.93,
+        "widthFt": 2.667,
+        "hinge": "N",
+        "opens": "E"
+      }
+    },
+    {
+      "_note": "West landing wall NORTH segment (z 6..16.0833): family-room + NW-bedroom east wall. Solid.",
+      "type": "partition",
+      "px": 15.0833,
+      "pz": 11.0417,
+      "axis": "z",
+      "lenFt": 10.0833
+    },
+    {
+      "_note": "West landing wall SOUTH segment (z -11.9167..-1): SW-bedroom east wall (backs the stair). Solid. The z -1..5 gap between the segments is OPEN \u2014 the old central hall is now merged into the E-W hall/landing.",
+      "type": "partition",
+      "px": 15.0833,
+      "pz": -6.4583,
+      "axis": "z",
+      "lenFt": 10.9167
+    },
+    {
+      "_note": "NW bedroom / alcove divider (z=6). The 5 ft alcove wall (x 15.0833..20.0833): a 36\" door centered with 12\" of wall each side. Opens N into the NW bedroom.",
+      "type": "partition",
+      "px": 17.5833,
+      "pz": 6,
+      "axis": "x",
+      "lenFt": 5.0,
+      "door": {
+        "atFt": 17.5833,
+        "widthFt": 3.0,
+        "hinge": "E",
+        "opens": "N"
+      }
+    },
+    {
+      "_note": "SW bedroom / alcove divider (z=-1). The 5 ft alcove wall: a 36\" door centered with 12\" of wall each side. Opens S into the SW bedroom.",
+      "type": "partition",
+      "px": 17.5833,
+      "pz": -1,
+      "axis": "x",
+      "lenFt": 5.0,
+      "door": {
+        "atFt": 17.5833,
+        "widthFt": 3.0,
+        "hinge": "E",
+        "opens": "S"
+      }
+    },
+    {
+      "_note": "WEST BATH east wall (x=20.0833, z -1..6): the SINGLE bathroom entry, off the alcove (west end of the E-W hall). 2'8\" door centered on the alcove (z2.5), opens W into the bath, hinged on the NORTH jamb so the leaf swings toward the open north side, clear of the toilet.",
+      "type": "partition",
+      "px": 20.0833,
+      "pz": 2.5,
+      "axis": "z",
+      "lenFt": 7.0,
+      "door": {
+        "atFt": 2.5,
+        "widthFt": 2.667,
+        "hinge": "N",
+        "opens": "W"
+      }
+    },
+    {
+      "_note": "WEST BATH north wall (z=6, x 20.0833..31): SOLID. The NW bedroom no longer opens into the bath - the bath is entered only from the alcove.",
+      "type": "partition",
+      "px": 25.5417,
+      "pz": 6,
+      "axis": "x",
+      "lenFt": 10.9167
+    },
+    {
+      "_note": "WEST BATH south wall (z=-1, x 20.0833..31): SOLID. The SW bedroom no longer opens into the bath.",
+      "type": "partition",
+      "px": 25.5417,
+      "pz": -1,
+      "axis": "x",
+      "lenFt": 10.9167
+    },
+    {
+      "_note": "FAMILY ROOM south wall = north wall of the E-W hall (z=6, aligned with the NW-bedroom south wall). A 6 ft opening with a PAIR of 8-lite FRENCH DOORS (divided-light glass) that swing OUT into the hall (south).",
+      "type": "partition",
+      "px": 9.5,
+      "pz": 6,
+      "axis": "x",
+      "lenFt": 11.1666,
+      "door": {
+        "atFt": 9.5,
+        "widthFt": 6.0,
+        "french": true,
+        "lites": 8,
+        "opens": "S",
+        "openDeg": 80,
+        "headFt": 6.85
+      }
+    },
+    {
+      "_note": "PRIMARY BEDROOM king: CENTERED on the WEST (landing) wall (px3.9167, its south segment z-11.9167..-1), headboard on the west wall, foot pointing EAST so the bed faces east. Flanked by a matching night table on each side.",
+      "type": "bed",
+      "px": 0.4,
+      "pz": -6.46,
+      "head": "W",
+      "widthFt": 6.33,
+      "lenFt": 6.75
+    },
+    {
+      "_note": "Night tables flanking the king (against the west wall, at the head).",
+      "type": "nightstand",
+      "px": 3.1,
+      "pz": -2.5,
+      "faces": "E"
+    },
+    {
+      "type": "nightstand",
+      "px": 3.1,
+      "pz": -10.4,
+      "faces": "E"
+    },
+    {
+      "_note": "WALK-IN CLOSET north wall cabinetry (full-height, full-depth, faces S into the closet). Two window bays frame the north windows (x1.125 and x-7.25, sill2.5/head6.0): drawers below the sill, framed opening, uppers above the head. Solid bays are full-height hanging + a drawers-over-hanging bay + a west-corner drawer tower; upper cabinets across the top. Run spans x-12..3.9167.",
+      "type": "closet_run",
+      "px": -4.0417,
+      "pz": 14.85,
+      "faces": "S",
+      "lenFt": 15.9167,
+      "depthFt": 2.0,
+      "heightFt": 8.6,
       "bays": [
-        { "type": "hang", "widthFt": 3.5 },
-        { "type": "window", "widthFt": 2.5, "sill": 2.5, "head": 6.0 },
-        { "type": "drawhang", "widthFt": 2.9167 },
-        { "type": "hang", "widthFt": 2.9583 },
-        { "type": "window", "widthFt": 2.5, "sill": 2.5, "head": 6.0 },
-        { "type": "drawtower", "widthFt": 1.5417 }
-      ] },
-    { "_note": "WALK-IN CLOSET south wall cabinetry (full-height, full-depth, faces N). Fills the run BETWEEN the two doors (x-8.67..-0.083): full-height hanging + central drawer tower + full-height hanging, upper cabinets across the top.",
-      "type": "closet_run", "px": -4.3765, "pz": 7.23, "faces": "N", "lenFt": 8.587, "depthFt": 2.0, "heightFt": 8.6,
+        {
+          "type": "hang",
+          "widthFt": 3.5
+        },
+        {
+          "type": "window",
+          "widthFt": 2.5,
+          "sill": 2.5,
+          "head": 6.0
+        },
+        {
+          "type": "drawhang",
+          "widthFt": 2.9167
+        },
+        {
+          "type": "hang",
+          "widthFt": 2.9583
+        },
+        {
+          "type": "window",
+          "widthFt": 2.5,
+          "sill": 2.5,
+          "head": 6.0
+        },
+        {
+          "type": "drawtower",
+          "widthFt": 1.5417
+        }
+      ]
+    },
+    {
+      "_note": "WALK-IN CLOSET south wall cabinetry (full-height, full-depth, faces N). Fills the run BETWEEN the two doors (x-8.67..-0.083): full-height hanging + central drawer tower + full-height hanging, upper cabinets across the top.",
+      "type": "closet_run",
+      "px": -4.3765,
+      "pz": 7.23,
+      "faces": "N",
+      "lenFt": 8.587,
+      "depthFt": 2.0,
+      "heightFt": 8.6,
       "bays": [
-        { "type": "hang", "widthFt": 2.862 },
-        { "type": "drawtower", "widthFt": 2.863 },
-        { "type": "hang", "widthFt": 2.862 }
-      ] },
-    { "_note": "SW BEDROOM queen (room x 15.0833..31, z -11.9167..-1): headboard on the SOUTH wall, placed directly EAST of the south window (window ~x24..26.5) so it sits beside the window, not under it. Foot points N. Moved off the east wall so it no longer fouls the alcove door swing.",
-      "type": "bed", "px": 21.5, "pz": -8.58, "head": "S" },
-    { "_note": "NW BEDROOM queen (room x 15.0833..31, z 6..16.0833): headboard on the NORTH wall, CENTERED between the two north windows (~x17.9 and ~x26.3) so it rests on solid wall between them, not under a window. Foot points S. Moved off the east wall so it no longer fouls the alcove door swing.",
-      "type": "bed", "px": 22.06, "pz": 12.75, "head": "N" },
-
-    { "_note": "WEST BATH (x 20.0833..31, z -1..6). Shower on the NORTH wall (x 24..27.5), shallow 2.5 ft depth since the room is only ~7 ft N-S. Toilet in the west bay BETWEEN the west wall (x31) and the shower's west edge (x27.5), facing S with ~21 in clearance each side. Vanity in the SE corner (faces N). All clear of the entry-door swing.",
-      "type": "shower", "px": 25.75, "pz": 4.75, "opens": "S", "widthFt": 3.5, "depthFt": 2.5 },
-    { "type": "vanity", "px": 21.9, "pz": -0.1, "faces": "N", "widthFt": 3.0, "depthFt": 1.8 },
-    { "type": "toilet", "px": 29.25, "pz": 4.5, "faces": "S" },
-
-    { "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4). NORTH wall = full-width walk-in shower (glass opens S) with a CENTRAL opening (no door) flanked by half-height pony walls (glass above), TWO wall-mounted heads (2-person); behind each pony wall a bench runs along the side wall with a recessed product niche above it. Middle: full-width DOUBLE-SINK vanity on the EAST wall (runs pony wall to WC wall) - custom cabinetry with pullout drawer fronts + toe-kick, a single centered window (z-3.75) flanked by a mirror over each sink, wall sconces outboard. SOUTH end = an ENCLOSED WC room behind a partition at z-7.5; inswing door toward the EAST (hinge east jamb, opens S); toilet against the WC room's WEST wall.",
-      "type": "shower", "px": -17.46, "pz": 2.0, "opens": "S", "widthFt": 10.9, "depthFt": 4.0, "ponyWalls": true, "openFt": 4.0, "heads": 2 },
-    { "type": "vanity", "px": -21.9, "pz": -3.75, "faces": "W", "widthFt": 7.4, "depthFt": 2.0, "sinks": 2, "sconces": true },
-    { "_note": "WC room NORTH wall = partition at z=-7.5 (x -22.92..-12). 2'8\" INSWING door toward the EAST end (hinge on the east jamb, opens S into the WC room).",
-      "type": "partition", "px": -17.4585, "pz": -7.5, "axis": "x", "lenFt": 10.9167,
-      "door": { "atFt": -19, "widthFt": 2.667, "hinge": "E", "opens": "S" } },
-    { "type": "toilet", "px": -13.0, "pz": -9.7, "faces": "E" },
-
-    { "_note": "FAMILY ROOM (landing north bay, x 3.9167..15.0833, z 5..16.0833): sofa against the west wall facing the TV on the east wall, with a rug between.",
-      "type": "sofa", "px": 13.5, "pz": 10.5, "faces": "E", "wFt": 7.0, "dFt": 3.0 },
-    { "_note": "77-inch TV on the east wall facing W toward the sofa (screenFt = 5.6 ft wide, 16:9 -> ~3.15 ft tall -> 6.42 ft / 77 in diagonal), on a 6 ft media console.",
-      "type": "tv", "px": 4.6, "pz": 10.5, "faces": "W", "wFt": 6.0, "dFt": 1.4, "screenFt": 5.6 },
-    { "type": "rug", "px": 9.5, "pz": 10.5, "w": 8, "d": 6, "material": "sage" }
+        {
+          "type": "hang",
+          "widthFt": 2.862
+        },
+        {
+          "type": "drawtower",
+          "widthFt": 2.863
+        },
+        {
+          "type": "hang",
+          "widthFt": 2.862
+        }
+      ]
+    },
+    {
+      "_note": "SW BEDROOM queen (room x 15.0833..31, z -11.9167..-1): headboard on the SOUTH wall, placed directly EAST of the south window (window ~x24..26.5) so it sits beside the window, not under it. Foot points N. Moved off the east wall so it no longer fouls the alcove door swing.",
+      "type": "bed",
+      "px": 21.5,
+      "pz": -8.58,
+      "head": "S"
+    },
+    {
+      "_note": "NW BEDROOM queen (room x 15.0833..31, z 6..16.0833): headboard on the NORTH wall, CENTERED between the two north windows (~x17.9 and ~x26.3) so it rests on solid wall between them, not under a window. Foot points S. Moved off the east wall so it no longer fouls the alcove door swing.",
+      "type": "bed",
+      "px": 22.06,
+      "pz": 12.75,
+      "head": "N"
+    },
+    {
+      "_note": "WEST BATH (x 20.0833..31, z -1..6). Shower on the NORTH wall (x 24..27.5), shallow 2.5 ft depth since the room is only ~7 ft N-S. Toilet in the west bay BETWEEN the west wall (x31) and the shower's west edge (x27.5), facing S with ~21 in clearance each side. Vanity in the SE corner (faces N). All clear of the entry-door swing.",
+      "type": "shower",
+      "px": 25.75,
+      "pz": 4.75,
+      "opens": "S",
+      "widthFt": 3.5,
+      "depthFt": 2.5
+    },
+    {
+      "type": "vanity",
+      "px": 21.9,
+      "pz": -0.1,
+      "faces": "N",
+      "widthFt": 3.0,
+      "depthFt": 1.8
+    },
+    {
+      "type": "toilet",
+      "px": 29.25,
+      "pz": 4.5,
+      "faces": "S"
+    },
+    {
+      "_note": "FAMILY ROOM (landing north bay, x 3.9167..15.0833, z 5..16.0833): sofa against the west wall facing the TV on the east wall, with a rug between.",
+      "type": "sofa",
+      "px": 13.5,
+      "pz": 10.5,
+      "faces": "E",
+      "wFt": 7.0,
+      "dFt": 3.0
+    },
+    {
+      "_note": "77-inch TV on the east wall facing W toward the sofa (screenFt = 5.6 ft wide, 16:9 -> ~3.15 ft tall -> 6.42 ft / 77 in diagonal), on a 6 ft media console.",
+      "type": "tv",
+      "px": 4.6,
+      "pz": 10.5,
+      "faces": "W",
+      "wFt": 6.0,
+      "dFt": 1.4,
+      "screenFt": 5.6
+    },
+    {
+      "type": "rug",
+      "px": 9.5,
+      "pz": 10.5,
+      "w": 8,
+      "d": 6,
+      "material": "sage"
+    },
+    {
+      "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4), one open room. DOOR near the NW corner on the west wall. Double VANITY on the EAST wall centred on the north-east window (z -0.74), a sink and mirror either side of the glass, sconces outboard, counter at 34 in under the sill. Double SHOWER along the WEST wall, 8 x 5 ft, long side on the bedroom partition, two heads on that wall, a 6 ft SEGMENTAL arched doorless entry facing the room (springs at 6 ft 3, rises 1 ft 9 \u2014 a semicircle would apex above the ceiling). Five feet deep so that the west south transom (px -14.73) is CENTRED in its south end wall, equal tile either side, and is cut out of it (side cutout, da = (px_window - px_shower) * A[0] for a shower opening E). Wall-hung TOILET on the south wall near the SE corner under the east transom, facing north. No WC room.",
+      "type": "shower",
+      "px": -14.7292,
+      "pz": -7.688,
+      "opens": "E",
+      "widthFt": 8.0,
+      "depthFt": 5.0,
+      "curb": false,
+      "heightFt": 9.0,
+      "arch": {
+        "widthFt": 6.0,
+        "springFt": 6.25,
+        "riseFt": 1.75
+      },
+      "heads": 2,
+      "cutouts": [
+        {
+          "side": "S",
+          "da": -0.0,
+          "widthFt": 2.167,
+          "sillFt": 4.2,
+          "headFt": 6.1
+        }
+      ]
+    },
+    {
+      "type": "vanity",
+      "px": -21.688,
+      "pz": -0.7389,
+      "faces": "W",
+      "widthFt": 6.67,
+      "depthFt": 2.0,
+      "sinks": 2,
+      "sconces": true,
+      "counterFt": 2.85,
+      "mirrorWFt": 1.6,
+      "mirrorHFt": 3.0,
+      "mirrorTopFt": 6.5
+    },
+    {
+      "_note": "Conventional tank toilet on the south wall, centred under the east transom (px -20.1875), facing north; the tank backs onto the south face at -11.688.",
+      "type": "toilet",
+      "px": -20.1875,
+      "pz": -10.588,
+      "faces": "N"
+    },
+    {
+      "_note": "En-suite lighting, kept simple: the vanity's own two sconces (`sconces: true` on the vanity item), two recessed over the shower (2.7 ft off its end walls), one over the toilet (3.8 ft off the shower's arch wall), two along the entry. Each of the two ground-room boxes this level reuses holds a fixture, so no generic ceiling light appears.",
+      "type": "recessed",
+      "px": -14.73,
+      "pz": -9.0,
+      "ceilFt": 9.0,
+      "diaFt": 0.5
+    },
+    {
+      "type": "recessed",
+      "px": -14.73,
+      "pz": -6.4,
+      "ceilFt": 9.0,
+      "diaFt": 0.5
+    },
+    {
+      "type": "recessed",
+      "px": -21.0,
+      "pz": -9.5,
+      "ceilFt": 9.0,
+      "diaFt": 0.5
+    },
+    {
+      "type": "recessed",
+      "px": -13.7,
+      "pz": 1.93,
+      "ceilFt": 9.0,
+      "diaFt": 0.5
+    },
+    {
+      "_note": "Linen closet backing onto the SHOWER'S north end wall (its north face at z -3.538), west end on the west wall face, facing north into the room: a tall run 3.5 ft long, 1.5 ft deep, to the 7 ft door head. Spans x -12.229..-15.729, z -3.538..-2.038; the west wall between it and the door is free.",
+      "type": "cabinet_run",
+      "kind": "tall",
+      "px": -13.979,
+      "pz": -2.788,
+      "faces": "N",
+      "lenFt": 3.5,
+      "depthFt": 1.5,
+      "topFt": 7.0
+    },
+    {
+      "type": "recessed",
+      "px": -16.6,
+      "pz": 1.93,
+      "ceilFt": 9.0,
+      "diaFt": 0.5
+    }
   ]
 }

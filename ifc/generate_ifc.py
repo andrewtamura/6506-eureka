@@ -98,7 +98,7 @@ def compute_paneling(ctx, rooms):
                                 # ...and the HEAD: a bare opening can rise past the head
                                 # line (the shower's transom does), and the band above
                                 # that line has to be cut round it too.
-                                sides.append(sspan + [wd["sill"], wd["head"] if wd.get("transom") else ctx.head_ft])
+                                sides.append(sspan + [wd["sill"], wd["head"] if (wd.get("transom") or wd.get("bare")) else ctx.head_ft])
                         continue
                     if wd.get("transom"):
                         # A transom carries its own frame (add_transom_frame) and sits on
@@ -124,7 +124,14 @@ def compute_paneling(ctx, rooms):
                         # board-and-batten wall below the stool. Wanted where a window
                         # sits over open floor rather than over a counter, since a 2 ft 8 in
                         # board floating 25 in off the floor reads as a stray panel.
-                        wins.append(span + [wd["sill"], bool(wd.get("plainBelow"))])
+                        # ...and the HEAD, for a window that stops BELOW the head line: the
+                        # casing program assumed every window heads on that line, and
+                        # framed a blank panel of wall over the glass of one that did not
+                        # (the second floor's south transoms head at 6.10 under a 7 ft
+                        # line). Authored heads above the line are the line, as
+                        # add_windows cuts them, unless the window is a transom.
+                        hd = wd["head"] if (wd.get("transom") or wd["head"] < ctx.head_ft - 1e-6) else ctx.head_ft
+                        wins.append(span + [wd["sill"], bool(wd.get("plainBelow")), hd])
             return doors, wins, tall, trans, sides, bare, rounds
 
         # plan px increases WEST and pz increases NORTH, so x1 is the EAST wall and
@@ -312,6 +319,40 @@ def build_level(cfg, rooms_cache, level):
                 B.add_tile_finish(ctx, r, ov["pattern"])
             else:
                 B.add_hardwood_finish(ctx, r)             # hardwood floor, same as the ground floor
+        # A SHELL'S TRIM PROGRAM. The level's rooms are the ground floor's boxes, laid out
+        # upstairs by hand in the furniture manifest, so a per-room paneling run would
+        # case the ground floor's windows and partitions that do not exist up here. The
+        # level authors ONE finished room instead: a roof group's box, carrying the upper
+        # windows second_floor_windows puts in its walls (the same specs add_shell_windows
+        # cut) and the doors the viewer's partitions make. `bare` and `plainBelow` mark
+        # windows by name — a hole in a tiled shower wall, a window over a counter.
+        pan = level.get("paneling")
+        if pan:
+            grp = None
+            for lv in cfg["levels"]:
+                grp = (lv.get("roofGroups") or {}).get(pan["group"]) or grp
+            gb = [rooms_cache[s]["bounds"] for s in grp["rooms"]]
+            x1, x2 = min(b["x1"] for b in gb), max(b["x2"] for b in gb)
+            z1, z2 = min(b["z1"] for b in gb), max(b["z2"] for b in gb)
+            _, specs = B.second_floor_windows(rooms)
+            wins = []
+            for w in specs:
+                on = ((w["orient"] == "V" and abs(w["fixed"] - x1) < 1e-6 and z1 <= w["pos"] <= z2)
+                      or (w["orient"] == "V" and abs(w["fixed"] - x2) < 1e-6 and z1 <= w["pos"] <= z2)
+                      or (w["orient"] == "H" and abs(w["fixed"] - z1) < 1e-6 and x1 <= w["pos"] <= x2)
+                      or (w["orient"] == "H" and abs(w["fixed"] - z2) < 1e-6 and x1 <= w["pos"] <= x2))
+                if not on:
+                    continue
+                rec = dict(w)
+                if w["name"] in pan.get("bare", []):
+                    rec["bare"] = True
+                if w["name"] in pan.get("plainBelow", []):
+                    rec["plainBelow"] = True
+                wins.append(rec)
+            room = {"_stem": f"{pan['group']}-shell", "bounds": {"x1": x1, "x2": x2, "z1": z1, "z2": z2},
+                    "windows": wins, "doors": list(pan.get("doors", [])),
+                    "interior": {"paneling": dict(pan.get("program", {"baseboard": 10, "noCornice": True, "battens": False}))}}
+            compute_paneling(ctx, [room])
     elif kind == "attic":
         # Habitable attic: shaped to the exterior roof (single source of truth
         # for type + pitch) rather than drawn as a full-height storey.

@@ -6,5 +6,137 @@
   "headFt": 7.0,
   "entablatureFt": 0.9,
   "casingFt": 0.33,
-  "walls": []
+  "walls": [
+    {
+      "along": "x",
+      "at": -11.6875,
+      "normal": [
+        0,
+        1
+      ],
+      "side": "S",
+      "lo": -22.917,
+      "hi": -12,
+      "doors": [],
+      "windows": [
+        [
+          -21.271,
+          -19.104,
+          4.2,
+          false,
+          6.1
+        ]
+      ],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [
+        [
+          -15.813,
+          -13.646,
+          4.2,
+          6.1
+        ]
+      ],
+      "bareDoors": [],
+      "rounds": [],
+      "noCornice": true,
+      "noBattens": true,
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
+    },
+    {
+      "along": "x",
+      "at": 3.7708,
+      "normal": [
+        0,
+        -1
+      ],
+      "side": "N",
+      "lo": -22.917,
+      "hi": -12,
+      "doors": [],
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [],
+      "bareDoors": [],
+      "rounds": [],
+      "noCornice": true,
+      "noBattens": true,
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
+    },
+    {
+      "along": "z",
+      "at": -22.6875,
+      "normal": [
+        1,
+        0
+      ],
+      "side": "E",
+      "lo": -11.917,
+      "hi": 4,
+      "doors": [],
+      "windows": [
+        [
+          -8.178,
+          -6.178,
+          3.0,
+          false,
+          7.0
+        ],
+        [
+          -1.739,
+          0.261,
+          3.0,
+          true,
+          7.0
+        ]
+      ],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [],
+      "bareDoors": [],
+      "rounds": [],
+      "noCornice": true,
+      "noBattens": true,
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
+    },
+    {
+      "along": "z",
+      "at": -12.2292,
+      "normal": [
+        -1,
+        0
+      ],
+      "side": "W",
+      "lo": -11.917,
+      "hi": 4,
+      "doors": [
+        [
+          0.597,
+          3.263
+        ]
+      ],
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [],
+      "bareDoors": [],
+      "rounds": [],
+      "noCornice": true,
+      "noBattens": true,
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
+    }
+  ]
 }

@@ -14,7 +14,10 @@ const FIELD = 0xdcd7cb;  // slightly deeper field/frieze so the millwork reads
 const BATTEN_W = 0.0254;        // 1" battens
 const BATTEN_SPACING_FT = 14 / 12;  // 14" board grid, anchored at the wall corner
 
-export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manifestFile = "paneling.json" }) {
+// `parent` is where the meshes go — the scene for the ground floor, an exhibit's model
+// object for the Second Floor, so the millwork rides that model's placement in the row of
+// views and `floorY` is that level's own finish floor (0).
+export async function buildWallFinish({ scene, parent = scene, floorY, ceilingY, baseUrl, manifestFile = "paneling.json" }) {
   let data;
   try { data = await (await fetch(`${baseUrl}${manifestFile}`)).json(); } catch (e) { return; }
   const { ft = 0.3048, xs = -1, zs = 1, baseboardFt = 10 / 12, headFt = 7, casingFt = 0.33, walls = [] } = data || {};
@@ -57,14 +60,14 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       const A = P(s0), B = P(s1); const L = A.distanceTo(B); if (L < 0.02) return;
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(L, y1 - y0, depth), m);
       mesh.position.set((A.x + B.x) / 2 + Nw.x * depth / 2, floorY + (y0 + y1) / 2, (A.z + B.z) / 2 + Nw.z * depth / 2);
-      mesh.rotation.y = rotY; scene.add(mesh);
+      mesh.rotation.y = rotY; parent.add(mesh);
     };
     // a vertical post of width `wd` (along wall) centred at s, y0..y1
     const post = (s, y0, y1, wd, depth, m = mill) => {
       const C = P(s);
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(wd, y1 - y0, depth), m);
       mesh.position.set(C.x + Nw.x * depth / 2, floorY + (y0 + y1) / 2, C.z + Nw.z * depth / 2);
-      mesh.rotation.y = rotY; scene.add(mesh);
+      mesh.rotation.y = rotY; parent.add(mesh);
     };
     const doors = w.doors || [], wins = w.windows || [], tall = w.tall || [];
     // Transoms carry their own frame and get no casing, stool or apron — but they are
@@ -153,7 +156,7 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
         xAxis.clone().normalize(), yAxis.clone().normalize(), zAxis));
       mesh.position.copy(startPt);
       mesh.castShadow = true; mesh.receiveShadow = true;
-      scene.add(mesh);
+      parent.add(mesh);
     };
     const UP = new THREE.Vector3(0, 1, 0);
     const cwf = caseW / ft;                                        // casing width, plan feet
@@ -311,9 +314,12 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     const openings = [...doors, ...winX, ...tallX, ...sides, ...roundX, ...lowTrans].map(([a, b]) => [Math.min(a, b), Math.max(a, b)]);
     for (const [a, b] of subtract(w.lo, w.hi, [...doors, ...winX, ...tallX, ...sides, ...roundX, ...lowTrans], 0, 0.02))
       band(a, b, bbH, headY, 0.012, field);
-    for (const [a, b, sill] of wins) {
-      const sy = sill * ft; if (sy - bbH < 0.06) continue;
-      band(a, b, bbH, sy, 0.012, field);
+    for (const [a, b, sill, , head] of wins) {
+      const sy = sill * ft; if (sy - bbH >= 0.06) band(a, b, bbH, sy, 0.012, field);
+      // ...and over a window that heads BELOW the head line, field from its head up to it
+      // (the span was cut out of the main band to the line; without this the wall's
+      // plaster showed through the casing frame as a blank panel over the glass).
+      const hy = (head ?? headFt) * ft; if (headY - hy >= 0.06) band(a, b, hy, headY, 0.012, field);
     }
     // Battens on ONE continuous 14" grid anchored at the corner (w.lo) — the SAME
     // rhythm for the tall full-height battens and the shorter battens under the
@@ -367,14 +373,14 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       const A0 = P(u0);
       panel.position.set(A0.x + Nw.x * off, floorY, A0.z + Nw.z * off);
       panel.rotation.y = rotY;
-      scene.add(panel);
+      parent.add(panel);
       // the ring: casing profile revolved about the wall normal, proud of the panel
       const pts = casingShape.getPoints(6).map((q) => new THREE.Vector2(r + (caseW - q.y), q.x));
       const ring = new THREE.Mesh(new THREE.LatheGeometry(pts, 48), mill);
       ring.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), Nw);
       const C = P(pos);
       ring.position.set(C.x + Nw.x * depth, floorY + cy, C.z + Nw.z * depth);
-      scene.add(ring);
+      parent.add(ring);
     };
 
     // 2b) WAINSCOT — a framed dado on the walls that ask for it. Real relief in three
@@ -432,7 +438,7 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       cmesh.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(Nw, up, zAxis));
       cmesh.position.set(start.x, floorY + springY, start.z);
       cmesh.castShadow = true; cmesh.receiveShadow = true;
-      scene.add(cmesh);
+      parent.add(cmesh);
     };
 
     // A wall can opt out of the entablature (`noCornice`) while keeping the rest of
@@ -532,7 +538,7 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
         m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(
           xAxis.clone().normalize(), yAxis.clone().normalize(), zA));
         m.position.copy(startPt);
-        scene.add(m);
+        parent.add(m);
       };
       for (const [s0, s1] of subtract(w.lo, w.hi, [...tallX, ...brk], 0, 0.05)) {
         const endLo = atEnd(s0, w.lo), endHi = atEnd(s1, w.hi);
@@ -610,7 +616,7 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
         const crown = new THREE.Mesh(geo, crownMat);
         crown.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(Nw, upR, zR));
         crown.position.set(start.x, startY, start.z);
-        scene.add(crown);
+        parent.add(crown);
       }
     } else {
       // With no entablature the field has to carry on from the head line to the
@@ -636,10 +642,13 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     if (!w.noCornice) for (const r of rounds) roundWindow(r, headY);
 
     // 4) window casing: moulded jambs + HEAD + a stool with mitred returns + apron
-    for (const [a, b, sill, plainBelow] of wins) {
+    for (const [a, b, sill, plainBelow, head] of wins) {
       const sy = sill * ft;
+      // A window's OWN head where it has one below the head line (the second floor's
+      // south transoms, 6.10 under a 7 ft line); everything on the line reads as before.
+      const hy = (head ?? headFt) * ft;
       const lo = Math.min(a, b), hi = Math.max(a, b);
-      mouldV(lo, sy, headY, casingShape, +1); mouldV(hi, sy, headY, casingShape, -1);
+      mouldV(lo, sy, hy, casingShape, +1); mouldV(hi, sy, hy, casingShape, -1);
       // The head was missing on every window in the house — the same gap doors had,
       // fixed for doors and never carried across. Two verticals and a stool with
       // nothing over them reads as an unfinished opening. It returns past both jambs
@@ -658,7 +667,7 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       // line it comes out mirrored, with the heavy backband sitting right on the glass
       // and the bead at the top, which is the wrong way up for an architrave. (The same
       // inversion is what stopped the door's mitre corners reading as continuous.)
-      mouldH(lo - hOut, hi + hOut, headY + caseW, casingShape, CASE_P, true);
+      mouldH(lo - hOut, hi + hOut, hy + caseW, casingShape, CASE_P, true);
       // STOOL: a bullnosed sill board, mitred back to the wall at each horn.
       mouldH(lo - hOut, hi + hOut, sy, stoolShape, STOOL_D, false);
       // APRON: a length of the CASING stock run horizontally under the stool, inverted,
