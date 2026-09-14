@@ -383,7 +383,14 @@
       "mirrorTopFt": 6.5
     },
     {
-      "_note": "En-suite downlights: two in the shower, one over each sink, one over the toilet, one on the floor, one by the door.",
+      "_note": "Conventional tank toilet on the south wall, centred under the east transom (px -20.1875), facing north; the tank backs onto the south face at -11.688.",
+      "type": "toilet",
+      "px": -20.1875,
+      "pz": -10.588,
+      "faces": "N"
+    },
+    {
+      "_note": "En-suite lighting, kept simple: the vanity's own two sconces (`sconces: true` on the vanity item), two recessed over the shower, one over the toilet, one inside the entry. Each of the two ground-room boxes this level reuses holds a fixture, so no generic ceiling light appears.",
       "type": "recessed",
       "px": -14.73,
       "pz": -9.5,
@@ -399,20 +406,6 @@
     },
     {
       "type": "recessed",
-      "px": -21.0,
-      "pz": -2.8,
-      "ceilFt": 9.0,
-      "diaFt": 0.5
-    },
-    {
-      "type": "recessed",
-      "px": -21.0,
-      "pz": 1.3,
-      "ceilFt": 9.0,
-      "diaFt": 0.5
-    },
-    {
-      "type": "recessed",
       "px": -20.1875,
       "pz": -9.5,
       "ceilFt": 9.0,
@@ -420,24 +413,21 @@
     },
     {
       "type": "recessed",
-      "px": -18.5,
-      "pz": -4.0,
+      "px": -13.7,
+      "pz": 1.93,
       "ceilFt": 9.0,
       "diaFt": 0.5
     },
     {
-      "type": "recessed",
-      "px": -15.0,
-      "pz": 1.9,
-      "ceilFt": 9.0,
-      "diaFt": 0.5
-    },
-    {
-      "_note": "Conventional tank toilet on the south wall, centred under the east transom (px -20.1875), facing north; the tank backs onto the south face at -11.688.",
-      "type": "toilet",
-      "px": -20.1875,
-      "pz": -10.588,
-      "faces": "N"
+      "_note": "Linen cabinet on the west wall directly north of the shower: a tall run 3.5 ft long, 1.5 ft deep, to the 7 ft door head, between the shower's end wall (-3.688) and the door's south jamb (0.60) with 0.4 ft clear at each.",
+      "type": "cabinet_run",
+      "kind": "tall",
+      "px": -12.979,
+      "pz": -1.54,
+      "faces": "E",
+      "lenFt": 3.5,
+      "depthFt": 1.5,
+      "topFt": 7.0
     }
   ]
 }
