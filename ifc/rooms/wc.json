@@ -14,13 +14,23 @@
       "name": "Bath -> WC",
       "orient": "H",
       "fixed": 0.97,
-      "pos": -21.023,
+      "pos": -19.354,
       "width": 2.33,
-      "hinge": "min",
+      "hinge": "max",
       "swing": "neg"
     }
   ],
-  "windows": [],
+  "windows": [
+    {
+      "name": "Window - WC Round",
+      "orient": "H",
+      "fixed": 4.0,
+      "pos": -20.1875,
+      "round": true,
+      "radiusFt": 1.0,
+      "centerFt": 7.0
+    }
+  ],
   "interior": {
     "paneling": {
       "baseboard": 10,
@@ -33,12 +43,12 @@
     },
     "furniture": [
       {
-        "type": "toilet",
+        "type": "wall_toilet",
         "at": [
-          -18.787,
+          -22.688,
           2.485
         ],
-        "faces": "E"
+        "faces": "W"
       },
       {
         "type": "recessed",

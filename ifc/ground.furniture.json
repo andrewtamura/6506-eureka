@@ -411,16 +411,47 @@
     {
       "type": "vanity",
       "px": -21.7729,
-      "pz": -0.7389,
+      "pz": -3.9584,
       "rot": 0.0,
       "faces": "W",
-      "widthFt": 2.5,
+      "widthFt": 3.1,
       "depthFt": 1.83,
-      "counterFt": 2.85,
       "sinks": 1,
       "cols": 2,
       "rows": 1,
-      "mirror": false
+      "mirrorWFt": 2.1,
+      "mirrorHFt": 3.1,
+      "mirrorTopFt": 6.5
+    },
+    {
+      "type": "sconce",
+      "px": -22.688,
+      "pz": -5.43,
+      "rot": 0.0,
+      "faces": "W",
+      "atFt": 5.0,
+      "plateFt": 0.3,
+      "plateHFt": 0.85,
+      "globeFt": 0.34,
+      "armFt": 0.26,
+      "intensity": 0.5,
+      "glow": 0.45,
+      "reachFt": 8.0
+    },
+    {
+      "type": "sconce",
+      "px": -22.688,
+      "pz": -2.49,
+      "rot": 0.0,
+      "faces": "W",
+      "atFt": 5.0,
+      "plateFt": 0.3,
+      "plateHFt": 0.85,
+      "globeFt": 0.34,
+      "armFt": 0.26,
+      "intensity": 0.5,
+      "glow": 0.45,
+      "reachFt": 8.0
     },
     {
       "type": "recessed",
@@ -433,7 +464,7 @@
     {
       "type": "recessed",
       "px": -20.1875,
-      "pz": -6.4,
+      "pz": -7.1,
       "rot": 0.0,
       "ceilFt": 9.0,
       "diaFt": 0.5
@@ -441,17 +472,25 @@
     {
       "type": "recessed",
       "px": -21.2,
-      "pz": -0.7389,
+      "pz": -3.9584,
       "rot": 0.0,
       "ceilFt": 9.0,
       "diaFt": 0.5
     },
     {
-      "type": "toilet",
-      "px": -18.787,
+      "type": "recessed",
+      "px": -20.1875,
+      "pz": -0.74,
+      "rot": 0.0,
+      "ceilFt": 9.0,
+      "diaFt": 0.5
+    },
+    {
+      "type": "wall_toilet",
+      "px": -22.688,
       "pz": 2.485,
       "rot": 0.0,
-      "faces": "E"
+      "faces": "W"
     },
     {
       "type": "recessed",

@@ -123,7 +123,7 @@
       },
       "roundWindow": {
         "_note": "A small round window in the LOWER EAST bay. A blind oculus was tried on this wall once and removed \u2014 a circle stuck on a rectangular wall, agreeing with nothing around it. The difference here is the whole point: this is a real GLAZED OPENING rather than applied ornament, which is what gives a circle a reason to be there. Its position is derived, not authored: the east bay's centre, on the DOOR HEAD line, so the wall's two openings share a horizontal \u2014 which also puts it 7 ft above the finished floor, where a bathroom wants its glass.",
-        "_noteInterior": "EXTERIOR ONLY for now. The massing fakes every window as a panel on the face, so this one is built the same way; the ground floor has no matching opening. It should become a real authored window in ext_bath when the bathroom layouts are redone.",
+        "_noteInterior": "A REAL WINDOW, authored in the water closet's room file (ifc/rooms/wc.json, `round: true`, centerFt 7.0 on the door-head line, radiusFt 1.0) and cut through the wall by disc_opening; the massing takes its position and radius from that spec, so the ring outside and the hole inside are one window. Inside, the viewer cuts the field round it as a holed panel and revolves the casing profile into a ring \u2014 no stool, no apron. The `radiusFt` here is only the fallback for a model with no authored round window.",
         "radiusFt": 1.0,
         "ringFt": 0.22,
         "ringProudFt": 0.1,

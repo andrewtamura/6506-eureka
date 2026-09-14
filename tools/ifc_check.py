@@ -240,16 +240,21 @@ for stem, room in rooms_g.items():
     for w in room.get('windows', []):
         if w.get('blind'):
             continue
-        half = abs(w['width']) / 2
+        # A ROUND window has a centre and a radius rather than a width and a head; its
+        # top is what would run through a cornice (the one in the house straddles the
+        # head line by a foot, in a room with none).
+        rnd = bool(w.get('round'))
+        half = w.get('radiusFt', 1.0) if rnd else abs(w['width']) / 2
+        top = w['centerFt'] + half if rnd else w['head']
         wlo, whi = w['pos'] - half, w['pos'] + half
         hit = [c for c in corniced if c[1] == w['orient'] and abs(c[2] - w['fixed']) < 0.3
                and min(whi, c[4]) - max(wlo, c[3]) > 0.05]
         if not hit:
             continue
-        over = w['head'] - head_ft
+        over = top - head_ft
         if over > 0.01:
             bad += 1
-            check(False, f"{w['name']}: head {w['head']} ft is {over:.2f} ft ABOVE the "
+            check(False, f"{w['name']}: head {top} ft is {over:.2f} ft ABOVE the "
                          f"{head_ft} ft line, through {hit[0][0]}'s cornice")
 check(bad == 0, f"no glazing runs up through a cornice ({len(corniced)} corniced walls checked)")
 
@@ -1159,6 +1164,46 @@ if _ld:
     _pocket = _jamb_s - (wing_s + _WALL / 2)
     check(_pocket >= _ld['width'],
           f"{_pocket:.2f} ft of wall south of the jamb for a {_ld['width']:.2f} ft leaf to slide into")
+
+# THE ROUND WINDOW IS A REAL OPENING INTO THE WATER CLOSET. It began as ornament on the
+# massing — a disc laid on the face — and the room file now authors it (`round: true`), so
+# the ground model carries an IfcOpeningElement through the north wall and a glass
+# IfcWindow in it, and the massing's ring derives from the same spec. Asserted both ways:
+# the interior opening is where and how big the spec says, and the exterior ring is
+# centred on it to 0.01 ft — one hole, seen from both sides.
+_rw = next((w for w in json.load(open('ifc/rooms/wc.json'))['windows'] if w.get('round')), None)
+check(_rw is not None, 'a round window is authored in the water closet')
+if _rw:
+    GW = extents(gnd, lambda nm, p: nm in ('Window - WC Round', 'Opening - Window - WC Round'))
+    g_, o_ = GW.get('Window - WC Round'), GW.get('Opening - Window - WC Round')
+    check(g_ is not None and o_ is not None,
+          f'the ground model has the round IfcWindow and its IfcOpeningElement ({sorted(GW)})')
+    if g_ and o_:
+        check(near(g_[1] - g_[0], 2 * _rw['radiusFt'], 0.02) and near(g_[5] - g_[4], g_[1] - g_[0], 0.02),
+              f"{2 * _rw['radiusFt']} ft across and ROUND ({g_[1] - g_[0]:.3f} by {g_[5] - g_[4]:.3f})")
+        # ground.ifc is FLOOR-relative (its storey sits at 0; the viewer lifts it), where
+        # the exterior model is at grade — so the interior centre is `centerFt` bare, and
+        # the ring outside is `BASE` above it.
+        check(near((g_[0] + g_[1]) / 2, _rw['pos'], 0.01)
+              and near((g_[4] + g_[5]) / 2, _rw['centerFt'], 0.02),
+              f"centred where authored ({(g_[0] + g_[1]) / 2:.4f}, {(g_[4] + g_[5]) / 2:.2f} ft above the floor)")
+        check(near((g_[2] + g_[3]) / 2, wing_n, 0.05), f'in the north wall ({(g_[2] + g_[3]) / 2:.3f})')
+        check(o_[3] - o_[2] > 0.4583, f'the void runs right through the wall ({o_[3] - o_[2]:.3f} ft deep)')
+        _ring = globals().get('WE', {}).get('Wing round window ring')
+        check(_ring is not None and near((_ring[0] + _ring[1]) / 2, (g_[0] + g_[1]) / 2, 0.01)
+              and near((_ring[4] + _ring[5]) / 2, BASE + (g_[4] + g_[5]) / 2, 0.02),
+              'the exterior ring and the interior opening are ONE hole (centres agree)')
+
+# THE WATER CLOSET DOOR sits at the WEST end of the compartment wall — on the aisle past
+# the vanity — with a casing return to the party wall, and in the compartment wall.
+_wcd = next((d for d in json.load(open('ifc/rooms/wc.json'))['doors'] if d['name'] == 'Bath -> WC'), None)
+check(_wcd is not None, 'the water closet has its door')
+if _wcd:
+    # The compartment's OWN west bound — the party wall with the vestibule — not the
+    # wing's west edge (`wing_w`), which is the laundry's outer wall 5.5 ft further on.
+    _ret = (max(_wcb['x1'], _wcb['x2']) - _WALL / 2) - (_wcd['pos'] + _wcd['width'] / 2)
+    check(near(_wcd['fixed'], _wcb['z1'], 1e-6), 'in the compartment wall')
+    check(0.45 <= _ret <= 0.6, f'{_ret * 12:.1f} in of casing return to the party wall (6 in wanted)')
 
 # NO FRIEZE LIGHT ON THE EXTENSION. Its shed eave is 4 ft below the primary's frieze band,
 # so one there floats in mid-air over its roof. The guard used to skip anything NAMED
