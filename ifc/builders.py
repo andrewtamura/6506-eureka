@@ -246,13 +246,16 @@ def ifc_bounds(ctx, b):
     return min(xs), max(xs), min(ys), max(ys)
 
 
-def add_wall(ctx, orient, fixed, a, b):
+def add_wall(ctx, orient, fixed, a, b, height=None):
+    """A perimeter/partition wall segment (IFC metres), `ctx.H` tall unless `height` (m)
+    says otherwise — the shell's raked wing walls are boxes to the LOW end of the slope."""
     length = b - a
+    H = ctx.H if height is None else height
     if orient == "H":            # runs along X at y = fixed
-        w = make_box(ctx, "IfcWall", "Wall", length + ctx.T, ctx.T, ctx.H,
+        w = make_box(ctx, "IfcWall", "Wall", length + ctx.T, ctx.T, H,
                      (a + b) / 2, fixed, 0.0)
     else:                        # "V": runs along Y at x = fixed
-        w = make_box(ctx, "IfcWall", "Wall", ctx.T, length + ctx.T, ctx.H,
+        w = make_box(ctx, "IfcWall", "Wall", ctx.T, length + ctx.T, H,
                      fixed, (a + b) / 2, 0.0)
     run("spatial.assign_container", ctx.model, products=[w], relating_structure=ctx.storey)
     ctx.walls.append({"wall": w, "orient": orient, "fixed": fixed, "a": a, "b": b})
@@ -309,14 +312,103 @@ def perimeter_segments(rects):
     return out
 
 
-def add_shell(ctx, rooms):
+CEIL_C = (0.93, 0.92, 0.90)                     # drywall ceiling soffit
+
+
+def shed_ceiling(ctx, group, rooms_cache):
+    """The ceiling plane under a SHED roof group's top storey: the wing's box in plan
+    feet, and `z_of(px)` — the underside in feet above THAT storey's floor.
+
+    One formula, shared with the massing: the roof springs from
+    `storeys*story - trimFt + eaveWallFt` above the base at the group's low (east) edge
+    and rises `pitch` toward the primary; the top storey's floor is `(storeys-1)*story`
+    below that. add_wing_elevation's `wall_top` is the same line with the crawl added,
+    which is what lets ifc_check hold the two models to each other."""
+    gb = [rooms_cache[s]["bounds"] for s in group["rooms"]]
+    box = {"x1": min(b["x1"] for b in gb), "x2": max(b["x2"] for b in gb),
+           "z1": min(b["z1"] for b in gb), "z2": max(b["z2"] for b in gb)}
+    storeys = group.get("storeys", 1)
+    story_ft = ctx.story / FT
+    ez = storeys * story_ft - group.get("trimFt", 0) + group.get("eaveWallFt", 0)
+    low = ez - (storeys - 1) * story_ft                # the top storey's floor-to-eave
+    pitch = group.get("pitch", 0.0)
+    x_east = box["x1"]                                   # px grows west: the low eave is the east edge
+    return box, (lambda px: low + pitch * (px - x_east))
+
+
+def add_shell(ctx, rooms, rake=None):
     """Exterior shell only: a floor slab per room footprint + the perimeter walls
-    of their union (no interior partitions, spaces, doors, or windows)."""
+    of their union (no interior partitions, spaces, doors, or windows).
+
+    `rake = (box, z_of)` from shed_ceiling RAKES the walls inside `box` to that ceiling:
+    each is an IfcWall box to the LOW end of its run (still in ctx.walls, so cut_opening
+    finds it — every upper window heads well under 8 ft) with a triangular WEDGE on top
+    ("Wall rake") rising to the high end. Segments are split at the box's edges, because
+    the wing's south wall and the primary's are one coplanar perimeter run."""
     rects = [ifc_bounds(ctx, r["bounds"]) for r in rooms]
     for r in rooms:
         add_slab(ctx, r, opening=r.get("floorOpening"))   # e.g. a stairwell void
-    for orient, fixed, a, b in perimeter_segments(rects):
-        add_wall(ctx, orient, fixed, a, b)
+    segs = perimeter_segments(rects)
+    if not rake:
+        for orient, fixed, a, b in segs:
+            add_wall(ctx, orient, fixed, a, b)
+        return
+    box, z_of = rake
+    bx1, bx2, by1, by2 = ifc_bounds(ctx, box)
+    tol = 1e-4
+    z_at_X = lambda X: z_of(X / ctx.xs / FT) * FT        # IFC metres -> plan px -> ceiling (m)
+
+    def raked(orient, fixed, a, b):
+        """One segment lying inside the box: box to the low end + the wedge above."""
+        if orient == "V":                                # constant along a V wall
+            add_wall(ctx, orient, fixed, a, b, height=z_at_X(fixed))
+            return
+        ha, hb = z_at_X(a), z_at_X(b)
+        add_wall(ctx, orient, fixed, a, b, height=min(ha, hb))
+        # The wedge: an X-Z right triangle swept across the thickness, its hypotenuse ON
+        # the plane. It springs where the plane crosses the box top — the wall's LOW end
+        # `a` (or `b`), not the half-thickness the box reaches past it for the corner:
+        # anchored there it read 0.019 ft high at the eave and steeper than the roof —
+        # and runs to the high end plus that half-thickness, so it turns the corner.
+        a2, b2 = a - ctx.T / 2, b + ctx.T / 2
+        y0 = fixed - ctx.T / 2
+        if hb >= ha:                                     # rises toward b
+            poly = [(a, y0, ha), (b2, y0, ha), (b2, y0, z_at_X(b2))]
+        else:                                            # rises toward a
+            poly = [(a2, y0, z_at_X(a2)), (a2, y0, hb), (b, y0, hb)]
+        v, faces = _prism(poly, (0.0, ctx.T, 0.0))
+        add_brep(ctx, "Wall rake", v, faces, None, ifc_class="IfcWall")
+
+    for orient, fixed, a, b in segs:
+        if orient == "V":
+            inside_x = bx1 - tol <= fixed <= bx2 + tol
+            cuts = sorted({a, b} | {c for c in (by1, by2) if a + tol < c < b - tol})
+        else:
+            inside_x = by1 - tol <= fixed <= by2 + tol
+            cuts = sorted({a, b} | {c for c in (bx1, bx2) if a + tol < c < b - tol})
+        for lo_, hi_ in zip(cuts, cuts[1:]):
+            mid = (lo_ + hi_) / 2
+            span = (by1, by2) if orient == "V" else (bx1, bx2)
+            if inside_x and span[0] - tol <= mid <= span[1] + tol:
+                raked(orient, fixed, lo_, hi_)
+            else:
+                add_wall(ctx, orient, fixed, lo_, hi_)
+
+
+def add_wing_ceiling(ctx, box, z_of, t=0.06):
+    """The shed ceiling itself: a sloped IfcCovering CEILING over `box`, underside on
+    `z_of(px)`, `t` m thick, spanning the walls' INNER faces (to the centreline it would
+    lie coplanar with the wedge tops and z-fight). Translucent like the attic's, so the
+    exhibit view reads into the room."""
+    bx1, bx2, by1, by2 = ifc_bounds(ctx, box)
+    h = ctx.T / 2
+    xa, xb, ya, yb = bx1 + h, bx2 - h, by1 + h, by2 - h
+    z_at_X = lambda X: z_of(X / ctx.xs / FT) * FT
+    poly = [(xa, ya, z_at_X(xa)), (xb, ya, z_at_X(xb)),
+            (xb, ya, z_at_X(xb) + t), (xa, ya, z_at_X(xa) + t)]
+    v, faces = _prism(poly, (0.0, yb - ya, 0.0))
+    add_brep(ctx, "Wing ceiling", v, faces, CEIL_C, ifc_class="IfcCovering",
+             predefined="CEILING", transparency=0.55)
 
 
 def add_attic(ctx, rooms, roof):
@@ -330,7 +422,7 @@ def add_attic(ctx, rooms, roof):
     (a raised plate / story-and-a-half) the roof springs from full-height
     perimeter walls of that height — which become the knee walls — so the ceiling
     is `eaveWallFt` at the walls and the usable floor reaches wall to wall."""
-    CEIL = (0.93, 0.92, 0.90)   # drywall ceiling soffit
+    CEIL = CEIL_C               # drywall ceiling soffit
     KNEE = (0.87, 0.86, 0.83)   # painted knee / perimeter wall (matches the massing)
     rects = [ifc_bounds(ctx, r["bounds"]) for r in rooms]
     x1, x2 = min(r[0] for r in rects), max(r[1] for r in rects)

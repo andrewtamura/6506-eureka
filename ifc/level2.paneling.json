@@ -44,7 +44,17 @@
       "wainscot": false,
       "coved": false,
       "corniceBreaks": [],
-      "rakedCornice": []
+      "rakedCornice": [],
+      "ceil": [
+        [
+          -22.917,
+          8.0
+        ],
+        [
+          -12,
+          8.9094
+        ]
+      ]
     },
     {
       "along": "x",
@@ -68,7 +78,17 @@
       "wainscot": false,
       "coved": false,
       "corniceBreaks": [],
-      "rakedCornice": []
+      "rakedCornice": [],
+      "ceil": [
+        [
+          -22.917,
+          8.0
+        ],
+        [
+          -12,
+          8.9094
+        ]
+      ]
     },
     {
       "along": "z",
@@ -107,7 +127,17 @@
       "wainscot": false,
       "coved": false,
       "corniceBreaks": [],
-      "rakedCornice": []
+      "rakedCornice": [],
+      "ceil": [
+        [
+          -11.917,
+          8.0191
+        ],
+        [
+          4,
+          8.0191
+        ]
+      ]
     },
     {
       "along": "z",
@@ -136,7 +166,17 @@
       "wainscot": false,
       "coved": false,
       "corniceBreaks": [],
-      "rakedCornice": []
+      "rakedCornice": [],
+      "ceil": [
+        [
+          -11.917,
+          8.8903
+        ],
+        [
+          4,
+          8.8903
+        ]
+      ]
     }
   ]
 }

@@ -99,7 +99,8 @@
         "widthFt": 2.667,
         "hinge": "N",
         "opens": "E"
-      }
+      },
+      "_noteHeight": "Default height (9.0), like every other partition up here. It is the PRIMARY's east wall: the wing's raked ceiling dies into its east face at 8.89 ft (see level2 slopedCeiling), and the wall carries on above it as the real one does under the primary's own roof."
     },
     {
       "_note": "West landing wall NORTH segment (z 6..16.0833): family-room + NW-bedroom east wall. Solid.",
@@ -110,7 +111,7 @@
       "lenFt": 10.0833
     },
     {
-      "_note": "West landing wall SOUTH segment (z -11.9167..-1): SW-bedroom east wall (backs the stair). Solid. The z -1..5 gap between the segments is OPEN \u2014 the old central hall is now merged into the E-W hall/landing.",
+      "_note": "West landing wall SOUTH segment (z -11.9167..-1): SW-bedroom east wall (backs the stair). Solid. The z -1..5 gap between the segments is OPEN — the old central hall is now merged into the E-W hall/landing.",
       "type": "partition",
       "px": 15.0833,
       "pz": -6.4583,
@@ -343,7 +344,7 @@
       "material": "sage"
     },
     {
-      "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4), one open room. DOOR near the NW corner on the west wall. Double VANITY on the EAST wall centred on the north-east window (z -0.74), a sink and mirror either side of the glass, sconces outboard, counter at 34 in under the sill. Double SHOWER along the WEST wall, 8 x 5 ft, long side on the bedroom partition, two heads on that wall, a 6 ft SEGMENTAL arched doorless entry facing the room (springs at 6 ft 3, rises 1 ft 9 \u2014 a semicircle would apex above the ceiling). Five feet deep so that the west south transom (px -14.73) is CENTRED in its south end wall, equal tile either side, and is cut out of it (side cutout, da = (px_window - px_shower) * A[0] for a shower opening E). Wall-hung TOILET on the south wall near the SE corner under the east transom, facing north. No WC room.",
+      "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4), one open room. DOOR near the NW corner on the west wall. Double VANITY on the EAST wall centred on the north-east window (z -0.74), a sink and mirror either side of the glass, sconces outboard, counter at 34 in under the sill. Double SHOWER along the WEST wall, 8 x 5 ft, long side on the bedroom partition, two heads on that wall, a 6 ft SEGMENTAL arched doorless entry facing the room (springs at 6 ft 3, rises 1 ft 9 — a semicircle would apex above the ceiling). Five feet deep so that the west south transom (px -14.73) is CENTRED in its south end wall, equal tile either side, and is cut out of it (side cutout, da = (px_window - px_shower) * A[0] for a shower opening E). Wall-hung TOILET on the south wall near the SE corner under the east transom, facing north. No WC room. The ceiling over the shower rakes 8.47..8.89 (see level2 slopedCeiling), so the tile stops LEVEL at 8.4, just under its lowest point, with the raked plaster above — the usual detail; the tile does not rake.",
       "type": "shower",
       "px": -14.7292,
       "pz": -7.688,
@@ -351,7 +352,7 @@
       "widthFt": 8.0,
       "depthFt": 5.0,
       "curb": false,
-      "heightFt": 9.0,
+      "heightFt": 8.4,
       "arch": {
         "widthFt": 6.0,
         "springFt": 6.25,
@@ -390,32 +391,32 @@
       "faces": "N"
     },
     {
-      "_note": "En-suite lighting, kept simple: the vanity's own two sconces (`sconces: true` on the vanity item), two recessed over the shower (2.7 ft off its end walls), one over the toilet (3.8 ft off the shower's arch wall), two along the entry. Each of the two ground-room boxes this level reuses holds a fixture, so no generic ceiling light appears.",
+      "_note": "En-suite lighting, kept simple: the vanity's own two sconces (`sconces: true` on the vanity item), two recessed over the shower (2.7 ft off its end walls), one over the toilet (3.8 ft off the shower's arch wall), two along the entry. Each of the two ground-room boxes this level reuses holds a fixture, so no generic ceiling light appears. Each can's ceilFt is the raked ceiling at its px: 8.0 + 0.0833 * (px + 22.9167).",
       "type": "recessed",
       "px": -14.73,
       "pz": -9.0,
-      "ceilFt": 9.0,
+      "ceilFt": 8.682,
       "diaFt": 0.5
     },
     {
       "type": "recessed",
       "px": -14.73,
       "pz": -6.4,
-      "ceilFt": 9.0,
+      "ceilFt": 8.682,
       "diaFt": 0.5
     },
     {
       "type": "recessed",
       "px": -21.0,
       "pz": -9.5,
-      "ceilFt": 9.0,
+      "ceilFt": 8.16,
       "diaFt": 0.5
     },
     {
       "type": "recessed",
       "px": -13.7,
       "pz": 1.93,
-      "ceilFt": 9.0,
+      "ceilFt": 8.768,
       "diaFt": 0.5
     },
     {
@@ -433,7 +434,7 @@
       "type": "recessed",
       "px": -16.6,
       "pz": 1.93,
-      "ceilFt": 9.0,
+      "ceilFt": 8.526,
       "diaFt": 0.5
     }
   ]

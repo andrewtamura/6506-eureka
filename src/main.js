@@ -1243,7 +1243,10 @@ async function main() {
         // (color.r > 0.7 picks the light drywall ceiling — authored sRGB ~0.93,
         // which lands at ~0.85 in linear space — while excluding the bluish window
         // glass (~0.43) and the dark roof underside (~0.15) which stay see-through.)
-        if (lvl.id === "attic" && mat.transparent && mat.opacity < 0.95 && mat.color && mat.color.r > 0.7) {
+        // The second floor's WING ceiling is the same kind of thing: the shell lays a
+        // sloped, translucent IfcCovering under the shed roof (see model.json
+        // slopedCeiling), and it toggles with the rest.
+        if ((lvl.id === "attic" || lvl.id === "level2") && mat.transparent && mat.opacity < 0.95 && mat.color && mat.color.r > 0.7) {
           mat.userData._planOpacity = mat.opacity;
           povCeilingMats.push(mat);
         }
@@ -1291,18 +1294,23 @@ async function main() {
     if (lvl.id === "level2") {
       const FT = 0.3048;
       const WALL = 0.4583 * FT;                          // land the ceiling on the perimeter wall centerline
+      // World x/z from plan feet (px grows WEST, pz grows NORTH): this exhibit's model
+      // origin minus plan*FT.
+      const wx = (px) => m.object.position.x - px * FT;
+      const wz = (pz) => m.object.position.z - pz * FT;
       const bb = new THREE.Box3().setFromObject(m.object);
-      const x0 = bb.min.x + WALL / 2, x1 = bb.max.x - WALL / 2, z0 = bb.min.z + WALL / 2, z1 = bb.max.z - WALL / 2;
+      // The flat slab stops at the WING (px < -12): the wing's ceiling is the shed roof's
+      // underside, a sloped IfcCovering the shell lays and the material pass above
+      // collects for the same toggle. The slab used to run over it at the ground floor's
+      // height, a foot above where the wing's roof actually is.
+      const x0 = bb.min.x + WALL / 2, x1 = Math.min(bb.max.x - WALL / 2, wx(-12)), z0 = bb.min.z + WALL / 2, z1 = bb.max.z - WALL / 2;
       const cy = m.object.position.y + ceilHt;
       const slab = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, 0.06, z1 - z0), newCeilMat());
       slab.position.set((x0 + x1) / 2, cy - 0.03, (z0 + z1) / 2);
       slab.castShadow = true; slab.receiveShadow = true;
       scene.add(slab); exhibitCeilingMats.push(slab.material);
-      // One central fixture per room. Centres in plan feet (px grows WEST, pz grows
-      // NORTH); world x/z = this exhibit's model origin minus plan*FT. Intensity is
-      // scaled loosely to room size for even, realistic residential light.
-      const wx = (px) => m.object.position.x - px * FT;
-      const wz = (pz) => m.object.position.z - pz * FT;
+      // One central fixture per room. Intensity is scaled loosely to room size for
+      // even, realistic residential light.
       const L2_ROOMS = [
         ["NW bedroom",       23.04,  11.04, 3.2],
         ["SW bedroom",       23.04,  -6.46, 3.2],
