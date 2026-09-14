@@ -1242,7 +1242,7 @@ function buildShower(p) {
   // the generator, derived from the room's own window specs (ifc/catalog.py), in this
   // frame: `ds` along P from the centre, sill and head above the floor. One 5 x 9 ft
   // tiled box across the south wall is how the wing's transom came to be lost.
-  const cuts = (p.cutouts || []).filter(c => c.widthFt > 0 && c.headFt > c.sillFt);
+  const cuts = (p.cutouts || []).filter(c => !c.side && c.widthFt > 0 && c.headFt > c.sillFt);   // back-wall entries (ds); side entries above
   if (!cuts.length) {
     q = pl(-(Dp / 2), 0, wt, Wd);  box(q[0], q[1], H / 2, q[2], q[3], H, tile);            // back wall
   } else {
@@ -1259,7 +1259,27 @@ function buildShower(p) {
       if (H > c.headFt + 0.01) { q = pl(-(Dp / 2), c.ds, wt, c.widthFt); box(q[0], q[1], (c.headFt + H) / 2, q[2], q[3], H - c.headFt, tile); }
     }
   }
-  for (const s of [-1, 1]) { q = pl(0, s * (Wd / 2), Dp, wt); box(q[0], q[1], H / 2, q[2], q[3], H, tile); } // sides
+  // SIDE WALLS, built around any cutout that names them: `{side: "E", da, widthFt, sillFt,
+  // headFt}` — `side` a compass direction resolved against the across-axis like
+  // `ponySide`, `da` the opening's centre along the depth from the shower's centre. The
+  // upstairs shower took its east window inside when it grew to 6 ft; without this the
+  // tile ran across the glass.
+  for (const s of [-1, 1]) {
+    const mine = (p.cutouts || []).filter(c => c.side && (Math.sign((DIR[c.side][0] * P[0] + DIR[c.side][1] * P[1])) || 1) === s
+      && c.widthFt > 0 && c.headFt > c.sillFt);
+    if (!mine.length) { q = pl(0, s * (Wd / 2), Dp, wt); box(q[0], q[1], H / 2, q[2], q[3], H, tile); continue; }
+    const edges = mine.map(c => [c.da - c.widthFt / 2, c.da + c.widthFt / 2]).sort((a, b2) => a[0] - b2[0]);
+    let cur = -Dp / 2;
+    for (const [a, b2] of edges) {
+      if (a > cur + 0.01) { q = pl((cur + a) / 2, s * (Wd / 2), a - cur, wt); box(q[0], q[1], H / 2, q[2], q[3], H, tile); }
+      cur = Math.max(cur, b2);
+    }
+    if (Dp / 2 > cur + 0.01) { q = pl((cur + Dp / 2) / 2, s * (Wd / 2), Dp / 2 - cur, wt); box(q[0], q[1], H / 2, q[2], q[3], H, tile); }
+    for (const c of mine) {
+      if (c.sillFt > 0.01) { q = pl(c.da, s * (Wd / 2), c.widthFt, wt); box(q[0], q[1], c.sillFt / 2, q[2], q[3], c.sillFt, tile); }
+      if (H > c.headFt + 0.01) { q = pl(c.da, s * (Wd / 2), c.widthFt, wt); box(q[0], q[1], (c.headFt + H) / 2, q[2], q[3], H - c.headFt, tile); }
+    }
+  }
   if (p.ponyWalls) {
     // Central walk-in opening flanked by half-height pony walls (glass above). A bench
     // runs the full depth along each side wall — front end butting into the pony wall —
@@ -1324,14 +1344,14 @@ function buildShower(p) {
     // at the top, head just under it), the valve trim and handle at hand height
     // (`valveFt`) on the same wall, so the plumbing is on the side walls and the back
     // wall, which carries the transom(s), stays clear.
-    const hy = p.headFt ?? 6.8, vy = p.valveFt ?? 3.75;
+    const hy = p.headFt ?? 6.8, vy = p.valveFt ?? 3.75, ha = p.headAtFt ?? 0;   // `headAtFt`: along the depth from the centre
     for (const side of headSides) {
       const d = DIR[side];
       const sgn = Math.sign(d[0] * P[0] + d[1] * P[1]) || 1;
-      q = pl(0, sgn * (Wd / 2 - 0.35), 0.14, 0.7);   box(q[0], q[1], hy, q[2], q[3], 0.14, chrome);        // arm off the side wall
-      q = pl(0, sgn * (Wd / 2 - 0.7), 0.55, 0.55);   box(q[0], q[1], hy - 0.1, q[2], q[3], 0.12, chrome);  // head
-      q = pl(0, sgn * (Wd / 2 - 0.03), 0.6, 0.06);   box(q[0], q[1], vy, q[2], q[3], 0.6, chrome);         // valve trim plate
-      q = pl(0, sgn * (Wd / 2 - 0.12), 0.08, 0.2);   box(q[0], q[1], vy, q[2], q[3], 0.08, chrome);        // handle
+      q = pl(ha, sgn * (Wd / 2 - 0.35), 0.14, 0.7);   box(q[0], q[1], hy, q[2], q[3], 0.14, chrome);        // arm off the side wall
+      q = pl(ha, sgn * (Wd / 2 - 0.7), 0.55, 0.55);   box(q[0], q[1], hy - 0.1, q[2], q[3], 0.12, chrome);  // head
+      q = pl(ha, sgn * (Wd / 2 - 0.03), 0.6, 0.06);   box(q[0], q[1], vy, q[2], q[3], 0.6, chrome);         // valve trim plate
+      q = pl(ha, sgn * (Wd / 2 - 0.12), 0.08, 0.2);   box(q[0], q[1], vy, q[2], q[3], 0.08, chrome);        // handle
     }
   } else {
     const heads = p.heads ?? 1, hOff = heads === 2 ? Wd * 0.23 : 0;   // twin wall-mounted heads for a 2-person shower

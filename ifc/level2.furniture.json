@@ -88,14 +88,14 @@
       }
     },
     {
-      "_note": "Primary <-> en-suite (extension) separator at x=-12. The door sits at the SOUTH end, just north of the shower's front (-8.69), hinged on its south jamb and opening east into the bath, so its leaf lies along the shower front and the whole west wall north of it is free for the vanity.",
+      "_note": "Primary <-> en-suite (extension) separator at x=-12. The door sits just north of the shower's front (-5.688), hinged on its south jamb and opening east into the bath, so its leaf lies along the shower front and the west wall north of it is the vanity's.",
       "type": "partition",
       "px": -12,
       "pz": -3.9583,
       "axis": "z",
       "lenFt": 15.9167,
       "door": {
-        "atFt": -7.07,
+        "atFt": -4.07,
         "widthFt": 2.667,
         "hinge": "S",
         "opens": "E"
@@ -343,13 +343,13 @@
       "material": "sage"
     },
     {
-      "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4), re-planned around the exterior windows. SOUTH end: full-width 2-person walk-in, 10.9 x 3 ft \u2014 3 ft is forced, the east window's casing starts 0.18 ft north of that line, as downstairs \u2014 under BOTH south transoms (cutouts below, hand-authored here since this manifest is not generated: ds = -(pos - px) for a shower opening N; transoms at px -20.1875 and -14.7292, glass 4.85..6.10), one 36 in arched doorless entry centred on the wing, heads and valves on BOTH side walls. NORTH-EAST corner: the water closet, 5.46 x 6 ft behind partitions at z -2.45 and x -17.4585, taking in the north-east window; wall-hung toilet on the north wall; 30 in door at the west end of its south wall, hung west, swinging in. WEST wall: 7 ft double vanity backing onto the bedroom partition, north of the door. The east window at z -7.18 lights the open middle.",
+      "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4), re-planned around the exterior windows. SOUTH end: full-width 2-person walk-in, 10.9 x 6 ft \u2014 a wet room; its front at -5.688 is 0.16 ft clear of the east window's casing, so that window (2 x 4, sill 3, at z -7.18) is INSIDE the shower and its east side wall is built around it (side cutout). Both south transoms (26 in x 1.9 ft at px -20.1875 / -14.7292, glass 4.2..6.1) cut into the back wall \u2014 hand-authored here since this manifest is not generated: ds = -(pos - px) for a shower opening N, da = window z - shower z for a side wall. One 36 in arched doorless entry on the wing's axis; heads and valves on BOTH side walls, 1.5 ft toward the back so the east set clears the window casing. NORTH-EAST corner: the water closet, 5.46 x 6 ft behind partitions at z -2.45 and x -17.4585, taking in the north-east window; wall-hung toilet on the north wall; 30 in door at the west end of its south wall, hung west, swinging in. WEST wall: 6 ft double vanity backing onto the bedroom partition, north of the door.",
       "type": "shower",
       "px": -17.4585,
-      "pz": -10.188,
+      "pz": -8.688,
       "opens": "N",
       "widthFt": 10.9,
-      "depthFt": 3.0,
+      "depthFt": 6.0,
       "curb": false,
       "heightFt": 9.0,
       "arch": {
@@ -365,17 +365,25 @@
       "cutouts": [
         {
           "ds": 2.729,
-          "widthFt": 2.0,
-          "sillFt": 4.85,
+          "widthFt": 2.167,
+          "sillFt": 4.2,
           "headFt": 6.1
         },
         {
           "ds": -2.7293,
-          "widthFt": 2.0,
-          "sillFt": 4.85,
+          "widthFt": 2.167,
+          "sillFt": 4.2,
           "headFt": 6.1
+        },
+        {
+          "side": "E",
+          "da": 1.5102,
+          "widthFt": 2.0,
+          "sillFt": 3.0,
+          "headFt": 7.0
         }
-      ]
+      ],
+      "headAtFt": -1.5
     },
     {
       "_note": "WC compartment, SOUTH wall: z -2.45, east wall to the bay line x -17.4585. 30 in door at the west end (6 in return), hung on the west jamb, swinging north into the WC.",
@@ -406,12 +414,12 @@
       "faces": "S"
     },
     {
-      "_note": "Double vanity on the WEST wall (the bedroom partition's face at x -12.229), north of the door: z -5.4..1.6.",
+      "_note": "Double vanity on the WEST wall (the bedroom partition's face at x -12.229), north of the door: z -2.4..3.6, 0.17 ft off the north wall.",
       "type": "vanity",
       "px": -13.229,
-      "pz": -1.9,
+      "pz": 0.6,
       "faces": "E",
-      "widthFt": 7.0,
+      "widthFt": 6.0,
       "depthFt": 2.0,
       "sinks": 2,
       "sconces": true,
@@ -420,31 +428,38 @@
       "mirrorWFt": 2.0
     },
     {
-      "_note": "En-suite downlights (the level-2 lighting scene lights these): shower, open floor, one over each sink, one in the WC.",
+      "_note": "En-suite downlights: two in the shower, one on the floor in front of the WC door, one over each sink, one in the WC.",
       "type": "recessed",
-      "px": -17.4585,
-      "pz": -10.2,
+      "px": -19.5,
+      "pz": -8.7,
       "ceilFt": 9.0,
       "diaFt": 0.5
     },
     {
       "type": "recessed",
-      "px": -17.4585,
-      "pz": -5.5,
+      "px": -15.4,
+      "pz": -8.7,
+      "ceilFt": 9.0,
+      "diaFt": 0.5
+    },
+    {
+      "type": "recessed",
+      "px": -19.4,
+      "pz": -4.1,
       "ceilFt": 9.0,
       "diaFt": 0.5
     },
     {
       "type": "recessed",
       "px": -13.9,
-      "pz": -4.35,
+      "pz": -1.15,
       "ceilFt": 9.0,
       "diaFt": 0.5
     },
     {
       "type": "recessed",
       "px": -13.9,
-      "pz": 0.55,
+      "pz": 2.35,
       "ceilFt": 9.0,
       "diaFt": 0.5
     },
