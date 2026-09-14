@@ -5,7 +5,7 @@
   "bounds": {
     "x1": -22.9167,
     "x2": -17.4583,
-    "z1": 0.97,
+    "z1": -2.45,
     "z2": 4
   },
   "walls": true,
@@ -13,15 +13,23 @@
     {
       "name": "Bath -> WC",
       "orient": "H",
-      "fixed": 0.97,
-      "pos": -19.27,
-      "width": 2.167,
-      "hinge": "max",
-      "swing": "neg",
-      "sliding": true
+      "fixed": -2.45,
+      "pos": -19.437,
+      "width": 2.5,
+      "hinge": "min",
+      "swing": "pos"
     }
   ],
   "windows": [
+    {
+      "name": "Window - Bath E",
+      "orient": "V",
+      "fixed": -22.9167,
+      "pos": -0.7389,
+      "width": 2.0,
+      "sill": 3.0,
+      "head": 7.0
+    },
     {
       "name": "Window - WC Round",
       "orient": "H",
@@ -46,16 +54,25 @@
       {
         "type": "wall_toilet",
         "at": [
-          -22.688,
-          2.485
+          -20.1875,
+          3.771
         ],
-        "faces": "W"
+        "faces": "S"
       },
       {
         "type": "recessed",
         "at": [
           -20.1875,
           2.485
+        ],
+        "ceilFt": 9.0,
+        "diaFt": 0.5
+      },
+      {
+        "type": "recessed",
+        "at": [
+          -20.1875,
+          -0.74
         ],
         "ceilFt": 9.0,
         "diaFt": 0.5

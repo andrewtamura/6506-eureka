@@ -6,7 +6,7 @@
     "x1": -22.9167,
     "x2": -17.4583,
     "z1": -11.9167,
-    "z2": 0.97
+    "z2": -2.45
   },
   "walls": true,
   "doors": [],
@@ -16,15 +16,6 @@
       "orient": "V",
       "fixed": -22.9167,
       "pos": -7.1778,
-      "width": 2.0,
-      "sill": 3.0,
-      "head": 7.0
-    },
-    {
-      "name": "Window - Bath E",
-      "orient": "V",
-      "fixed": -22.9167,
-      "pos": -0.7389,
       "width": 2.0,
       "sill": 3.0,
       "head": 7.0
@@ -64,10 +55,10 @@
         "type": "vanity",
         "at": [
           -21.7729,
-          -3.9584
+          -4.346
         ],
         "faces": "W",
-        "widthFt": 3.1,
+        "widthFt": 2.9,
         "depthFt": 1.83,
         "sinks": 1,
         "cols": 2,
@@ -80,7 +71,7 @@
         "type": "sconce",
         "at": [
           -22.688,
-          -5.43
+          -5.704
         ],
         "faces": "W",
         "atFt": 5.0,
@@ -96,7 +87,7 @@
         "type": "sconce",
         "at": [
           -22.688,
-          -2.49
+          -2.988
         ],
         "faces": "W",
         "atFt": 5.0,
@@ -130,16 +121,7 @@
         "type": "recessed",
         "at": [
           -21.2,
-          -3.9584
-        ],
-        "ceilFt": 9.0,
-        "diaFt": 0.5
-      },
-      {
-        "type": "recessed",
-        "at": [
-          -20.1875,
-          -0.74
+          -4.346
         ],
         "ceilFt": 9.0,
         "diaFt": 0.5
