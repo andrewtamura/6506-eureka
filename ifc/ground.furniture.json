@@ -402,17 +402,22 @@
       "opens": "N",
       "widthFt": 5.0,
       "depthFt": 3.0,
-      "ponyFt": 2.5,
-      "ponySide": "E",
       "curb": false,
       "heads": 1,
       "heightFt": 9.0,
+      "arch": {
+        "widthFt": 2.5,
+        "springFt": 6.25
+      },
+      "headSide": "E",
+      "headFt": 6.8,
+      "valveFt": 3.75,
       "cutouts": [
         {
           "ds": -0.0,
           "widthFt": 2.0,
-          "sillFt": 5.75,
-          "headFt": 7.0
+          "sillFt": 7.5,
+          "headFt": 8.75
         }
       ]
     },
@@ -577,20 +582,9 @@
       "faces": "N",
       "lenFt": 5.0,
       "depthFt": 1.1,
-      "bottomFt": 4.75,
-      "topFt": 7.0
-    },
-    {
-      "type": "cabinet_run",
-      "px": -14.729,
-      "pz": -11.138,
-      "rot": 0.0,
-      "kind": "wall",
-      "faces": "N",
-      "lenFt": 5.0,
-      "depthFt": 1.1,
-      "bottomFt": 7.0,
-      "topFt": 9.0
+      "bottomFt": 4.5,
+      "topFt": 6.87,
+      "crownFt": 0.3
     },
     {
       "type": "cabinet_run",

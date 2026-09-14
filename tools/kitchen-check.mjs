@@ -339,7 +339,17 @@ const raw = await page.evaluate(() => {
     return out;
   }, { xs: man.xs, zs: man.zs, ft: FT, fy: FYp, probes: [
     { label: 'wc-round', from: [-20.1875, 1.5, 7.0], to: [-20.1875, 8.0, 7.0] },
-    { label: 'shower-transom', from: [-20.1875, -9.0, 5.2], to: [-20.1875, -14.0, 6.6] },
+    { label: 'shower-transom', from: [-20.1875, -9.0, 6.0], to: [-20.1875, -14.0, 9.5] },   // meets the wall at y 7.9, mid-glass (7.5..8.75)
+    { label: 'laundry-transom', from: [-14.7292, -8.0, 6.0], to: [-14.7292, -13.0, 9.2] },   // over the crown (7.5 at its lip), y 8.4 at the wall
+    // The shower's ARCHED entry, probed from the bath side heading south. `open` is the
+    // front line (pz -8.688); the probes start 0.7 ft north of it. Low and centred passes
+    // to the back wall; low at the jamb and centred above the apex meet the front; and
+    // high near the jamb meets the ARCH — the one that tells an arch from a square hole.
+    { label: 'arch-centre-low', from: [-20.1875, -8.0, 3.0], to: [-20.1875, -12.0, 3.0] },
+    { label: 'arch-jamb-low', from: [-20.1875 - 1.4, -8.0, 3.0], to: [-20.1875 - 1.4, -12.0, 3.0] },
+    { label: 'arch-side-low', from: [-20.1875 - 1.1, -8.0, 3.0], to: [-20.1875 - 1.1, -12.0, 3.0] },
+    { label: 'arch-side-high', from: [-20.1875 - 1.1, -8.0, 7.2], to: [-20.1875 - 1.1, -12.0, 7.2] },
+    { label: 'arch-apex', from: [-20.1875, -8.0, 7.7], to: [-20.1875, -12.0, 7.7] },
   ] });
 }
 await b.close();
@@ -1104,19 +1114,55 @@ console.log('EXTENSION FIXTURES');
         // no toe kick, no doors. Only the counter and its splash.
         A(!meshes(base).some(m => m.yHi < 0.5 && m.yHi > 0.1), 'no toe kick — the bay is all machine');
       }
+      // THE UPPERS STOP UNDER THE TRANSOM. They ran to the ceiling in two bands and the
+      // south transom sat behind them; now one short band hangs over the machines and
+      // the transom lights the room from above it. The cabinet top has to clear the
+      // transom's frame (a 0.33 ft bar under the glass), read from the room's spec.
       const ups = runs.filter(r => r.kind === 'wall');
-      A(ups.length === 2, `wall cabinets above, in two bands (${ups.length})`);
-      if (ups.length && base) {
+      const lauWin = JSON.parse(readFileSync('ifc/rooms/ext_laundry.json', 'utf8')).windows.find(w => w.orient === 'H');
+      A(ups.length === 1, `wall cabinets above, in ONE short band (${ups.length})`);
+      if (ups.length && base && lauWin) {
         const mm = ups.flatMap(meshes);
+        const upSpec = JSON.parse(readFileSync('ifc/rooms/ext_laundry.json', 'utf8')).interior.furniture.find(f => f.type === 'cabinet_run' && f.kind === 'wall');
         const lo = Math.min(...mm.map(m => m.yLo)), hi = Math.max(...mm.map(m => m.yHi));
-        A(Math.abs(lo - 4.75) < 0.08, `start at ${R(lo * 12, 0)} in`);
-        A(Math.abs(hi - 9.0) < 0.08, `run to ${R(hi * 12, 0)} in — the ceiling`);
-        // The break sits on the 7 ft head line, as it does in the scullery.
-        const tops = ups.map(r => Math.max(...meshes(r).map(m => m.yHi))).sort((a, b) => a - b);
-        A(Math.abs(tops[0] - 7.0) < 0.08, `the two bands meet on the head line (${R(tops[0], 2)})`);
+        const frameBot = lauWin.sill - 0.33;
+        // The cabinets END AT the transom: the crown's top meets the frame's bottom bar.
+        A(hi <= frameBot + 0.01 && hi > frameBot - 0.05, `top at ${R(hi * 12, 1)} in, meeting the transom's frame at ${R(frameBot * 12, 1)} in`);
+        A(hi - lo > 2.3, `${R((hi - lo) * 12, 0)} in tall, crown included`);
+        // THE CROWN: three swept pieces above the carcass — a front running the length and
+        // projecting past the doors, and a return at each end running back to the wall.
+        const carcassTop = upSpec.topFt;
+        const crown = mm.filter(m => m.yLo > carcassTop - 0.02);
+        A(crown.length === 3, `a crown in three pieces over the carcass (${crown.length})`);
+        if (crown.length === 3) {
+          const frontC = crown.sort((u, v2) => (v2.pxHi - v2.pxLo) - (u.pxHi - u.pxLo))[0];
+          // the DOOR fronts, not the knobs (which stand a further inch proud and are tiny)
+          const doorFace = Math.max(...mm.filter(m => m.yHi <= carcassTop + 0.01 && (m.pxHi - m.pxLo) > 0.5).map(m => m.pzHi));
+          A(frontC.pxHi - frontC.pxLo > upSpec.lenFt + 0.3, `the front runs the length and past both ends (${R(frontC.pxHi - frontC.pxLo, 2)} ft)`);
+          A(frontC.pzHi > doorFace + 0.12, `...and stands ${R((frontC.pzHi - doorFace) * 12, 1)} in proud of the doors — sprung, not a flat board`);
+          A(crown.every(m => Math.abs(m.yHi - hi) < 0.01), 'all three top out on one line');
+          const rets = crown.filter(m => m !== frontC);
+          A(rets.every(m => (m.pzHi - m.pzLo) > 1.0 && (m.pxHi - m.pxLo) < 0.6), 'the returns run the depth back to the wall');
+          // the moulded section: solid volume against a flat board of the same envelope
+          const env = (frontC.pxHi - frontC.pxLo) * (frontC.pzHi - frontC.pzLo) * (frontC.yHi - frontC.yLo);
+          const volFt = frontC.vol / (FT * FT * FT);
+          A(volFt < 0.8 * env && volFt > 0.3 * env, `moulded — ${R(volFt / env * 100, 0)}% of its envelope, not a box`);
+        }
         A(lo - Math.max(...meshes(base).map(m => m.yHi)) > 1.1,
           `${R((lo - Math.max(...meshes(base).map(m => m.yHi))) * 12, 1)} in of clear splash between counter and cabinet`);
         A(ups.every(r => Math.abs(r.pzLo - LS) < 0.08), 'hung on the south wall, over the machines');
+        // nothing of the cabinetry in the transom's rectangle
+        const gx0 = lauWin.pos - lauWin.width / 2, gx1 = lauWin.pos + lauWin.width / 2;
+        const across = mm.filter(m => m.pxLo < gx1 && m.pxHi > gx0 && m.yHi > lauWin.sill && m.yLo < lauWin.head);
+        A(across.length === 0, `no cabinet across the glass (${across.length} members)`);
+        // and the transom READS from the room, over the cabinets: the viewer's own pick
+        const st = (raw.seeThrough || []).find(x => x.label === 'laundry-transom');
+        A(!!st && st.frag.length > 0 && st.frag[0].name === 'Window - Laundry S',
+          `the first IFC surface on a line over the cabinets is the transom's glass (${st && st.frag[0] ? st.frag[0].name : 'nothing'})`);
+        if (st && st.frag.length) {
+          const blocker = st.ours.find(o => o.d < st.frag[0].d - 0.05);
+          A(!blocker, `and nothing of ours in front of it (${blocker ? `hit at ${R(blocker.d, 2)} m` : 'clear'})`);
+        }
       }
     } }
 
@@ -1293,19 +1339,55 @@ console.log('EXTENSION FIXTURES');
       A(wcTrim.posts.length >= 2 && open < casS - 0.02,
         `...and ${R((casS - open) * 12, 1)} in clear of the east window's casing (${R(casS, 3)})`);
       const mm = meshes(sh);
+      const shSpec = bathJ.interior.furniture.find(f => f.type === 'shower');
+      // THE FRONT is a full-height tiled wall with ONE ARCHED DOORLESS OPENING, 30 in.
+      // One swept panel, not boxes and glass; whether the opening is there, how wide,
+      // and whether it is ARCHED are all read by raycast (below), since a bounding box
+      // of a panel with a hole in it says nothing about the hole.
       const atOpening = (m) => Math.abs((m.pzLo + m.pzHi) / 2 - open) < 0.3 && (m.pzHi - m.pzLo) < 0.5;
-      const east = mm.filter(m => atOpening(m) && (m.pxLo + m.pxHi) / 2 < sh.px);
-      const west = mm.filter(m => atOpening(m) && (m.pxLo + m.pxHi) / 2 > sh.px);
-      A(east.length >= 2, `pony wall and glass close the EAST half (${east.length} members)`);
-      A(west.length === 0, `the WEST half is open — the entrance, on the door's side (${west.length} members)`);
-      const pony = east.filter(m => m.yLo < 0.1).sort((a, b) => b.yHi - a.yHi)[0];
-      A(!!pony && pony.yHi > 3.0 && pony.yHi < 3.8, `pony wall stands ${R((pony ? pony.yHi : 0) * 12, 0)} in`);
-      A(east.some(m => m.yLo > 3.0 && m.yHi > 8.9), 'glass carries on above it, to the ceiling');
+      const front = mm.filter(atOpening);
+      A(front.length === 1, `the front is ONE panel (${front.length} members) — no pony wall, no glass`);
+      const fw = front[0];
+      A(!!fw && fw.yHi > 8.9 && fw.yLo < 0.1 && (fw.pxHi - fw.pxLo) > 4.9,
+        `...floor to ceiling, wall to wall (${R(fw ? fw.pxHi - fw.pxLo : 0, 2)} ft)`);
+      A(!!shSpec && shSpec.arch && Math.abs(shSpec.arch.widthFt - 2.5) < 1e-6, `authored as a 30 in arched entry`);
+      // The opening's AREA, from the panel's solid volume: a 5 x 9 x 0.3 slab less a 30 in
+      // opening with 6 ft 3 jambs and a semicircular head. A square head to the apex would
+      // read 2.5% lighter, a square head at the springline 9% heavier — so the volume tells
+      // an arch from either.
+      if (fw && shSpec && shSpec.arch) {
+        const ow = shSpec.arch.widthFt, sp = shSpec.arch.springFt ?? 6.25, r = ow / 2;
+        const want = (5.0 * 9.0 - (ow * sp + Math.PI * r * r / 2)) * 0.3;
+        const volFt = fw.vol / (FT * FT * FT);                       // item-mesh volumes are in m³
+        A(Math.abs(volFt - want) / want < 0.015, `its solid volume says a ${ow * 12} in arched opening (${R(volFt, 2)} vs ${R(want, 2)} ft³)`);
+      }
+      const pr = (l) => (raw.seeThrough || []).find(x => x.label === l);
+      const first = (l) => { const x = pr(l); return x && x.ours.length ? x.ours[0].d : Infinity; };
+      // the front line is 0.7 ft (0.21 m) from the probes; the back wall 3.7 ft (1.13 m)
+      const passes = (l) => first(l) > 0.9, blocked = (l) => first(l) < 0.45;
+      A(passes('arch-centre-low'), `the opening is open at its centre (first tile at ${R(first('arch-centre-low'), 2)} m — the back wall)`);
+      A(passes('arch-side-low'), `...and 1 in inside its jamb (${R(first('arch-side-low'), 2)} m)`);
+      A(blocked('arch-jamb-low'), `tile 2 in outside the jamb (${R(first('arch-jamb-low'), 2)} m) — the opening is 30 in, not wider`);
+      A(blocked('arch-apex'), `tile over the apex (${R(first('arch-apex'), 2)} m) — a wall, not a slot to the ceiling`);
+      A(blocked('arch-side-high') && passes('arch-side-low'),
+        `the head is ARCHED: the same line near the jamb passes low and meets tile high (${R(first('arch-side-high'), 2)} m)`);
       A(Math.abs(Math.max(...mm.map(m => m.yHi)) - 9.0) < 0.08,
         `enclosure tiled to ${R(Math.max(...mm.map(m => m.yHi)) * 12, 0)} in — the ceiling`);
-      A(mm.filter(m => m.yHi > 8.9).length >= 3, 'back and both sides all reach it');
+      A(mm.filter(m => m.yHi > 8.9).length >= 3, 'back, sides and front all reach it');
       A(!mm.some(m => m.yHi < 0.4 && m.yHi > 0.15 && (m.pxHi - m.pxLo) > 1.0), 'curbless — no threshold across the opening');
-      A(!!wcWinS && wcWinS.sill >= 5.5, `the transom over it sills at ${wcWinS ? wcWinS.sill : '?'} ft`);
+      // HEAD AND VALVES ON THE EAST WALL, the head HIGH. Chrome is what is small and off
+      // the tile: the head assembly above 6 ft 4, the valve at hand height, both within a
+      // foot of the east face and nothing of either on the back wall.
+      const eastFace = BE + 0.15;                                     // the tile's inner face
+      const highChrome = mm.filter(m => m.yLo > 6.3 && m.yHi < 8.0 && (m.pxHi - m.pxLo) < 1.2 && (m.yHi - m.yLo) < 0.5);
+      A(highChrome.length >= 2 && highChrome.every(m => m.pxHi < eastFace + 1.1),
+        `shower head high on the EAST wall (${highChrome.length} parts, top at ${R(Math.max(0, ...highChrome.map(m => m.yHi)) * 12, 0)} in, within ${R(Math.max(0, ...highChrome.map(m => m.pxHi - eastFace)) * 12, 0)} in of the face)`);
+      A(highChrome.some(m => m.yHi > 6.7), `...at ${R(Math.max(0, ...highChrome.map(m => m.yHi)) * 12, 0)} in — well over head height`);
+      const valve = mm.filter(m => m.yLo > 3.2 && m.yHi < 4.4 && (m.pxHi - m.pxLo) < 0.5 && (m.pzHi - m.pzLo) < 0.8);
+      A(valve.length >= 2 && valve.every(m => m.pxLo < eastFace + 0.3),
+        `valve trim and handle on the EAST wall at hand height (${valve.length} parts, ${R(((valve[0] ? (valve[0].yLo + valve[0].yHi) / 2 : 0)) * 12, 0)} in)`);
+      A(!mm.some(m => m.pzLo < LS + 0.6 && m.yLo > 4.5 && (m.pxHi - m.pxLo) < 1.0 && (m.yHi - m.yLo) < 0.5), 'nothing on the back wall but tile and the transom');
+      A(!!wcWinS && wcWinS.sill >= 6.4, `the transom over it sills at ${wcWinS ? wcWinS.sill : '?'} ft — well above eye level`);
       // THE TRANSOM SHOWS THROUGH THE TILE. The back is built around the opening (the
       // cutout is derived from the room's window spec by ifc/catalog.py), so: the
       // manifest carries a cutout matching the window, no tile crosses the glass, the
@@ -1317,19 +1399,19 @@ console.log('EXTENSION FIXTURES');
         if (cuts.length === 1) {
           const c = cuts[0];
           A(Math.abs(c.ds - -(wcWinS.pos - sh.px)) < 0.01 && Math.abs(c.widthFt - wcWinS.width) < 0.01
-            && Math.abs(c.sillFt - wcWinS.sill) < 0.01 && Math.abs(c.headFt - 7.0) < 0.01,
+            && Math.abs(c.sillFt - wcWinS.sill) < 0.01 && Math.abs(c.headFt - wcWinS.head) < 0.01,
             `...matching the window spec (ds ${R(c.ds, 3)}, ${c.widthFt} wide, ${c.sillFt}..${c.headFt})`);
         }
         const gx0 = wcWinS.pos - wcWinS.width / 2, gx1 = wcWinS.pos + wcWinS.width / 2;
         const back = mm.filter(m => m.pzLo < LS + 0.2);
-        const across = back.filter(m => m.pxLo < gx1 - 0.05 && m.pxHi > gx0 + 0.05 && m.yLo < 7.0 - 0.05 && m.yHi > wcWinS.sill + 0.05);
+        const across = back.filter(m => m.pxLo < gx1 - 0.05 && m.pxHi > gx0 + 0.05 && m.yLo < wcWinS.head - 0.05 && m.yHi > wcWinS.sill + 0.05);
         A(across.length === 0, `no tile runs across the glass (${across.length} members)`);
         A(back.length >= 4, `the back is built around the opening — ${back.length} pieces`);
         A(back.some(m => m.yHi > 8.9) && back.some(m => m.yLo < 0.1 && m.yHi < wcWinS.sill + 0.05), 'tile above the head and below the sill');
         // a tiled reveal: no wood casing, stool or apron on the south wall at the opening
         // Moulded members only (nv >= 100): the flat field bands either side of and above
         // the opening are boxes and belong there; casing, stool and apron are swept.
-        const trimS = L.filter(m => m.nv >= 100 && m.pzLo > LS - 0.05 && m.pzHi < LS + 0.4 && m.pxLo < gx1 + 0.3 && m.pxHi > gx0 - 0.3 && m.yLo < 7.4 && m.yHi > wcWinS.sill - 0.4);
+        const trimS = L.filter(m => m.nv >= 100 && m.pzLo > LS - 0.05 && m.pzHi < LS + 0.4 && m.pxLo < gx1 + 0.3 && m.pxHi > gx0 - 0.3 && m.yLo < wcWinS.head + 0.4 && m.yHi > wcWinS.sill - 0.4);
         A(trimS.length === 0, `bare opening — no casing, stool or apron through the tile (${trimS.length} moulded members)`);
         const st = (raw.seeThrough || []).find(x => x.label === 'shower-transom');
         A(!!st && st.frag.length > 0 && st.frag[0].name === 'Window - WC S',

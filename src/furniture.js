@@ -1278,6 +1278,30 @@ function buildShower(p) {
       q = pl(inner, c, 0.1, ponyW * 0.6);   box(q[0], q[1], 2.45, q[2], q[3], 1.2, niche);                    // recessed product niche in the pony wall
       q = pl(inner, c, 0.16, ponyW * 0.6);  box(q[0], q[1], 2.45, q[2], q[3], 0.05, bench);                   // niche shelf
     }
+  } else if (p.arch) {
+    // ARCHED DOORLESS ENTRY: a full-height tiled front wall with ONE arched opening —
+    // `widthFt` wide, jambs rising to `springFt`, a semicircle over them — centred on the
+    // shower (or `offsetFt` along the across-axis). One swept shape, not boxes: the arch
+    // is the outline itself, so there is no seam where a header would meet the jambs. The
+    // opening is what you walk through; there is no glass, no pony wall and no curb.
+    const ow = p.arch.widthFt ?? 2.5, spring = p.arch.springFt ?? 6.25, off = p.arch.offsetFt ?? 0;
+    const r = ow / 2;
+    const sh = new THREE.Shape();
+    sh.moveTo(-Wd / 2 * ft, 0);
+    sh.lineTo((off - r) * ft, 0); sh.lineTo((off - r) * ft, spring * ft);
+    sh.absarc(off * ft, spring * ft, r * ft, Math.PI, 0, true);        // over the top, jamb to jamb
+    sh.lineTo((off + r) * ft, 0); sh.lineTo(Wd / 2 * ft, 0);
+    sh.lineTo(Wd / 2 * ft, H * ft); sh.lineTo(-Wd / 2 * ft, H * ft); sh.lineTo(-Wd / 2 * ft, 0);
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: wt * ft, bevelEnabled: false, curveSegments: 24 });
+    geo.translate(0, 0, -wt * ft / 2);                                  // straddle the front line like the box did
+    const front = new THREE.Mesh(geo, tile); front.castShadow = true; front.receiveShadow = true;
+    // Shape X runs along P (ds), Y up; V() maps plan (dx,dz) to world (-dx,.,-dz), so P is
+    // world (-P[0], 0, -P[1]) and a turn th about Y sends local +X to (cos th, 0, -sin th).
+    const Xw = { x: -P[0], z: -P[1] };
+    front.rotation.y = Math.atan2(-Xw.z, Xw.x);
+    const [fx, fz] = pl(Dp / 2, 0, 0, 0);
+    front.position.copy(V(fx, fz, 0));
+    g.add(front);
   } else if (p.ponyFt) {
     // ONE pony wall with glass over it, hard against the named side, leaving the rest of
     // the opening as the walk-in. `ponySide` is a compass direction resolved against the
@@ -1292,10 +1316,25 @@ function buildShower(p) {
   } else {
     q = pl(Dp / 2, -(Wd / 4), 0.05, Wd / 2); box(q[0], q[1], 3.3, q[2], q[3], 6.6, glass);  // fixed glass over half
   }
-  const heads = p.heads ?? 1, hOff = heads === 2 ? Wd * 0.23 : 0;   // twin wall-mounted heads for a 2-person shower
-  for (const hs of (heads === 2 ? [-hOff, hOff] : [0])) {
-    q = pl(-(Dp / 2 - 0.35), hs, 0.7, 0.14);  box(q[0], q[1], 5.6, q[2], q[3], 0.14, chrome); // head arm off back wall
-    q = pl(-(Dp / 2 - 0.7), hs, 0.55, 0.55);  box(q[0], q[1], 5.5, q[2], q[3], 0.12, chrome); // shower head
+  if (p.headSide) {
+    // HEAD AND VALVES ON A SIDE WALL, `headSide` a compass direction resolved against the
+    // across-axis like `ponySide`. The head sits HIGH (`headFt`, 6 ft 10 default — arm
+    // at the top, head just under it), the valve trim and handle at hand height
+    // (`valveFt`) on the same wall, so the plumbing is on one wall and the back wall,
+    // which carries the transom here, stays clear.
+    const d = DIR[p.headSide];
+    const sgn = Math.sign(d[0] * P[0] + d[1] * P[1]) || 1;
+    const hy = p.headFt ?? 6.8, vy = p.valveFt ?? 3.75;
+    q = pl(0, sgn * (Wd / 2 - 0.35), 0.14, 0.7);   box(q[0], q[1], hy, q[2], q[3], 0.14, chrome);        // arm off the side wall
+    q = pl(0, sgn * (Wd / 2 - 0.7), 0.55, 0.55);   box(q[0], q[1], hy - 0.1, q[2], q[3], 0.12, chrome);  // head
+    q = pl(0, sgn * (Wd / 2 - 0.03), 0.6, 0.06);   box(q[0], q[1], vy, q[2], q[3], 0.6, chrome);         // valve trim plate
+    q = pl(0, sgn * (Wd / 2 - 0.12), 0.08, 0.2);   box(q[0], q[1], vy, q[2], q[3], 0.08, chrome);        // handle
+  } else {
+    const heads = p.heads ?? 1, hOff = heads === 2 ? Wd * 0.23 : 0;   // twin wall-mounted heads for a 2-person shower
+    for (const hs of (heads === 2 ? [-hOff, hOff] : [0])) {
+      q = pl(-(Dp / 2 - 0.35), hs, 0.7, 0.14);  box(q[0], q[1], 5.6, q[2], q[3], 0.14, chrome); // head arm off back wall
+      q = pl(-(Dp / 2 - 0.7), hs, 0.55, 0.55);  box(q[0], q[1], 5.5, q[2], q[3], 0.12, chrome); // shower head
+    }
   }
   return g;
 }
@@ -1830,6 +1869,63 @@ function buildCabinetRun(p) {
         const right = i % 2 === 0;
         const ky = kind === "wall" ? Math.min(vy0 + 1.1, (vy0 + vy1) / 2) : vy1 - 0.35;
         knob(right ? ob - 0.16 : oa + 0.16, ky);
+      }
+    }
+  }
+  if (kind === "wall" && p.crownFt) {
+    // CROWN on a wall run: a SPRUNG moulding along the top front edge, returned round both
+    // ends and MITRED at the corners — one profile, drawn once and swept three times. The
+    // laundry's uppers wear it so their top reads as a finished cap under the transom
+    // rather than a carcass edge. `crownFt` is its height; the top of the crown is where
+    // the cabinet ENDS, so `topFt + crownFt` is the number that meets a sill.
+    const H = p.crownFt, PJ = p.crownProjFt ?? 0.22;
+    const prof = (() => {
+      const sh = new THREE.Shape(), h = H * ft, pj = PJ * ft;
+      sh.moveTo(0, 0); sh.lineTo(0, h); sh.lineTo(pj, h);                    // back against the face, flat top
+      sh.lineTo(pj, h - 0.015);                                              // lip
+      sh.quadraticCurveTo(pj * 0.55, h * 0.78, pj * 0.62, h * 0.52);         // COVE, sweeping in
+      sh.quadraticCurveTo(pj * 0.74, h * 0.26, pj * 0.28, h * 0.10);         // OVOLO, back to the fillet
+      sh.lineTo(pj * 0.28, 0); sh.lineTo(0, 0);
+      return sh;
+    })();
+    const upV = new THREE.Vector3(0, 1, 0);
+    const wdir = (v) => new THREE.Vector3(-v[0], 0, -v[1]).normalize();      // plan direction -> world
+    // One piece: profile X along `xPlan` (its projection, outward), swept `len` ft along
+    // local Z = X x up from the plan point `at` (da, ds) at height y1; the caps sheared to
+    // 45 deg — z := -x at the near cap, len + x at the far — which is a mitre plane through
+    // the corner, the long point at the front (see src/wall-finish.js on why that way).
+    const piece = (xPlan, at, len, mitre) => {
+      const geo = new THREE.ExtrudeGeometry(prof, { depth: len * ft, bevelEnabled: false, curveSegments: 8 });
+      const pos = geo.getAttribute("position");
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i), z = pos.getZ(i);
+        if (mitre[0] && z < len * ft / 2) pos.setZ(i, -x);
+        if (mitre[1] && z >= len * ft / 2) pos.setZ(i, len * ft + x);
+      }
+      geo.computeVertexNormals();
+      const xw = wdir(xPlan), zw = new THREE.Vector3().crossVectors(xw, upV).normalize();
+      const m = new THREE.Mesh(geo, wood); m.castShadow = true; m.receiveShadow = true;
+      m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xw, upV, zw));
+      const [opx, opz] = pl(at[0], at[1], 0, 0);
+      m.position.copy(V(opx, opz, y1));
+      g.add(m);
+      return zw;
+    };
+    const Pw = wdir(P), Aw = wdir(A);
+    for (const [a, b] of segs) {
+      if (b - a < 0.3) continue;
+      // FRONT: projection along A (out of the face), running the segment along P. Its Z
+      // is X x up; start it at whichever end that points away from.
+      const zF = new THREE.Vector3().crossVectors(Aw, upV);
+      const fromA = zF.dot(Pw) > 0;                                            // Z runs +ds
+      piece(A, [D / 2, fromA ? a : b], b - a, [true, true]);
+      // RETURNS: projection outward along -+P at each end, running from the front back
+      // to the wall along -A. Mitred at the front end only; square where it meets the wall.
+      for (const [end, sgn] of [[a, -1], [b, +1]]) {
+        const xPlan = [P[0] * sgn, P[1] * sgn];
+        const zR = new THREE.Vector3().crossVectors(wdir(xPlan), upV);
+        const toWall = zR.dot(Aw) < 0;                                         // Z runs toward the wall
+        piece(xPlan, [toWall ? D / 2 : -D / 2, end], D, toWall ? [true, false] : [false, true]);
       }
     }
   }

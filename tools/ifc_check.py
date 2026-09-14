@@ -135,7 +135,12 @@ for rf in sorted(glob.glob('ifc/rooms/*.json')):
     for wspec in json.load(open(rf)).get('windows', []):
         if wspec.get('transom') or wspec.get('sidelight'):
             specs.append(wspec)
-G = extents(gnd, lambda nm, p: ('Transom' in nm or 'Sidelight' in nm) and not nm.startswith('Opening'))
+# Collected by the SPEC'S NAME (the glass, and members named `<name> stile ...`), not by
+# 'Transom' appearing in it — the wing's south transoms are 'Window - WC S' and 'Window -
+# Laundry S', and a name test silently reported them unglazed and unframed.
+_tnames = [w['name'] for w in specs]
+G = extents(gnd, lambda nm, p: any(nm == t or nm.startswith(t + ' ') for t in _tnames)
+            and not nm.startswith('Opening'))
 
 for wspec in specs:
     nm = wspec['name']
@@ -150,6 +155,11 @@ for wspec in specs:
     check(glass and near(glass[0], lo) and near(glass[1], hi)
           and near(glass[4], sill) and near(glass[5], head),
           f'{label}: glazed as authored, {lo:.3f}..{hi:.3f} x {sill:.2f}..{head:.2f}')
+    if wspec.get('bare'):
+        # A bare opening in a tiled wall (the shower's transom) has NO frame by design —
+        # the tile is its reveal. Asserted as absent, so a frame cannot creep back.
+        check(not parts, f'{label}: bare — no frame, the tile is its reveal ({len(parts)} members)')
+        continue
     check(parts, f'{label}: framed ({len(parts)} members)')
     if not parts:
         continue
@@ -1093,10 +1103,14 @@ for nm in ('Window - WC S', 'Window - Laundry S'):
         check(False, f'{nm} is built')
         continue
     sill, head = _W[nm][2].min() - _FLOOR, _W[nm][2].max() - _FLOOR
-    check(sill >= 5.5, f'{nm}: sill {sill:.2f} ft above the floor, clear of standing '
-                       f'eye level (5.5 ft min)')
-    check(near(head, model['headHeight'], 0.02),
-          f"...with its head still on the house's {model['headHeight']} ft line ({head:.2f})")
+    # WELL above eye level: 6 ft 6 to the glass, a foot over a standing eye. They were on
+    # the 7 ft head line with a 5.75 sill; raised, they author their own head (`transom`)
+    # and keep the 1.25 ft light the uppers copy.
+    check(sill >= 6.4, f'{nm}: sill {sill:.2f} ft above the floor, well above standing '
+                       f'eye level (6.4 ft min)')
+    check(near(head - sill, 1.25, 0.02) and head > model['headHeight'],
+          f"...a {head - sill:.2f} ft light with its head at {head:.2f}, above the "
+          f"house's {model['headHeight']} ft line by design")
 
 # THE UPPER TRANSOMS. The uppers cannot match the ground row's SILL — the frieze pins their
 # head at 6.10 above the second floor (its soffit is 19.456 above grade at the low bay and
@@ -1222,6 +1236,19 @@ if _shw and _trs:
     check(abs(_trs['pos'] - _shw['at'][0]) + _trs['width'] / 2 <= _shw['widthFt'] / 2,
           "the transom falls within the shower's width")
     check(_trs.get('bare') is True, f"{_trs['name']} is a bare opening (tiled reveal, no wood trim)")
+
+# THE LAUNDRY'S UPPERS STOP UNDER ITS TRANSOM. One short band over the machines, its top
+# below the transom frame's bottom bar (0.33 ft under the glass), so the window lights the
+# room from above the cabinets instead of sitting behind them.
+_lau = json.load(open('ifc/rooms/ext_laundry.json'))
+_lwin = next((w for w in _lau['windows'] if w['orient'] == 'H'), None)
+_lups = [f for f in _lau['interior']['furniture'] if f['type'] == 'cabinet_run' and f.get('kind') == 'wall']
+check(len(_lups) == 1 and _lwin is not None, f'one band of wall cabinets in the laundry ({len(_lups)})')
+if _lups and _lwin:
+    _ctop = _lups[0]['topFt'] + _lups[0].get('crownFt', 0.0)
+    check(_lwin['sill'] - 0.33 - 0.05 < _ctop <= _lwin['sill'] - 0.33 + 0.01,
+          f"...ending, crown included, at {_ctop:.2f} ft — the transom frame's bottom bar ({_lwin['sill'] - 0.33:.2f})")
+    check(_lups[0].get('crownFt', 0) >= 0.2, f"...with a {_lups[0].get('crownFt', 0) * 12:.1f} in crown")
 
 # THE WATER CLOSET DOOR sits at the WEST end of the compartment wall — on the aisle past
 # the vanity — with a casing return to the party wall, and in the compartment wall.
