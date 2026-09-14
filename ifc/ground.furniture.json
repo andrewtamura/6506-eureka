@@ -402,17 +402,22 @@
       "opens": "N",
       "widthFt": 5.0,
       "depthFt": 3.0,
-      "ponyFt": 2.5,
-      "ponySide": "E",
       "curb": false,
       "heads": 1,
       "heightFt": 9.0,
+      "arch": {
+        "widthFt": 2.5,
+        "springFt": 6.25
+      },
+      "headSide": "E",
+      "headFt": 6.8,
+      "valveFt": 3.75,
       "cutouts": [
         {
           "ds": -0.0,
           "widthFt": 2.0,
-          "sillFt": 5.75,
-          "headFt": 7.0
+          "sillFt": 6.5,
+          "headFt": 7.75
         }
       ]
     },

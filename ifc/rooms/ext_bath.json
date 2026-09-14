@@ -26,9 +26,10 @@
       "fixed": -11.9167,
       "pos": -20.1875,
       "width": 2.0,
-      "sill": 5.75,
-      "head": 7.0,
-      "bare": true
+      "sill": 6.5,
+      "head": 7.75,
+      "bare": true,
+      "transom": true
     }
   ],
   "interior": {
@@ -46,11 +47,16 @@
         "opens": "N",
         "widthFt": 5.0,
         "depthFt": 3.0,
-        "ponyFt": 2.5,
-        "ponySide": "E",
         "curb": false,
         "heads": 1,
-        "heightFt": 9.0
+        "heightFt": 9.0,
+        "arch": {
+          "widthFt": 2.5,
+          "springFt": 6.25
+        },
+        "headSide": "E",
+        "headFt": 6.8,
+        "valveFt": 3.75
       },
       {
         "type": "vanity",

@@ -1278,6 +1278,30 @@ function buildShower(p) {
       q = pl(inner, c, 0.1, ponyW * 0.6);   box(q[0], q[1], 2.45, q[2], q[3], 1.2, niche);                    // recessed product niche in the pony wall
       q = pl(inner, c, 0.16, ponyW * 0.6);  box(q[0], q[1], 2.45, q[2], q[3], 0.05, bench);                   // niche shelf
     }
+  } else if (p.arch) {
+    // ARCHED DOORLESS ENTRY: a full-height tiled front wall with ONE arched opening —
+    // `widthFt` wide, jambs rising to `springFt`, a semicircle over them — centred on the
+    // shower (or `offsetFt` along the across-axis). One swept shape, not boxes: the arch
+    // is the outline itself, so there is no seam where a header would meet the jambs. The
+    // opening is what you walk through; there is no glass, no pony wall and no curb.
+    const ow = p.arch.widthFt ?? 2.5, spring = p.arch.springFt ?? 6.25, off = p.arch.offsetFt ?? 0;
+    const r = ow / 2;
+    const sh = new THREE.Shape();
+    sh.moveTo(-Wd / 2 * ft, 0);
+    sh.lineTo((off - r) * ft, 0); sh.lineTo((off - r) * ft, spring * ft);
+    sh.absarc(off * ft, spring * ft, r * ft, Math.PI, 0, true);        // over the top, jamb to jamb
+    sh.lineTo((off + r) * ft, 0); sh.lineTo(Wd / 2 * ft, 0);
+    sh.lineTo(Wd / 2 * ft, H * ft); sh.lineTo(-Wd / 2 * ft, H * ft); sh.lineTo(-Wd / 2 * ft, 0);
+    const geo = new THREE.ExtrudeGeometry(sh, { depth: wt * ft, bevelEnabled: false, curveSegments: 24 });
+    geo.translate(0, 0, -wt * ft / 2);                                  // straddle the front line like the box did
+    const front = new THREE.Mesh(geo, tile); front.castShadow = true; front.receiveShadow = true;
+    // Shape X runs along P (ds), Y up; V() maps plan (dx,dz) to world (-dx,.,-dz), so P is
+    // world (-P[0], 0, -P[1]) and a turn th about Y sends local +X to (cos th, 0, -sin th).
+    const Xw = { x: -P[0], z: -P[1] };
+    front.rotation.y = Math.atan2(-Xw.z, Xw.x);
+    const [fx, fz] = pl(Dp / 2, 0, 0, 0);
+    front.position.copy(V(fx, fz, 0));
+    g.add(front);
   } else if (p.ponyFt) {
     // ONE pony wall with glass over it, hard against the named side, leaving the rest of
     // the opening as the walk-in. `ponySide` is a compass direction resolved against the
@@ -1292,10 +1316,25 @@ function buildShower(p) {
   } else {
     q = pl(Dp / 2, -(Wd / 4), 0.05, Wd / 2); box(q[0], q[1], 3.3, q[2], q[3], 6.6, glass);  // fixed glass over half
   }
-  const heads = p.heads ?? 1, hOff = heads === 2 ? Wd * 0.23 : 0;   // twin wall-mounted heads for a 2-person shower
-  for (const hs of (heads === 2 ? [-hOff, hOff] : [0])) {
-    q = pl(-(Dp / 2 - 0.35), hs, 0.7, 0.14);  box(q[0], q[1], 5.6, q[2], q[3], 0.14, chrome); // head arm off back wall
-    q = pl(-(Dp / 2 - 0.7), hs, 0.55, 0.55);  box(q[0], q[1], 5.5, q[2], q[3], 0.12, chrome); // shower head
+  if (p.headSide) {
+    // HEAD AND VALVES ON A SIDE WALL, `headSide` a compass direction resolved against the
+    // across-axis like `ponySide`. The head sits HIGH (`headFt`, 6 ft 10 default — arm
+    // at the top, head just under it), the valve trim and handle at hand height
+    // (`valveFt`) on the same wall, so the plumbing is on one wall and the back wall,
+    // which carries the transom here, stays clear.
+    const d = DIR[p.headSide];
+    const sgn = Math.sign(d[0] * P[0] + d[1] * P[1]) || 1;
+    const hy = p.headFt ?? 6.8, vy = p.valveFt ?? 3.75;
+    q = pl(0, sgn * (Wd / 2 - 0.35), 0.14, 0.7);   box(q[0], q[1], hy, q[2], q[3], 0.14, chrome);        // arm off the side wall
+    q = pl(0, sgn * (Wd / 2 - 0.7), 0.55, 0.55);   box(q[0], q[1], hy - 0.1, q[2], q[3], 0.12, chrome);  // head
+    q = pl(0, sgn * (Wd / 2 - 0.03), 0.6, 0.06);   box(q[0], q[1], vy, q[2], q[3], 0.6, chrome);         // valve trim plate
+    q = pl(0, sgn * (Wd / 2 - 0.12), 0.08, 0.2);   box(q[0], q[1], vy, q[2], q[3], 0.08, chrome);        // handle
+  } else {
+    const heads = p.heads ?? 1, hOff = heads === 2 ? Wd * 0.23 : 0;   // twin wall-mounted heads for a 2-person shower
+    for (const hs of (heads === 2 ? [-hOff, hOff] : [0])) {
+      q = pl(-(Dp / 2 - 0.35), hs, 0.7, 0.14);  box(q[0], q[1], 5.6, q[2], q[3], 0.14, chrome); // head arm off back wall
+      q = pl(-(Dp / 2 - 0.7), hs, 0.55, 0.55);  box(q[0], q[1], 5.5, q[2], q[3], 0.12, chrome); // shower head
+    }
   }
   return g;
 }

@@ -4011,5 +4011,7 @@ def add_windows(ctx, r):
                 f"its own `head` and carry `transom: true`.")
         cut_opening(ctx, "IfcWindow", w["name"], w["orient"], w["fixed"], w["pos"],
                     w["width"], w["sill"], head)
-        if w.get("transom") or w.get("sidelight"):
+        # A `bare` opening — a window inside a tiled shower — takes no frame either: the
+        # tile is its reveal.
+        if (w.get("transom") or w.get("sidelight")) and not w.get("bare"):
             add_glazed_frame(ctx, r, w, w["sill"], head)

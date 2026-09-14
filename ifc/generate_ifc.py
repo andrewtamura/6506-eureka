@@ -95,7 +95,10 @@ def compute_paneling(ctx, rooms):
                                 # the sill too: a sidelight glazed to the FLOOR must not
                                 # have a baseboard run across it, and one with a raised
                                 # sill still should.
-                                sides.append(sspan + [wd["sill"]])
+                                # ...and the HEAD: a bare opening can rise past the head
+                                # line (the shower's transom does), and the band above
+                                # that line has to be cut round it too.
+                                sides.append(sspan + [wd["sill"], wd["head"] if wd.get("transom") else ctx.head_ft])
                         continue
                     if wd.get("transom"):
                         # A transom carries its own frame (add_transom_frame) and sits on
@@ -107,7 +110,10 @@ def compute_paneling(ctx, rooms):
                             tw = abs(wd["width"])
                             tspan = [round(wd["pos"] - tw / 2, 3), round(wd["pos"] + tw / 2, 3)]
                             if inside(*tspan):
-                                trans.append(tspan)
+                                # sill and head both: a transom that dips BELOW the head
+                                # line (the laundry's, 6.5..7.75) has to be cut out of the
+                                # field under that line as well as the band over it.
+                                trans.append(tspan + [wd["sill"], wd["head"]])
                         continue
                     if wd["orient"] == orient and abs(wd["fixed"] - fixed) < 0.3:
                         w = abs(wd["width"])

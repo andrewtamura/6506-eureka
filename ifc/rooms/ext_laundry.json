@@ -29,8 +29,9 @@
       "fixed": -11.9167,
       "pos": -14.7292,
       "width": 2.0,
-      "sill": 5.75,
-      "head": 7.0
+      "sill": 6.5,
+      "head": 7.75,
+      "transom": true
     }
   ],
   "interior": {

@@ -302,8 +302,14 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
     //    the openings, plus a continuous strip under each window (bbH..sill). It
     //    runs right up to the opening edges (the casing overlays it), so there are
     //    no gaps next to the trim.
-    const openings = [...doors, ...winX, ...tallX, ...sides, ...roundX].map(([a, b]) => [Math.min(a, b), Math.max(a, b)]);
-    for (const [a, b] of subtract(w.lo, w.hi, [...doors, ...winX, ...tallX, ...sides, ...roundX], 0, 0.02))
+    // A transom that DIPS below the head line (the laundry's 6.5..7.75) is a hole in this
+    // band too, and a bare/sidelight opening that RISES past it (the shower's transom) is
+    // a hole in the band above — each list carries sill and head so both cuts happen.
+    // Before this, the field ran across the top of one and the bottom of the other.
+    const lowTrans = trans.filter((t) => (t[2] ?? 99) * ft < headY - 0.01).map(([a, b]) => [a, b]);
+    const highSides = sides.filter((sd) => (sd[3] ?? headFt) * ft > headY + 0.01).map(([a, b]) => [a, b]);
+    const openings = [...doors, ...winX, ...tallX, ...sides, ...roundX, ...lowTrans].map(([a, b]) => [Math.min(a, b), Math.max(a, b)]);
+    for (const [a, b] of subtract(w.lo, w.hi, [...doors, ...winX, ...tallX, ...sides, ...roundX, ...lowTrans], 0, 0.02))
       band(a, b, bbH, headY, 0.012, field);
     for (const [a, b, sill] of wins) {
       const sy = sill * ft; if (sy - bbH < 0.06) continue;
@@ -616,10 +622,11 @@ export async function buildWallFinish({ scene, floorY, ceilingY, baseUrl, manife
       // Round windows too: a circle centred on the head line straddles it, and this band
       // subtracted only `tallX` and `trans` — the same way a transom used to be
       // plastered over (see above). The cove still runs across; the panel stops under it.
-      for (const [s0, s1] of subtract(w.lo, w.hi, [...tallX, ...trans, ...roundX], 0, 0.05)) {
+      for (const [s0, s1] of subtract(w.lo, w.hi, [...tallX, ...trans, ...roundX, ...highSides], 0, 0.05)) {
         band(s0, s1, headY, fieldTop, 0.012, field);
         if (w.coved) sweepCove(s0, s1, fieldTop);
       }
+      for (const [s0, s1] of highSides) if (w.coved) sweepCove(s0, s1, fieldTop);
       for (const [s0, s1] of roundX) if (w.coved) sweepCove(s0, s1, fieldTop);
       for (const [a, b, th] of tall) band(a, b, th * ft, wallTop, 0.012, field);
       for (const r of rounds) roundWindow(r, fieldTop);
