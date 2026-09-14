@@ -119,6 +119,7 @@ const raw = await page.evaluate(() => {
              + a[2] * (b[0] * c[1] - b[1] * c[0])) / 6; }
       vol += mv; mvols.push(Math.abs(mv)); });
     items.push({ type: it.type, kind: it.kind || '', px: it.px, pz: it.pz, floorY: o.position.y,
+      cutouts: it.cutouts || null,      // a shower's derived window openings (ifc/catalog.py)
       lw: lb.max.x - lb.min.x, ld: lb.max.z - lb.min.z, vol: Math.abs(vol), mvols,
       min: [bb.min.x, bb.min.y, bb.min.z], max: [bb.max.x, bb.max.y, bb.max.z], parts,
       top: (() => { let best = null, area = -1;
@@ -299,6 +300,48 @@ const raw = await page.evaluate(() => {
   window.__eureka.selectLighting("auto");
   return { items, loose, doorLeaves, fdoors, overhead, lights, ceilingY, sky: { night, noon }, lighting };
 });
+// SEE-THROUGH PROBES. What a window is for is looking out of it, and nothing above can
+// tell whether one actually reads through: the fragments model is raycast with the
+// viewer's OWN pick routine (model.raycastAll — the same call tap-to-inspect makes), so the
+// first thing the ray meets is what a visitor sees, wall or glass; and a three Raycaster
+// over our procedural meshes reports the first opaque one of OURS on the same line — a
+// tiled shower back or a field panel with no hole in it. Both, because each has failed:
+// the round window's "holed" panel had no hole, and the shower's tile ran across its transom.
+{ const man = JSON.parse(readFileSync('ifc/ground.furniture.json', 'utf8'));
+  const FYp = (raw.items.find(r => r.type === 'island') || raw.items[0]).floorY;
+  raw.seeThrough = await page.evaluate(async ({ xs, zs, ft, fy, probes }) => {
+    const E = window.__eureka, world = E.world, model = E.model;
+    const mod = await import('/node_modules/three/build/three.module.js');
+    const W = (px, pz, y) => new mod.Vector3(xs * px * ft, fy + y * ft, -(zs * pz * ft));
+    const dom = world.renderer.three.domElement;
+    const out = [];
+    for (const pr of probes) {
+      const from = W(...pr.from), to = W(...pr.to);
+      // A camera of our own on the probe line. Driving the viewer's camera through
+      // camera-controls leaves its matrix where it was until the controls update on the
+      // next frame, and the pick then fires along the OLD view — which is how a probe aimed
+      // at the shower's transom reported the round window on the far wall.
+      const cam = new mod.PerspectiveCamera(50, dom.clientWidth / Math.max(1, dom.clientHeight), 0.02, 200);
+      cam.position.copy(from); cam.lookAt(to); cam.updateMatrixWorld(true);
+      const hits = await model.raycastAll({ camera: cam, mouse: new mod.Vector2(dom.clientWidth / 2, dom.clientHeight / 2), dom }) || [];
+      const sorted = hits.sort((a, b2) => a.point.distanceTo(from) - b2.point.distanceTo(from)).slice(0, 4);
+      const data = sorted.length ? await model.getItemsData(sorted.map(h => h.localId), { attributesDefault: true }) : [];
+      const frag = sorted.map((h, i) => ({ d: h.point.distanceTo(from), name: String(data[i]?.Name?.value ?? ''), cat: String(data[i]?._category?.value ?? '') }));
+      // our meshes: everything that is not a fragments mesh (those throw on multi-material)
+      const rc = new mod.Raycaster(from, to.clone().sub(from).normalize(), 0, 30);
+      const res = [];
+      world.scene.three.traverse(m => { if (!m.isMesh || Array.isArray(m.material)) return; try { rc.intersectObject(m, false, res); } catch (e) { /* fragments */ } });
+      const opaque = res.filter(h => !(h.object.material.transparent && h.object.material.opacity < 0.9))
+        .sort((a, b2) => a.distance - b2.distance).slice(0, 3)
+        .map(h => ({ d: h.distance, nv: h.object.geometry.attributes.position.count, merged: !!h.object.userData.merged }));
+      out.push({ label: pr.label, frag, ours: opaque });
+    }
+    return out;
+  }, { xs: man.xs, zs: man.zs, ft: FT, fy: FYp, probes: [
+    { label: 'wc-round', from: [-20.1875, 1.5, 7.0], to: [-20.1875, 8.0, 7.0] },
+    { label: 'shower-transom', from: [-20.1875, -9.0, 5.2], to: [-20.1875, -14.0, 6.6] },
+  ] });
+}
 await b.close();
   return raw;
 }
@@ -1263,6 +1306,39 @@ console.log('EXTENSION FIXTURES');
       A(mm.filter(m => m.yHi > 8.9).length >= 3, 'back and both sides all reach it');
       A(!mm.some(m => m.yHi < 0.4 && m.yHi > 0.15 && (m.pxHi - m.pxLo) > 1.0), 'curbless — no threshold across the opening');
       A(!!wcWinS && wcWinS.sill >= 5.5, `the transom over it sills at ${wcWinS ? wcWinS.sill : '?'} ft`);
+      // THE TRANSOM SHOWS THROUGH THE TILE. The back is built around the opening (the
+      // cutout is derived from the room's window spec by ifc/catalog.py), so: the
+      // manifest carries a cutout matching the window, no tile crosses the glass, the
+      // back is in pieces, and the viewer's own pick from inside the shower meets the
+      // glass first with none of our meshes in front of it.
+      if (wcWinS) {
+        const cuts = sh.cutouts || [];
+        A(cuts.length === 1, `the manifest carries the transom as a cutout (${cuts.length})`);
+        if (cuts.length === 1) {
+          const c = cuts[0];
+          A(Math.abs(c.ds - -(wcWinS.pos - sh.px)) < 0.01 && Math.abs(c.widthFt - wcWinS.width) < 0.01
+            && Math.abs(c.sillFt - wcWinS.sill) < 0.01 && Math.abs(c.headFt - 7.0) < 0.01,
+            `...matching the window spec (ds ${R(c.ds, 3)}, ${c.widthFt} wide, ${c.sillFt}..${c.headFt})`);
+        }
+        const gx0 = wcWinS.pos - wcWinS.width / 2, gx1 = wcWinS.pos + wcWinS.width / 2;
+        const back = mm.filter(m => m.pzLo < LS + 0.2);
+        const across = back.filter(m => m.pxLo < gx1 - 0.05 && m.pxHi > gx0 + 0.05 && m.yLo < 7.0 - 0.05 && m.yHi > wcWinS.sill + 0.05);
+        A(across.length === 0, `no tile runs across the glass (${across.length} members)`);
+        A(back.length >= 4, `the back is built around the opening — ${back.length} pieces`);
+        A(back.some(m => m.yHi > 8.9) && back.some(m => m.yLo < 0.1 && m.yHi < wcWinS.sill + 0.05), 'tile above the head and below the sill');
+        // a tiled reveal: no wood casing, stool or apron on the south wall at the opening
+        // Moulded members only (nv >= 100): the flat field bands either side of and above
+        // the opening are boxes and belong there; casing, stool and apron are swept.
+        const trimS = L.filter(m => m.nv >= 100 && m.pzLo > LS - 0.05 && m.pzHi < LS + 0.4 && m.pxLo < gx1 + 0.3 && m.pxHi > gx0 - 0.3 && m.yLo < 7.4 && m.yHi > wcWinS.sill - 0.4);
+        A(trimS.length === 0, `bare opening — no casing, stool or apron through the tile (${trimS.length} moulded members)`);
+        const st = (raw.seeThrough || []).find(x => x.label === 'shower-transom');
+        A(!!st && st.frag.length > 0 && st.frag[0].name === 'Window - WC S',
+          `the first IFC surface from inside the shower is the transom's glass (${st && st.frag[0] ? st.frag[0].name : 'nothing'})`);
+        if (st && st.frag.length) {
+          const blocker = st.ours.find(o => o.d < st.frag[0].d + 0.3);
+          A(!blocker, `and no tile of ours in front of it (${blocker ? `hit at ${R(blocker.d, 2)} m` : 'clear'})`);
+        }
+      }
     } }
 
   // VANITY: on the east wall between the south window's casing and the compartment wall,
@@ -1365,6 +1441,19 @@ console.log('EXTENSION FIXTURES');
       A(ring.length >= 1, `a ring casing centred on the glass, ${R(ring[0] ? ring[0].pxHi - ring[0].pxLo : 0, 2)} ft across`);
       A(ring.length >= 1 && Math.abs((ring[0].yHi - ring[0].yLo) - (ring[0].pxHi - ring[0].pxLo)) < 0.03, '...and round');
       A(ring.length >= 1 && ring[0].nv >= 200, `...a revolved casing profile, not a torus (${ring[0] ? ring[0].nv : 0} verts)`);
+      // AND IT READS THROUGH. The viewer's own pick, from inside the compartment along the
+      // window's axis: the first thing in the IFC is the glass, not the wall — which is
+      // also what proves web-ifc honoured the circular void — and nothing opaque of ours
+      // (the field panel) stands in front of it. The panel passed the vertex count with
+      // its hole triangulated shut; this is the check that would have caught it.
+      const st = (raw.seeThrough || []).find(x => x.label === 'wc-round');
+      A(!!st && st.frag.length > 0, `see-through probe ran (${st ? st.frag.length : 0} IFC hits)`);
+      if (st && st.frag.length) {
+        A(st.frag[0].name === 'Window - WC Round', `the first IFC surface on the window's axis is the glass, not the wall (${st.frag[0].name} / ${st.frag[0].cat} at ${R(st.frag[0].d, 2)} m)`);
+        const glassD = st.frag[0].d;
+        const blocker = st.ours.find(o => o.d < glassD + 0.5);
+        A(!blocker, `nothing opaque of ours in front of the glass (${blocker ? `hit at ${R(blocker.d, 2)} m, ${blocker.nv} verts` : 'clear'})`);
+      }
     } }
 }
 

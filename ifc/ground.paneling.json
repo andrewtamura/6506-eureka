@@ -841,17 +841,16 @@
       "lo": -22.917,
       "hi": -17.458,
       "doors": [],
-      "windows": [
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [
         [
           -21.188,
           -19.188,
-          5.75,
-          false
+          5.75
         ]
       ],
-      "tall": [],
-      "transoms": [],
-      "sidelights": [],
       "bareDoors": [],
       "rounds": [],
       "noCornice": true,

@@ -406,7 +406,15 @@
       "ponySide": "E",
       "curb": false,
       "heads": 1,
-      "heightFt": 9.0
+      "heightFt": 9.0,
+      "cutouts": [
+        {
+          "ds": -0.0,
+          "widthFt": 2.0,
+          "sillFt": 5.75,
+          "headFt": 7.0
+        }
+      ]
     },
     {
       "type": "vanity",

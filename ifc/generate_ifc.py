@@ -81,10 +81,13 @@ def compute_paneling(ctx, rooms):
                             if inside(wd["pos"] - rr, wd["pos"] + rr):
                                 rounds.append([wd["pos"], wd["centerFt"], rr])
                         continue
-                    if wd.get("sidelight"):
+                    if wd.get("sidelight") or wd.get("bare"):
                         # Same deal as a transom, one band lower: its own frame, no
                         # casing/stool/apron, but still a hole the field must be cut
                         # around — this one in the band BELOW the head line.
+                        # `bare` is the same record with NO frame either: a window inside
+                        # a tiled shower gets a tiled reveal, not wood casing, a stool and
+                        # an apron poking through the tile.
                         if wd["orient"] == orient and abs(wd["fixed"] - fixed) < 0.3:
                             sw = abs(wd["width"])
                             sspan = [round(wd["pos"] - sw / 2, 3), round(wd["pos"] + sw / 2, 3)]

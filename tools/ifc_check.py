@@ -1206,6 +1206,23 @@ if _rw:
               and near((_ring[4] + _ring[5]) / 2, BASE + (g_[4] + g_[5]) / 2, 0.02),
               'the exterior ring and the interior opening are ONE hole (centres agree)')
 
+# THE SHOWER'S TRANSOM IS A BARE OPENING IN A TILED WALL. The shower backs onto the bath's
+# south wall, the transom is in that wall, and the viewer builds the tile around it from
+# the room's own spec (ifc/catalog.py). What the IFC side can assert is the two facts that
+# derivation rests on: the shower's back IS the south wall, and the window is authored
+# `bare` — a tiled reveal, not wood casing, a stool and an apron poking through the tile.
+_bath = json.load(open('ifc/rooms/ext_bath.json'))
+_shw = next((f for f in _bath['interior']['furniture'] if f['type'] == 'shower'), None)
+_trs = next((w for w in _bath['windows'] if w['orient'] == 'H' and w['fixed'] == _bath['bounds']['z1']), None)
+check(_shw is not None and _trs is not None, 'the bath has its shower and its south transom')
+if _shw and _trs:
+    _back = _shw['at'][1] - _shw['depthFt'] / 2 if _shw.get('opens', 'N') == 'N' else None
+    check(_back is not None and near(_back, _bath['bounds']['z1'] + _WALL / 2, 0.02),
+          f'the shower backs onto the south wall ({_back:.3f} vs face {_bath["bounds"]["z1"] + _WALL / 2:.3f})')
+    check(abs(_trs['pos'] - _shw['at'][0]) + _trs['width'] / 2 <= _shw['widthFt'] / 2,
+          "the transom falls within the shower's width")
+    check(_trs.get('bare') is True, f"{_trs['name']} is a bare opening (tiled reveal, no wood trim)")
+
 # THE WATER CLOSET DOOR sits at the WEST end of the compartment wall — on the aisle past
 # the vanity — with a casing return to the party wall, and in the compartment wall.
 _wcd = next((d for d in json.load(open('ifc/rooms/wc.json'))['doors'] if d['name'] == 'Bath -> WC'), None)

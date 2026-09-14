@@ -27,7 +27,8 @@
       "pos": -20.1875,
       "width": 2.0,
       "sill": 5.75,
-      "head": 7.0
+      "head": 7.0,
+      "bare": true
     }
   ],
   "interior": {
