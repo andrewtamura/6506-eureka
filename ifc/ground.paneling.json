@@ -870,8 +870,14 @@
       "doors": [],
       "windows": [
         [
-          -6.96,
-          -3.96,
+          -6.338,
+          -4.338,
+          3.0,
+          false
+        ],
+        [
+          -0.113,
+          1.887,
           3.0,
           false
         ]
@@ -901,6 +907,212 @@
         [
           -7.925,
           -4.925
+        ]
+      ],
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [],
+      "bareDoors": [],
+      "noCornice": true,
+      "noBattens": true,
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
+    },
+    {
+      "along": "x",
+      "at": -11.6875,
+      "normal": [
+        0,
+        1
+      ],
+      "side": "S",
+      "lo": -22.917,
+      "hi": -17.458,
+      "doors": [],
+      "windows": [
+        [
+          -21.188,
+          -19.188,
+          3.0,
+          false
+        ]
+      ],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [],
+      "bareDoors": [],
+      "noCornice": true,
+      "noBattens": true,
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
+    },
+    {
+      "along": "x",
+      "at": -8.6791,
+      "normal": [
+        0,
+        -1
+      ],
+      "side": "N",
+      "lo": -22.917,
+      "hi": -17.458,
+      "doors": [
+        [
+          -22.188,
+          -19.858
+        ]
+      ],
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [],
+      "bareDoors": [],
+      "noCornice": true,
+      "noBattens": true,
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
+    },
+    {
+      "along": "z",
+      "at": -22.6875,
+      "normal": [
+        1,
+        0
+      ],
+      "side": "E",
+      "lo": -11.917,
+      "hi": -8.45,
+      "doors": [],
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [],
+      "bareDoors": [],
+      "noCornice": true,
+      "noBattens": true,
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
+    },
+    {
+      "along": "z",
+      "at": -17.6875,
+      "normal": [
+        -1,
+        0
+      ],
+      "side": "W",
+      "lo": -11.917,
+      "hi": -8.45,
+      "doors": [],
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [],
+      "bareDoors": [],
+      "noCornice": true,
+      "noBattens": true,
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
+    },
+    {
+      "along": "x",
+      "at": -11.6875,
+      "normal": [
+        0,
+        1
+      ],
+      "side": "S",
+      "lo": -17.458,
+      "hi": -12,
+      "doors": [],
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [],
+      "bareDoors": [],
+      "noCornice": true,
+      "noBattens": true,
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
+    },
+    {
+      "along": "x",
+      "at": -4.6292,
+      "normal": [
+        0,
+        -1
+      ],
+      "side": "N",
+      "lo": -17.458,
+      "hi": -12,
+      "doors": [],
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [],
+      "bareDoors": [],
+      "noCornice": true,
+      "noBattens": true,
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
+    },
+    {
+      "along": "z",
+      "at": -17.2292,
+      "normal": [
+        1,
+        0
+      ],
+      "side": "E",
+      "lo": -11.917,
+      "hi": -4.4,
+      "doors": [
+        [
+          -7.925,
+          -4.925
+        ]
+      ],
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [],
+      "bareDoors": [],
+      "noCornice": true,
+      "noBattens": true,
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
+    },
+    {
+      "along": "z",
+      "at": -12.2292,
+      "normal": [
+        -1,
+        0
+      ],
+      "side": "W",
+      "lo": -11.917,
+      "hi": -4.4,
+      "doors": [
+        [
+          -7.93,
+          -4.93
         ]
       ],
       "windows": [],

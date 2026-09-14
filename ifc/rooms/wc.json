@@ -20,8 +20,23 @@
       "swing": "pos"
     }
   ],
-  "windows": [],
+  "windows": [
+    {
+      "name": "Window - WC S",
+      "orient": "H",
+      "fixed": -11.9167,
+      "pos": -20.1875,
+      "width": 2.0,
+      "sill": 3.0,
+      "head": 7.0
+    }
+  ],
   "interior": {
+    "paneling": {
+      "baseboard": 10,
+      "noCornice": true,
+      "battens": false
+    },
     "flooring": {
       "material": "tile",
       "pattern": "hexagon"

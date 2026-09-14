@@ -720,196 +720,334 @@ else:
 
 
 # ---------------------------------------------------------------------------------
-# THE WING'S NORTH ELEVATION. The one wall on the house that takes no windows, read as
-# TWO STOREYS the way the house itself is built: a band of T1-11 on a belt course above,
-# plain stucco below carrying only the door and its awning, a raking entablature at the
-# top. Everything is checked against the derived lines — the built massing, the bays the
-# rooms make, the second-floor line — rather than against the numbers in model.json,
-# which is the whole point of deriving them.
-print('\nWING NORTH ELEVATION')
+# THE WING'S ELEVATIONS. The one wall on the house that takes no windows became three:
+# the T1-11 band, the waist course and the entablature now WRAP the wing. Read as two
+# storeys the way the house itself is built — a clad band under the eaves, a waist at the
+# floor line, plain stucco below carrying only the door, its awning and a round window.
+#
+# The three faces are NOT alike and the checks have to know it: north and south are rake
+# walls with the roof FLUSH, so they carry a frieze and their heads rake; east is the
+# shed's low eave with a real 1.5 ft overhang, so it carries no frieze and its head is the
+# wall top. Everything is measured against derived lines — the built massing, the bays the
+# rooms make, the second-floor line — never against the numbers in model.json.
+print('\nWING ELEVATIONS')
 we = _cfg.get('wingElevation') or {}
 WE = extents(ext, lambda nm, p: nm.startswith('Wing'))
-# The bays, derived the same way the builder derives them: the plan-x edges of the rooms
-# that actually front this wall. The middle one is the bath/vestibule party wall, which
-# is why the door sits where it does even though nothing now divides the elevation there.
 _fronting = [b for b in (json.load(open(f'ifc/rooms/{k}.json'))['bounds'] for k in EXT_W)
              if abs(max(b['z1'], b['z2']) - wing_n) < 1e-6]
 _edges = sorted({v for b in _fronting for v in (b['x1'], b['x2'])})
 party = _edges[1] if len(_edges) >= 3 else None
 floor2 = BASE + model['storyHeight']            # the second-floor line, 12.5 ft
 
-if we and party is not None and 'Wing frieze' in WE:
-    # --- THE ENTABLATURE, and the roofline it has to follow ------------------------
-    # The wall top rakes 1 in 12. Measured against the BUILT MASSING at both ends, not
-    # against the pitch in model.json: what matters is that the trim sits on the roof,
-    # and reading the config back would assert nothing about that.
+if we and party is not None and 'Wing frieze N' in WE:
+    # --- THE ENTABLATURE on the two RAKE walls -------------------------------------
     roofline = _rake_line(ext, 'Massing - extension', lo=False)
-    crown = _rake_line(ext, 'Wing cornice', lo=False)
-    soffit = _rake_line(ext, 'Wing frieze', lo=True)
-    check(crown and soffit and roofline, 'a raking entablature is built')
-    if crown and soffit and roofline:
-        for end, x in (('east', wing_e), ('west', wing_w)):
-            check(near(crown(x), roofline(x), 0.02),
-                  f'the cornice meets the wall top at the {end} end '
-                  f'({crown(x):.3f} vs {roofline(x):.3f})')
-        rise = roofline(wing_w) - roofline(wing_e)
-        check(rise > 0.5 and near(crown(wing_w) - crown(wing_e), rise, 0.02),
-              f'so it RAKES with the roof, not level across it ({rise:.3f} ft over '
-              f'{wing_w - wing_e:.2f})')
-        # NO CORBELS, and NO DENTIL COURSE on the primary's eaves either: the house this
-        # is drawn from is plain stucco with simple trim, and a row of little blocks read
-        # as ornament it does not carry. Both absences are PAIRED with the cornice they
-        # hung under still being there — on its own, "no corbels" passes just as well for
-        # an entablature that stopped being built. (The entry surround and the shed
-        # dormer's parapet keep theirs; those are set pieces, not the general eave.)
-        check(not _parts(ext, 'Wing corbel') and not _parts(ext, 'Dentils'),
-              'no corbels and no eave dentil course — ornament this building does not carry')
-        check(crown(wing_e) and 'Wing frieze' in WE and 'Cornice - primary' in
-              extents(ext, lambda nm, p: nm == 'Cornice - primary'),
-              'while both cornices they hung under are still built')
-        rtn = WE.get('Wing cornice return')
-        check(rtn is not None and near(wing_n - rtn[2], we['entablature']['returnFt'], 0.02),
-              f"and the cornice turns the east corner "
-              f"({'missing' if rtn is None else f'{wing_n - rtn[2]:.2f} ft'})")
+    check(roofline is not None, 'the wing massing is measurable')
+    for tag in ('N', 'S'):
+        crown = _rake_line(ext, f'Wing cornice {tag}', lo=False)
+        check(crown is not None, f'a raking entablature on the {tag} face')
+        if crown and roofline:
+            for end, x in (('east', wing_e), ('west', wing_w)):
+                check(near(crown(x), roofline(x), 0.02),
+                      f'{tag}: the cornice meets the wall top at the {end} end '
+                      f'({crown(x):.3f} vs {roofline(x):.3f})')
+            rise = roofline(wing_w) - roofline(wing_e)
+            check(rise > 0.5 and near(crown(wing_w) - crown(wing_e), rise, 0.02),
+                  f'{tag}: RAKING with the roof, not level across it ({rise:.3f} ft)')
+    # The south run stops where the extension meets the primary — the same plane
+    # continues, so nothing physical stops it and only this keeps it the wing's own.
+    check(near(WE['Wing cornice S'][1], wing_w, 0.02) and near(WE['Wing frieze S'][1], wing_w, 0.02),
+          f"the south entablature terminates at the primary junction "
+          f"({WE['Wing cornice S'][1]:.3f} vs {wing_w:.3f})")
+    # NO CORBELS, and no eave dentil course on the primary either: this house is plain
+    # stucco with simple trim. Both absences PAIRED with the cornices still being built —
+    # on its own, "no corbels" passes just as well for trim that stopped being made.
+    check(not _parts(ext, 'Wing corbel') and not _parts(ext, 'Dentils'),
+          'no corbels and no eave dentil course — ornament this building does not carry')
 
-        # --- THE WAIST COURSE, which is what divides the storeys ------------------
-        cl = we.get('cladding') or {}
-        wN, wE, wS = (WE.get('Wing waist course N'), WE.get('Wing waist course E'),
-                      WE.get('Wing waist course S'))
-        check(cl and wN and wE and wS, 'a waist course divides the storeys, on three faces')
-        if cl and wN and wE and wS:
-            check(all(near(b[5], floor2, 0.01) for b in (wN, wE, wS)),
-                  f'the waist sits on the second-floor line, all three runs ({wN[5]:.3f})')
-            # IT WRAPS. A storey line that shows on one elevation and nowhere else is a
-            # stripe painted on a front; one that turns two corners is a course. Each run
-            # is checked on its OWN axis — the north and south along px, the east along pz.
-            check(wN[1] >= wing_w - 0.02 and wN[0] <= wing_e + 0.02,
-                  f'the north run crossing the whole face ({wN[0]:.3f}..{wN[1]:.3f})')
-            check(near(wE[2], wing_s, 0.1) and wE[3] >= wing_n - 0.02,
-                  f'the east run down the whole east face ({wE[2]:.3f}..{wE[3]:.3f} '
-                  f'against {wing_s:.3f}..{wing_n:.3f})')
-            check(near(wS[3], wing_s, 0.1) and wS[0] <= wing_e + 0.02,
-                  f'and continuing onto the south ({wS[0]:.3f}..{wS[1]:.3f})')
-            # AND IT STOPS AT THE JUNCTION. The wing's south wall is the SAME PLANE as the
-            # primary's, so nothing physical stops the band — run on, it would read as the
-            # main house's storey line drawn at the wrong height. This is the assertion
-            # that keeps it the wing's own.
-            check(near(wS[1], wing_w, 0.02),
-                  f"terminating where the extension meets the primary "
-                  f"({wS[1]:.3f} vs {wing_w:.3f})")
-            check(near(wN[1], wing_w, 0.02),
-                  f'the north run likewise ({wN[1]:.3f})')
+    # RETURNS AT BOTH EAST CORNERS, and NO CORNICE BETWEEN THEM. The east face is the low
+    # eave and the roof already overhangs it 1.5 ft; a frieze there would drive through the
+    # upper bath window's header. The returns say "the trim turns the corner and leaves",
+    # which is what that face actually wants — but only if there is genuinely nothing in
+    # between, so that absence is asserted too.
+    rets = {t: WE.get(f'Wing cornice return {t}') for t in ('NE', 'SE')}
+    check(all(rets.values()), f'the cornice returns round BOTH east corners '
+                              f'({sum(1 for v in rets.values() if v)}/2)')
+    if all(rets.values()):
+        check(near(rets['NE'][5], rets['SE'][5], 0.01),
+              f"both returns at the same height — the rake runs in px, so both rakes "
+              f"start at the east wall top ({rets['NE'][5]:.3f})")
+        for t, zf, sgn in (('NE', wing_n, +1), ('SE', wing_s, -1)):
+            reach = abs(rets[t][2 if sgn > 0 else 3] - zf)
+            check(near(reach, we['entablature']['returnFt'], 0.02),
+                  f'{t} turns {we["entablature"]["returnFt"]} ft and stops ({reach:.2f})')
+        mid = [nm for nm, b in _parts(ext, 'Wing cornice') + _parts(ext, 'Wing frieze')
+               if not nm.endswith(('N', 'S')) and wing_s + 1.2 < (b[2] + b[3]) / 2 < wing_n - 1.2]
+        check(not mid, f'and nothing between them along the east face ({len(mid)})')
 
-            # --- THE T1-11 BAND, hung from the eaves ----------------------------
-            back = WE.get('Wing cladding backer')
-            boards = _parts(ext, 'Wing cladding board')
-            skirt = WE.get('Wing cladding skirt')
-            check(back is not None and len(boards) >= 8 and skirt is not None,
-                  f'a T1-11 band of {len(boards)} strips on a backer, over a skirt')
-            if back is not None and boards and skirt is not None:
-                # IT IS A BAND, NOT A CLAD STOREY. Sprung from the floor line it stood
-                # 7 ft tall and read as a whole storey; it hangs from the soffit now,
-                # with STUCCO ABOVE AND BELOW THE WAIST. That gap is the assertion —
-                # without it the waist is just the siding's base again, doing two jobs
-                # and neither of them legibly.
-                check(back[4] - floor2 > 1.5,
-                      f'with plain stucco between it and the waist, so the waist reads as '
-                      f'a storey line and not the siding\'s base ({back[4] - floor2:.2f} ft)')
-                check(near(soffit(wing_e) - back[4], cl['bandFt'], 0.02),
-                      f"{cl['bandFt']} ft deep at the low end ({soffit(wing_e) - back[4]:.3f})")
-                check(back[5] - back[4] < 0.6 * model['storyHeight'],
-                      f'well under a storey tall, which is what makes it a band '
-                      f'({back[5] - back[4]:.2f} ft against {model["storyHeight"]})')
-                # A LEVEL base under a raking head — the base is what gives the rake
-                # something to read against, the same trick the corbels play.
-                check(all(near(b[4], back[4], 0.01) for _, b in boards),
-                      f'its base level all the way across ({back[4]:.3f} ft)')
-                head = _rake_line(ext, 'Wing cladding backer', lo=False)
-                for end, x in (('east', wing_e), ('west', wing_w)):
-                    check(head and near(head(x), soffit(x), 0.02),
-                          f'and its head dying into the frieze at the {end} end '
-                          f'({head(x):.3f} vs {soffit(x):.3f})')
-                check(skirt is not None and near(skirt[5], back[4], 0.01)
-                      and near(skirt[0], wing_e, 0.02),
-                      f'the skirt carries its foot, full width ({skirt[5]:.3f})')
+    # --- THE WAIST COURSE, wrapping three faces ------------------------------------
+    cl = we.get('cladding') or {}
+    wN, wE, wS = (WE.get('Wing waist course N'), WE.get('Wing waist course E'),
+                  WE.get('Wing waist course S'))
+    check(cl and wN and wE and wS, 'a waist course divides the storeys, on three faces')
+    if cl and wN and wE and wS:
+        check(all(near(b[5], floor2, 0.01) for b in (wN, wE, wS)),
+              f'the waist on the second-floor line, all three runs ({wN[5]:.3f})')
+        check(wN[1] >= wing_w - 0.02 and wN[0] <= wing_e + 0.02,
+              f'north run crossing the whole face ({wN[0]:.3f}..{wN[1]:.3f})')
+        check(near(wE[2], wing_s, 0.1) and wE[3] >= wing_n - 0.02,
+              f'east run down the whole east face ({wE[2]:.3f}..{wE[3]:.3f})')
+        check(near(wS[3], wing_s, 0.1) and near(wS[1], wing_w, 0.02),
+              f'south run continuing to the primary junction ({wS[0]:.3f}..{wS[1]:.3f})')
 
-                # NO CORNER BOARDS. Framed out on all four sides it read as a heavy panel
-                # bolted to the wall. Asserted as an absence PAIRED with the siding
-                # actually reaching both corners — on its own, "no corner boards" passes
-                # just as well for a band that stopped short of them.
-                check(not _parts(ext, 'Wing cladding stile'),
-                      'no corner boards framing it — the trim was too heavy')
-                bs = sorted([b for _, b in boards], key=lambda b: b[0])
-                check(near(bs[0][0], wing_e, 0.02) and bs[-1][1] >= wing_w - 0.02,
-                      f'the siding running corner to corner instead '
-                      f'({bs[0][0]:.3f}..{bs[-1][1]:.3f})')
+        # --- THE T1-11 BAND, wrapping the same three faces -------------------------
+        faces = {t: _parts(ext, f'Wing cladding board {t}') for t in ('N', 'E', 'S')}
+        # The backer is SPLIT on the east face (around the window), so union its pieces
+        # rather than looking up a single name the way the north's would allow.
+        def _union(parts):
+            if not parts:
+                return None
+            bs = [b for _, b in parts]
+            return (min(b[0] for b in bs), max(b[1] for b in bs), min(b[2] for b in bs),
+                    max(b[3] for b in bs), min(b[4] for b in bs), max(b[5] for b in bs))
+        backs = {t: _union(_parts(ext, f'Wing cladding backer {t}')) for t in ('N', 'E', 'S')}
+        check(all(faces.values()) and all(backs.values()),
+              f'a T1-11 band on all three faces '
+              f'({", ".join(f"{t}:{len(v)}" for t, v in faces.items())} strips)')
+        if all(faces.values()) and all(backs.values()):
+            # ONE LEVEL BASE, ALL THE WAY ROUND. The single assertion that says "wrap"
+            # rather than "three bands that happen to meet" — compared face to face, not
+            # to the config that drew them.
+            bases = {t: min(b[4] for _, b in v) for t, v in faces.items()}
+            check(max(bases.values()) - min(bases.values()) < 0.01,
+                  f'ONE level base all the way round '
+                  f'({", ".join(f"{t} {v:.3f}" for t, v in sorted(bases.items()))})')
+            lo = bases['N']
+            check(all(near(b[4], lo, 0.01) for v in faces.values() for _, b in v
+                      if b[4] < lo + 1.0),
+                  'every full-height strip standing on it')
+            # ...and the HEADS differ, deliberately. North and south die into their
+            # friezes; east runs on to the wall top, 1.13 ft higher, because it has no
+            # frieze. Pin the step so it cannot be mistaken for a defect later.
+            for tag in ('N', 'S'):
+                sof = _rake_line(ext, f'Wing frieze {tag}', lo=True)
+                head = _rake_line(ext, f'Wing cladding backer {tag}0', lo=False)
+                check(sof and head and near(head(wing_w), sof(wing_w), 0.02),
+                      f'{tag}: head dying into the frieze ({head(wing_w):.3f} vs '
+                      f'{sof(wing_w):.3f})')
+            east_top = max(b[5] for _, b in faces['E'])
+            check(near(east_top, roofline(wing_e), 0.02),
+                  f'E: head at the WALL TOP instead, having no frieze to die into '
+                  f'({east_top:.3f} vs {roofline(wing_e):.3f})')
+            check(east_top - max(b[5] for _, b in faces['N'] if b[0] < wing_e + 1.0) > 0.5,
+                  f'so the band steps up at the east corner, deliberately '
+                  f'({east_top:.2f} ft)')
 
-                # THE GROOVES, measured as the GAPS BETWEEN consecutive strips — which is
-                # what a groove is here, and the one thing separating this from the
-                # board-and-batten it replaced.
-                gaps = [bs[i + 1][0] - bs[i][1] for i in range(len(bs) - 1)]
-                check(gaps and all(near(g, cl['grooveFt'], 0.005) for g in gaps),
-                      f"{len(gaps)} grooves, each {cl['grooveFt'] * 12:.2f} in wide "
-                      f'({min(gaps) * 12:.2f}-{max(gaps) * 12:.2f})')
-                mid = [(b[0] + b[1]) / 2 for b in bs]
-                step = [mid[i + 1] - mid[i] for i in range(len(mid) - 1)]
-                check(step and max(step) <= cl['grooveOcFt'] + 1e-6,
-                      f"at {max(step) * 12:.1f} in centres "
-                      f"(max {cl['grooveOcFt'] * 12:.0f} in — 8 in is standard T1-11)")
-                check(bs[0][3] > back[3] + 1e-6,
-                      f'the face standing proud of the backer, so the grooves show it '
-                      f'({bs[0][3]:.3f} vs {back[3]:.3f})')
+            _sof_S = _rake_line(ext, 'Wing frieze S', lo=True)
+            _band_specs = {'N': (), 'E': ('east 1', 'east 2'), 'S': ('south 1',)}
 
-            # --- THE TWO STOREYS. The composition as a whole: a band under the eaves,
-            # a waist at the floor line, and PLAIN STUCCO everywhere else carrying only
-            # the door and its awning. The last one is what would go unnoticed — siding
-            # that crept down the wall, or a member left over from the trellis that used
-            # to stand here, would both pass every test above.
-            band = [(nm, b) for nm, b in _parts(ext, 'Wing')
-                    if not nm.startswith(('Wing cornice', 'Wing frieze', 'Wing corbel',
-                                          'Wing waist', 'Wing round window'))]
-            check(band and all(b[4] >= back[4] - 0.3 for _, b in band),
-                  f'nothing of the band comes below its own skirt ({len(band)} members)')
-            for half, x0, x1 in (('east', wing_e, party), ('west', party, wing_w)):
-                got = [nm for nm, b in band if b[1] > x0 + 0.05 and b[0] < x1 - 0.05]
-                check(got, f'the band covers the {half} bay ({len(got)} members)')
-            below = [nm for nm, b in _parts(ext, 'Side porch awning') + _parts(ext, 'Wing')
-                     if b[4] < floor2 - 0.01 and not nm.startswith('Wing waist')]
-            check(all(nm.startswith(('Side porch', 'Wing round window')) for nm in below),
-                  f'and below the waist only the door, its awning and the round window '
-                  f'({", ".join(sorted(below)) or "nothing"})')
+            # --- THE SPLIT ROUND THE UPPER WINDOWS --------------------------------
+            # Five of them now — three on the east, two on the south — so the siding
+            # splits five times. Measured against the BUILT windows and their trim, not
+            # the specs that generated both, or the test and the geometry share a bug.
+            for tag, ax, names in (('E', 2, ('east 1', 'east 2')),
+                                   ('S', 0, ('south 1',))):
+                sid = [b for _, b in faces[tag]] + \
+                      [b for _, b in _parts(ext, f'Wing cladding skirt {tag}')]
+                for w in names:
+                    wb = [b for nm, b in _parts(ext, '') if nm.endswith(f'Ext {w}')]
+                    check(wb, f'{tag}: upper "{w}" is built ({len(wb)} parts)')
+                    if not wb:
+                        continue
+                    a0, a1 = min(b[ax] for b in wb), max(b[ax + 1] for b in wb)
+                    y0, y1 = min(b[4] for b in wb), max(b[5] for b in wb)
+                    hits = [b for b in sid
+                            if b[ax + 1] > a0 and b[ax] < a1 and b[5] > y0 and b[4] < y1]
+                    over = [b for b in sid
+                            if b[ax + 1] > a0 and b[ax] < a1 and b[4] >= y1 - 1e-6]
+                    check(not hits and over,
+                          f'{tag}: the siding splits clear of "{w}" and closes above it '
+                          f'({len(hits)} in the opening, {len(over)} over it)')
+                    # AND IT SITS WHOLLY INSIDE THE BAND. This is the change that removed
+                    # the straddle: a standard upper spans 15.0-18.5 and crosses the
+                    # band's base at 16.37 however the band is sized, leaving its sill
+                    # hanging on bare stucco. Trim included, and at the TIGHTEST bay
+                    # rather than on average — the margin is 0.15 ft, so it needs a test.
+                    # The band's head, per face: the east runs to the wall top (no
+                    # frieze), the south dies into its own raking frieze soffit.
+                    top = east_top if tag == 'E' else _sof_S((a0 + a1) / 2)
+                    check(y0 > lo + 1e-9 and y1 < top + 1e-9,
+                          f'{tag}: "{w}" wholly inside the band '
+                          f'(+{y0 - lo:.3f} below, +{top - y1:.3f} above)')
 
-            # --- THE ROUND WINDOW in the lower east bay -------------------------
-            # A blind oculus was tried on this wall and removed. The difference here is
-            # that this one is a real GLAZED OPENING, so that is what gets asserted: an
-            # IfcWindow, inside its own ring, on lines that already exist.
-            ring, glass = WE.get('Wing round window ring'), WE.get('Wing round window glass')
-            check(ring and glass, 'a round window in the lower east bay')
-            if ring and glass:
-                check(any((getattr(p, 'Name', None) or '') == 'Wing round window glass'
-                          for p in ext.by_type('IfcWindow')),
-                      'GLAZED — an IfcWindow, not the blind ornament that was removed here')
-                check(near(ring[1] - ring[0], 2 * we['roundWindow']['radiusFt'], 0.02)
-                      and near(ring[5] - ring[4], ring[1] - ring[0], 0.02),
-                      f"{2 * we['roundWindow']['radiusFt']} ft across and ROUND — as wide "
-                      f'as it is tall ({ring[1] - ring[0]:.3f} by {ring[5] - ring[4]:.3f})')
-                # Two derived lines, and the second is the reason it is at that height.
-                check(near((ring[0] + ring[1]) / 2, (wing_e + party) / 2, 0.01),
-                      f'centred on the east bay ({(ring[0] + ring[1]) / 2:.4f} vs '
-                      f'{(wing_e + party) / 2:.4f})')
-                check(near((ring[4] + ring[5]) / 2, BASE + model['doorHeight'], 0.02),
-                      f"on the door's head line, so the wall's two openings share a "
-                      f"horizontal ({(ring[4] + ring[5]) / 2:.2f} vs "
-                      f"{BASE + model['doorHeight']})")
-                check(glass[0] > ring[0] + 1e-6 and glass[1] < ring[1] - 1e-6
-                      and glass[3] < ring[3] + 1e-6,
-                      f'its glass set inside the ring and behind it '
-                      f'({glass[1] - glass[0]:.3f} across, proud to {glass[3]:.3f})')
-                _wt = extents(ext, lambda nm, p: nm == 'Water table - extension')
-                _wt = _wt.get('Water table - extension')
-                check(ring[5] < floor2 - 0.5 and _wt and ring[4] > _wt[5],
-                      f'sitting clear in the lower bay, under the waist and over the '
-                      f'water table ({ring[4]:.2f}..{ring[5]:.2f})')
+            # GROOVES, per face, as the GAPS BETWEEN consecutive full-height strips —
+            # what a groove is here, and the one thing separating this from the
+            # board-and-batten it replaced. Only full-height strips: the pieces over the
+            # window share an along-range with them and would read as overlaps.
+            for tag, ax in (('N', 0), ('E', 2), ('S', 0)):
+                full = sorted([b for _, b in faces[tag] if near(b[4], lo, 0.01)],
+                              key=lambda b: b[ax])
+                gaps = [full[i + 1][ax] - full[i][ax + 1] for i in range(len(full) - 1)]
+                fine = [g for g in gaps if g < 0.2]
+                check(fine and all(near(g, cl['grooveFt'], 0.005) for g in fine),
+                      f"{tag}: {len(fine)} grooves at {cl['grooveFt'] * 12:.2f} in "
+                      f'({min(fine) * 12:.2f}-{max(fine) * 12:.2f} in)')
+                # A wide gap is a WINDOW, not a groove. There should be exactly one per
+                # upper window on that face — the north has none, the east three, the
+                # south two — which is what ties the siding's splits back to the openings
+                # that caused them rather than just counting holes.
+                wide = [g for g in gaps if g >= 0.2]
+                want = len(_band_specs.get(tag, ()))
+                check(len(wide) == want,
+                      f'{tag}: {len(wide)} wide gap(s), one per upper window ({want})')
+            # The face must stand PROUD of its backer on every wall — that is what lets the
+            # dark backer show through the grooves. Measured as distance from the wall
+            # plane, so it holds whichever way the face looks out.
+            def _proud(tag, ax, wall):
+                b = faces[tag][0][1]
+                return (abs((b[ax] + b[ax + 1]) / 2 - wall)
+                        > abs((backs[tag][ax] + backs[tag][ax + 1]) / 2 - wall))
+            check(_proud('N', 2, wing_n) and _proud('S', 2, wing_s) and _proud('E', 0, wing_e),
+                  'the face standing proud of its backer on every wall, so the grooves show it')
+
+        # --- IT IS A BAND, NOT A CLAD STOREY, with stucco between it and the waist.
+        back = backs['N']
+        check(back[4] - floor2 > 1.5,
+              f'plain stucco between the band and the waist, so the waist reads as a '
+              f'storey line and not the siding\'s base ({back[4] - floor2:.2f} ft)')
+        check(back[5] - back[4] < 0.6 * model['storyHeight'],
+              f'and the band is well under a storey tall ({back[5] - back[4]:.2f} ft '
+              f'against {model["storyHeight"]})')
+
+        # --- THE ROUND WINDOW in the lower east bay of the north face --------------
+        ring, glass = WE.get('Wing round window ring'), WE.get('Wing round window glass')
+        check(ring and glass, 'a round window in the lower east bay')
+        if ring and glass:
+            check(any((getattr(p, 'Name', None) or '') == 'Wing round window glass'
+                      for p in ext.by_type('IfcWindow')),
+                  'GLAZED — an IfcWindow, not the blind ornament that was removed here')
+            check(near(ring[1] - ring[0], 2 * we['roundWindow']['radiusFt'], 0.02)
+                  and near(ring[5] - ring[4], ring[1] - ring[0], 0.02),
+                  f"{2 * we['roundWindow']['radiusFt']} ft across and ROUND "
+                  f'({ring[1] - ring[0]:.3f} by {ring[5] - ring[4]:.3f})')
+            check(near((ring[0] + ring[1]) / 2, (wing_e + party) / 2, 0.01),
+                  f'centred on the east bay ({(ring[0] + ring[1]) / 2:.4f})')
+            check(near((ring[4] + ring[5]) / 2, BASE + model['doorHeight'], 0.02),
+                  f"on the door's head line, so the wall's two openings share a horizontal "
+                  f"({(ring[4] + ring[5]) / 2:.2f})")
+
+# ---------------------------------------------------------------------------------
+# THE WING'S FENESTRATION. Its east and south walls used to carry two windows that sat
+# 1.7 ft out of line with each other, because each was placed from INSIDE its own room
+# and nothing made them stack outside. Only the north front was ever locked to its ground
+# openings. These assertions are that rule, applied to the two faces that lacked it.
+print('\nWING FENESTRATION')
+_W = {}
+for p in ext.by_type('IfcWindow'):
+    nm = getattr(p, 'Name', None) or ''
+    try:
+        sh = ifcopenshell.geom.create_shape(S, p)
+    except Exception:
+        continue
+    v = np.array(sh.geometry.verts).reshape(-1, 3)
+    _W[nm] = (-v[:, 0] / FT, v[:, 1] / FT, v[:, 2] / FT)
+
+
+def _ctr(nm, ax):
+    a = _W[nm][ax]
+    return (a.min() + a.max()) / 2
+
+
+for face, ax, along, pairs in (
+        ('east', 0, 1, [('Window - Bath', 'Upper - Ext east 1'),
+                        ('Window - Bath N', 'Upper - Ext east 2')]),
+        ('south', 1, 0, [('Window - WC S', 'Upper - Ext south 1')])):
+    have = all(g in _W and u in _W for g, u in pairs)
+    check(have, f'the {face} wall carries {len(pairs)} stacked bays')
+    if not have:
+        continue
+    # THE WHOLE POINT: ground and upper share a centreline, measured centre to centre
+    # rather than against the numbers that placed them. This is the 1.7 ft misalignment,
+    # and nothing else would have caught it.
+    for g, u in pairs:
+        d = abs(_ctr(g, along) - _ctr(u, along))
+        check(d < 0.01, f'{face}: "{u}" stacks on "{g}" ({d:.4f} ft apart)')
+    # A row with one window off reads worse than no row, so the tiers must be uniform.
+    for tier, names in (('ground', [g for g, _ in pairs]), ('upper', [u for _, u in pairs])):
+        sills = {round(_W[n][2].min(), 3) for n in names}
+        heads = {round(_W[n][2].max(), 3) for n in names}
+        wides = {round(_W[n][along].max() - _W[n][along].min(), 3) for n in names}
+        check(len(sills) == 1 and len(heads) == 1 and len(wides) == 1,
+              f'{face} {tier}: one sill, head and width across the row '
+              f'({sills.pop():.2f}/{heads.pop():.2f}, {wides.pop():.2f} ft wide)')
+    # Evenly spaced, and the same margin at each end of the run they occupy.
+    cs = sorted(_ctr(g, along) for g, _ in pairs)
+    if len(cs) > 2:
+        steps = [cs[i + 1] - cs[i] for i in range(len(cs) - 1)]
+        check(max(steps) - min(steps) < 0.01, f'{face}: evenly spaced ({max(steps):.3f} ft)')
+
+# PIERS — the wall LEFT between things. Nothing here measured density before, which is
+# how the south wall came to carry 9.8 ft of trim in a 10.9 ft wall: two windows correctly
+# stacked, correctly uniform, correctly on their bays, and 3.4 IN of wall at each corner.
+# Every assertion passed. The wing's own north face is the reference: its roundel and door
+# keep 1.2-1.7 ft at every corner and party line, so 1.0 ft is the floor.
+#
+# Measured on the TRIM, not the glass — trim spans the opening plus ~1.3 ft, and it is the
+# trim that runs out of wall.
+PIER_MIN = 1.0
+for face, ax, wall, tiers in (
+        ('south', 0, (wing_e, wing_w),
+         {'ground': ('Window - WC S',), 'upper': ('Upper - Ext south 1',)}),
+        ('east', 2, (wing_s, wing_n),
+         {'ground': ('Window - Bath', 'Window - Bath N'),
+          'upper': ('Upper - Ext east 1', 'Upper - Ext east 2')})):
+    for tier, names in tiers.items():
+        spans = []
+        for n in names:
+            parts = [b for nm, b in _parts(ext, '') if nm.endswith(n)]
+            if parts:
+                spans.append((min(b[ax] for b in parts), max(b[ax + 1] for b in parts)))
+        check(len(spans) == len(names),
+              f'{face} {tier}: {len(spans)} of {len(names)} openings measurable')
+        if len(spans) != len(names):
+            continue
+        spans.sort()
+        piers = ([spans[0][0] - wall[0]]
+                 + [spans[i + 1][0] - spans[i][1] for i in range(len(spans) - 1)]
+                 + [wall[1] - spans[-1][1]])
+        check(min(piers) >= PIER_MIN,
+              f'{face} {tier}: least pier {min(piers) * 12:.1f} in '
+              f'({", ".join(f"{p * 12:.0f}" for p in piers)} in) — {PIER_MIN * 12:.0f} in min')
+
+# The south bays are the NORTH face's own two axes — the round window's and the door's —
+# so the wing has two vertical lines every face it has answers to. Asserted against the
+# built round window rather than a number, so the three faces cannot drift apart.
+if 'Wing round window ring' in WE and 'Window - WC S' in _W:
+    check(near(_ctr('Window - WC S', 0), (WE['Wing round window ring'][0]
+                                          + WE['Wing round window ring'][1]) / 2, 0.01),
+          "the south's east bay is the round window's axis "
+          f"({_ctr('Window - WC S', 0):.4f})")
+# THE WESTERN SOUTH BAY IS DELIBERATELY BLANK, and that is pinned so it stays a decision
+# rather than something that drifts back. The bay itself still exists — it is the door's
+# axis on the north face — so the elevation is divided on it whether or not it is glazed.
+_fd = [d for k in EXT_W for d in json.load(open(f'ifc/rooms/{k}.json')).get('doors', [])
+       if d.get('orient') == 'H' and abs(d.get('fixed', 0) - wing_n) < 1e-6]
+_west_bay = [nm for nm in _W if _fd and abs(_ctr(nm, 0) - _fd[0]['pos']) < 0.2
+             and _W[nm][1].max() < wing_s + 0.4]
+check(_fd and not _west_bay,
+      f"the south's western bay is blank, as decided ({len(_west_bay)} windows on the "
+      f"door's axis at {_fd[0]['pos'] if _fd else '?'})")
+
+# NO FRIEZE LIGHT ON THE EXTENSION. Its shed eave is 4 ft below the primary's frieze band,
+# so one there floats in mid-air over its roof. The guard used to skip anything NAMED
+# "Ext bath" and silently stopped working the moment these windows were renamed — it built
+# five lights over open air. Paired with the primary still having its own, or this passes
+# for a frieze band that stopped being built at all.
+_fr = [nm for nm in _W if nm.startswith('Frieze - ')]
+_stray = [nm for nm in _fr if _ctr(nm, 0) < wing_w - 0.5]
+check(not _stray and len(_fr) >= 10,
+      f'no frieze light on the extension, and the primary keeps its {len(_fr)} '
+      f'({len(_stray)} stray)')
 
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)

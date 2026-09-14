@@ -1267,16 +1267,33 @@ console.log('EXTENSION FIXTURES');
           && m.pzLo > -8.3 && m.pzHi < 3.9;
         const posts = L.filter(m => onEast(m) && (m.pzHi - m.pzLo) > 0.25 && (m.pzHi - m.pzLo) < 0.45
           && Math.abs(m.yLo - (3.0 - DY)) < 0.12 && m.yHi > 6.5);
-        A(posts.length === 2, `a jamb casing each side of the bath window (${posts.length})`);
-        A(posts.every(m => m.nv >= 100), 'both swept profiles, not boxes');
+        // The bath's east wall carries TWO windows now that the elevation is set out on
+        // bays, not the one it had. Count and positions both come from the ROOM FILE
+        // rather than being written out here: this was a pair of hard-coded numbers and
+        // went stale the moment the windows moved, reporting a trim failure when the trim
+        // was right. Derived, it follows them next time.
+        const eastWins = JSON.parse(readFileSync('ifc/rooms/ext_bath.json', 'utf8'))
+          .windows.filter(w => w.orient === 'V');
+        const want = eastWins.flatMap(w => [w.pos - w.width / 2, w.pos + w.width / 2])
+          .map(v => R(v, 2)).sort((u, v2) => u - v2);
+        A(posts.length === want.length,
+          `a jamb casing each side of all ${eastWins.length} bath windows ` +
+          `(${posts.length} of ${want.length})`);
+        A(posts.every(m => m.nv >= 100), 'every one a swept profile, not a box');
         const at = posts.map(m => R((m.pzLo + m.pzHi) / 2, 2)).sort((u, v2) => u - v2);
-        A(JSON.stringify(at) === JSON.stringify([-6.96, -3.96]), `they land on the opening: ${at.join(', ')}`);
-        const stool = L.filter(m => onEast(m) && (m.pzHi - m.pzLo) > 2.9
+        A(at.length === want.length && at.every((v, i) => Math.abs(v - want[i]) < 0.06),
+          `they land on the openings: ${at.join(', ')}`);
+        // Length thresholds derived from the OPENING, like the jamb positions above: a
+        // stool runs the window plus its horns, so a fixed 2.9 was really "the 3 ft
+        // window this was written for" and reported a missing stool the moment the
+        // windows narrowed to 2 ft. The 2.45 ft stool was there the whole time.
+        const minRun = Math.min(...eastWins.map(w => w.width)) - 0.1;
+        const stool = L.filter(m => onEast(m) && (m.pzHi - m.pzLo) > minRun
           && m.yHi > 3.0 - DY && m.yHi < 3.2);
         A(stool.length >= 1, `a stool at the sill (${stool.length})`);
         // Runs to the STOOL's length now, not the casing's, so the old 3.3 ceiling cut
         // it out. Bounded by the stool it sits under rather than by a fixed number.
-        const apron = L.filter(m => onEast(m) && (m.pzHi - m.pzLo) > 2.8
+        const apron = L.filter(m => onEast(m) && (m.pzHi - m.pzLo) > minRun
           && m.yHi < 3.0 - DY + 0.02 && m.yLo > 2.4);
         A(apron.length >= 1, `an apron under it (${apron.length})`);
         A(apron.some(m => m.nv >= 100), 'moulded, and returned onto itself');

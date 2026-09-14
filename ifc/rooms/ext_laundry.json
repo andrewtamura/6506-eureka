@@ -23,6 +23,11 @@
   ],
   "windows": [],
   "interior": {
+    "paneling": {
+      "baseboard": 10,
+      "noCornice": true,
+      "battens": false
+    },
     "flooring": {
       "material": "tile",
       "pattern": "hexagon"
