@@ -3010,32 +3010,41 @@ def second_floor_windows(rooms):
         eb = [r["bounds"] for r in ext_rooms]
         ext_x = min(b["x1"] for b in eb)                      # far (east) wall
         ext_s = min(b["z1"] for b in eb)                      # ...and the south
-        # EAST: the rooms on that wall are very unequal — a 3.47 ft WC and a 12.45 ft
-        # bath. The WC's return CANNOT CARRY A WINDOW AT ALL: trim spans the glass plus
-        # 1.4 ft, so even a 2 ft window fills 3.4 of its 3.47, and anything in the same
-        # family as the rest overruns the corner. So the bays divide the BATHROOM's
-        # stretch and the WC's return stays blank — which is what that wall is: a short
-        # blind return at the corner before the elevation proper starts. Dividing the
-        # whole wall instead put windows through the partition AND past both corners.
+        # EAST: EQUAL PIERS across the WHOLE wall — corner to trim, trim to trim and trim
+        # to corner all the same. Set out on the GROUND window's trim (glass plus its
+        # casing), not the upper's, because the two tiers have different casings and it is
+        # the ground row the eye measures the corners against; the uppers then take those
+        # same centres so the bays still stack.
+        #
+        # This is what moved the WC/bath partition. Dividing the bathroom's stretch alone
+        # — which is what this did before — left piers of 59, 34 and 17 in; dividing the
+        # whole wall evenly puts the first window's trim through a partition at 3.47 ft,
+        # and the only width that clears it is 16 in, an arrow slit on a 16 ft wall. So
+        # the partition moved to the wall's centreline instead, which is also the midpoint
+        # between the two windows' trim, giving each room exactly one bay.
+        GROUND_W, CASING = 2.0, 1.4
         ez = sorted({v for b in eb if abs(b["x1"] - ext_x) < 1e-6 for v in (b["z1"], b["z2"])})
-        if len(ez) >= 3:
-            a, b2 = ez[1], ez[-1]
+        if len(ez) >= 2:
+            a, b2 = ez[0], ez[-1]
+            t = GROUND_W + CASING
+            pier = ((b2 - a) - 2 * t) / 3
             for i in range(2):
-                add(f"Upper - Ext east {i + 1}", "V", ext_x, a + (b2 - a) * (i + 0.5) / 2,
+                add(f"Upper - Ext east {i + 1}", "V", ext_x,
+                    a + pier + t / 2 + i * (pier + t),
                     sill=SILL_X, width=W_X, head=HEAD_X)
         # SOUTH: its two rooms divide evenly, so the bays are their midpoints — and they
         # come out on the north face's own two axes, the round window's and the door's, so
         # the wing has two vertical lines every face answers to.
         #
-        # ONLY THE EASTERN BAY IS GLAZED. The western one is left blank for now, so the
-        # south carries one stacked pair against 6.5 ft of plain wall. The BAY is still
-        # set out — it is the door's axis and the elevation is still divided on it — so
-        # glazing it later is one line here and one window in ext_laundry.json, not a
-        # re-composition.
+        # BOTH BAYS are glazed again. The western one was blanked while the rooms behind
+        # the south wall were a WC and a laundry; with a shower moving to that wall on
+        # both floors it earns a window, and the pair keeps the two-bay rhythm the north
+        # face sets. Upstairs these are already clerestories inside the T1-11 band —
+        # transoms in all but name — so only the second bay had to come back.
         sx = sorted({v for b in eb if abs(b["z1"] - ext_s) < 1e-6 for v in (b["x1"], b["x2"])})
-        if len(sx) >= 2:                                  # sorted ascending: px grows WEST,
-            add("Upper - Ext south 1", "H", ext_s,        # so sx[0..1] is the EASTERN bay
-                (sx[0] + sx[1]) / 2, sill=SILL_X, width=W_X, head=HEAD_X)
+        for i in range(len(sx) - 1):
+            add(f"Upper - Ext south {i + 1}", "H", ext_s, (sx[i] + sx[i + 1]) / 2,
+                sill=SILL_X, width=W_X, head=HEAD_X)
     return front_z, specs
 
 

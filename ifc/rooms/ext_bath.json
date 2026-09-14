@@ -5,26 +5,17 @@
   "bounds": {
     "x1": -22.9167,
     "x2": -17.4583,
-    "z1": -8.45,
+    "z1": -3.9584,
     "z2": 4
   },
   "walls": true,
   "doors": [],
   "windows": [
     {
-      "name": "Window - Bath",
+      "name": "Window - Bath E",
       "orient": "V",
       "fixed": -22.9167,
-      "pos": -5.3375,
-      "width": 2.0,
-      "sill": 3.0,
-      "head": 7.0
-    },
-    {
-      "name": "Window - Bath N",
-      "orient": "V",
-      "fixed": -22.9167,
-      "pos": 0.8875,
+      "pos": -0.7389,
       "width": 2.0,
       "sill": 3.0,
       "head": 7.0
@@ -113,15 +104,6 @@
         "at": [
           -20.1875,
           -2.3
-        ],
-        "ceilFt": 9.0,
-        "diaFt": 0.5
-      },
-      {
-        "type": "recessed",
-        "at": [
-          -20.1875,
-          -6.4
         ],
         "ceilFt": 9.0,
         "diaFt": 0.5

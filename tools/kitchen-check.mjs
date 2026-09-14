@@ -1034,6 +1034,10 @@ console.log('WAINSCOT + LIGHTING');
 console.log('EXTENSION FIXTURES');
 { const LS = -11.688, BE = -22.688, BW = -17.687, BN = 3.771;   // interior faces
   const ext = P.filter(r => r.px < -11.9);
+  // The WC/bath partition. Derived, not written out: it was the literal -8.3 and
+  // went stale the moment the partition moved to suit the east elevation's bays,
+  // splitting the downlights 3/1 for the wrong reason.
+  const PART = JSON.parse(readFileSync('ifc/rooms/ext_bath.json', 'utf8')).bounds.z1;
 
   // LAUNDRY: washer and dryer side by side, backs to the south wall.
   { const pair = ext.filter(r => r.type === 'appliance' && /washer|dryer/.test(r.kind)).sort((a, b) => a.px - b.px);
@@ -1238,7 +1242,7 @@ console.log('EXTENSION FIXTURES');
             .sort((a, b) => b.yHi - a.yHi)[0];
           A(!!mir && Math.abs(mir.yHi - 6.5) < 0.08, `mirror tops out at ${R((mir ? mir.yHi : 0) * 12, 0)} in — it was 65`);
           A(!!mir && mir.yLo > 3.1, `its foot clears the counter by ${R((mir.yLo - 3.05) * 12, 1)} in`); }
-        const sc = ext.filter(r => r.type === 'sconce' && r.pz > -8.3 && r.pz < 3.9);
+        const sc = ext.filter(r => r.type === 'sconce' && r.pz > PART && r.pz < 3.9);
         A(sc.length === 2, `two sconces at the mirror (${sc.length})`);
         if (sc.length === 2 && v2) {
           // It projects WEST off the east wall, so pxLo is the face and pxHi the globe.
@@ -1249,10 +1253,10 @@ console.log('EXTENSION FIXTURES');
           A(sc.every(m => Math.abs(m.yLo + m.yHi) / 2 > 4.5), 'hung at mirror height');
         }
         const cans = ext.filter(r => r.type === 'recessed');
-        A(cans.length === 4, `four downlights — three in the bath, one in the WC (${cans.length})`);
+        A(cans.length === 4, `four downlights — two in the bath, two in the WC (${cans.length})`);
         A(cans.every(c => Math.abs(c.yHi - 9.0) < 0.06), 'all flush with the ceiling');
-        A(cans.filter(c => c.pz > -8.3).length === 3 && cans.filter(c => c.pz < -8.3).length === 1,
-          'three bath, one WC');
+        const nBath = cans.filter(c => c.pz > PART).length, nWc = cans.filter(c => c.pz < PART).length;
+        A(nBath === 2 && nWc === 2, `two bath, two WC (${nBath}/${nWc}) about the partition at ${R(PART, 3)}`);
         // The generic per-room semi-flush hangs ~11 in below the ceiling. Nothing in
         // either room should now — that is what "remove the overhead lighting" means.
         const hung = L.filter(m => m.pxLo > -22.75 && m.pxHi < -17.6 && m.pzLo > -11.75 && m.pzHi < 3.85
@@ -1264,7 +1268,7 @@ console.log('EXTENSION FIXTURES');
       // WINDOW TRIM on the bath's east wall — the room had no trim program at all.
       { const BEW = -22.68785, DY = 0.066;      // interior face; loose meshes read DY low
         const onEast = (m) => m.pxLo > BEW - 0.05 && m.pxHi < BEW + 0.30
-          && m.pzLo > -8.3 && m.pzHi < 3.9;
+          && m.pzLo > PART && m.pzHi < 3.9;
         const posts = L.filter(m => onEast(m) && (m.pzHi - m.pzLo) > 0.25 && (m.pzHi - m.pzLo) < 0.45
           && Math.abs(m.yLo - (3.0 - DY)) < 0.12 && m.yHi > 6.5);
         // The bath's east wall carries TWO windows now that the elevation is set out on
@@ -1321,7 +1325,10 @@ console.log('EXTENSION');
       const face = -22.917 + 0.22915;                 // bath east wall, interior face
       A(Math.abs(midPx(d) - face - 0.5) < 0.03,
         `${R((midPx(d) - face) * 12, 1)} in of return from the bath's east wall`);
-      A(d.pzHi <= -8.45 + 0.02, `swings into the WC (pz ${R(d.pzLo,2)}..${R(d.pzHi,2)})`);
+      // The partition, derived — this was the literal -8.45 and went stale when the
+      // partition moved to suit the east wall's bays.
+      const part = JSON.parse(readFileSync('ifc/rooms/ext_bath.json', 'utf8')).bounds.z1;
+      A(d.pzHi <= part + 0.02, `swings into the WC (pz ${R(d.pzLo,2)}..${R(d.pzHi,2)}, partition ${R(part,3)})`);
     } }
 
   // LAUNDRY -> BATH. Was a 2'8" cased opening; the WC gave up depth so it could be a
