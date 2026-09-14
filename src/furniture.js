@@ -1306,10 +1306,18 @@ function buildShower(p) {
     // opening is what you walk through; there is no glass, no pony wall and no curb.
     const ow = p.arch.widthFt ?? 2.5, spring = p.arch.springFt ?? 6.25, off = p.arch.offsetFt ?? 0;
     const r = ow / 2;
+    // SEMICIRCULAR by default; `riseFt` below the half-width makes it SEGMENTAL — a flatter
+    // arc through the same two jamb tops, for an opening too wide to carry a full
+    // semicircle under the ceiling (a 6 ft arch springing at 6 ft 3 would apex at 9 ft 3).
+    // A circular segment of chord `ow` and rise `rise` has radius (c^2 + rise^2) / 2 rise
+    // with its centre `R - rise` below the springline.
+    const rise = Math.min(p.arch.riseFt ?? r, r);
+    const R = (r * r + rise * rise) / (2 * rise), cy = spring - (R - rise);
+    const th = Math.atan2(spring - cy, r);                              // the jamb tops' angle off the centre
     const sh = new THREE.Shape();
     sh.moveTo(-Wd / 2 * ft, 0);
     sh.lineTo((off - r) * ft, 0); sh.lineTo((off - r) * ft, spring * ft);
-    sh.absarc(off * ft, spring * ft, r * ft, Math.PI, 0, true);        // over the top, jamb to jamb
+    sh.absarc(off * ft, cy * ft, R * ft, Math.PI - th, th, true);      // over the top, jamb to jamb
     sh.lineTo((off + r) * ft, 0); sh.lineTo(Wd / 2 * ft, 0);
     sh.lineTo(Wd / 2 * ft, H * ft); sh.lineTo(-Wd / 2 * ft, H * ft); sh.lineTo(-Wd / 2 * ft, 0);
     const geo = new THREE.ExtrudeGeometry(sh, { depth: wt * ft, bevelEnabled: false, curveSegments: 24 });

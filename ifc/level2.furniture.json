@@ -343,24 +343,25 @@
       "material": "sage"
     },
     {
-      "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4), one open room. DOOR near the NW corner on the west wall. Double VANITY on the EAST wall centred on the north-east window (z -0.74), a sink and mirror either side of the glass, sconces outboard, counter at 34 in under the sill. Double SHOWER along the WEST wall, 8 x 4 ft, long side on the bedroom partition, two heads on that wall, 36 in arched doorless entry facing the room; the west south transom (px -14.73) falls in its south end wall and is cut out of it (side cutout, da = (px_window - px_shower) * A[0] for a shower opening E). Wall-hung TOILET on the south wall near the SE corner under the east transom, facing north. No WC room.",
+      "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4), one open room. DOOR near the NW corner on the west wall. Double VANITY on the EAST wall centred on the north-east window (z -0.74), a sink and mirror either side of the glass, sconces outboard, counter at 34 in under the sill. Double SHOWER along the WEST wall, 8 x 5 ft, long side on the bedroom partition, two heads on that wall, a 6 ft SEGMENTAL arched doorless entry facing the room (springs at 6 ft 3, rises 1 ft 9 \u2014 a semicircle would apex above the ceiling). Five feet deep so that the west south transom (px -14.73) is CENTRED in its south end wall, equal tile either side, and is cut out of it (side cutout, da = (px_window - px_shower) * A[0] for a shower opening E). Wall-hung TOILET on the south wall near the SE corner under the east transom, facing north. No WC room.",
       "type": "shower",
-      "px": -14.229,
+      "px": -14.7292,
       "pz": -7.688,
       "opens": "E",
       "widthFt": 8.0,
-      "depthFt": 4.0,
+      "depthFt": 5.0,
       "curb": false,
       "heightFt": 9.0,
       "arch": {
-        "widthFt": 3.0,
-        "springFt": 6.25
+        "widthFt": 6.0,
+        "springFt": 6.25,
+        "riseFt": 1.75
       },
       "heads": 2,
       "cutouts": [
         {
           "side": "S",
-          "da": 0.5002,
+          "da": -0.0,
           "widthFt": 2.167,
           "sillFt": 4.2,
           "headFt": 6.1
@@ -382,22 +383,16 @@
       "mirrorTopFt": 6.5
     },
     {
-      "type": "wall_toilet",
-      "px": -21.19,
-      "pz": -11.688,
-      "faces": "N"
-    },
-    {
       "_note": "En-suite downlights: two in the shower, one over each sink, one over the toilet, one on the floor, one by the door.",
       "type": "recessed",
-      "px": -14.2,
+      "px": -14.73,
       "pz": -9.5,
       "ceilFt": 9.0,
       "diaFt": 0.5
     },
     {
       "type": "recessed",
-      "px": -14.2,
+      "px": -14.73,
       "pz": -5.9,
       "ceilFt": 9.0,
       "diaFt": 0.5
@@ -418,7 +413,7 @@
     },
     {
       "type": "recessed",
-      "px": -21.2,
+      "px": -20.1875,
       "pz": -9.5,
       "ceilFt": 9.0,
       "diaFt": 0.5
@@ -436,6 +431,13 @@
       "pz": 1.9,
       "ceilFt": 9.0,
       "diaFt": 0.5
+    },
+    {
+      "_note": "Conventional tank toilet on the south wall, centred under the east transom (px -20.1875), facing north; the tank backs onto the south face at -11.688.",
+      "type": "toilet",
+      "px": -20.1875,
+      "pz": -10.588,
+      "faces": "N"
     }
   ]
 }
