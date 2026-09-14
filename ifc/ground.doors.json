@@ -35,8 +35,8 @@
   },
   {
     "name": "Bath -> WC",
-    "hingeMax": true,
-    "swingSign": 1,
+    "hingeMax": false,
+    "swingSign": -1,
     "style": "panel"
   },
   {
@@ -55,7 +55,8 @@
     "name": "Laundry -> Bath",
     "hingeMax": true,
     "swingSign": -1,
-    "style": "panel"
+    "style": "panel",
+    "sliding": true
   },
   {
     "name": "Back Door",

@@ -1116,8 +1116,11 @@ if all(n in _W for n in ('Upper - Ext south 1', 'Upper - Ext east 1')):
 # to move — equal piers put a window's trim through it — and it had never been asserted.
 # Measured against the rooms as authored, so a later partition change cannot silently put
 # a window through a wall again.
+# Both east windows are in the BATH now: the partition between the old WC and bath is
+# gone (the shower and the vanity share one open room) and the water closet is a
+# compartment at the north end, past the second window.
 _rooms = {k: json.load(open(f'ifc/rooms/{k}.json'))['bounds'] for k in EXT_W}
-for nm, key in (('Window - WC E', 'wc'), ('Window - Bath E', 'ext_bath')):
+for nm, key in (('Window - WC E', 'ext_bath'), ('Window - Bath E', 'ext_bath')):
     tr = [b for n, b in _parts(ext, '') if n.endswith(nm)]
     if not tr:
         check(False, f'{nm} is built')
@@ -1126,6 +1129,36 @@ for nm, key in (('Window - WC E', 'wc'), ('Window - Bath E', 'ext_bath')):
     z0, z1 = _rooms[key]['z1'], _rooms[key]['z2']
     check(z0 - 1e-6 <= lo and hi <= z1 + 1e-6,
           f'{nm} sits wholly inside {key} (trim {lo:.3f}..{hi:.3f} in {z0:.3f}..{z1:.3f})')
+
+# THE WATER CLOSET IS A COMPARTMENT, and it has to be one a toilet fits across: 30 in
+# clear is the code minimum, and with the vanity centred under the window at -0.74 the
+# compartment wall has nowhere to go but 0.92, which leaves 31.5 in. Asserted on the
+# authored bounds less the wall, so a vanity change that pushes the wall north fails
+# here rather than building a 29 in room.
+_WALL = 0.4583                                    # wall thickness, ft (two half-walls)
+_wcb = _rooms['wc']
+_wc_depth = abs(_wcb['z2'] - _wcb['z1']) - _WALL
+check(_wc_depth >= 2.5, f'the water closet is {_wc_depth * 12:.1f} in clear front to back (30 min)')
+check(near(_wcb['z2'], wing_n, 1e-6), 'and it sits against the north wall')
+_bb = _rooms['ext_bath']
+check(near(_bb['z1'], wing_s, 1e-6) and near(_bb['z2'], _wcb['z1'], 1e-6),
+      f"the bath is one open room from the south wall to the compartment ({_bb['z1']:.3f}..{_bb['z2']:.3f})")
+
+# THE LAUNDRY DOOR IS A POCKET DOOR. A 3 ft leaf swinging into a 5 ft wide room stood in
+# the middle of it, a hand's width off the shower glass. Asserted in the IFC — the door
+# itself says it slides — and on the wall: the pocket is the party wall beyond the hinge
+# jamb, and there has to be a leaf's width of it before the corner.
+_ld = next((d for d in json.load(open('ifc/rooms/ext_laundry.json'))['doors']
+            if d['name'] == 'Laundry -> Bath'), None)
+_ifc_ld = next((d for d in gnd.by_type('IfcDoor') if (d.Name or '') == 'Laundry -> Bath'), None)
+check(_ld is not None and _ld.get('sliding') is True, 'Laundry -> Bath is authored as a pocket door')
+check(_ifc_ld is not None and getattr(_ifc_ld, 'OperationType', None) == 'SLIDING_TO_LEFT',
+      f"...and the IfcDoor says so (OperationType {getattr(_ifc_ld, 'OperationType', None)})")
+if _ld:
+    _jamb_s = _ld['pos'] - _ld['width'] / 2
+    _pocket = _jamb_s - (wing_s + _WALL / 2)
+    check(_pocket >= _ld['width'],
+          f"{_pocket:.2f} ft of wall south of the jamb for a {_ld['width']:.2f} ft leaf to slide into")
 
 # NO FRIEZE LIGHT ON THE EXTENSION. Its shed eave is 4 ft below the primary's frieze band,
 # so one there floats in mid-air over its roof. The guard used to skip anything NAMED

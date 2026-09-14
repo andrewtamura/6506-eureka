@@ -5,41 +5,22 @@
   "bounds": {
     "x1": -22.9167,
     "x2": -17.4583,
-    "z1": -11.9167,
-    "z2": -3.9584
+    "z1": 0.97,
+    "z2": 4
   },
   "walls": true,
   "doors": [
     {
       "name": "Bath -> WC",
       "orient": "H",
-      "fixed": -3.9584,
+      "fixed": 0.97,
       "pos": -21.023,
       "width": 2.33,
-      "hinge": "max",
-      "swing": "pos"
+      "hinge": "min",
+      "swing": "neg"
     }
   ],
-  "windows": [
-    {
-      "name": "Window - WC E",
-      "orient": "V",
-      "fixed": -22.9167,
-      "pos": -7.1778,
-      "width": 2.0,
-      "sill": 3.0,
-      "head": 7.0
-    },
-    {
-      "name": "Window - WC S",
-      "orient": "H",
-      "fixed": -11.9167,
-      "pos": -20.1875,
-      "width": 2.0,
-      "sill": 5.75,
-      "head": 7.0
-    }
-  ],
+  "windows": [],
   "interior": {
     "paneling": {
       "baseboard": 10,
@@ -52,34 +33,18 @@
     },
     "furniture": [
       {
-        "type": "recessed",
+        "type": "toilet",
         "at": [
-          -20.1875,
-          -6.4
+          -18.787,
+          2.485
         ],
-        "ceilFt": 9.0,
-        "diaFt": 0.5
-      },
-      {
-        "type": "shower",
-        "at": [
-          -20.1875,
-          -10.188
-        ],
-        "opens": "N",
-        "widthFt": 5.0,
-        "depthFt": 3.0,
-        "ponyFt": 2.5,
-        "ponySide": "E",
-        "curb": false,
-        "heads": 1,
-        "heightFt": 9.0
+        "faces": "E"
       },
       {
         "type": "recessed",
         "at": [
           -20.1875,
-          -10.184
+          2.485
         ],
         "ceilFt": 9.0,
         "diaFt": 0.5

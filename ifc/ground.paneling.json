@@ -808,7 +808,129 @@
     },
     {
       "along": "x",
-      "at": -3.7292,
+      "at": -11.6875,
+      "normal": [
+        0,
+        1
+      ],
+      "side": "S",
+      "lo": -22.917,
+      "hi": -17.458,
+      "doors": [],
+      "windows": [
+        [
+          -21.188,
+          -19.188,
+          5.75,
+          false
+        ]
+      ],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [],
+      "bareDoors": [],
+      "noCornice": true,
+      "noBattens": true,
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
+    },
+    {
+      "along": "x",
+      "at": 0.7409,
+      "normal": [
+        0,
+        -1
+      ],
+      "side": "N",
+      "lo": -22.917,
+      "hi": -17.458,
+      "doors": [
+        [
+          -22.188,
+          -19.858
+        ]
+      ],
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [],
+      "bareDoors": [],
+      "noCornice": true,
+      "noBattens": true,
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
+    },
+    {
+      "along": "z",
+      "at": -22.6875,
+      "normal": [
+        1,
+        0
+      ],
+      "side": "E",
+      "lo": -11.917,
+      "hi": 0.97,
+      "doors": [],
+      "windows": [
+        [
+          -8.178,
+          -6.178,
+          3.0,
+          false
+        ],
+        [
+          -1.739,
+          0.261,
+          3.0,
+          true
+        ]
+      ],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [],
+      "bareDoors": [],
+      "noCornice": true,
+      "noBattens": true,
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
+    },
+    {
+      "along": "z",
+      "at": -17.6875,
+      "normal": [
+        -1,
+        0
+      ],
+      "side": "W",
+      "lo": -11.917,
+      "hi": 0.97,
+      "doors": [
+        [
+          -7.925,
+          -4.925
+        ]
+      ],
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [],
+      "bareDoors": [],
+      "noCornice": true,
+      "noBattens": true,
+      "wainscot": false,
+      "coved": false,
+      "corniceBreaks": [],
+      "rakedCornice": []
+    },
+    {
+      "along": "x",
+      "at": 1.1991,
       "normal": [
         0,
         1
@@ -865,17 +987,10 @@
         0
       ],
       "side": "E",
-      "lo": -3.958,
+      "lo": 0.97,
       "hi": 4,
       "doors": [],
-      "windows": [
-        [
-          -1.739,
-          0.261,
-          3.0,
-          true
-        ]
-      ],
+      "windows": [],
       "tall": [],
       "transoms": [],
       "sidelights": [],
@@ -895,125 +1010,9 @@
         0
       ],
       "side": "W",
-      "lo": -3.958,
+      "lo": 0.97,
       "hi": 4,
       "doors": [],
-      "windows": [],
-      "tall": [],
-      "transoms": [],
-      "sidelights": [],
-      "bareDoors": [],
-      "noCornice": true,
-      "noBattens": true,
-      "wainscot": false,
-      "coved": false,
-      "corniceBreaks": [],
-      "rakedCornice": []
-    },
-    {
-      "along": "x",
-      "at": -11.6875,
-      "normal": [
-        0,
-        1
-      ],
-      "side": "S",
-      "lo": -22.917,
-      "hi": -17.458,
-      "doors": [],
-      "windows": [
-        [
-          -21.188,
-          -19.188,
-          5.75,
-          false
-        ]
-      ],
-      "tall": [],
-      "transoms": [],
-      "sidelights": [],
-      "bareDoors": [],
-      "noCornice": true,
-      "noBattens": true,
-      "wainscot": false,
-      "coved": false,
-      "corniceBreaks": [],
-      "rakedCornice": []
-    },
-    {
-      "along": "x",
-      "at": -4.1875,
-      "normal": [
-        0,
-        -1
-      ],
-      "side": "N",
-      "lo": -22.917,
-      "hi": -17.458,
-      "doors": [
-        [
-          -22.188,
-          -19.858
-        ]
-      ],
-      "windows": [],
-      "tall": [],
-      "transoms": [],
-      "sidelights": [],
-      "bareDoors": [],
-      "noCornice": true,
-      "noBattens": true,
-      "wainscot": false,
-      "coved": false,
-      "corniceBreaks": [],
-      "rakedCornice": []
-    },
-    {
-      "along": "z",
-      "at": -22.6875,
-      "normal": [
-        1,
-        0
-      ],
-      "side": "E",
-      "lo": -11.917,
-      "hi": -3.958,
-      "doors": [],
-      "windows": [
-        [
-          -8.178,
-          -6.178,
-          3.0,
-          false
-        ]
-      ],
-      "tall": [],
-      "transoms": [],
-      "sidelights": [],
-      "bareDoors": [],
-      "noCornice": true,
-      "noBattens": true,
-      "wainscot": false,
-      "coved": false,
-      "corniceBreaks": [],
-      "rakedCornice": []
-    },
-    {
-      "along": "z",
-      "at": -17.6875,
-      "normal": [
-        -1,
-        0
-      ],
-      "side": "W",
-      "lo": -11.917,
-      "hi": -3.958,
-      "doors": [
-        [
-          -7.925,
-          -4.925
-        ]
-      ],
       "windows": [],
       "tall": [],
       "transoms": [],

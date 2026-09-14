@@ -3794,10 +3794,17 @@ def add_doors(ctx, r):
     for d in r.get("doors", []):
         opening = d.get("opening", False)
         head = float(d.get("headFt", ctx.head_ft))   # tall built-in openings override the head
-        cut_opening(ctx, "IfcDoor", d["name"], d["orient"], d["fixed"], d["pos"],
-                    d["width"], 0.0, head, leaf=not opening)
+        fill = cut_opening(ctx, "IfcDoor", d["name"], d["orient"], d["fixed"], d["pos"],
+                           d["width"], 0.0, head, leaf=not opening)
         if opening:
             continue
+        # A POCKET DOOR slides into the wall beyond its `hinge` jamb instead of swinging.
+        # The IfcDoor says so (OperationType), and the viewer's leaf translates along the
+        # wall instead of pivoting — the one door here is the laundry's into the bath,
+        # whose 3 ft in-swing stood in the middle of a 5 ft room.
+        sliding = bool(d.get("sliding"))
+        if sliding and fill is not None and hasattr(fill, "OperationType"):
+            fill.OperationType = "SLIDING_TO_LEFT"
         # Record hinge/swing for the viewer's swinging-leaf overlay.
         default_sign = -1 if d["orient"] == "H" else 1
         sw = d.get("swing")
@@ -3810,6 +3817,8 @@ def add_doors(ctx, r):
             # plain slab from inside. The viewer's leaf needs it too.
             "style": d.get("doorStyle", "panel"),
         })
+        if sliding:
+            ctx.door_meta[-1]["sliding"] = True
         # `openDeg` overrides the viewer's default 90 deg swing for this door only.
         # A leaf can only lie flat against its own wall if the wall RETURNS past the
         # jamb by at least the leaf width; where it does not, this is how far it goes.

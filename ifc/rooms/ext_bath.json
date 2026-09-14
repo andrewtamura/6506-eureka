@@ -5,12 +5,21 @@
   "bounds": {
     "x1": -22.9167,
     "x2": -17.4583,
-    "z1": -3.9584,
-    "z2": 4
+    "z1": -11.9167,
+    "z2": 0.97
   },
   "walls": true,
   "doors": [],
   "windows": [
+    {
+      "name": "Window - WC E",
+      "orient": "V",
+      "fixed": -22.9167,
+      "pos": -7.1778,
+      "width": 2.0,
+      "sill": 3.0,
+      "head": 7.0
+    },
     {
       "name": "Window - Bath E",
       "orient": "V",
@@ -20,6 +29,15 @@
       "sill": 3.0,
       "head": 7.0,
       "plainBelow": true
+    },
+    {
+      "name": "Window - WC S",
+      "orient": "H",
+      "fixed": -11.9167,
+      "pos": -20.1875,
+      "width": 2.0,
+      "sill": 5.75,
+      "head": 7.0
     }
   ],
   "interior": {
@@ -29,13 +47,28 @@
     },
     "furniture": [
       {
+        "type": "shower",
+        "at": [
+          -20.1875,
+          -10.188
+        ],
+        "opens": "N",
+        "widthFt": 5.0,
+        "depthFt": 3.0,
+        "ponyFt": 2.5,
+        "ponySide": "E",
+        "curb": false,
+        "heads": 1,
+        "heightFt": 9.0
+      },
+      {
         "type": "vanity",
         "at": [
           -21.7729,
           -0.7389
         ],
         "faces": "W",
-        "widthFt": 3.1,
+        "widthFt": 2.5,
         "depthFt": 1.83,
         "counterFt": 2.85,
         "sinks": 1,
@@ -44,50 +77,19 @@
         "mirror": false
       },
       {
-        "type": "toilet",
+        "type": "recessed",
         "at": [
-          -18.787,
-          2.25
+          -20.1875,
+          -10.184
         ],
-        "faces": "E"
-      },
-      {
-        "type": "sconce",
-        "at": [
-          -22.688,
-          1.1
-        ],
-        "faces": "W",
-        "atFt": 5.0,
-        "plateFt": 0.3,
-        "plateHFt": 0.85,
-        "globeFt": 0.34,
-        "armFt": 0.26,
-        "intensity": 0.5,
-        "glow": 0.45,
-        "reachFt": 8.0
-      },
-      {
-        "type": "sconce",
-        "at": [
-          -22.688,
-          -2.6
-        ],
-        "faces": "W",
-        "atFt": 5.0,
-        "plateFt": 0.3,
-        "plateHFt": 0.85,
-        "globeFt": 0.34,
-        "armFt": 0.26,
-        "intensity": 0.5,
-        "glow": 0.45,
-        "reachFt": 8.0
+        "ceilFt": 9.0,
+        "diaFt": 0.5
       },
       {
         "type": "recessed",
         "at": [
           -20.1875,
-          2.25
+          -6.4
         ],
         "ceilFt": 9.0,
         "diaFt": 0.5

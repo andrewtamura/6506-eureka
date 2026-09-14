@@ -1034,10 +1034,10 @@ console.log('WAINSCOT + LIGHTING');
 console.log('EXTENSION FIXTURES');
 { const LS = -11.688, BE = -22.688, BW = -17.687, BN = 3.771;   // interior faces
   const ext = P.filter(r => r.px < -11.9);
-  // The WC/bath partition. Derived, not written out: it was the literal -8.3 and
-  // went stale the moment the partition moved to suit the east elevation's bays,
-  // splitting the downlights 3/1 for the wrong reason.
-  const PART = JSON.parse(readFileSync('ifc/rooms/ext_bath.json', 'utf8')).bounds.z1;
+  // The wall between the BATH and the WATER CLOSET compartment at its north end.
+  // Derived, not written out: it was the literal -8.3, then the bath's own south
+  // bound, and went stale each time the plan moved. North of it is the WC.
+  const PART = JSON.parse(readFileSync('ifc/rooms/wc.json', 'utf8')).bounds.z1;
 
   // LAUNDRY: washer and dryer side by side, backs to the south wall.
   { const pair = ext.filter(r => r.type === 'appliance' && /washer|dryer/.test(r.kind)).sort((a, b) => a.px - b.px);
@@ -1176,54 +1176,57 @@ console.log('EXTENSION FIXTURES');
       A(mmm.length >= 6, `framed: ${mmm.length} members (backing, glass, 2 stiles, 2 rails)`);
     } }
 
-  // THE TWO ROOMS SWAPPED: the shower is in the SOUTH room now (under its transom, the
-  // reason the transom exists) and the toilet in the NORTH one, with the vanity moved
-  // under that room's east window. Everything that can be is read from the room files —
-  // the window the vanity centres on, the door and window that size the shower — because
-  // the last layout's literals (toilet "clear of both WC walls" at -11.72..-8.65, vanity
-  // "clear of the casing" at -3.795) each went stale the moment something moved.
+  // ONE OPEN BATH, AND A WATER CLOSET. The partition that split the wing's east rooms is
+  // gone: shower (south end, under its transom) and vanity (under the north east window)
+  // share one room, and the toilet is enclosed in a compartment across the north end.
+  // Everything that can be is read from the room files — the window the vanity centres
+  // on, the door and window that size the shower, the compartment wall — because every
+  // literal here has gone stale on every move.
   const bathJ = JSON.parse(readFileSync('ifc/rooms/ext_bath.json', 'utf8'));
   const wcJ = JSON.parse(readFileSync('ifc/rooms/wc.json', 'utf8'));
   const lauJ = JSON.parse(readFileSync('ifc/rooms/ext_laundry.json', 'utf8'));
-  const bathWin = bathJ.windows.find(w => w.orient === 'V');
-  const wcWinS = wcJ.windows.find(w => w.orient === 'H');
+  const bathWin = bathJ.windows.find(w => w.name === 'Window - Bath E');
+  const wcWinE = bathJ.windows.find(w => w.name === 'Window - WC E');
+  const wcWinS = bathJ.windows.find(w => w.orient === 'H');
   const lauDoor = lauJ.doors.find(d => d.name === 'Laundry -> Bath');
-  // Window trim on the east wall, per room: the jamb casings, the stool, the apron.
+  const vanSpec = bathJ.interior.furniture.find(f => f.type === 'vanity');
+  const PARTS = PART - 0.22915;                   // the compartment wall's south face
+  // Window trim on the east wall, per WINDOW: the jamb casings, the stool, the apron.
   // Loose (wall-finish) meshes read DY low; a jamb is 0.25-0.45 wide and runs sill to head.
   const BEW = -22.68785, DY = 0.066;
-  const eastTrim = (zLo, zHi) => {
+  const eastTrim = (win) => {
+    const zLo = win.pos - win.width / 2 - 1.0, zHi = win.pos + win.width / 2 + 1.0;
     const on = (m) => m.pxLo > BEW - 0.05 && m.pxHi < BEW + 0.30 && m.pzLo > zLo && m.pzHi < zHi;
     const posts = L.filter(m => on(m) && (m.pzHi - m.pzLo) > 0.25 && (m.pzHi - m.pzLo) < 0.45
       && Math.abs(m.yLo - (3.0 - DY)) < 0.12 && m.yHi > 6.5);
-    const minRun = 2.0 - 0.1;
+    const minRun = win.width - 0.1;
     const stool = L.filter(m => on(m) && (m.pzHi - m.pzLo) > minRun && m.yHi > 3.0 - DY && m.yHi < 3.2);
     const apron = L.filter(m => on(m) && (m.pzHi - m.pzLo) > minRun && m.yHi < 3.0 - DY + 0.02 && m.yLo > 2.4);
     return { posts, stool, apron };
   };
-  const bathTrim = eastTrim(PART, 3.9), wcTrim = eastTrim(-11.75, PART);
+  const bathTrim = eastTrim(bathWin), wcTrim = eastTrim(wcWinE);
 
-  // TOILET: north room, tank on the west party wall, north of the vanity.
+  // THE COMPARTMENT: toilet across it, tank on the west party wall, 15 in each side of
+  // its centreline to the walls, 21 in in front of the bowl to the east wall.
   { const t = ext.find(r => r.type === 'toilet');
-    const v = ext.find(r => r.type === 'vanity');
-    A(!!t, 'toilet — in the NORTH room now, the one that became the WC');
+    A(!!t, 'toilet — in the water closet compartment');
     if (t) {
-      A(t.pz > PART, `north of the partition (${R(t.pz, 2)} vs ${R(PART, 3)})`);
+      A(t.pz > PART, `north of the compartment wall (${R(t.pz, 2)} vs ${R(PART, 3)})`);
       A(Math.abs(t.pxHi - BW) < 0.08, `tank against the west party wall (${R(t.pxHi, 3)})`);
       A(BN - t.pz >= 1.25 - 0.01, `${R((BN - t.pz) * 12, 1)} in centreline to the north wall (15 min)`);
-      if (v) A(t.pz - v.pzHi >= 1.25 - 0.02,
-        `${R((t.pz - v.pzHi) * 12, 1)} in centreline to the vanity's counter end (15 min)`);
-      // 21 in clear in front of the bowl. It faces EAST, so the front is pxLo and the
-      // clear run is to the east wall — provided the vanity stays out of that strip.
+      A(t.pz - (PART + 0.22915) >= 1.25 - 0.01,
+        `${R((t.pz - PART - 0.22915) * 12, 1)} in centreline to the compartment wall (15 min)`);
       A(t.pxLo - BE >= 1.75, `${R((t.pxLo - BE) * 12, 0)} in in front of the bowl to the east wall (21 min)`);
-      if (v) A(v.pzHi < t.pz - 0.75 || v.pzLo > t.pz + 0.75, '...and the vanity is out of that strip');
+      // The compartment itself: 30 in clear is the minimum a toilet sits across.
+      const clear = BN - (PART + 0.22915);
+      A(clear >= 2.5, `the compartment is ${R(clear * 12, 1)} in clear (30 min)`);
     } }
 
-  // SHOWER: south room, against the south wall on the transom's axis. 5 x 3 — a 60 x 36
+  // SHOWER: south end, against the south wall on the transom's axis. 5 x 3 — a 60 x 36
   // alcove — and the 3 is FORCED: the glass line has to clear the laundry door's south
-  // jamb (its leaf opens into this room along that jamb) and the east window's casing,
-  // and at 4 ft deep it crossed both. Both are measured, not written out.
+  // jamb and the east window's casing, and at 4 ft deep it crossed both. Both measured.
   { const sh = ext.find(r => r.type === 'shower');
-    A(!!sh, 'walk-in shower — in the SOUTH room now, under its transom');
+    A(!!sh, 'walk-in shower — at the south end, under its transom');
     if (sh) {
       const w = sh.pxHi - sh.pxLo, d = sh.pzHi - sh.pzLo;
       // Reads 0.3 over on each axis: the tiled surround straddles the wall lines.
@@ -1251,28 +1254,28 @@ console.log('EXTENSION FIXTURES');
         `enclosure tiled to ${R(Math.max(...mm.map(m => m.yHi)) * 12, 0)} in — the ceiling`);
       A(mm.filter(m => m.yHi > 8.9).length >= 3, 'back and both sides all reach it');
       A(!mm.some(m => m.yHi < 0.4 && m.yHi > 0.15 && (m.pxHi - m.pxLo) > 1.0), 'curbless — no threshold across the opening');
-      // The transom is the shower's light: its glass is over the enclosure, above head height.
       A(!!wcWinS && wcWinS.sill >= 5.5, `the transom over it sills at ${wcWinS ? wcWinS.sill : '?'} ft`);
     } }
 
-  // VANITY: north room, backing onto the east wall CENTRED UNDER ITS WINDOW, no mirror
-  // (there is a window where one would hang), and the counter sits UNDER THE STOOL — the
-  // builder's 36.6 in default drove the slab through the stool's underside at a 36 in sill,
-  // so the counter is authored at 34 in and the stool becomes its back cap.
+  // VANITY: in the open bath, backing onto the east wall CENTRED UNDER ITS WINDOW, no
+  // mirror, and the counter UNDER THE STOOL (authored at 34 in under a 36 in sill). It is
+  // 30 in wide: the compartment behind it needs 30 in clear, and the window fixes where
+  // the vanity's centre is, so its north end is what sets the compartment wall.
   { const v = ext.find(r => r.type === 'vanity');
-    A(!!v, 'vanity in the WC (north room)');
+    A(!!v, 'vanity in the bath');
     if (v) {
-      A(v.pz > PART, 'north of the partition');
+      A(v.pz < PART, 'in the bath, south of the compartment');
+      A(v.pzHi < PARTS - 0.02, `its counter stops ${R((PARTS - v.pzHi) * 12, 1)} in short of the compartment wall`);
       A(Math.abs(v.pxLo - BE) < 0.12, `backs onto the east wall (${R(v.pxLo, 3)})`);
       A(!!bathWin && Math.abs(v.pz - bathWin.pos) < 0.02,
         `centred under the window (${R(v.pz, 4)} vs ${bathWin ? bathWin.pos : '?'})`);
       A(v.pxHi - v.pxLo > 1.7, `${R(v.pxHi - v.pxLo, 2)} ft deep`);
-      A(v.pzHi - v.pzLo > 3.1, `${R(v.pzHi - v.pzLo, 2)} ft of counter`);
+      A(!!vanSpec && v.pzHi - v.pzLo > vanSpec.widthFt, `${R(v.pzHi - v.pzLo, 2)} ft of counter over a ${vanSpec ? vanSpec.widthFt : '?'} ft cabinet`);
       const mm = meshes(v);
       const mir = mm.filter(m => m.yHi > 4.0 && (m.pxHi - m.pxLo) < 0.25);
       A(mir.length === 0, `no mirror over it — the window is there (${mir.length} panels)`);
       // The slab, not the faucet or the basin: the thing that runs the counter's length.
-      const top = Math.max(...mm.filter(m => (m.pzHi - m.pzLo) > 2.5).map(m => m.yHi));
+      const top = Math.max(...mm.filter(m => (m.pzHi - m.pzLo) > 2.0).map(m => m.yHi));
       // The THINNEST member with its top at the sill is the stool; the field panel under
       // the window shares that top and the run, and sorting by foot picked it instead.
       const st = bathTrim.stool.sort((a, b) => (a.yHi - a.yLo) - (b.yHi - b.yLo))[0];
@@ -1284,23 +1287,17 @@ console.log('EXTENSION FIXTURES');
       A(fronts.length === 2, `two door fronts (${fronts.length}) — the 3x3 default is nine`);
     }
 
-    // LIGHTING. Sconces flank the WINDOW now, not a mirror; downlights split 2/2.
-    { const sc = ext.filter(r => r.type === 'sconce' && r.pz > PART && r.pz < 3.9);
-      A(sc.length === 2, `two sconces at the window (${sc.length})`);
-      if (sc.length === 2 && bathTrim.posts.length >= 2) {
-        A(sc.every(m => Math.abs(m.pxLo - (-22.688)) < 0.1), 'both on the east wall');
-        A(sc.every(m => m.pxHi - m.pxLo < 0.9), `each projects ${R(Math.max(...sc.map(m => m.pxHi - m.pxLo)) * 12, 1)} in`);
-        const pz = sc.map(m => m.pz).sort((a, b) => a - b);
-        const c0 = Math.min(...bathTrim.posts.map(m => m.pzLo)), c1 = Math.max(...bathTrim.posts.map(m => m.pzHi));
-        A(pz[0] < c0 - 0.2 && pz[1] > c1 + 0.2,
-          `one each side of the window casing, clear of it (${R(pz[0], 2)} | ${R(c0, 2)}..${R(c1, 2)} | ${R(pz[1], 2)})`);
-        A(sc.every(m => Math.abs((m.yLo + m.yHi) / 2 - 5.0) < 0.5), 'hung at 5 ft');
-      }
+    // LIGHTING. Downlights only: three in the bath (shower, room, vanity) and one in the
+    // compartment. The sconces that flanked the window are gone — the compartment wall
+    // took the wall north of the casing.
+    { const sc = ext.filter(r => r.type === 'sconce');
+      A(sc.length === 0, `no sconces left in the wing's east rooms (${sc.length})`);
       const cans = ext.filter(r => r.type === 'recessed');
-      A(cans.length === 4, `four downlights — two per room (${cans.length})`);
+      A(cans.length === 4, `four downlights — three in the bath, one in the WC (${cans.length})`);
       A(cans.every(c => Math.abs(c.yHi - 9.0) < 0.06), 'all flush with the ceiling');
-      const nN = cans.filter(c => c.pz > PART).length, nS = cans.filter(c => c.pz < PART).length;
-      A(nN === 2 && nS === 2, `two north, two south (${nN}/${nS}) about the partition at ${R(PART, 3)}`);
+      const nB = cans.filter(c => c.pz < PART).length, nW = cans.filter(c => c.pz > PART).length;
+      A(nB === 3 && nW === 1, `three bath, one WC (${nB}/${nW}) about the compartment wall at ${R(PART, 3)}`);
+      if (bathWin) A(cans.some(c => Math.abs(c.pz - bathWin.pos) < 0.05 && c.px < -20.8), 'one of them over the vanity');
       // The generic per-room semi-flush hangs ~11 in below the ceiling. Nothing in
       // either room should now — that is what "remove the overhead lighting" means.
       const hung = L.filter(m => m.pxLo > -22.75 && m.pxHi < -17.6 && m.pzLo > -11.75 && m.pzHi < 3.85
@@ -1309,19 +1306,19 @@ console.log('EXTENSION FIXTURES');
       A(hung.length === 0, `no ceiling fixture hanging in either room (${hung.length})`);
     }
 
-    // WINDOW TRIM on the east wall, both rooms. The WC's window sits over the vanity, so
+    // WINDOW TRIM on the east wall, both windows. The north one sits over the vanity, so
     // it is `plainBelow`: jambs and stool, NO apron — a counter takes its place. The
-    // shower room's window keeps its apron, and is the positive control that the apron
-    // filter still finds one.
+    // south one keeps its apron, and is the positive control that the apron filter
+    // still finds one.
     { const want = [bathWin.pos - bathWin.width / 2, bathWin.pos + bathWin.width / 2].map(v2 => R(v2, 2));
-      A(bathTrim.posts.length === 2, `a jamb casing each side of the WC's window (${bathTrim.posts.length} of 2)`);
+      A(bathTrim.posts.length === 2, `a jamb casing each side of the vanity's window (${bathTrim.posts.length} of 2)`);
       A(bathTrim.posts.every(m => m.nv >= 100), 'every one a swept profile, not a box');
       const at = bathTrim.posts.map(m => R((m.pzLo + m.pzHi) / 2, 2)).sort((u, v2) => u - v2);
       A(at.length === 2 && at.every((v2, i) => Math.abs(v2 - want[i]) < 0.06), `they land on the opening: ${at.join(', ')}`);
       A(bathTrim.stool.length >= 1, `a stool at the sill (${bathTrim.stool.length})`);
       A(bathTrim.apron.length === 0, `NO apron under it — plainBelow, the counter is there (${bathTrim.apron.length})`);
       A(wcTrim.apron.length >= 1 && wcTrim.apron.some(m => m.nv >= 100),
-        `the shower room's window still has its moulded apron (${wcTrim.apron.length})`);
+        `the south window still has its moulded apron (${wcTrim.apron.length})`);
       if (wcTrim.apron.length && wcTrim.stool.length) {
         const a0 = wcTrim.apron.sort((u, v2) => (v2.pzHi - v2.pzLo) - (u.pzHi - u.pzLo))[0];
         const s0 = wcTrim.stool.sort((u, v2) => (v2.pzHi - v2.pzLo) - (u.pzHi - u.pzLo))[0];
@@ -1338,28 +1335,39 @@ console.log('EXTENSION');
 { const leaf = (re) => (raw.doorLeaves || []).find(d => re.test(d.name));
   const midPx = (d) => (d.pxLo + d.pxHi) / 2, midPz = (d) => (d.pzLo + d.pzHi) / 2;
 
-  // WC door: 6 in of wall between the bath's east wall and the opening.
+  // WC DOOR: in the compartment's south wall, at its east end, hung on the WEST jamb and
+  // swinging OUT into the bath — a 2.5 ft deep compartment has no room for an in-swing,
+  // and hung on the west jamb the open leaf lies along the party wall, clear of the
+  // vanity a foot to its east.
   { const d = leaf(/Bath -> WC/);
     A(!!d, 'WC door leaf found');
     if (d) {
-      const face = -22.917 + 0.22915;                 // bath east wall, interior face
-      A(Math.abs(midPx(d) - face - 0.5) < 0.03,
-        `${R((midPx(d) - face) * 12, 1)} in of return from the bath's east wall`);
-      // The partition, derived — this was the literal -8.45 and went stale when the
-      // partition moved to suit the east wall's bays.
-      const part = JSON.parse(readFileSync('ifc/rooms/ext_bath.json', 'utf8')).bounds.z1;
-      A(d.pzHi <= part + 0.02, `swings into the WC (pz ${R(d.pzLo,2)}..${R(d.pzHi,2)}, partition ${R(part,3)})`);
+      const wcJ2 = JSON.parse(readFileSync('ifc/rooms/wc.json', 'utf8'));
+      const spec = wcJ2.doors.find(x => x.name === 'Bath -> WC');
+      const westJamb = spec.pos + spec.width / 2, wall = wcJ2.bounds.z1;
+      A(Math.abs(midPx(d) - westJamb) < 0.04, `hung on the west jamb (px ${R(midPx(d), 3)} vs ${R(westJamb, 3)})`);
+      A(d.pzHi <= wall + 0.02 && d.pzLo < wall - 1.5,
+        `swings OUT into the bath (pz ${R(d.pzLo, 2)}..${R(d.pzHi, 2)}, wall at ${R(wall, 3)})`);
+      const v = P.find(r => r.type === 'vanity');
+      if (v) A(d.pxLo > v.pxHi + 0.5, `the open leaf clears the vanity by ${R((d.pxLo - v.pxHi) * 12, 1)} in`);
     } }
 
-  // LAUNDRY -> BATH. Was a 2'8" cased opening; the WC gave up depth so it could be a
-  // proper 3 ft door. It is the only way into the bathroom, so both facts matter.
+  // LAUNDRY -> BATH is a POCKET DOOR. Its 3 ft in-swing used to stand in the middle of a
+  // 5 ft room, a hand's width off the shower glass. Open, the leaf now lies INSIDE the
+  // party wall south of its jamb — so what is asserted is that the open leaf's box sits
+  // in the wall's plane and south of the opening, not out in either room.
   { const d = leaf(/Laundry -> Bath/);
-    A(!!d, 'laundry/bath door leaf found (it used to be a cased opening)');
+    A(!!d, 'laundry/bath door leaf found');
     if (d) {
-      A(Math.abs(midPz(d) - (-7.925)) < 0.06, `hinged on the SOUTH jamb (pz ${R(midPz(d),2)})`);
-      A(midPx(d) < -17.46, `swings into the BATHROOM (px ${R(d.pxLo,2)}..${R(d.pxHi,2)})`);
-      const swept = Math.abs(d.pxHi - d.pxLo);
-      A(Math.abs(swept - 3.0) < 0.06, `${R(swept,2)} ft leaf — a full 3 ft door`);
+      const lau = JSON.parse(readFileSync('ifc/rooms/ext_laundry.json', 'utf8'));
+      const spec = lau.doors.find(x => x.name === 'Laundry -> Bath');
+      const jambS = spec.pos - spec.width / 2;
+      A(spec.sliding === true, 'authored as a pocket door');
+      A(Math.abs(midPx(d) - spec.fixed) < 0.12, `the open leaf lies in the wall's plane (px ${R(midPx(d), 3)} vs ${R(spec.fixed, 4)})`);
+      A(d.pzHi < jambS + 0.25 && d.pzLo > -11.7,
+        `...in the pocket south of the jamb (pz ${R(d.pzLo, 2)}..${R(d.pzHi, 2)}, jamb ${R(jambS, 3)})`);
+      const wide = Math.abs(d.pzHi - d.pzLo);
+      A(Math.abs(wide - spec.width) < 0.06, `${R(wide, 2)} ft leaf — a full 3 ft door`);
     } }
 
   // TWIN DOORS, side by side on the family room's east wall.
