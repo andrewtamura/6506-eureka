@@ -1386,6 +1386,12 @@ console.log('EXTENSION FIXTURES');
       const valve = mm.filter(m => m.yLo > 3.2 && m.yHi < 4.4 && (m.pxHi - m.pxLo) < 0.5 && (m.pzHi - m.pzLo) < 0.8);
       A(valve.length >= 2 && valve.every(m => m.pxLo < eastFace + 0.3),
         `valve trim and handle on the EAST wall at hand height (${valve.length} parts, ${R(((valve[0] ? (valve[0].yLo + valve[0].yHi) / 2 : 0)) * 12, 0)} in)`);
+      // ...and PROUD of the tile, not in it. The parts used to be placed off the wall's
+      // CENTRELINE rather than its inner face, which left them buried in the tile and
+      // invisible from inside the shower — and the count above passed anyway, because a
+      // hidden mesh still has a bounding box. Assert the trim reaches into the room.
+      A(valve.every(m => m.pxHi > eastFace + 0.005),
+        `...every part standing proud of the tile (nearest ${R((Math.min(...valve.map(m => m.pxHi)) - eastFace) * 12, 2)} in into the room)`);
       A(!mm.some(m => m.pzLo < LS + 0.6 && m.yLo > 4.5 && (m.pxHi - m.pxLo) < 1.0 && (m.yHi - m.yLo) < 0.5), 'nothing on the back wall but tile and the transom');
       A(!!wcWinS && wcWinS.sill >= 6.4, `the transom over it sills at ${wcWinS ? wcWinS.sill : '?'} ft — well above eye level`);
       // THE TRANSOM SHOWS THROUGH THE TILE. The back is built around the opening (the

@@ -1402,14 +1402,30 @@ function buildShower(p) {
       const sgn = Math.sign(d[0] * P[0] + d[1] * P[1]) || 1;
       q = pl(ha, sgn * (Wd / 2 - 0.35), 0.14, 0.7);   box(q[0], q[1], hy, q[2], q[3], 0.14, chrome);        // arm off the side wall
       q = pl(ha, sgn * (Wd / 2 - 0.7), 0.55, 0.55);   box(q[0], q[1], hy - 0.1, q[2], q[3], 0.12, chrome);  // head
-      q = pl(ha, sgn * (Wd / 2 - 0.03), 0.6, 0.06);   box(q[0], q[1], vy, q[2], q[3], 0.6, chrome);         // valve trim plate
-      q = pl(ha, sgn * (Wd / 2 - 0.12), 0.08, 0.2);   box(q[0], q[1], vy, q[2], q[3], 0.08, chrome);        // handle
+      // ON THE TILE'S INNER FACE, not on the wall's CENTRELINE. Wd/2 is where the side wall
+      // is centred and it is `wt` thick, so the face you can actually see is wt/2 in from
+      // there — measured from the centreline a 0.06 plate sat entirely inside the tile and
+      // the valve was invisible from in the shower. Nothing caught it: a buried mesh still
+      // has a bounding box, so counting parts passed.
+      const face = Wd / 2 - wt / 2;
+      q = pl(ha, sgn * (face - 0.03), 0.6, 0.06);   box(q[0], q[1], vy, q[2], q[3], 0.6, chrome);         // valve trim plate
+      q = pl(ha, sgn * (face - 0.12), 0.08, 0.2);   box(q[0], q[1], vy, q[2], q[3], 0.08, chrome);        // handle
     }
   } else {
+    // HEAD AND VALVE ON THE BACK WALL. Heights come from the same `headFt`/`valveFt` the
+    // side-wall branch above uses, rather than the literal 5.5 ft that used to be here:
+    // that is shoulder height on a six-foot person, which is why these read as plumbed
+    // for a child. And each head now gets its OWN valve — this branch drew none at all,
+    // so a two-head shower had two heads and nothing to turn them on with.
+    const hy = p.headFt ?? 6.8, vy = p.valveFt ?? 3.75, bFace = Dp / 2 - wt / 2;
     const heads = p.heads ?? 1, hOff = heads === 2 ? Wd * 0.23 : 0;   // twin wall-mounted heads for a 2-person shower
     for (const hs of (heads === 2 ? [-hOff, hOff] : [0])) {
-      q = pl(-(Dp / 2 - 0.35), hs, 0.7, 0.14);  box(q[0], q[1], 5.6, q[2], q[3], 0.14, chrome); // head arm off back wall
-      q = pl(-(Dp / 2 - 0.7), hs, 0.55, 0.55);  box(q[0], q[1], 5.5, q[2], q[3], 0.12, chrome); // shower head
+      q = pl(-(Dp / 2 - 0.35), hs, 0.7, 0.14);   box(q[0], q[1], hy, q[2], q[3], 0.14, chrome);        // head arm off back wall
+      q = pl(-(Dp / 2 - 0.7), hs, 0.55, 0.55);   box(q[0], q[1], hy - 0.1, q[2], q[3], 0.12, chrome);  // shower head
+      // Off the tile's inner face (Dp/2 is the back wall's centreline, `wt` thick) — see the
+      // side-wall branch above, where measuring from the centreline buried the valve.
+      q = pl(-(bFace - 0.03), hs, 0.06, 0.6);   box(q[0], q[1], vy, q[2], q[3], 0.6, chrome);         // valve trim plate
+      q = pl(-(bFace - 0.12), hs, 0.2, 0.08);   box(q[0], q[1], vy, q[2], q[3], 0.08, chrome);        // handle
     }
   }
   return g;
