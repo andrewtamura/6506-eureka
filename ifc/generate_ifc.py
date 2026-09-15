@@ -460,7 +460,9 @@ def build_level(cfg, rooms_cache, level):
         # roofs — closed, so the interior is never visible from any angle. A
         # crawlspace band raises the whole thing off grade.
         crawl = level.get("crawlspaceFt", 0) * B.FT
-        B.add_massing(ctx, level["roofGroups"], rooms_cache, crawl)
+        B.add_massing(ctx, level["roofGroups"], rooms_cache, crawl,
+                      deck_arc=B.approach_arc_lines(cfg["lot"].get("frontage") or {},
+                                                    rooms_cache, cfg["lot"], ctx.T / B.FT / 2))
         B.add_fenestration(ctx, level["roofGroups"], rooms_cache, crawl)
         B.add_deck(ctx, cfg["lot"], rooms_cache, crawl)
         B.add_lot_wall(ctx, cfg["lot"], rooms_cache, crawl)
@@ -470,7 +472,12 @@ def build_level(cfg, rooms_cache, level):
         B.add_wing_elevation(ctx, cfg["lot"], rooms_cache, crawl, level["roofGroups"])
         # Corner-lot street frontage: retaining wall on the north/west property
         # lines plus the sidewalk, park strip and curb falling away beyond them.
-        B.add_street_frontage(ctx, cfg["lot"], rooms_cache)
+        B.add_street_frontage(ctx, cfg["lot"], rooms_cache,
+                              terrace=level.get("crawlspaceFt", 0))
+        # `crawl` is in METRES (it is a z for the massing); add_front_approach works in plan
+        # feet, so hand it the authored figure rather than the converted one.
+        B.add_front_approach(ctx, cfg["lot"], rooms_cache,
+                             terrace=level.get("crawlspaceFt", 0))
         B.add_driveway(ctx, cfg["lot"], rooms_cache)
 
     ifc_name = f"{lid}.ifc"
