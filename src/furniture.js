@@ -829,13 +829,41 @@ function buildPartition(p) {
   const len = p.lenFt || 1;
   const c0 = axis === "x" ? p.px : p.pz;               // wall centre along the run axis (plan ft)
   const a0 = c0 - len / 2, b0 = c0 + len / 2;          // wall extent along the axis (plan ft)
-  // one box for the run [s..e] (plan ft), between heights [y0..y1] ft.
+  // A RAKED TOP: `topFt` is [[s, ft], [s, ft]] at two points along the run (plan ft), the
+  // same shape as a paneling record's `ceil` — a partition under the wing's shed ceiling
+  // dies into a plane that falls 1:12, and a level box either pokes through it or leaves
+  // a wedge of daylight. Linear between the two; `heightFt` still serves a level wall.
+  const topFt = Array.isArray(p.topFt) && p.topFt.length === 2 ? p.topFt : null;
+  const topAt = (s) => {
+    if (!topFt) return H;
+    const [[s0, h0], [s1, h1]] = topFt;
+    const u = Math.abs(s1 - s0) < 1e-9 ? 0 : (s - s0) / (s1 - s0);
+    return h0 + (h1 - h0) * u;
+  };
+  // one box for the run [s..e] (plan ft), between heights [y0..y1] ft. A piece whose top
+  // is the wall top (y1 === H) under a raked `topFt` is a trapezoid instead: a Shape in
+  // (along, height) extruded the wall's thickness. Shape x is the LOCAL run coordinate,
+  // (c0 - plan)*ft, so for an "x" wall it is local x directly and for a "z" wall the
+  // mesh is turned a quarter so shape x lands on local z.
   const seg = (s, e, y0, y1) => {
-    if (e - s < 1e-4 || y1 - y0 < 1e-4) return;
-    const L = (e - s) * ft, off = (c0 - (s + e) / 2) * ft;   // local axis pos = (centre - plan)*ft
-    const box = new THREE.Mesh(new THREE.BoxGeometry(axis === "x" ? L : t, (y1 - y0) * ft, axis === "x" ? t : L), wallMat);
-    box.position.set(axis === "x" ? off : 0, (y0 + y1) / 2 * ft, axis === "x" ? 0 : off);
-    box.castShadow = true; box.receiveShadow = true; g.add(box);
+    if (e - s < 1e-4) return;
+    if (!(topFt && y1 === H)) {
+      if (y1 - y0 < 1e-4) return;
+      const L = (e - s) * ft, off = (c0 - (s + e) / 2) * ft;   // local axis pos = (centre - plan)*ft
+      const box = new THREE.Mesh(new THREE.BoxGeometry(axis === "x" ? L : t, (y1 - y0) * ft, axis === "x" ? t : L), wallMat);
+      box.position.set(axis === "x" ? off : 0, (y0 + y1) / 2 * ft, axis === "x" ? 0 : off);
+      box.castShadow = true; box.receiveShadow = true; g.add(box);
+      return;
+    }
+    const t0 = Math.max(y0, topAt(s)), t1 = Math.max(y0, topAt(e));
+    if (Math.max(t0, t1) - y0 < 1e-4) return;
+    const us = (c0 - s) * ft, ue = (c0 - e) * ft;              // local run coords of the two ends
+    const sh = new THREE.Shape();
+    sh.moveTo(ue, y0 * ft); sh.lineTo(us, y0 * ft); sh.lineTo(us, t0 * ft); sh.lineTo(ue, t1 * ft); sh.closePath();
+    const mesh = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: t, bevelEnabled: false }), wallMat);
+    if (axis === "x") mesh.position.set(0, 0, -t / 2);                       // extrude runs +z: centre it on the wall
+    else { mesh.rotation.y = -Math.PI / 2; mesh.position.set(t / 2, 0, 0); } // shape x -> local z; extrude -> -x
+    mesh.castShadow = true; mesh.receiveShadow = true; g.add(mesh);
   };
   // openings: p.doors (array) or a single p.door. Each has atFt (opening centre, plan
   // ft along the run), widthFt, headFt. The leaf can be specified two ways:
@@ -866,7 +894,7 @@ function buildPartition(p) {
         { oa: c, ob: c + w / 2, w: w / 2, head, hinge: "b", glass: true, lites: li, swing: swingFor("b", d.opens, deg) },
       ];
     }
-    const o = { at: d.atFt, oa: d.atFt - w / 2, ob: d.atFt + w / 2, w, head, opening: !!d.opening, glass: !!d.glass, lites: d.lites };
+    const o = { at: d.atFt, oa: d.atFt - w / 2, ob: d.atFt + w / 2, w, head, opening: !!d.opening, glass: !!d.glass, lites: d.lites, sliding: !!d.sliding };
     if (/^[NSEW]$/.test(d.hinge || "")) {                       // (a) plain-English form
       o.hinge = d.hinge === HI ? "b" : "a";                     // which jamb the hinge sits on
       o.swing = swingFor(o.hinge, d.opens, d.openDeg);
@@ -874,6 +902,10 @@ function buildPartition(p) {
       o.hinge = d.hinge || "a";
       o.swing = d.swing != null ? d.swing : 1.4;
     }
+    // A POCKET DOOR (`sliding: true`) has no swing: `hinge` names the jamb the leaf is
+    // built from, and the pocket is the wall BEYOND that jamb, into which the leaf
+    // travels. `openAngle` becomes 1 so `current` is the fraction slid.
+    if (o.sliding) o.swing = 1;
     return [o];
   }).sort((A, B) => A.oa - B.oa);
   if (!list.length) { seg(a0, b0, 0, H); return g; }
@@ -920,8 +952,17 @@ function buildPartition(p) {
     const off = (c0 - hx) * ft;                                // pivot at the hinge, on the wall centreline
     leaf.position.set(axis === "x" ? off : 0, 0, axis === "x" ? 0 : off);
     g.add(leaf);
-    leaf.rotation.y = o.swing;                                // doors default OPEN
     const entry = { pivot: leaf, openAngle: o.swing, current: o.swing, open: true };
+    if (o.sliding) {
+      // The leaf extends `sgn` along the local run axis from its jamb, so the pocket is
+      // the other way: it slides -sgn, stopping 2 in short of fully buried so a pull
+      // shows — the same detail as main.js's IFC pocket doors, applied by the same ease.
+      const dir = axis === "x" ? new THREE.Vector3(-sgn, 0, 0) : new THREE.Vector3(0, 0, -sgn);
+      entry.slide = { from: leaf.position.clone(), axis: dir, dist: Math.max(0.1, (lw - 0.17) * ft) };
+      leaf.position.copy(entry.slide.from).addScaledVector(dir, entry.slide.dist);   // doors default OPEN
+    } else {
+      leaf.rotation.y = o.swing;                                // doors default OPEN
+    }
     leaf.children.forEach((m) => { m.userData.fdoor = entry; });   // any leaf mesh double-taps the door
     doorEntries.push(entry);
   };
@@ -3226,11 +3267,17 @@ export async function buildFurniture({ scene, parent = scene, floorY, ceilingY, 
         invalidate();
       }
     }
+    // A hinged leaf turns by `current`; a POCKET leaf (entry.slide) treats it as a fraction
+    // of its travel — one ease, one toggle, both kinds.
+    const applyDoor = (d) => {
+      if (d.slide) d.pivot.position.copy(d.slide.from).addScaledVector(d.slide.axis, d.slide.dist * (d.current / d.openAngle));
+      else d.pivot.rotation.y = d.current;
+    };
     for (const d of doorEntries) {
       const target = d.open ? d.openAngle : 0;
       if (Math.abs(d.current - target) > 1e-3) {
         d.current += (target - d.current) * 0.2;
-        d.pivot.rotation.y = d.current;
+        applyDoor(d);
         d.settling = true;
         invalidate();
       } else if (d.settling) {
@@ -3241,7 +3288,7 @@ export async function buildFurniture({ scene, parent = scene, floorY, ceilingY, 
         // The `invalidate()` is load-bearing — the branch above does not run on the frame
         // the door settles, so without it the re-bake would wait for the 500 ms heartbeat.
         d.settling = false;
-        d.current = target; d.pivot.rotation.y = target;
+        d.current = target; applyDoor(d);
         for (const l of shadowLights) l.shadow.needsUpdate = true;
         invalidate();
       }
