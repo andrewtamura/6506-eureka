@@ -318,14 +318,13 @@
       "_note": "ALCOVE toilet, a conventional tank, backed onto the WEST wall: the anchor sits 1.1 ft in front of the wall face (-12.229; buildToilet's tank runs -1.1..-0.6), centred in the alcove's 3 ft clear width (pz -3.688..-0.688), 18 in each side; the bowl's front (-14.229) leaves 2 ft to the open east end."
     },
     {
-      "_note": "FREESTANDING TUB in the south-east corner, TILTED 10 degrees: `rot: 10` swings its NORTH end toward the WEST and its south end toward the east. That is the direction the owner wanted, and it is recorded here as a FACT about which way the tub points rather than as a rule, because reasoning from the word 'clockwise' produced the opposite sign first time and an explanation for the miss (the viewer's plan looks along the house with north at the bottom) does not hold up \u2014 turning a view 180 degrees does not reverse a rotation. So: north end WEST. Change it only against a render someone has looked at. 15 degrees was asked for first and measured: it widens the footprint from 2 ft 4 to 3 ft 8 and the room has only 5 ft 6 beside the shower, which pinched the approach to the shower arch to 17.5 in. At 10 the tub clears the east wall by 6.5 in, the south wall by 4.1 in, and the walkway to the shower holds 20 in.",
+      "_note": "FREESTANDING TUB in the south-east corner, running NORTH-SOUTH and SQUARE to the walls (wFt is the E-W footprint, dFt the N-S), 28 in x 66 in. Its east side stands 12 in off the east wall's face (-22.688 -> -21.688) and its south end 6 in off the south wall's; the north end leaves 1 ft 7 in to the vanity and the walkway to the shower's arch is 25.5 in. The floor filler stands at the north end, the vanity side. DO NOT TILT IT. A tilt was asked for and tried at 15 degrees (measured: it widens the footprint from 2 ft 4 to 3 ft 8, and with only 5 ft 6 of room beside the shower it cut the walkway to 17.5 in) and then at 10 in BOTH directions, each shipped and each rejected on sight. The owner settled it square. At these clearances an angled tub reads as knocked askew rather than placed, because it stays nearly parallel to two walls it is inches from; the version that could work is a bigger angle with the tub pulled well off both walls, which costs the walkway.",
       "type": "tub",
       "px": -20.523,
       "pz": -8.438,
       "wFt": 2.33,
       "dFt": 5.5,
-      "filler": "N",
-      "rot": 10
+      "filler": "N"
     },
     {
       "_note": "FAMILY ROOM (landing north bay, x 3.9167..15.0833, z 5..16.0833): sofa against the west wall facing the TV on the east wall, with a rug between.",

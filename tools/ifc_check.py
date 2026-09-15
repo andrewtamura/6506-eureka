@@ -1521,28 +1521,32 @@ if _shw and _parts and _tl:
         ok = (w['along'] == 'x' and near(abs(w['at'] - pa['pz']), _WALL / 2, 0.01)
               and near(min(w['lo'], w['hi']), pa_lo, 0.01) and near(max(w['lo'], w['hi']), pa_hi, 0.01))
         check(ok, f"face {w['side']} sits on the partition ({w['along']} at {w['at']}, {w['lo']}..{w['hi']})")
-    # THE TUB, freestanding in the south-east corner and TILTED. Clearances have to be taken
-    # from the ROTATED footprint — at an angle the nearest thing to each wall is a corner,
-    # and the unrotated half-width reads a gap that is not there. 15 degrees was measured and
-    # rejected for pinching the approach to the shower to 17.5 in.
+    # THE TUB, freestanding in the south-east corner and SQUARE to the walls. A tilt was tried
+    # at 15 degrees and at 10 in both directions, shipped each time and rejected each time;
+    # the owner settled it square, so that is what is asserted — `rot` back on this item is a
+    # regression, not a tweak, and the item's own note says why.
+    # The extents are still computed through the ROTATION, which costs nothing at 0 degrees
+    # and is the part worth keeping: at an angle the nearest thing to each wall is a CORNER,
+    # and the unrotated half-width reads a gap that is not there. If a tilt ever comes back
+    # the measurements below stay honest; only the floors need revisiting.
     _tub = [it for it in _l2f if it['type'] == 'tub' and _inw(it)]
     check(len(_tub) == 1 and _tub[0]['dFt'] > _tub[0]['wFt'], f'one freestanding tub, longer north-south ({len(_tub)})')
     if _tub:
         tb = _tub[0]
         rot = tb.get('rot', 0)
-        check(near(abs(rot), 10, 1e-6), f'tilted 10 degrees ({rot})')
+        check(near(rot, 0, 1e-6), f'square to the walls, not tilted ({rot})')
         a_ = math.radians(abs(rot))
         hx = tb['wFt'] / 2 * math.cos(a_) + tb['dFt'] / 2 * math.sin(a_)
         hz = tb['wFt'] / 2 * math.sin(a_) + tb['dFt'] / 2 * math.cos(a_)
         e_gap = (tb['px'] - hx) - (wing_e + _WALL / 2)
         s_gap = (tb['pz'] - hz) - (wing_s + _WALL / 2)
         walk = sh_e - (tb['px'] + hx)
-        check(e_gap >= 0.45, f'{e_gap * 12:.1f} in from its east corner to the east wall')
-        check(s_gap >= 0.25, f'{s_gap * 12:.1f} in from its south corner to the south wall')
-        check(walk >= 1.6, f'{walk * 12:.1f} in of walkway between the tub and the shower wall')
+        check(near(e_gap, 1.0, 0.01), f'{e_gap * 12:.1f} in from its east side to the east wall (12 wanted)')
+        check(0.3 <= s_gap <= 1.0, f'{s_gap * 12:.1f} in from its south end to the south wall')
+        check(walk >= 2.0, f'{walk * 12:.1f} in of walkway between the tub and the shower wall (24 in floor)')
         if _van:
-            check((_van['pz'] - _van['widthFt'] / 2) - (tb['pz'] + hz) >= 0.7,
-                  f"{((_van['pz'] - _van['widthFt'] / 2) - (tb['pz'] + hz)) * 12:.1f} in from its north corner to the vanity")
+            check((_van['pz'] - _van['widthFt'] / 2) - (tb['pz'] + hz) >= 1.0,
+                  f"{((_van['pz'] - _van['widthFt'] / 2) - (tb['pz'] + hz)) * 12:.1f} in from its north end to the vanity")
     # THE SHOWER'S FITTINGS. Heads and valves are builder geometry and nothing measures the
     # level-2 exhibit's meshes (kitchen-check runs ?solo=ground), so what is asserted is the
     # manifest: two heads, and a head height authored well above the 5 ft 6 the back-wall
