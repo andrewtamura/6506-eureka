@@ -1659,6 +1659,7 @@ if _E and _W:
           f'...and reaching the same way out ({uE[2]:.2f}..{uE[3]:.2f})')
     # LANDING ON THE SIDEWALK is the whole point of the change, so it is measured against the
     # sidewalk's own near edge rather than a number repeated here.
+    _terr = next((lv.get('crawlspaceFt', 0) for lv in model['levels'] if lv['id'] == 'exterior'), 0)
     _sw = extents(ext, lambda nm, p: nm == 'Sidewalk - north').get('Sidewalk - north')
     check(_sw is not None, 'the north sidewalk is measurable')
     if _sw:
@@ -1671,7 +1672,7 @@ if _E and _W:
     for tag, parts in (('east', _E), ('west', _W)):
         t = tops(parts)
         steps = [round(t[i] - t[i + 1], 4) for i in range(len(t) - 1)]
-        check(near(t[0], 0.0, 0.02), f'the {tag} flight springs at lot grade ({t[0]:.2f})')
+        check(near(t[0], _terr, 0.02), f'the {tag} flight springs at the terrace ({t[0]:.2f})')
         check(len(steps) == 0 or (max(steps) - min(steps) < 0.01 and max(steps) <= 0.5 + 1e-6),
               f'{tag}: {len(t)} treads, risers {max(steps) * 12 if steps else 0:.1f} in, even and under 6')
     check(len(tops(_W)) > len(tops(_E)),
@@ -1736,16 +1737,34 @@ if _E and _W:
             check(near(_mid[0][0], uE[1], 0.05) and near(_mid[0][1], uW[0], 0.05),
                   f'it spans arm springing to arm springing ({_mid[0][0]:.2f}..{_mid[0][1]:.2f} '
                   f'vs {uE[1]:.2f}/{uW[0]:.2f})')
-    # THE COURTYARD IS CLOSED: the inner cheeks continue along the sidewalk and meet in the
-    # middle, and the wall that joins them is level-topped at lot grade, continuous with the
-    # retaining wall's own top.
-    _cy = extents(ext, lambda nm, p: nm == 'Front approach courtyard wall').get('Front approach courtyard wall')
-    check(_cy is not None, 'the courtyard has a north wall closing it')
-    if _cy and _sw:
-        check(near(_cy[3], _sw[2], 0.02), f"it stands on the sidewalk's edge ({_cy[3]:.2f} vs {_sw[2]:.2f})")
-        check(near(_cy[5], 0.0, 0.01), f'its top is level at lot grade ({_cy[5]:.2f})')
-        check(_cy[0] > uE[0] and _cy[1] < uW[1],
-              f'and runs between the two arms ({_cy[0]:.2f}..{_cy[1]:.2f})')
+    # THE COURTYARD IS OPEN TO THE SIDEWALK — nothing closes it on the north, so the inner
+    # cheeks simply end there and you can walk in off the street.
+    check(not extents(ext, lambda nm, p: nm.startswith('Front approach courtyard wall')),
+          'no wall closes the courtyard off from the sidewalk')
+    # Its SOUTH side is the retaining wall between the arms, which now retains the raised
+    # forecourt rather than lawn and stands as its parapet: its top runs FLAT at the arms'
+    # own cheek height, so the line is unbroken from one arm across the courtyard to the
+    # other. Left at lot grade the terrace's edge would have had nothing under it.
+    _cs = extents(ext, lambda nm, p: nm == 'Retaining wall - north courtyard').get('Retaining wall - north courtyard')
+    check(_cs is not None, "the courtyard's south wall exists")
+    if _cs:
+        _cheek_top = max((b[5] for nm, b in _parts(ext, 'Front approach') if 'cheek' in nm and not nm.endswith('cap')), default=0)
+        check(near(_cs[5], _cheek_top, 0.02),
+              f"its top runs flat at the cheeks' height ({_cs[5]:.2f} vs {_cheek_top:.2f})")
+        check(_cs[5] > _terr + 1.0, f'...standing proud of the terrace as its parapet ({_cs[5] - _terr:.2f} ft)')
+        check(near(_cs[0], uE[1], 0.05) and near(_cs[1], uW[0], 0.05),
+              f'and spanning arm to arm ({_cs[0]:.2f}..{_cs[1]:.2f})')
+    # THE FORECOURT IS ONE FLAT DECK level with the front door, reaching from the house out
+    # to that wall — the porch's splayed cascade is gone, because the arms now carry the
+    # whole rise from the sidewalk and steps here would be a second climb.
+    check(not extents(ext, lambda nm, p: nm.startswith('Porch step')),
+          'the porch cascade is gone — no steps in the forecourt')
+    _pf = extents(ext, lambda nm, p: nm == 'Porch floor').get('Porch floor')
+    check(_pf is not None and near(_pf[5], _terr, 0.02),
+          f'the forecourt deck is level with the door ({_pf[5] if _pf else 0:.2f} vs {_terr:.2f})')
+    if _pf and _cs:
+        check(near(_pf[3], _cs[2], 0.02),
+              f"and runs out to the courtyard's south wall ({_pf[3]:.2f} vs {_cs[2]:.2f})")
     # THE OUTER RUN REACHES THE PORCH, so the wall is continuous sidewalk to house. Measured
     # as PROXIMITY between the two sets of footprints — `_laps` with a negative tolerance
     # returns pairs that come within it rather than pairs that overlap. Comparing a px reach
