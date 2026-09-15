@@ -1645,10 +1645,14 @@ _side = lambda w: [b for nm, b in _fa if f' {w} tread' in nm]
 _E, _W = _side('east'), _side('west')
 check(_E and _W, f'two curved flights ({len(_E)} east parts, {len(_W)} west)')
 if _E and _W:
-    _door = _front_door_px = 9.5
-    _rooms_fd = next((d for r in _rooms.values() for d in r.get('doors', []) if 'Front Door' in d.get('name', '')), None)
-    if _rooms_fd:
-        _door = _rooms_fd['pos']
+    # The front door, read from the room file that actually carries it. `_rooms` above holds
+    # only the WING rooms' bounds, so looking for it there found nothing and quietly fell back
+    # to a literal 9.5 — right by luck, and worth not relying on.
+    _fd = next((d for f_ in sorted(glob.glob('ifc/rooms/*.json'))
+                for d in json.load(open(f_)).get('doors', [])
+                if 'Front Door' in d.get('name', '')), None)
+    check(_fd is not None, 'the front door is in the room files')
+    _door, _fw = (_fd['pos'], _fd['fixed']) if _fd else (9.5, None)
     # The two flights are NOT tread-for-tread mirrors — they carry different riser counts —
     # but their FOOTPRINTS are, because the arc, its radius and its width all mirror.
     uE = (min(b[0] for b in _E), max(b[1] for b in _E), min(b[2] for b in _E), max(b[3] for b in _E))
@@ -1722,11 +1726,13 @@ if _E and _W:
     # real FOOTPRINTS, because a curved segment's bounding box reported four clashes with
     # the porch that did not exist, and would equally have hidden one that did.
     _armch = _hulls(ext, 'Front approach', skip=lambda n: 'cheek' not in n or n.endswith('cap'))
-    _porch = _hulls(ext, 'Porch cheek wall')
     _rwh = _hulls(ext, 'Retaining wall - north')
-    check(_armch and _porch and _rwh, f'the walls are measurable ({len(_armch)}/{len(_porch)}/{len(_rwh)})')
+    check(_armch and _rwh, f'the walls are measurable ({len(_armch)}/{len(_rwh)})')
     check(not _laps(_armch, _rwh), f'no arm cheek cuts the retaining wall ({len(_laps(_armch, _rwh))})')
-    check(not _laps(_armch, _porch), f"no arm cheek cuts the porch's ({len(_laps(_armch, _porch))})")
+    # The stoop's own splayed cheeks are GONE — the arms' walls carry the terrace's edge now,
+    # so a survivor here would be a second wall standing beside them.
+    check(not extents(ext, lambda nm, p: nm.startswith('Porch cheek')),
+          "the old porch's cheek walls are gone")
     # THE RETAINING WALL IS WHAT CONNECTS THE ARMS: the piece between them runs from one
     # arm's springing to the other's. That only comes out right if the opening is the arm's
     # true sweep THROUGH the wall's thickness — its inner edge turns south, dips into the
@@ -1765,15 +1771,22 @@ if _E and _W:
     if _pf and _cs:
         check(near(_pf[3], _cs[2], 0.02),
               f"and runs out to the courtyard's south wall ({_pf[3]:.2f} vs {_cs[2]:.2f})")
-    # THE OUTER RUN REACHES THE PORCH, so the wall is continuous sidewalk to house. Measured
-    # as PROXIMITY between the two sets of footprints — `_laps` with a negative tolerance
-    # returns pairs that come within it rather than pairs that overlap. Comparing a px reach
-    # against the porch cheek's outer face fails for the right geometry: that wall splays, so
-    # the connector meets its NEAR face, which is a different number at every pz.
+    # THE RUN REACHES THE HOUSE, so the wall is continuous sidewalk to front wall. It used to
+    # be measured against the porch's cheek; that wall is gone, so this is re-aimed at the
+    # house itself rather than dropped.
     for tag in ('east', 'west'):
-        arm = [(n, h) for n, h in _armch if f' {tag} ' in n]
-        check(arm and _laps(arm, _porch, tol=-0.1),
-              f'the {tag} outer run meets the porch cheek ({len(_laps(arm, _porch, tol=-0.1))} touching)')
+        g = [b for nm, b in _parts(ext, f'Front approach {tag} cheek') if not nm.endswith('cap')]
+        check(g and _fw is not None and near(min(b[2] for b in g), _fw, 0.05),
+              f'the {tag} run dies into the house wall ({min(b[2] for b in g) if g else 0:.2f} vs {_fw})')
+    # AND IT RAMPS rather than stepping. A cheek that stepped with its treads has one top per
+    # tread; a ramped one has one per segment, so counting distinct tops tells them apart —
+    # which is the correction this round is for, and invisible in a plan.
+    for tag in ('east', 'west'):
+        g = [b for nm, b in _parts(ext, f'Front approach {tag} cheek') if not nm.endswith('cap')]
+        treads = len({round(b[5], 3) for nm, b in _parts(ext, f'Front approach {tag} tread')})
+        tops = len({round(b[5], 3) for b in g})
+        check(tops > 2 * treads,
+              f'the {tag} cheek ramps rather than stepping ({tops} distinct tops over {treads} treads)')
 
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)
