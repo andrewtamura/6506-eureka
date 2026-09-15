@@ -461,7 +461,8 @@ def build_level(cfg, rooms_cache, level):
         # crawlspace band raises the whole thing off grade.
         crawl = level.get("crawlspaceFt", 0) * B.FT
         B.add_massing(ctx, level["roofGroups"], rooms_cache, crawl,
-                      porch_front=B.porch_front_pz(cfg["lot"], rooms_cache, ctx.T / B.FT / 2))
+                      deck_arc=B.approach_arc_lines(cfg["lot"].get("frontage") or {},
+                                                    rooms_cache, cfg["lot"], ctx.T / B.FT / 2))
         B.add_fenestration(ctx, level["roofGroups"], rooms_cache, crawl)
         B.add_deck(ctx, cfg["lot"], rooms_cache, crawl)
         B.add_lot_wall(ctx, cfg["lot"], rooms_cache, crawl)

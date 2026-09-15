@@ -588,6 +588,31 @@ def _laps(A, B, tol=0.02):
         return True
     return [(na, nb) for na, a in A for nb, b in B if hit(a, b)]
 
+def _connected(parts, tol=-0.08):
+    """Is this run ONE wall? Parts are nodes, "within `tol` of touching" the edges; the run is
+    continuous when the graph has a single component.
+
+    A gap of a foot in a 60 ft sweep is invisible in a plan at any zoom anyone looks at, which
+    is how two of them survived several rounds. Extents cannot see it either: the run's
+    bounding box is identical whether the pieces touch or not. Only the parts against each
+    other answer it."""
+    n = len(parts)
+    if n == 0:
+        return False, 0
+    adj = {i: set() for i in range(n)}
+    for i in range(n):
+        for j in range(i + 1, n):
+            if _laps([(i, parts[i])], [(j, parts[j])], tol=tol):
+                adj[i].add(j)
+                adj[j].add(i)
+    seen, stack = {0}, [0]
+    while stack:
+        k = stack.pop()
+        for m_ in adj[k] - seen:
+            seen.add(m_)
+            stack.append(m_)
+    return len(seen) == n, n - len(seen)
+
 
 def _rake_line(model, name, lo=True):
     """The bottom (lo) or top edge of a raking member, as a function of plan x.
@@ -1684,42 +1709,36 @@ if _E and _W:
     # The retaining wall opens for each flight AND for the centre walk: three gaps, and the
     # flights' openings have to contain the flights, or a run drives through the wall.
     _rwn = [b for nm, b in _parts(ext, 'Retaining wall - north')]
-    check(len(_rwn) == 3, f'the north retaining wall runs in 3 pieces — one opening per arm ({len(_rwn)})')
+    check(len(_rwn) == 2, f'the north retaining wall runs in 2 pieces — one opening for the whole approach ({len(_rwn)})')
     _spans = sorted((b[0], b[1]) for b in _rwn)
     _holes = [(_spans[i][1], _spans[i + 1][0]) for i in range(len(_spans) - 1)]
-    check(len(_holes) == 2 and all(h[1] - h[0] > 2.0 for h in _holes),
-          f'each opening is wide enough to walk ({[f"{a:.1f}..{b:.1f}" for a, b in _holes]})')
-    # ...and UNBROKEN ACROSS THE MIDDLE, which is what "the middle is just park strip" means
-    # structurally: the piece between the two arm gaps has to reach from one to the other.
-    if len(_holes) == 2:
-        _mid = [sp for sp in _spans if sp[0] >= _holes[0][1] - 0.01 and sp[1] <= _holes[1][0] + 0.01]
-        check(len(_mid) == 1 and near(_mid[0][0], _holes[0][1], 0.05) and near(_mid[0][1], _holes[1][0], 0.05),
-              f'the wall runs unbroken between the arms ({_mid[0][0]:.1f}..{_mid[0][1]:.1f})'
-              if _mid else 'the wall runs unbroken between the arms')
-    # Neither arm may run into its neighbours: the centre walk between them, the driveway
-    # off the east front yard, or the west property line.
-    check(uE[1] < 7.0 - 0.05 and uW[0] > 12.0 + 0.05,
-          f'both arms clear the centre walk (east to {uE[1]:.2f}, west from {uW[0]:.2f}, walk 7..12)')
+    check(len(_holes) == 1 and _holes[0][1] - _holes[0][0] > 20.0,
+          f'one opening across the whole approach ({[f"{a:.1f}..{b:.1f}" for a, b in _holes]})')
+    # Neither arm may run into its neighbours: the driveway off the east front yard, or the
+    # west property line. (There is no centre walk left to clear — the arms meet in the
+    # middle now — but the lot's own edges are still there to hit.)
     _dv = extents(ext, lambda nm, p: nm.startswith('Driveway'))
     if _dv:
         _dvw = max(b[1] for b in _dv.values())          # the driveway's west edge
         check(uE[0] > _dvw + 0.05, f"the east arm stops short of the driveway ({uE[0]:.2f} vs {_dvw:.2f})")
     check(uW[1] < 47.0 - 0.05, f'the west arm stays inside the west property line ({uW[1]:.2f})')
     # THE CENTRE ROUTE IS GONE — walk, steps and the wall's opening together, so the middle
-    # is plain park strip below the wall and lawn above it. Asserted as an ABSENCE because
-    # the flag that retires it (frontage.centreWalk) also feeds the wall's gap list: leave
-    # half of it behind and you get steps onto grass, or a gap onto nothing.
+    # is the courtyard rather than a third way up. Asserted as an ABSENCE because the flag
+    # that retires it (frontage.centreWalk) also feeds the wall's gap list: leave half of it
+    # behind and you get steps onto grass, or a gap onto nothing.
     _cw = extents(ext, lambda nm, p: nm.startswith('Entry step') or nm.startswith('Entry walk'))
     check(not _cw, f'no centre walk and no entry steps ({sorted(_cw)})')
     # CHEEK WALLS, one per edge of each arm, with a cap riding each.
     for tag in ('east', 'west'):
-        ch = _parts(ext, f'Front approach {tag} cheek')
-        walls = [b for nm, b in ch if not nm.endswith('cap')]
-        caps = [b for nm, b in ch if nm.endswith('cap')]
-        check(len(walls) > 4 and len(caps) > 4, f'{tag} arm: cheek walls and caps ({len(walls)}/{len(caps)})')
-        if walls and caps:
-            check(min(b[4] for b in caps) > min(b[4] for b in walls),
-                  f'{tag}: the cap rides the wall rather than sitting in it')
+        for run_ in ('inner', 'outer'):
+            ch = _parts(ext, f'Front approach {tag} {run_} cheek')
+            walls = [b for nm, b in ch if not nm.endswith('cap')]
+            caps = [b for nm, b in ch if nm.endswith('cap')]
+            check(len(walls) > 4 and len(caps) > 4,
+                  f'{tag} arm, {run_} run: cheek walls and caps ({len(walls)}/{len(caps)})')
+            if walls and caps:
+                check(min(b[4] for b in caps) > min(b[4] for b in walls),
+                      f'{tag} {run_}: the cap rides the wall rather than sitting in it')
     # NOTHING INTERPENETRATES. The arms' cheeks pass through the retaining wall and run up
     # beside the porch's own, so both are places two solids can end up inside each other —
     # invisible in a render, and the interference this round exists to resolve. Tested on
@@ -1733,38 +1752,82 @@ if _E and _W:
     # so a survivor here would be a second wall standing beside them.
     check(not extents(ext, lambda nm, p: nm.startswith('Porch cheek')),
           "the old porch's cheek walls are gone")
-    # THE RETAINING WALL IS WHAT CONNECTS THE ARMS: the piece between them runs from one
-    # arm's springing to the other's. That only comes out right if the opening is the arm's
-    # true sweep THROUGH the wall's thickness — its inner edge turns south, dips into the
-    # band and comes back out, reaching the arc's centreline on the way.
-    if len(_holes) == 2:
-        _mid = [sp for sp in _spans if sp[0] > _holes[0][1] - 0.05 and sp[1] < _holes[1][0] + 0.05]
-        if _mid:
-            check(near(_mid[0][0], uE[1], 0.05) and near(_mid[0][1], uW[0], 0.05),
-                  f'it spans arm springing to arm springing ({_mid[0][0]:.2f}..{_mid[0][1]:.2f} '
-                  f'vs {uE[1]:.2f}/{uW[0]:.2f})')
-    # THE COURTYARD IS OPEN TO THE SIDEWALK — nothing closes it on the north, so the inner
-    # cheeks simply end there and you can walk in off the street.
-    check(not extents(ext, lambda nm, p: nm.startswith('Front approach courtyard wall')),
-          'no wall closes the courtyard off from the sidewalk')
-    # Its SOUTH side is the retaining wall between the arms, which now retains the raised
-    # forecourt rather than lawn and stands as its parapet: its top runs FLAT at the arms'
-    # own cheek height, so the line is unbroken from one arm across the courtyard to the
-    # other. Left at lot grade the terrace's edge would have had nothing under it.
-    _cs = extents(ext, lambda nm, p: nm == 'Retaining wall - north courtyard').get('Retaining wall - north courtyard')
+    # THE COURTYARD'S FRAME is one wall: the east inner cheek, a straight run across the
+    # middle, the west inner cheek. It is emitted as its own product rather than left to the
+    # retaining wall, which sat 0.43 ft north of the cheeks' face and read as a jog.
+    _cs = extents(ext, lambda nm, p: nm == 'Front approach courtyard wall').get('Front approach courtyard wall')
     check(_cs is not None, "the courtyard's south wall exists")
+    check(not extents(ext, lambda nm, p: nm.startswith('Retaining wall - north courtyard')),
+          'and the retaining wall keeps no piece between the arms')
     if _cs:
-        _cheek_top = max((b[5] for nm, b in _parts(ext, 'Front approach') if 'cheek' in nm and not nm.endswith('cap')), default=0)
+        _cheek_top = max((b[5] for nm, b in _fa if 'cheek' in nm and not nm.endswith('cap')), default=0)
         check(near(_cs[5], _cheek_top, 0.02),
               f"its top runs flat at the cheeks' height ({_cs[5]:.2f} vs {_cheek_top:.2f})")
         check(_cs[5] > _terr + 1.0, f'...standing proud of the terrace as its parapet ({_cs[5] - _terr:.2f} ft)')
         check(near(_cs[0], uE[1], 0.05) and near(_cs[1], uW[0], 0.05),
               f'and spanning arm to arm ({_cs[0]:.2f}..{_cs[1]:.2f})')
+        # NO JOG where it meets each arm. The arc carries a radius that just reaches this pz,
+        # and it does so at px = cx — so the cheek's courtyard face is TANGENT to the straight
+        # run there and the two northmost extents have to agree exactly. A jog of five inches
+        # is what shipped before and what nobody could see in a plan.
+        for tag, edge in (('east', _cs[0]), ('west', _cs[1])):
+            # The cheek's own northmost point is at the SIDEWALK, 10 ft further on, so the
+            # test has to pick the piece that actually meets the wall: the one whose plan
+            # span ends on px = cx. Measured against max pz it read 36.146 and passed
+            # nothing useful.
+            g = [b for nm, b in _parts(ext, f'Front approach {tag} inner cheek')
+                 if not nm.endswith('cap') and (near(b[0], edge, 0.02) or near(b[1], edge, 0.02))]
+            check(g and near(max(b[3] for b in g), _cs[3], 0.02),
+                  f'the {tag} cheek meets it without a jog ({max((b[3] for b in g), default=0):.3f} vs {_cs[3]:.3f})')
+        # THE COURTYARD IS OPEN TO THE SIDEWALK: between the arms, nothing stands north of
+        # that wall, so you walk in off the street.
+        _mouth = [nm for nm, b in _fa
+                  if ('cheek' in nm or 'courtyard wall' in nm)
+                  and b[0] > _cs[0] + 0.05 and b[1] < _cs[1] - 0.05 and b[2] > _cs[3] + 0.05]
+        check(not _mouth, f'no wall closes the courtyard off from the sidewalk ({len(_mouth)})')
+    # ...AND YOU CAN WALK IN OFF THE STREET. With no wall on the property line the lot's
+    # 4 in grass plane was left hanging over a 1.2-1.8 ft drop to the park strip — sky
+    # visible underneath from the strip, and a step no one could take. The bank replaces
+    # it: lot grade at the wall, falling to the park strip's own grade at the sidewalk.
+    _bank = [b for nm, b in _parts(ext, 'Front approach courtyard bank')]
+    check(_bank, f'the courtyard is banked to the street ({len(_bank)} pieces)')
+    if _bank and _cs and _sw:
+        _b = (min(b[2] for b in _bank), max(b[3] for b in _bank),
+              min(b[4] for b in _bank), max(b[5] for b in _bank))
+        check(near(_b[0], _cs[3], 0.02), f"it starts at the wall's face ({_b[0]:.3f} vs {_cs[3]:.3f})")
+        check(near(_b[1], _sw[2], 0.02), f'and runs out to the sidewalk ({_b[1]:.3f} vs {_sw[2]:.3f})')
+        check(_b[3] > -0.05, f'level with the lot where it meets the wall ({_b[3]:.2f})')
+        _ps = extents(ext, lambda nm, p: nm == 'Park strip - north').get('Park strip - north')
+        check(_ps and _b[2] > _ps[4] - 0.05,
+              f'and no lower than the park strip it lands on ({_b[2]:.2f} vs {_ps[4] if _ps else 0:.2f})')
+        # WALKABLE, not a cliff: the whole fall is taken over the 9 ft park strip.
+        _slope = (_b[3] - _b[2] - 0.33) / (_sw[2] - _cs[3])
+        check(_slope < 0.25, f'a bank you can walk up, not a step (1:{1 / max(_slope, 1e-6):.1f})')
+    # EACH RUN IS ONE CONTINUOUS WALL — the point of this round. Measured as footprints
+    # TOUCHING, because a run's extents are identical whether its pieces meet or not, and a
+    # gap of a foot in a 60 ft sweep is invisible in a plan at any zoom anyone looks at.
+    _noCap = lambda n: n.endswith('cap')
+    _red = ([h for nm, h in _hulls(ext, 'Front approach east inner cheek', skip=_noCap)]
+            + [h for nm, h in _hulls(ext, 'Front approach courtyard wall', skip=_noCap)]
+            + [h for nm, h in _hulls(ext, 'Front approach west inner cheek', skip=_noCap)])
+    _ok, _adrift = _connected(_red)
+    check(_ok, f'the courtyard frame is ONE continuous wall ({len(_red)} parts, {_adrift} adrift)')
+    for tag in ('east', 'west'):
+        _blue = [h for nm, h in _hulls(ext, f'Front approach {tag} outer cheek', skip=_noCap)]
+        _ok, _adrift = _connected(_blue)
+        check(_ok, f'the {tag} flanking wall is ONE continuous wall ({len(_blue)} parts, {_adrift} adrift)')
     # THE FORECOURT IS ONE FLAT DECK level with the front door, reaching from the house out
     # to that wall — the porch's splayed cascade is gone, because the arms now carry the
     # whole rise from the sidewalk and steps here would be a second climb.
     check(not extents(ext, lambda nm, p: nm.startswith('Porch step')),
           'the porch cascade is gone — no steps in the forecourt')
+    # ...and NOTHING STANDS ON IT. Every wall sits outboard of the deck's edge, so the whole
+    # forecourt is one clear flat surface. On footprints again: the deck is a fan of 13
+    # pieces whose union box swallows the walls beside it, and the walls abut its edge
+    # exactly, so the test asks for 0.6 in of REAL overlap before calling it an intrusion.
+    _deck = _hulls(ext, 'Porch floor')
+    _standing = _laps(_armch + _hulls(ext, 'Front approach courtyard wall', skip=_noCap), _deck, tol=0.05)
+    check(_deck and not _standing, f'nothing stands on the forecourt deck ({len(_standing)})')
     _pf = extents(ext, lambda nm, p: nm == 'Porch floor').get('Porch floor')
     check(_pf is not None and near(_pf[5], _terr, 0.02),
           f'the forecourt deck is level with the door ({_pf[5] if _pf else 0:.2f} vs {_terr:.2f})')
@@ -1775,14 +1838,14 @@ if _E and _W:
     # be measured against the porch's cheek; that wall is gone, so this is re-aimed at the
     # house itself rather than dropped.
     for tag in ('east', 'west'):
-        g = [b for nm, b in _parts(ext, f'Front approach {tag} cheek') if not nm.endswith('cap')]
+        g = [b for nm, b in _parts(ext, f'Front approach {tag} outer cheek') if not nm.endswith('cap')]
         check(g and _fw is not None and near(min(b[2] for b in g), _fw, 0.05),
               f'the {tag} run dies into the house wall ({min(b[2] for b in g) if g else 0:.2f} vs {_fw})')
     # AND IT RAMPS rather than stepping. A cheek that stepped with its treads has one top per
     # tread; a ramped one has one per segment, so counting distinct tops tells them apart —
     # which is the correction this round is for, and invisible in a plan.
     for tag in ('east', 'west'):
-        g = [b for nm, b in _parts(ext, f'Front approach {tag} cheek') if not nm.endswith('cap')]
+        g = [b for nm, b in _parts(ext, f'Front approach {tag} inner cheek') if not nm.endswith('cap')]
         treads = len({round(b[5], 3) for nm, b in _parts(ext, f'Front approach {tag} tread')})
         tops = len({round(b[5], 3) for b in g})
         check(tops > 2 * treads,
