@@ -26,6 +26,10 @@ const woodMat = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.5
 // (sx = E-W, sz = N-S) — so a box built from it stays square to the walls.
 const DIR = { N: [0, 1], S: [0, -1], E: [-1, 0], W: [1, 0] };
 const OPP = { N: "S", S: "N", E: "W", W: "E" };
+// Deterministic pseudo-random in [0,1) from one number — the same one-liner the floor
+// builders use, so a tile's shade is stable across reloads rather than sparkling.
+const hash = (n) => { const x = Math.sin(n * 127.1) * 43758.5; return x - Math.floor(x); };
+
 function fplace(A, P, da, ds, dl, dw) {
   return [A[0] * da + P[0] * ds, A[1] * da + P[1] * ds,
           Math.abs(A[0]) * dl + Math.abs(P[0]) * dw,
@@ -1273,6 +1277,41 @@ function buildShower(p) {
   const Wd = p.widthFt ?? 3.6, Dp = p.depthFt ?? 3.2, H = p.heightFt ?? 6.8, wt = p.wallFt ?? 0.3;
   const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
   let q;
+  // TILE MODULES on the enclosure walls, opt-in with `tileModule: {wFt, hFt}` — without it
+  // the walls stay the plain slabs they were, so nothing else in the house changes. Tiles are
+  // laid proud of the wall face and the substrate behind them reads as the grout, the same
+  // trick wood-floor.js uses for its planks over a dark base. Every tile in the shower goes
+  // into ONE InstancedMesh: ~2000 of them is a single draw call.
+  const tmod = p.tileModule;
+  const TW = tmod ? (tmod.wFt ?? 2 / 12) : 0, TILEH = tmod ? (tmod.hFt ?? 6 / 12) : 0;
+  const TGAP = 0.008, TOUT = 0.022;                  // grout joint and tile relief, plan ft
+  const tiles = [];
+  // A tiled face. `nrm` is which axis the face's normal runs along ("A" for the back and
+  // front walls, "P" for the two sides), `at` locates the face and `out` says which way it
+  // looks. The lattice is GLOBAL to the shower, not to the region, so courses line up across
+  // pieces split around a cutout instead of each piece starting its own grid.
+  const tileWall = (nrm, at, out, u0, u1, y0, y1, skip) => {
+    if (!tmod) return;
+    for (let i = Math.floor(u0 / TW); i < Math.ceil(u1 / TW); i++)
+      for (let j = Math.floor(y0 / TILEH); j < Math.ceil(y1 / TILEH); j++) {
+        const ua = Math.max(i * TW, u0), ub = Math.min((i + 1) * TW, u1);
+        const ya = Math.max(j * TILEH, y0), yb = Math.min((j + 1) * TILEH, y1);
+        const uw = ub - ua - TGAP, yh = yb - ya - TGAP;
+        if (uw < TW * 0.25 || yh < TILEH * 0.2) continue;        // a sliver, not a cut tile
+        const uc = (ua + ub) / 2, yc = (ya + yb) / 2;
+        if (skip && skip(uc, yc, ub - ua, yb - ya)) continue;
+        const r = nrm === "A" ? pl(at + out * TOUT / 2, uc, TOUT, uw)
+                              : pl(uc, at + out * TOUT / 2, uw, TOUT);
+        const sf = 0.94 + 0.12 * hash(i * 12.9898 + j * 78.233);  // so the grid is not a printed sheet
+        tiles.push({ x: -r[0] * ft, y: yc * ft, z: -r[1] * ft,
+                     sx: r[2] * ft, sy: yh * ft, sz: r[3] * ft, sf });
+      }
+  };
+  // Does a tile rect meet one of this wall's openings? Cutouts are {c, sill, head} across the
+  // face; a tile touching one is simply not laid, which leaves the substrate showing as the
+  // reveal — what a tiler actually does round an opening.
+  const meets = (list) => (uc, yc, uw, yh) => list.some((o) =>
+    Math.abs(uc - o.c) < (o.w + uw) / 2 - 1e-6 && yc + yh / 2 > o.sill + 1e-6 && yc - yh / 2 < o.head - 1e-6);
   // Curb ONLY across the walk-in opening — not a full pan — so the continuous hex
   // floor tile runs unbroken through the shower (this threshold is the single break).
   { const curbMat = new THREE.MeshStandardMaterial({ color: 0xcfd2d4, roughness: 0.5 });
@@ -1287,6 +1326,10 @@ function buildShower(p) {
   // frame: `ds` along P from the centre, sill and head above the floor. One 5 x 9 ft
   // tiled box across the south wall is how the wing's transom came to be lost.
   const cuts = (p.cutouts || []).filter(c => !c.side && c.widthFt > 0 && c.headFt > c.sillFt);   // back-wall entries (ds); side entries above
+  // The back wall's tile: one grid over the whole face, minus whatever the cutouts take.
+  // Done here rather than per drawn piece so the courses run unbroken past an opening.
+  tileWall("A", -(Dp / 2 - wt / 2), 1, -Wd / 2, Wd / 2, 0, H,
+           meets(cuts.map(c => ({ c: c.ds, w: c.widthFt, sill: c.sillFt, head: c.headFt }))));
   if (!cuts.length) {
     q = pl(-(Dp / 2), 0, wt, Wd);  box(q[0], q[1], H / 2, q[2], q[3], H, tile);            // back wall
   } else {
@@ -1311,6 +1354,10 @@ function buildShower(p) {
   for (const s of [-1, 1]) {
     const mine = (p.cutouts || []).filter(c => c.side && (Math.sign((DIR[c.side][0] * P[0] + DIR[c.side][1] * P[1])) || 1) === s
       && c.widthFt > 0 && c.headFt > c.sillFt);
+    // This side's tile, over the whole face and minus its own cutouts — same reason as the
+    // back wall: one grid per FACE, so a course is not restarted by a split in the substrate.
+    tileWall("P", s * (Wd / 2 - wt / 2), -s, -Dp / 2, Dp / 2, 0, H,
+             meets(mine.map(c => ({ c: c.da, w: c.widthFt, sill: c.sillFt, head: c.headFt }))));
     if (!mine.length) { q = pl(0, s * (Wd / 2), Dp, wt); box(q[0], q[1], H / 2, q[2], q[3], H, tile); continue; }
     const edges = mine.map(c => [c.da - c.widthFt / 2, c.da + c.widthFt / 2]).sort((a, b2) => a[0] - b2[0]);
     let cur = -Dp / 2;
@@ -1367,6 +1414,19 @@ function buildShower(p) {
     const geo = new THREE.ExtrudeGeometry(sh, { depth: wt * ft, bevelEnabled: false, curveSegments: 24 });
     geo.translate(0, 0, -wt * ft / 2);                                  // straddle the front line like the box did
     const front = new THREE.Mesh(geo, tile); front.castShadow = true; front.receiveShadow = true;
+    // Both faces of the arch wall: the inner one you see from in the shower, the outer one
+    // that faces the room. A tile is skipped where it meets the opening — below the
+    // springline that is the jamb line, above it the arc — so the last course stops short
+    // and the swept shape behind it, which carries the true curve, reads as the cut border.
+    const inArch = (uc, yc, uw, yh) => {
+      for (const u of [uc - uw / 2, uc, uc + uw / 2]) for (const y of [yc - yh / 2, yc, yc + yh / 2]) {
+        const du = u - off;
+        if (y < spring ? Math.abs(du) < r : du * du + (y - cy) * (y - cy) < R * R) return true;
+      }
+      return false;
+    };
+    for (const [face, out] of [[Dp / 2 - wt / 2, -1], [Dp / 2 + wt / 2, 1]])
+      tileWall("A", face, out, -Wd / 2, Wd / 2, 0, H, inArch);
     // Shape X runs along P (ds), Y up; V() maps plan (dx,dz) to world (-dx,.,-dz), so P is
     // world (-P[0], 0, -P[1]) and a turn th about Y sends local +X to (cos th, 0, -sin th).
     const Xw = { x: -P[0], z: -P[1] };
@@ -1427,6 +1487,22 @@ function buildShower(p) {
       q = pl(-(bFace - 0.03), hs, 0.06, 0.6);   box(q[0], q[1], vy, q[2], q[3], 0.6, chrome);         // valve trim plate
       q = pl(-(bFace - 0.12), hs, 0.2, 0.08);   box(q[0], q[1], vy, q[2], q[3], 0.08, chrome);        // handle
     }
+  }
+  if (tiles.length) {
+    // One mesh for every tile on every wall. Shaded per instance off the tile material, so
+    // the joints read without a second material or a texture.
+    const tmat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.28 });
+    const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), tmat, tiles.length);
+    const m4 = new THREE.Matrix4(), c3 = new THREE.Color(), base = new THREE.Color(0xd7dadc);
+    tiles.forEach((t, i) => {
+      m4.makeScale(t.sx, t.sy, t.sz); m4.setPosition(t.x, t.y, t.z);
+      inst.setMatrixAt(i, m4);
+      inst.setColorAt(i, c3.copy(base).multiplyScalar(t.sf));
+    });
+    inst.instanceMatrix.needsUpdate = true;
+    if (inst.instanceColor) inst.instanceColor.needsUpdate = true;
+    inst.castShadow = true; inst.receiveShadow = true;
+    g.add(inst);
   }
   return g;
 }

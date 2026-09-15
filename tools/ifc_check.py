@@ -1553,6 +1553,26 @@ if _shw and _parts and _tl:
     # branch used to hard-code. The valves come with the heads in that branch now.
     check(_shw.get('heads') == 2, f"two shower heads ({_shw.get('heads')})")
     check(_shw.get('headFt', 0) >= 6.8, f"mounted at {_shw.get('headFt', 0)} ft, not the old hard-coded 5.5")
+    # THE ROOM'S FINISHES. A panelled wainscot to a chair rail set at the VANITY'S OWN counter
+    # height, so the rail lands on the countertop rather than near it — derived from the vanity
+    # item here rather than repeating the number, which is the only thing that stops the two
+    # drifting apart. wall-finish has read `chairRailFt` per wall all along and nothing ever
+    # set it, so before this every wainscot in the house silently took its 3.0 default.
+    _cr = _van['counterFt'] if _van else 0
+    check(all(w.get('wainscot') for w in _l2all),
+          f"all {len(_l2all)} walls carry a wainscot ({sum(1 for w in _l2all if w.get('wainscot'))})")
+    check(_van is not None and all(near(w.get('chairRailFt') or 3.0, _cr, 1e-6) for w in _l2all),
+          f"...to a chair rail at the vanity's counter height ({_cr} ft)")
+    # ...and a 12 in black-and-white diamond floor. `checkerboard` in tile-floor.js is already
+    # 1 ft tiles turned 45 degrees in white and black, so this is a manifest choice, not code.
+    _l2t = json.load(open('ifc/level2.tiles.json'))
+    check(len(_l2t) == 4 and all(t['pattern'] == 'checkerboard' for t in _l2t),
+          f"the floor is 12 in diamonds throughout ({sorted({t['pattern'] for t in _l2t})})")
+    # The shower's walls are tiled in 2 x 6 modules. Opt-in, so the ground floor keeps its
+    # plain slabs — which is why this asserts the module rather than just that one exists.
+    _tm = _shw.get('tileModule') or {}
+    check(near(_tm.get('wFt', 0) * 12, 2, 0.01) and near(_tm.get('hFt', 0) * 12, 6, 0.01),
+          f"the shower is tiled in {_tm.get('wFt', 0) * 12:.0f} x {_tm.get('hFt', 0) * 12:.0f} modules")
     _wcc = [it for it in _l2f if it['type'] == 'recessed' and pa_lo < it['px'] < _wface and sh_n < it['pz'] < n_face_s]
     check(len(_wcc) == 1 and (not _sc or near(_wcc[0]['ceilFt'], _zof(_wcc[0]['px']), 0.02)),
           f'one can in the alcove, on the ceiling plane ({len(_wcc)})')

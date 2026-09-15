@@ -190,6 +190,11 @@ def compute_paneling(ctx, rooms):
                 "noCornice": all_sides or side in no_cornice,
                 "noBattens": no_battens or all_nb or side in nb_sides,
                 "wainscot": all_ws or side in wainscot,
+                # The chair rail's height, when the wall carries a wainscot. wall-finish has
+                # read this per wall all along and NOTHING has ever set it, so every wainscot
+                # in the house has quietly taken its 3.0 default — fine for the scullery, wrong
+                # for a bathroom where the rail is meant to land on the countertop.
+                "chairRailFt": pan.get("chairRailFt"),
                 "coved": not (all_sides or side in no_cornice) or all_cv or side in coved,
                 "corniceBreaks": [[round(a, 3), round(b, 3)] for a, b in breaks.get(side, [])],
                 "rakedCornice": raked.get(side, []),
@@ -215,6 +220,7 @@ def compute_paneling(ctx, rooms):
                 "noCornice": bool(ew.get("noCornice", False)),
                 "noBattens": bool(ew.get("noBattens", True)),
                 "wainscot": bool(ew.get("wainscot", False)),
+                "chairRailFt": ew.get("chairRailFt", pan.get("chairRailFt")),
                 "coved": bool(ew.get("coved", True)),
                 # an OUTSIDE corner at that end: the run reaches past the wall line by
                 # its own projection and the crown is mitred to turn.

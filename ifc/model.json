@@ -334,7 +334,9 @@
               "side": "WCn",
               "noCornice": true,
               "noBattens": true,
-              "coved": false
+              "coved": false,
+              "wainscot": true,
+              "chairRailFt": 2.85
             },
             {
               "along": "x",
@@ -348,9 +350,14 @@
               "side": "WCs",
               "noCornice": true,
               "noBattens": true,
-              "coved": false
+              "coved": false,
+              "wainscot": true,
+              "chairRailFt": 2.85
             }
-          ]
+          ],
+          "wainscot": true,
+          "chairRailFt": 2.85,
+          "_noteWainscot": "Panelled wainscot to a chair rail at 2.85 ft \u2014 the vanity's own counterFt, so the rail lands exactly on the countertop. `wainscot: true` takes all four walls rather than a list: the west wall is hidden behind the shower for 8 of its 15.9 ft, but its northern run (the alcove and the doorway) is on show, and the wainscot block breaks its runs at door openings, so the bedroom door looks after itself. Nothing collides above it \u2014 the east windows sill at 4.35 and the south transoms at 4.2."
         },
         "doors": [
           {
@@ -371,21 +378,22 @@
       "floorOverrides": {
         "ext_bath": {
           "material": "tile",
-          "pattern": "hexagon"
+          "pattern": "checkerboard"
         },
         "wc": {
           "material": "tile",
-          "pattern": "hexagon"
+          "pattern": "checkerboard"
         },
         "ext_vestibule": {
           "material": "tile",
-          "pattern": "hexagon"
+          "pattern": "checkerboard"
         },
         "ext_laundry": {
           "material": "tile",
-          "pattern": "hexagon"
+          "pattern": "checkerboard"
         }
-      }
+      },
+      "_noteFloor": "12 in black-and-white DIAMONDS: `checkerboard` in src/tile-floor.js is already 1 ft tiles turned 45 degrees in white and black, on a global diagonal lattice so the joints run through a doorway instead of restarting per room. Upstairs these four ground-floor room boxes are the one en-suite; the ground floor's own hexagon is authored in its room files and is untouched."
     },
     {
       "id": "attic",
