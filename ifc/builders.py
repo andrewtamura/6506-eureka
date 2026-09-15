@@ -2708,6 +2708,11 @@ def add_yard_fence(ctx, lot, rooms_cache, base):
 # approach springs from here, and ifc_check asserts the two actually meet so this
 # cannot drift out of step with the porch.
 PORCH_FOOT_FT = 3.0 + 4 * 0.95
+# ...and its half-width there, to the OUTER face of its cheek wall: add_porch's bottom
+# flare (Wbot 13.0) plus that wall's thickness. This is where the arms' outer cheeks have
+# to land to join the porch, and ifc_check asserts they meet, so a change to add_porch
+# shows up as a failure rather than as a quietly floating wall.
+PORCH_FOOT_HALF = 13.0 / 2 + 0.5
 
 
 def _approach_arc(f, rooms_cache, lot, half_wall):
@@ -2733,11 +2738,13 @@ def _approach_arc(f, rooms_cache, lot, half_wall):
     # the sidewalk they are meant to land on — silently, because everything still built.
     west, east, south, north, _ = lot_lines(lot, B.values(), half_wall)
     STRIP = f.get("parkStripWidthFt", 6)
+    WT = f.get("wallThicknessIn", 10) / 12.0
     nw = f.get("nwDropIn", 36) / 12.0
     x_flat = east + f.get("northLevelFromEastFt", 25)
     drop_n = lambda px: -nw * max(0.0, min(1.0, (px - x_flat) / (west - x_flat)))
 
     W = spec.get("widthFt", 6.0)
+    cheek_t = spec.get("cheekThickFt", 0.5)
     out = spec.get("springOutFt", 6.5)
     n1 = north + STRIP                                  # the sidewalk's near edge
     foot = fd["fixed"] + PORCH_FOOT_FT                  # the cascade's foot
@@ -2749,9 +2756,31 @@ def _approach_arc(f, rooms_cache, lot, half_wall):
         land = cx + s * R                               # where the centreline meets the sidewalk
         # Where the flight crosses the property line: on the arc, a point at radius r
         # reaches pz = north when r*cos(phi) = STRIP, so its plan-x offset is
-        # sqrt(r^2 - STRIP^2). The OUTER edge crosses furthest out, the inner nearest.
-        span = tuple(sorted((cx + s * math.sqrt(max(Ri * Ri - STRIP * STRIP, 0.0)),
-                             cx + s * math.sqrt(max(Ro * Ro - STRIP * STRIP, 0.0)))))
+        # sqrt(r^2 - STRIP^2).
+        #
+        # Taken at the arm's FULL WIDTH — the cheek walls' outer faces, not the tread edges
+        # — and across the wall's whole THICKNESS rather than at one face. Both matter:
+        # cut to the treads the wall stood inside the cheeks, and measured at the north
+        # face alone it still cut them, because the arm's inner edge turns south, dips
+        # INTO the wall band and comes back out, reaching as far as the arc's centreline
+        # before it does. Sampled through the band the opening covers the whole sweep, and
+        # the piece left between the two arms lands exactly on their springings — which is
+        # what makes the retaining wall the thing that connects them.
+        rin, rout = Ri - cheek_t, Ro + cheek_t
+        xs = []
+        for r in (rin, rout):
+            # The arc's own southernmost point, where it turns and its px reaches the
+            # centreline. Added EXACTLY rather than hoped for from the sampling below: it
+            # falls between samples, and missing it left the opening a foot narrow and the
+            # wall still cutting the cheek.
+            if north - WT <= n1 - r <= north:
+                xs.append(cx)
+            for k in range(13):
+                pz = (north - WT) + WT * k / 12.0
+                d = n1 - pz
+                if r >= d:
+                    xs.append(cx + s * math.sqrt(max(r * r - d * d, 0.0)))
+        span = (min(xs), max(xs)) if xs else (cx, cx)
         flights.append({"s": s, "cx": cx, "cz": n1, "R": R, "Ri": Ri, "Ro": Ro,
                         "land": land, "landY": drop_n(land), "span": span})
     return flights
@@ -2818,42 +2847,104 @@ def add_front_approach(ctx, lot, rooms_cache):
         # from the top would drive straight through the porch's own — which nothing at
         # runtime would notice. The porch's cheek carries the line over that stretch, which
         # is what it is already there for. Derived from the cascade's foot, not a number.
-        cascade_foot = _front_door(rooms_cache)["fixed"] + PORCH_FOOT_FT
+        fd_pos = _front_door(rooms_cache)["pos"]
+        fd_fixed = _front_door(rooms_cache)["fixed"]
+        cascade_foot = fd_fixed + PORCH_FOOT_FT
+        # The porch cheek's own plan span at a given pz, so a segment can be tested against
+        # where that wall ACTUALLY is rather than against its bounding box. It splays as it
+        # descends (add_porch's wcurve), so a box test rejects most of the arm's outer cheek
+        # for a clash that is not there — which is how the cheek came to stop 9 ft short of
+        # the porch and the connector ended up cutting across the arm's own top tread.
+        def porch_cheek_px(pz, s_):
+            zTf, zFt, PWh, Whalf = fd_fixed + 3.0, cascade_foot, 4.5, 6.5
+            if not (zTf - 0.05 <= pz <= zFt + 0.05):
+                return None
+            t = max(0.0, min(1.0, (pz - zTf) / (zFt - zTf)))
+            w = PWh + (Whalf - PWh) * (t ** 1.8)
+            return tuple(sorted((fd_pos + s_ * w, fd_pos + s_ * (w + 0.5))))
+
         for r_face, out in ((fl["Ri"], -1), (fl["Ro"], +1)):
-            # pz on this edge is cz - r*cos(phi); it clears the cascade once that is north
-            # of the foot. cos(phi) <= (cz - foot)/r, and phi starts at 0 when already clear.
-            # Measured on the cheek's OUTERMOST face, not the tread edge: the wall's own
-            # thickness reaches further back than the edge it sits on, and taking the edge
-            # left it lapping the porch's cheek by 5 in.
-            c = (fl["cz"] - cascade_foot) / max(r_face, r_face + out * CHEEK_T)
-            a_start = 0.0 if c >= 1.0 else math.acos(min(1.0, max(-1.0, c)))
-            n_seg = max(1, int(round((math.pi / 2 - a_start) / (math.pi / 2) * n * SEG)))
+            n_seg = n * SEG
+            last = None
             for j in range(n_seg):
-                a0 = a_start + (math.pi / 2 - a_start) * j / n_seg
-                a1 = a_start + (math.pi / 2 - a_start) * (j + 1) / n_seg
-                pts = []
+                a0 = (math.pi / 2) * j / n_seg
+                a1 = (math.pi / 2) * (j + 1) / n_seg
+                pts, pxs, pzs = [], [], []
                 for r, a in ((r_face, a0), (r_face + out * CHEEK_T, a0),
                              (r_face + out * CHEEK_T, a1), (r_face, a1)):
                     px = fl["cx"] + fl["s"] * r * math.sin(a)
                     pz = fl["cz"] - r * math.cos(a)
-                    pts.append((ctx.X(px), ctx.Y(pz)))
-                # The tread the cheek flanks, so the cap steps down with the flight.
+                    pts.append((ctx.X(px), ctx.Y(pz))); pxs.append(px); pzs.append(pz)
+                # Skip only where this segment really meets the porch's cheek.
+                clash = False
+                for pz in (min(pzs), (min(pzs) + max(pzs)) / 2, max(pzs)):
+                    sp = porch_cheek_px(pz, fl["s"])
+                    if sp and min(max(pxs), sp[1]) - max(min(pxs), sp[0]) > -0.02:
+                        clash = True
+                if clash:
+                    continue
                 tread_of = lambda a: -min(n - 1, int(a / dphi)) * dy
                 t0, t1 = tread_of(a0) + CHEEK_H, tread_of(a1) + CHEEK_H
-                wall = [(pts[0][0], pts[0][1], base * FT), (pts[1][0], pts[1][1], base * FT),
-                        (pts[2][0], pts[2][1], base * FT), (pts[3][0], pts[3][1], base * FT)]
-                # Sloping-topped prism: four bottom corners, four tops at the cap line.
                 tops = [t0, t0, t1, t1]
-                v = [(x, y, z) for (x, y, z) in wall] + \
+                v = [(pts[i][0], pts[i][1], base * FT) for i in range(4)] + \
                     [(pts[i][0], pts[i][1], tops[i] * FT) for i in range(4)]
                 fcs = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4],
                        [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
-                add_brep(ctx, f"Front approach {side} cheek", v, fcs, STUCCO_C,
-                         ifc_class="IfcWall")
+                add_brep(ctx, f"Front approach {side} cheek", v, fcs, STUCCO_C, ifc_class="IfcWall")
                 capv = [(pts[i][0], pts[i][1], tops[i] * FT) for i in range(4)] + \
                        [(pts[i][0], pts[i][1], (tops[i] + CAP_T) * FT) for i in range(4)]
                 add_brep(ctx, f"Front approach {side} cheek cap", capv, fcs, CAP_C,
                          ifc_class="IfcBuildingElementProxy")
+                if last is None:
+                    last = (pxs[0], pzs[0], pxs[1], pzs[1], tops[0])
+            # JOIN THE PORCH. The outer cheek now runs to the springing, so what is left is
+            # the short gap between its end and the porch's cheek at that same pz — a couple
+            # of feet, OUTBOARD of the arm, not across it. Level-topped at this end's cap.
+            if out > 0 and last is not None:
+                pxa, pza, pxb, pzb, top = last
+                # The porch cheek SPLAYS, so its face is at a different px at each end of this
+                # connector. Sample across the span and stop at whichever bound is nearest
+                # the arm — taken at one end only, the connector overran the wall by half an
+                # inch at the other.
+                cands = [porch_cheek_px(pza + (pzb - pza) * k / 4.0, fl["s"]) for k in range(5)]
+                cands = [c for c in cands if c]
+                if cands:
+                    near = [c[0] if abs(c[0] - pxa) < abs(c[1] - pxa) else c[1] for c in cands]
+                    near_px = min(near) if near[0] > pxa else max(near)
+                    if 0.05 < abs(near_px - pxa) < 4.0:
+                        quad = [(pxa, pza), (pxb, pzb), (near_px, pzb), (near_px, pza)]
+                        fcs = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4],
+                               [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
+                        v = [(ctx.X(x), ctx.Y(z), base * FT) for x, z in quad] + \
+                            [(ctx.X(x), ctx.Y(z), top * FT) for x, z in quad]
+                        add_brep(ctx, f"Front approach {side} cheek", v, fcs, STUCCO_C,
+                                 ifc_class="IfcWall")
+                        v = [(ctx.X(x), ctx.Y(z), top * FT) for x, z in quad] + \
+                            [(ctx.X(x), ctx.Y(z), (top + CAP_T) * FT) for x, z in quad]
+                        add_brep(ctx, f"Front approach {side} cheek cap", v, fcs, CAP_C,
+                                 ifc_class="IfcBuildingElementProxy")
+
+    # THE COURTYARD'S NORTH WALL. The two inner cheeks continue along the sidewalk's near
+    # edge and meet in the middle, closing the courtyard; with the retaining wall on its
+    # south side that is what ties the two arms into one structure rather than two objects
+    # that happen to punch the same wall.
+    #
+    # Its top is LEVEL AT LOT GRADE, which makes it continuous with the retaining wall's own
+    # top — the enclosure then reads as one wall whose top is the lot line, with the arms'
+    # cheeks stepping down through it. The sidewalk falls, so it stands a foot proud at the
+    # east end and over two at the west, exactly as the retaining wall does along here.
+    ends = sorted(fl["cx"] + fl["s"] * (fl["Ri"] - CHEEK_T) for fl in flights)
+    n1 = flights[0]["cz"]
+    quad = [(ends[0], n1), (ends[1], n1), (ends[1], n1 - CHEEK_T), (ends[0], n1 - CHEEK_T)]
+    fcs = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
+    deep = min(fl["landY"] for fl in flights) - 0.4
+    v = [(ctx.X(x), ctx.Y(z), deep * FT) for x, z in quad] + \
+        [(ctx.X(x), ctx.Y(z), 0.0) for x, z in quad]
+    add_brep(ctx, "Front approach courtyard wall", v, fcs, STUCCO_C, ifc_class="IfcWall")
+    v = [(ctx.X(x), ctx.Y(z), 0.0) for x, z in quad] + \
+        [(ctx.X(x), ctx.Y(z), CAP_T * FT) for x, z in quad]
+    add_brep(ctx, "Front approach courtyard wall cap", v, fcs, CAP_C,
+             ifc_class="IfcBuildingElementProxy")
 
 
 def add_street_frontage(ctx, lot, rooms_cache):

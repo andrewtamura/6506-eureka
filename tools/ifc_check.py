@@ -534,6 +534,61 @@ def _parts(model, prefix):
     return out
 
 
+def _hulls(model, prefix, skip=None):
+    """Per-product PLAN FOOTPRINTS as convex hulls, for prefix-matching products.
+
+    Boxes are not good enough here. A curved wall segment's bounding box is much bigger than
+    the segment, so box-against-box reported the arms' cheeks fouling the porch in four
+    places that did not exist — and would equally hide a real lap between two pieces whose
+    boxes happen not to meet. Every solid in this approach is a convex prism, so its
+    footprint is a convex polygon and the hull of its vertices is exact."""
+    out = []
+    for p in model.by_type('IfcProduct'):
+        nm = getattr(p, 'Name', None) or ''
+        if not nm.startswith(prefix) or (skip and skip(nm)):
+            continue
+        try:
+            sh = ifcopenshell.geom.create_shape(S, p)
+        except Exception:
+            continue
+        v = np.array(sh.geometry.verts).reshape(-1, 3)
+        pts = sorted(set(zip((-v[:, 0] / FT).round(4), (v[:, 1] / FT).round(4))))
+        if len(pts) < 3:
+            continue
+
+        def half(ps):
+            o = []
+            for q in ps:
+                while len(o) > 1 and ((o[-1][0] - o[-2][0]) * (q[1] - o[-2][1])
+                                      - (o[-1][1] - o[-2][1]) * (q[0] - o[-2][0])) <= 0:
+                    o.pop()
+                o.append(q)
+            return o
+        out.append((nm, half(pts)[:-1] + half(pts[::-1])[:-1]))
+    return out
+
+
+def _laps(A, B, tol=0.02):
+    """Pairs from A and B whose footprints genuinely overlap, by separating axis."""
+    def hit(p, q):
+        for poly in (p, q):
+            n = len(poly)
+            for i in range(n):
+                x1, y1 = poly[i]
+                x2, y2 = poly[(i + 1) % n]
+                ax, ay = -(y2 - y1), (x2 - x1)
+                L = (ax * ax + ay * ay) ** 0.5
+                if L < 1e-9:
+                    continue
+                ax, ay = ax / L, ay / L
+                pa = [ax * x + ay * y for x, y in p]
+                pb = [ax * x + ay * y for x, y in q]
+                if min(pa) > max(pb) - tol or min(pb) > max(pa) - tol:
+                    return False
+        return True
+    return [(na, nb) for na, a in A for nb, b in B if hit(a, b)]
+
+
 def _rake_line(model, name, lo=True):
     """The bottom (lo) or top edge of a raking member, as a function of plan x.
 
@@ -1660,14 +1715,46 @@ if _E and _W:
         if walls and caps:
             check(min(b[4] for b in caps) > min(b[4] for b in walls),
                   f'{tag}: the cap rides the wall rather than sitting in it')
-    # ...and NOT through the porch's own. The arm cheeks start where their outer face clears
-    # the cascade, so the porch's cheek carries the line over that stretch. A lap here would
-    # be two walls inside each other, which nothing at runtime would notice.
-    _pch = _parts(ext, 'Porch cheek wall')
-    _ach = _parts(ext, 'Front approach east cheek') + _parts(ext, 'Front approach west cheek')
-    _lap = [(a, b) for _, a in _ach for _, b in _pch
-            if min(a[1], b[1]) - max(a[0], b[0]) > 0.02 and min(a[3], b[3]) - max(a[2], b[2]) > 0.02]
-    check(not _lap, f'no arm cheek laps the porch cascade\'s own ({len(_lap)} overlaps)')
+    # NOTHING INTERPENETRATES. The arms' cheeks pass through the retaining wall and run up
+    # beside the porch's own, so both are places two solids can end up inside each other —
+    # invisible in a render, and the interference this round exists to resolve. Tested on
+    # real FOOTPRINTS, because a curved segment's bounding box reported four clashes with
+    # the porch that did not exist, and would equally have hidden one that did.
+    _armch = _hulls(ext, 'Front approach', skip=lambda n: 'cheek' not in n or n.endswith('cap'))
+    _porch = _hulls(ext, 'Porch cheek wall')
+    _rwh = _hulls(ext, 'Retaining wall - north')
+    check(_armch and _porch and _rwh, f'the walls are measurable ({len(_armch)}/{len(_porch)}/{len(_rwh)})')
+    check(not _laps(_armch, _rwh), f'no arm cheek cuts the retaining wall ({len(_laps(_armch, _rwh))})')
+    check(not _laps(_armch, _porch), f"no arm cheek cuts the porch's ({len(_laps(_armch, _porch))})")
+    # THE RETAINING WALL IS WHAT CONNECTS THE ARMS: the piece between them runs from one
+    # arm's springing to the other's. That only comes out right if the opening is the arm's
+    # true sweep THROUGH the wall's thickness — its inner edge turns south, dips into the
+    # band and comes back out, reaching the arc's centreline on the way.
+    if len(_holes) == 2:
+        _mid = [sp for sp in _spans if sp[0] > _holes[0][1] - 0.05 and sp[1] < _holes[1][0] + 0.05]
+        if _mid:
+            check(near(_mid[0][0], uE[1], 0.05) and near(_mid[0][1], uW[0], 0.05),
+                  f'it spans arm springing to arm springing ({_mid[0][0]:.2f}..{_mid[0][1]:.2f} '
+                  f'vs {uE[1]:.2f}/{uW[0]:.2f})')
+    # THE COURTYARD IS CLOSED: the inner cheeks continue along the sidewalk and meet in the
+    # middle, and the wall that joins them is level-topped at lot grade, continuous with the
+    # retaining wall's own top.
+    _cy = extents(ext, lambda nm, p: nm == 'Front approach courtyard wall').get('Front approach courtyard wall')
+    check(_cy is not None, 'the courtyard has a north wall closing it')
+    if _cy and _sw:
+        check(near(_cy[3], _sw[2], 0.02), f"it stands on the sidewalk's edge ({_cy[3]:.2f} vs {_sw[2]:.2f})")
+        check(near(_cy[5], 0.0, 0.01), f'its top is level at lot grade ({_cy[5]:.2f})')
+        check(_cy[0] > uE[0] and _cy[1] < uW[1],
+              f'and runs between the two arms ({_cy[0]:.2f}..{_cy[1]:.2f})')
+    # THE OUTER RUN REACHES THE PORCH, so the wall is continuous sidewalk to house. Measured
+    # as PROXIMITY between the two sets of footprints — `_laps` with a negative tolerance
+    # returns pairs that come within it rather than pairs that overlap. Comparing a px reach
+    # against the porch cheek's outer face fails for the right geometry: that wall splays, so
+    # the connector meets its NEAR face, which is a different number at every pz.
+    for tag in ('east', 'west'):
+        arm = [(n, h) for n, h in _armch if f' {tag} ' in n]
+        check(arm and _laps(arm, _porch, tol=-0.1),
+              f'the {tag} outer run meets the porch cheek ({len(_laps(arm, _porch, tol=-0.1))} touching)')
 
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)
