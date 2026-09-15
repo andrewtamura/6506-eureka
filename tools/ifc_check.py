@@ -26,6 +26,7 @@ traps cost a pass each while this was being written, all of them worth keeping:
     The primary north exterior wall is in ground.ifc. Measure the yard from that one
     or you report a 6 ft yard for a 10 ft one.
 """
+import math
 import sys
 import numpy as np
 import glob
@@ -1465,14 +1466,14 @@ if _sc:
               f"the shower's tile stops level just under the lowest ceiling over it ({_shw['heightFt']} vs {_lowest:.3f})")
 
 
-# THE UPSTAIRS WATER CLOSET. The toilet moved off the south wall into a WC north of the
-# shower on the west wall: two viewer partitions, a pocket door in the north one, one can.
-# Everything here is manifest arithmetic (the shell IFC has no interior partitions), and
-# what is asserted is what a plan review would measure: the room is big enough for the
-# fixture and its door, the toilet is centred with clearance in front, the door's casing
-# lands on wall on both sides, the partitions stop at the raked ceiling, and the trim
-# program's records for the WC faces agree with the partition that makes the hole.
-print('\nSECOND FLOOR WC')
+# THE UPSTAIRS TOILET ALCOVE. The enclosed water closet that stood here — two partitions and
+# a pocket door — was opened up: the toilet now sits in an ALCOVE with the shower's north
+# wall on one side and a single 4 ft partition returning from the west wall on the other,
+# open to the east. Everything here is manifest arithmetic (the shell IFC carries no
+# interior partitions), and what is asserted is what a plan review would measure: the
+# alcove takes the fixture with clearance, its partition reaches the raked ceiling, the trim
+# program has a record per face, and the tub still clears its walls once ROTATED.
+print('\nSECOND FLOOR ALCOVE')
 _l2f = json.load(open('ifc/level2.furniture.json'))['items']
 _inw = lambda it: wing_e < it.get('px', 99) < wing_w and wing_s < it.get('pz', 99) < wing_n
 _wface = wing_w - _WALL / 2                                  # the bedroom wall's face inside the en-suite
@@ -1482,87 +1483,75 @@ check(len(_tl) == 1 and _tl[0]['type'] == 'toilet' and _tl[0]['faces'] == 'E'
       and near(_tl[0]['px'], _wface - 1.1, 0.01),
       f"one tank toilet, backed onto the west wall facing east ({_tl[0]['px'] if _tl else 0:.3f} vs {_wface - 1.1:.3f})")
 _shw = next((it for it in _l2f if it['type'] == 'shower' and _inw(it)), None)
+_van = next((it for it in _l2f if it['type'] == 'vanity' and _inw(it)), None)
+# The bedroom wall runs the length of the wing; the alcove's is the SHORT one inside it.
 _parts = [it for it in _l2f if it['type'] == 'partition' and _inw(it) and it['px'] < wing_w - 0.1]
-_pe = next((it for it in _parts if it['axis'] == 'z'), None)
-_pn = next((it for it in _parts if it['axis'] == 'x'), None)
-check(_shw is not None and _pe is not None and _pn is not None and len(_parts) == 2,
-      f'two partitions inside the en-suite make the WC ({len(_parts)})')
-if _shw and _pe and _pn and _tl:
-    t_ = _tl[0]
-    sh_e = _shw['px'] - _shw['depthFt'] / 2                 # the shower's EAST face (opens E: depth runs px)
-    sh_n = _shw['pz'] + _shw['widthFt'] / 2                 # ...and its NORTH face
-    # ONE LINE: the WC's east wall continues the shower's east wall, outer face to outer face,
-    # and the shower's tile walls are the partition's thickness so the line has no step in it.
-    # A WC 6 in deeper (for a 30 in pocket door) was tried; it cut the aisle to the vanity to
-    # 2 ft 9 in, and the owner took a smaller door instead. The pocket assertion below is what
-    # sizes the door.
-    check(near(_pe['px'] - _WALL / 2, sh_e, 0.01), f"the WC's east wall is on the shower's east face ({_pe['px'] - _WALL / 2:.3f} vs {sh_e:.3f})")
-    check(near(_shw.get('wallFt', 0.3), _WALL, 1e-3), f"the shower's walls are the partition's thickness ({_shw.get('wallFt', 0.3)} vs {_WALL})")
-    _van = next((it for it in _l2f if it['type'] == 'vanity' and _inw(it)), None)
-    if _van:
-        aisle = (_pe['px'] - _WALL / 2) - (_van['px'] + _van['depthFt'] / 2)   # px grows west: the line is west of the vanity's front
-        check(aisle >= 3.0, f'{aisle * 12:.0f} in of aisle between that line and the vanity (36 in wanted)')
-    pe_lo, pe_hi = _pe['pz'] - _pe['lenFt'] / 2, _pe['pz'] + _pe['lenFt'] / 2
-    pn_lo, pn_hi = _pn['px'] - _pn['lenFt'] / 2, _pn['px'] + _pn['lenFt'] / 2
-    n_face_s, n_face_n = _pn['pz'] - _WALL / 2, _pn['pz'] + _WALL / 2
-    e_face_w, e_face_e = _pe['px'] + _WALL / 2, _pe['px'] - _WALL / 2   # px grows WEST: +half is the WEST face
-    check(near(pe_lo, sh_n, 0.01) and near(pe_hi, n_face_n, 0.01),
-          f"...running from the shower's north face to the north wall's far face ({pe_lo:.3f}..{pe_hi:.3f})")
-    check(near(pn_hi, _wface, 0.01) and near(pn_lo, e_face_e, 0.01),
-          f"the north wall runs from the bedroom wall's face across the east wall's end ({pn_lo:.3f}..{pn_hi:.3f})")
-    cw, cd = n_face_s - sh_n, _wface - e_face_w                # clear width (pz) and depth (px)
-    check(cw >= 2.5 - 1e-3 and cd >= 4.0 - 1e-3, f'clear room {cw:.2f} x {cd:.2f} ft (30 in x 48 in minimum)')
-    check(near(t_['pz'], (sh_n + n_face_s) / 2, 0.02), f"toilet centred in the clear width ({t_['pz']:.3f} vs {(sh_n + n_face_s) / 2:.3f})")
-    front = (t_['px'] - 0.9) - e_face_w                       # bowl front (anchor - 0.9 toward E) to the east wall's inner face
+check(len(_parts) == 1, f'exactly one partition inside the en-suite — the alcove is open, not a room ({len(_parts)})')
+check(not [it for it in _parts if it.get('door') or it.get('doors')],
+      'and it carries no door: the water closet and its pocket door are gone')
+if _shw and _parts and _tl:
+    pa, t_ = _parts[0], _tl[0]
+    sh_n = _shw['pz'] + _shw['widthFt'] / 2                 # the shower's NORTH face (opens E: width runs pz)
+    sh_e = _shw['px'] - _shw['depthFt'] / 2                 # ...and its east face
+    check(pa['axis'] == 'x' and near(pa['lenFt'], 4.0, 1e-6),
+          f"a 4 ft partition running east-west ({pa['axis']}, {pa['lenFt']})")
+    pa_hi, pa_lo = pa['px'] + pa['lenFt'] / 2, pa['px'] - pa['lenFt'] / 2
+    check(near(pa_hi, _wface, 0.01),
+          f'returning off the west wall at 90 degrees ({pa_hi:.3f} vs {_wface:.3f})')
+    n_face_s = pa['pz'] - _WALL / 2                          # the alcove's own (south) face of that wall
+    cw, cd = n_face_s - sh_n, _wface - pa_lo                 # clear width (pz) and depth (px)
+    check(cw >= 2.5 - 1e-3, f'alcove {cw:.2f} ft wide between the shower wall and the partition (30 in minimum)')
+    check(cd >= 3.5 - 1e-3, f'...and {cd:.2f} ft deep, open at the east end')
+    check(near(t_['pz'], (sh_n + n_face_s) / 2, 0.02),
+          f"toilet centred in it ({t_['pz']:.3f} vs {(sh_n + n_face_s) / 2:.3f})")
+    front = (t_['px'] - 0.9) - pa_lo                         # bowl front (anchor - 0.9 toward E) to the open end
     check(front >= 1.75, f'{front * 12:.0f} in in front of the bowl (21 in minimum)')
-    d_ = _pn.get('door') or {}
-    d_lo, d_hi = d_.get('atFt', 0) - d_.get('widthFt', 0) / 2, d_.get('atFt', 0) + d_.get('widthFt', 0) / 2
-    check(d_.get('sliding') is True and 2.0 - 1e-6 <= d_.get('widthFt', 0) <= 2.5, f"a pocket door of 24-30 in in the north wall ({d_})")
-    check(d_lo - 0.33 >= e_face_w + 0.1 - 1e-3 and d_hi + 0.33 <= _wface - 0.1,
-          f'its casing lands on wall both sides ({d_lo - 0.33:.3f} vs {e_face_w:.3f}; {d_hi + 0.33:.3f} vs {_wface:.3f})')
-    # The pocket: the leaf is built from its `hinge` jamb and slides the OTHER way, so the
-    # wall beyond that jamb has to hold the whole leaf less the 2 in pull that stays out.
-    # px grows west, so the "W" jamb is d_hi and the pocket is d_hi..the bedroom wall's face.
-    pocket = (_wface - d_hi) if d_.get('hinge') == 'W' else (d_lo - e_face_w)
-    check(pocket >= d_.get('widthFt', 0) - 0.17, f'{pocket:.2f} ft of wall for the pocket (leaf {d_.get("widthFt", 0):.2f} less a 2 in pull)')
-    # The bedroom door's casing must not collide with the WC's north wall.
-    _bd = next((dd for dd in _l2pan.get('doors', []) if dd['name'] == 'Bedroom -> En-suite'), None) if _l2pan else None
-    if _bd:
-        check(_bd['pos'] - _bd['width'] / 2 - 0.33 >= n_face_n, f"the bedroom door's casing clears the WC's north face ({_bd['pos'] - _bd['width'] / 2 - 0.33:.3f} vs {n_face_n:.3f})")
-    # Partition tops on the raked ceiling.
+    # Full height, dying into the shed ceiling rather than poking through it.
     if _sc:
-        check(near(_pe.get('heightFt', 9.0), _zof(_pe['px']), 0.02), f"the east wall stops at the ceiling ({_pe.get('heightFt', 9.0)} vs {_zof(_pe['px']):.3f})")
-        tf = _pn.get('topFt')
+        tf = pa.get('topFt')
         check(tf is not None and len(tf) == 2 and all(near(h, _zof(x), 0.02) for x, h in tf)
-              and near(min(x for x, _ in tf), pn_lo, 0.01) and near(max(x for x, _ in tf), pn_hi, 0.01),
-              f'the north wall rakes with the ceiling ({tf})')
-    # The trim program's records for the WC faces, and the "two numbers, two files" rule.
+              and near(min(x for x, _ in tf), pa_lo, 0.01) and near(max(x for x, _ in tf), pa_hi, 0.01),
+              f'full height, raking with the ceiling ({tf})')
+    # One trim record per face, both on the partition, neither with a door.
     _ew = [w for w in _l2all if str(w.get('side', '')).startswith('WC')]
-    check(len(_ew) == 4 and all(w.get('ceil') for w in _ew), f'four WC faces in the trim program, each with a ceiling line ({len(_ew)})')
-    _ewd = [w for w in _ew if w['doors']]
-    check(len(_ewd) == 2 and all(len(w['doors']) == 1 and near(w['doors'][0][0], d_lo, 0.01) and near(w['doors'][0][1], d_hi, 0.01) for w in _ewd),
-          f"both faces of the north wall carry the door span the partition cuts ({[w['doors'] for w in _ewd]} vs [{d_lo:.3f}, {d_hi:.3f}])")
+    check(len(_ew) == 2 and all(w.get('ceil') for w in _ew),
+          f'two alcove faces in the trim program, each with a ceiling line ({len(_ew)})')
+    check(not [w for w in _ew if w['doors']], 'neither carries a door span')
     for w in _ew:
-        if w['along'] == 'x':
-            ok = near(abs(w['at'] - _pn['pz']), _WALL / 2, 0.01) and near(min(w['lo'], w['hi']), pn_lo if w['normal'][1] > 0 else e_face_w, 0.01)
-        else:
-            ok = near(abs(w['at'] - _pe['px']), _WALL / 2, 0.01) and near(min(w['lo'], w['hi']), sh_n, 0.01)
-        check(ok, f"face {w['side']} sits on its partition ({w['along']} at {w['at']}, {w['lo']}..{w['hi']})")
-    # THE TUB: freestanding, run north-south in the south-east corner, 12 in off the east wall.
+        ok = (w['along'] == 'x' and near(abs(w['at'] - pa['pz']), _WALL / 2, 0.01)
+              and near(min(w['lo'], w['hi']), pa_lo, 0.01) and near(max(w['lo'], w['hi']), pa_hi, 0.01))
+        check(ok, f"face {w['side']} sits on the partition ({w['along']} at {w['at']}, {w['lo']}..{w['hi']})")
+    # THE TUB, freestanding in the south-east corner and TILTED. Clearances have to be taken
+    # from the ROTATED footprint — at an angle the nearest thing to each wall is a corner,
+    # and the unrotated half-width reads a gap that is not there. 15 degrees was measured and
+    # rejected for pinching the approach to the shower to 17.5 in.
     _tub = [it for it in _l2f if it['type'] == 'tub' and _inw(it)]
-    check(len(_tub) == 1 and _tub[0]['dFt'] > _tub[0]['wFt'], f'one freestanding tub, run north-south ({len(_tub)})')
+    check(len(_tub) == 1 and _tub[0]['dFt'] > _tub[0]['wFt'], f'one freestanding tub, longer north-south ({len(_tub)})')
     if _tub:
         tb = _tub[0]
-        e_gap = (tb['px'] - tb['wFt'] / 2) - (wing_e + _WALL / 2)
-        s_gap = (tb['pz'] - tb['dFt'] / 2) - (wing_s + _WALL / 2)
-        check(near(e_gap, 1.0, 0.01), f'its east side {e_gap * 12:.1f} in off the east wall (12 wanted)')
-        check(0.3 <= s_gap <= 1.0, f'its south end {s_gap * 12:.0f} in off the south wall')
+        rot = tb.get('rot', 0)
+        check(near(abs(rot), 10, 1e-6), f'tilted 10 degrees ({rot})')
+        a_ = math.radians(abs(rot))
+        hx = tb['wFt'] / 2 * math.cos(a_) + tb['dFt'] / 2 * math.sin(a_)
+        hz = tb['wFt'] / 2 * math.sin(a_) + tb['dFt'] / 2 * math.cos(a_)
+        e_gap = (tb['px'] - hx) - (wing_e + _WALL / 2)
+        s_gap = (tb['pz'] - hz) - (wing_s + _WALL / 2)
+        walk = sh_e - (tb['px'] + hx)
+        check(e_gap >= 0.45, f'{e_gap * 12:.1f} in from its east corner to the east wall')
+        check(s_gap >= 0.25, f'{s_gap * 12:.1f} in from its south corner to the south wall')
+        check(walk >= 1.6, f'{walk * 12:.1f} in of walkway between the tub and the shower wall')
         if _van:
-            check((_van['pz'] - _van['widthFt'] / 2) - (tb['pz'] + tb['dFt'] / 2) >= 1.0, 'a foot or more between its north end and the vanity')
-        walk = sh_e - (tb['px'] + tb['wFt'] / 2)
-        check(walk >= 2.0, f'{walk * 12:.0f} in between the tub and the shower wall (24 in floor)')
-    _wcc = [it for it in _l2f if it['type'] == 'recessed' and e_face_w < it['px'] < _wface and sh_n < it['pz'] < n_face_s]
-    check(len(_wcc) == 1 and (not _sc or near(_wcc[0]['ceilFt'], _zof(_wcc[0]['px']), 0.02)), f'one can in the WC, on the ceiling plane ({len(_wcc)})')
+            check((_van['pz'] - _van['widthFt'] / 2) - (tb['pz'] + hz) >= 0.7,
+                  f"{((_van['pz'] - _van['widthFt'] / 2) - (tb['pz'] + hz)) * 12:.1f} in from its north corner to the vanity")
+    # THE SHOWER'S FITTINGS. Heads and valves are builder geometry and nothing measures the
+    # level-2 exhibit's meshes (kitchen-check runs ?solo=ground), so what is asserted is the
+    # manifest: two heads, and a head height authored well above the 5 ft 6 the back-wall
+    # branch used to hard-code. The valves come with the heads in that branch now.
+    check(_shw.get('heads') == 2, f"two shower heads ({_shw.get('heads')})")
+    check(_shw.get('headFt', 0) >= 6.8, f"mounted at {_shw.get('headFt', 0)} ft, not the old hard-coded 5.5")
+    _wcc = [it for it in _l2f if it['type'] == 'recessed' and pa_lo < it['px'] < _wface and sh_n < it['pz'] < n_face_s]
+    check(len(_wcc) == 1 and (not _sc or near(_wcc[0]['ceilFt'], _zof(_wcc[0]['px']), 0.02)),
+          f'one can in the alcove, on the ceiling plane ({len(_wcc)})')
 
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)

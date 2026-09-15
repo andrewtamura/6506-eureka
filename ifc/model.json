@@ -320,24 +320,18 @@
           "baseboard": 10,
           "noCornice": true,
           "battens": false,
-          "_noteExtraWalls": "The WATER CLOSET's four faces. The WC is two viewer partitions (level2.furniture.json) north of the shower, so the shell's four-wall derivation cannot see them; these records give them the trim program, baseboard and a field that dies into the raked ceiling (the generator adds `ceil` to every record inside the wing). The two faces of the north wall carry the pocket door's span, in plan feet, and ifc_check holds them to the partition's own door.",
+          "_noteExtraWalls": "The TOILET ALCOVE's two faces. The alcove's north side is a viewer partition (level2.furniture.json) returning 4 ft from the west wall, so the shell's four-wall derivation cannot see it; these records give both of its faces the trim program, baseboard and a field that dies into the raked ceiling (the generator adds `ceil` to every record inside the wing). Neither carries a door: the enclosed water closet that used to stand here, with its pocket door, is gone.",
           "extraWalls": [
             {
               "along": "x",
               "at": -0.23,
-              "lo": -17.229,
+              "lo": -16.229,
               "hi": -12.229,
               "normal": [
                 0,
                 1
               ],
               "side": "WCn",
-              "doors": [
-                [
-                  -16.2,
-                  -14.2
-                ]
-              ],
               "noCornice": true,
               "noBattens": true,
               "coved": false
@@ -345,47 +339,13 @@
             {
               "along": "x",
               "at": -0.688,
-              "lo": -16.771,
+              "lo": -16.229,
               "hi": -12.229,
               "normal": [
                 0,
                 -1
               ],
               "side": "WCs",
-              "doors": [
-                [
-                  -16.2,
-                  -14.2
-                ]
-              ],
-              "noCornice": true,
-              "noBattens": true,
-              "coved": false
-            },
-            {
-              "along": "z",
-              "at": -17.229,
-              "lo": -3.688,
-              "hi": -0.23,
-              "normal": [
-                -1,
-                0
-              ],
-              "side": "WCe",
-              "noCornice": true,
-              "noBattens": true,
-              "coved": false
-            },
-            {
-              "along": "z",
-              "at": -16.771,
-              "lo": -3.688,
-              "hi": -0.688,
-              "normal": [
-                1,
-                0
-              ],
-              "side": "WCw",
               "noCornice": true,
               "noBattens": true,
               "coved": false
