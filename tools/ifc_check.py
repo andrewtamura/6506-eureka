@@ -1485,12 +1485,14 @@ check(len(_tl) == 1 and _tl[0]['type'] == 'toilet' and _tl[0]['faces'] == 'E'
 _shw = next((it for it in _l2f if it['type'] == 'shower' and _inw(it)), None)
 _van = next((it for it in _l2f if it['type'] == 'vanity' and _inw(it)), None)
 # The bedroom wall runs the length of the wing; the alcove's is the SHORT one inside it.
-_parts = [it for it in _l2f if it['type'] == 'partition' and _inw(it) and it['px'] < wing_w - 0.1]
-check(len(_parts) == 1, f'exactly one partition inside the en-suite — the alcove is open, not a room ({len(_parts)})')
-check(not [it for it in _parts if it.get('door') or it.get('doors')],
+# `_pwalls`, not `_parts`: _pwalls is the module-level per-product helper and the
+# front-approach block below needs it. Shadowing it here killed that block outright.
+_pwalls = [it for it in _l2f if it['type'] == 'partition' and _inw(it) and it['px'] < wing_w - 0.1]
+check(len(_pwalls) == 1, f'exactly one partition inside the en-suite — the alcove is open, not a room ({len(_pwalls)})')
+check(not [it for it in _pwalls if it.get('door') or it.get('doors')],
       'and it carries no door: the water closet and its pocket door are gone')
-if _shw and _parts and _tl:
-    pa, t_ = _parts[0], _tl[0]
+if _shw and _pwalls and _tl:
+    pa, t_ = _pwalls[0], _tl[0]
     sh_n = _shw['pz'] + _shw['widthFt'] / 2                 # the shower's NORTH face (opens E: width runs pz)
     sh_e = _shw['px'] - _shw['depthFt'] / 2                 # ...and its east face
     check(pa['axis'] == 'x' and near(pa['lenFt'], 4.0, 1e-6),
@@ -1576,6 +1578,70 @@ if _shw and _parts and _tl:
     _wcc = [it for it in _l2f if it['type'] == 'recessed' and pa_lo < it['px'] < _wface and sh_n < it['pz'] < n_face_s]
     check(len(_wcc) == 1 and (not _sc or near(_wcc[0]['ceilFt'], _zof(_wcc[0]['px']), 0.02)),
           f'one can in the alcove, on the ceiling plane ({len(_wcc)})')
+
+# THE DOUBLE FRONT WALKUP. Two curved flights flank the centre walk, sweeping out from the
+# porch cascade's corners, through the retaining wall and across the planting strip to land
+# on the sidewalk. What is asserted is what the drawing asked for and what the site imposes:
+# the pair mirrors about the door, each flight actually REACHES the sidewalk, its risers are
+# even and within code, and the wall it passes through has a gap in the right place.
+print('\nFRONT APPROACH')
+_fa = _parts(ext, 'Front approach')
+_side = lambda w: [b for nm, b in _fa if f' {w} tread' in nm]
+_E, _W = _side('east'), _side('west')
+check(_E and _W, f'two curved flights ({len(_E)} east parts, {len(_W)} west)')
+if _E and _W:
+    _door = _front_door_px = 9.5
+    _rooms_fd = next((d for r in _rooms.values() for d in r.get('doors', []) if 'Front Door' in d.get('name', '')), None)
+    if _rooms_fd:
+        _door = _rooms_fd['pos']
+    # The two flights are NOT tread-for-tread mirrors — they carry different riser counts —
+    # but their FOOTPRINTS are, because the arc, its radius and its width all mirror.
+    uE = (min(b[0] for b in _E), max(b[1] for b in _E), min(b[2] for b in _E), max(b[3] for b in _E))
+    uW = (min(b[0] for b in _W), max(b[1] for b in _W), min(b[2] for b in _W), max(b[3] for b in _W))
+    check(near(_door + (_door - uE[1]), uW[0], 0.02) and near(_door + (_door - uE[0]), uW[1], 0.02),
+          f'mirrored about the front door (east {uE[0]:.2f}..{uE[1]:.2f} vs west {uW[0]:.2f}..{uW[1]:.2f})')
+    check(near(uE[2], uW[2], 0.02) and near(uE[3], uW[3], 0.02),
+          f'...and reaching the same way out ({uE[2]:.2f}..{uE[3]:.2f})')
+    # LANDING ON THE SIDEWALK is the whole point of the change, so it is measured against the
+    # sidewalk's own near edge rather than a number repeated here.
+    _sw = extents(ext, lambda nm, p: nm == 'Sidewalk - north').get('Sidewalk - north')
+    check(_sw is not None, 'the north sidewalk is measurable')
+    if _sw:
+        for tag, u in (('east', uE), ('west', uW)):
+            check(near(u[3], _sw[2], 0.02),
+                  f'the {tag} flight lands on the sidewalk edge ({u[3]:.2f} vs {_sw[2]:.2f})')
+    # Risers: even within a flight, none over 6 in, and the WEST flight has more — the
+    # right-of-way falls that way, and forcing the two to match would mean a false grade.
+    tops = lambda parts: sorted({round(b[5], 3) for b in parts}, reverse=True)
+    for tag, parts in (('east', _E), ('west', _W)):
+        t = tops(parts)
+        steps = [round(t[i] - t[i + 1], 4) for i in range(len(t) - 1)]
+        check(near(t[0], 0.0, 0.02), f'the {tag} flight springs at lot grade ({t[0]:.2f})')
+        check(len(steps) == 0 or (max(steps) - min(steps) < 0.01 and max(steps) <= 0.5 + 1e-6),
+              f'{tag}: {len(t)} treads, risers {max(steps) * 12 if steps else 0:.1f} in, even and under 6')
+    check(len(tops(_W)) > len(tops(_E)),
+          f'the west flight takes more risers than the east ({len(tops(_W))} vs {len(tops(_E))}) — the lot falls west')
+    # The retaining wall opens for each flight AND for the centre walk: three gaps, and the
+    # flights' openings have to contain the flights, or a run drives through the wall.
+    _rwn = [b for nm, b in _parts(ext, 'Retaining wall - north')]
+    check(len(_rwn) == 4, f'the north retaining wall runs in 4 pieces — three openings ({len(_rwn)})')
+    _spans = sorted((b[0], b[1]) for b in _rwn)
+    _holes = [(_spans[i][1], _spans[i + 1][0]) for i in range(len(_spans) - 1)]
+    check(len(_holes) == 3 and all(h[1] - h[0] > 2.0 for h in _holes),
+          f'each opening is wide enough to walk ({[f"{a:.1f}..{b:.1f}" for a, b in _holes]})')
+    # Neither arm may run into its neighbours: the centre walk between them, the driveway
+    # off the east front yard, or the west property line.
+    check(uE[1] < 7.0 - 0.05 and uW[0] > 12.0 + 0.05,
+          f'both arms clear the centre walk (east to {uE[1]:.2f}, west from {uW[0]:.2f}, walk 7..12)')
+    _dv = extents(ext, lambda nm, p: nm.startswith('Driveway'))
+    if _dv:
+        _dvw = max(b[1] for b in _dv.values())          # the driveway's west edge
+        check(uE[0] > _dvw + 0.05, f"the east arm stops short of the driveway ({uE[0]:.2f} vs {_dvw:.2f})")
+    check(uW[1] < 47.0 - 0.05, f'the west arm stays inside the west property line ({uW[1]:.2f})')
+    # The centre walk is untouched by all of this.
+    _cw = extents(ext, lambda nm, p: nm.startswith('Entry step'))
+    check(len(_cw) == 3 and all(near(b[1] - b[0], 5.0, 0.01) for b in _cw.values()),
+          f'the centre walk keeps its three 5 ft steps ({len(_cw)})')
 
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)

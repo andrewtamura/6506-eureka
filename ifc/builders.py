@@ -2699,6 +2699,108 @@ def add_yard_fence(ctx, lot, rooms_cache, base):
             i += 1
 
 
+# The porch cascade's foot, as an offset NORTH of the house's front wall. It mirrors
+# add_porch's own arithmetic (terrace depth 3.0 plus four 0.95 ft treads); the front
+# approach springs from here, and ifc_check asserts the two actually meet so this
+# cannot drift out of step with the porch.
+PORCH_FOOT_FT = 3.0 + 4 * 0.95
+
+
+def _approach_arc(f, rooms_cache, lot, half_wall):
+    """The two curved front flights, as pure geometry — no IFC.
+
+    Each flight is a QUARTER ARC in plan: it leaves the porch cascade's outer corner
+    heading along the house (tangent east-west) and turns to meet the sidewalk head on
+    (tangent north-south), so you climb it facing the door at the top and the street at
+    the bottom. Returning the maths on its own lets the retaining wall ask where the
+    flights cross it without rebuilding them.
+
+    Yields one dict per flight: `s` (-1 east / +1 west), the arc centre `cx`/`cz`, the
+    centreline radius `R`, the tread half-width, the landing's plan x and its grade, and
+    the plan-x span the flight occupies ON the property line — the gap the wall leaves.
+    """
+    spec = (f or {}).get("doubleWalk")
+    fd = _front_door(rooms_cache)
+    if not spec or not fd:
+        return []
+    B = {k: v["bounds"] for k, v in rooms_cache.items()}
+    # `half_wall` MUST be the figure add_street_frontage passes (ctx.T / FT / 2). Passing
+    # 0.0 here moved the property line 2.75 in and the flights stopped that far short of
+    # the sidewalk they are meant to land on — silently, because everything still built.
+    west, east, south, north, _ = lot_lines(lot, B.values(), half_wall)
+    STRIP = f.get("parkStripWidthFt", 6)
+    nw = f.get("nwDropIn", 36) / 12.0
+    x_flat = east + f.get("northLevelFromEastFt", 25)
+    drop_n = lambda px: -nw * max(0.0, min(1.0, (px - x_flat) / (west - x_flat)))
+
+    W = spec.get("widthFt", 6.0)
+    out = spec.get("springOutFt", 6.5)
+    n1 = north + STRIP                                  # the sidewalk's near edge
+    foot = fd["fixed"] + PORCH_FOOT_FT                  # the cascade's foot
+    R = n1 - foot                                       # so the arc's top tangent lands on it
+    Ri, Ro = R - W / 2, R + W / 2
+    flights = []
+    for s in (-1, +1):
+        cx = fd["pos"] + s * out                        # centre sits over the cascade's corner
+        land = cx + s * R                               # where the centreline meets the sidewalk
+        # Where the flight crosses the property line: on the arc, a point at radius r
+        # reaches pz = north when r*cos(phi) = STRIP, so its plan-x offset is
+        # sqrt(r^2 - STRIP^2). The OUTER edge crosses furthest out, the inner nearest.
+        span = tuple(sorted((cx + s * math.sqrt(max(Ri * Ri - STRIP * STRIP, 0.0)),
+                             cx + s * math.sqrt(max(Ro * Ro - STRIP * STRIP, 0.0)))))
+        flights.append({"s": s, "cx": cx, "cz": n1, "R": R, "Ri": Ri, "Ro": Ro,
+                        "land": land, "landY": drop_n(land), "span": span})
+    return flights
+
+
+def add_front_approach(ctx, lot, rooms_cache):
+    """A DOUBLE front walkup: two curved flights flanking the centre walk, sweeping out
+    from the porch cascade's corners, down through the retaining wall and across the
+    planting strip to land flush on the sidewalk.
+
+    The centre walk and its three steps are untouched — these are the two arms either
+    side of it, and the lawn stays as a panel between each arm and the walk.
+
+    RISERS ARE DERIVED PER FLIGHT, not authored, and the two come out DIFFERENT: the
+    right-of-way falls toward the NW corner, so the west flight lands lower than the east
+    and needs more of them. Forcing them to match would mean either a false grade or one
+    flight not meeting the sidewalk it is supposed to connect to.
+
+    Every tread is emitted as a fan of small trapezoid prisms rather than one annular
+    sector, because `add_brep` orients faces against the solid's centroid and that is only
+    valid for CONVEX solids — an annulus is not one. Same reason add_street_frontage
+    breaks its corner L into separate prisms.
+    """
+    f = lot.get("frontage") or {}
+    spec = f.get("doubleWalk")
+    flights = _approach_arc(f, rooms_cache, lot, ctx.T / FT / 2)
+    if not spec or not flights:
+        return
+    CONCRETE = (0.74, 0.73, 0.71)
+    max_riser = spec.get("maxRiserIn", 6.0) / 12.0
+    SEG = int(spec.get("segmentsPerTread", 6))          # arc subdivisions per tread
+    for fl in flights:
+        side = "east" if fl["s"] < 0 else "west"
+        fall = -fl["landY"]                             # positive depth to the sidewalk
+        n = max(1, int(math.ceil(fall / max_riser - 1e-9)))
+        dy = fall / n
+        base = fl["landY"] - 0.4                        # a common underside below the walk
+        dphi = (math.pi / 2) / n
+        for k in range(n):
+            top = -k * dy                               # tread k is level at this height
+            for j in range(SEG):
+                a0 = (k + j / SEG) * dphi
+                a1 = (k + (j + 1) / SEG) * dphi
+                poly = []
+                for r, a in ((fl["Ri"], a0), (fl["Ro"], a0), (fl["Ro"], a1), (fl["Ri"], a1)):
+                    px = fl["cx"] + fl["s"] * r * math.sin(a)
+                    pz = fl["cz"] - r * math.cos(a)
+                    poly.append((ctx.X(px), ctx.Y(pz), base * FT))
+                v, fc = _prism(poly, (0, 0, (top - base) * FT))
+                add_brep(ctx, f"Front approach {side} tread {k}", v, fc, CONCRETE,
+                         ifc_class="IfcSlab", predefined="BASESLAB")
+
+
 def add_street_frontage(ctx, lot, rooms_cache):
     """Public frontage along the NORTH and WEST lot lines (this is a corner lot):
     a retaining wall standing on the property line to hold the flat lot above the
@@ -2834,10 +2936,23 @@ def add_street_frontage(ctx, lot, rooms_cache):
             pts.append((ctx.X(pb), ctx.Y(north), drop_n(pb) * FT))
         wall(name, pts, (0, -WT * FT, 0))
 
+    # Gaps in the north leg: the centre entry stair, plus one per curved flight. Both
+    # come from the SAME maths the flights are built from (_approach_arc), so the wall
+    # and the steps through it cannot drift apart — the failure mode being a flight that
+    # drives through a wall, which nothing at runtime would notice.
     stair = _entry_stair_span(f, rooms_cache)          # (px_low, px_high) or None
-    if stair:
-        wall_n("Retaining wall - north west of entry", west, stair[1])
-        wall_n("Retaining wall - north east of entry", stair[0], x_flat)
+    gaps = [g for g in ([stair] if stair else []) +
+            [fl["span"] for fl in _approach_arc(f, rooms_cache, lot, ctx.T / FT / 2)] if g]
+    if gaps:
+        gaps = sorted(gaps, key=lambda g: -g[1])        # west to east
+        cur, names = west, ("west of entry", "east of entry")
+        for i, (lo, hi) in enumerate(gaps):
+            hi, lo = min(hi, cur), max(lo, x_flat)
+            if cur - hi > 0.05:
+                wall_n(f"Retaining wall - north {names[0] if i == 0 else f'run {i}'}", cur, hi)
+            cur = min(cur, lo)
+        if cur - x_flat > 0.05:
+            wall_n(f"Retaining wall - north {names[1]}", cur, x_flat)
     else:
         wall_n("Retaining wall - north", west, x_flat)
     # west leg: a trapezoid — runs the full property line, 36" down to 12".

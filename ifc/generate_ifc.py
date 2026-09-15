@@ -471,6 +471,7 @@ def build_level(cfg, rooms_cache, level):
         # Corner-lot street frontage: retaining wall on the north/west property
         # lines plus the sidewalk, park strip and curb falling away beyond them.
         B.add_street_frontage(ctx, cfg["lot"], rooms_cache)
+        B.add_front_approach(ctx, cfg["lot"], rooms_cache)
         B.add_driveway(ctx, cfg["lot"], rooms_cache)
 
     ifc_name = f"{lid}.ifc"

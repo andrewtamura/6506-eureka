@@ -168,7 +168,14 @@
       "_noteEntry": "Front entry: a walk crosses the planting strip on the front door's centreline, then entryStepCount steps climb through a gap left in the retaining wall and land at the foot of the porch cascade. The wall is exactly 18 in high at the front door, so three 6 in risers come out even.",
       "entryWalkWidthFt": 5.0,
       "entryStepCount": 3,
-      "entryTreadFt": 1.0
+      "entryTreadFt": 1.0,
+      "doubleWalk": {
+        "_note": "A DOUBLE front walkup. Two curved flights flank the centre walk, each a quarter arc that leaves the porch cascade's outer corner running along the house and turns to meet the sidewalk head on, so you climb facing the door at the top and the street at the bottom. They land FLUSH on the sidewalk's near edge, crossing the planting strip. The arc's radius is DERIVED \u2014 the sidewalk's near edge less the cascade's foot \u2014 so the flights spring exactly where the porch lands and cannot drift off it. Risers are derived per flight too, and the two come out DIFFERENT on purpose: the right-of-way falls toward the NW corner, so the west flight lands lower and needs more of them.",
+        "widthFt": 6.0,
+        "springOutFt": 6.5,
+        "maxRiserIn": 6.0,
+        "segmentsPerTread": 6
+      }
     }
   },
   "levels": [
