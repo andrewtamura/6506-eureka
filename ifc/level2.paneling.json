@@ -177,6 +177,164 @@
           8.8903
         ]
       ]
+    },
+    {
+      "along": "x",
+      "at": -0.23,
+      "normal": [
+        0,
+        1
+      ],
+      "side": "WCn",
+      "lo": -17.229,
+      "hi": -12.229,
+      "doors": [
+        [
+          -16.2,
+          -14.2
+        ]
+      ],
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [],
+      "bareDoors": [],
+      "noCornice": true,
+      "noBattens": true,
+      "wainscot": false,
+      "coved": false,
+      "mitreLo": false,
+      "mitreHi": false,
+      "returnLo": false,
+      "returnHi": false,
+      "corniceBreaks": [],
+      "rakedCornice": [],
+      "ceil": [
+        [
+          -17.229,
+          8.4738
+        ],
+        [
+          -12.229,
+          8.8903
+        ]
+      ]
+    },
+    {
+      "along": "x",
+      "at": -0.688,
+      "normal": [
+        0,
+        -1
+      ],
+      "side": "WCs",
+      "lo": -16.771,
+      "hi": -12.229,
+      "doors": [
+        [
+          -16.2,
+          -14.2
+        ]
+      ],
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [],
+      "bareDoors": [],
+      "noCornice": true,
+      "noBattens": true,
+      "wainscot": false,
+      "coved": false,
+      "mitreLo": false,
+      "mitreHi": false,
+      "returnLo": false,
+      "returnHi": false,
+      "corniceBreaks": [],
+      "rakedCornice": [],
+      "ceil": [
+        [
+          -16.771,
+          8.5119
+        ],
+        [
+          -12.229,
+          8.8903
+        ]
+      ]
+    },
+    {
+      "along": "z",
+      "at": -17.229,
+      "normal": [
+        -1,
+        0
+      ],
+      "side": "WCe",
+      "lo": -3.688,
+      "hi": -0.23,
+      "doors": [],
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [],
+      "bareDoors": [],
+      "noCornice": true,
+      "noBattens": true,
+      "wainscot": false,
+      "coved": false,
+      "mitreLo": false,
+      "mitreHi": false,
+      "returnLo": false,
+      "returnHi": false,
+      "corniceBreaks": [],
+      "rakedCornice": [],
+      "ceil": [
+        [
+          -3.688,
+          8.4738
+        ],
+        [
+          -0.23,
+          8.4738
+        ]
+      ]
+    },
+    {
+      "along": "z",
+      "at": -16.771,
+      "normal": [
+        1,
+        0
+      ],
+      "side": "WCw",
+      "lo": -3.688,
+      "hi": -0.688,
+      "doors": [],
+      "windows": [],
+      "tall": [],
+      "transoms": [],
+      "sidelights": [],
+      "bareDoors": [],
+      "noCornice": true,
+      "noBattens": true,
+      "wainscot": false,
+      "coved": false,
+      "mitreLo": false,
+      "mitreHi": false,
+      "returnLo": false,
+      "returnHi": false,
+      "corniceBreaks": [],
+      "rakedCornice": [],
+      "ceil": [
+        [
+          -3.688,
+          8.5119
+        ],
+        [
+          -0.688,
+          8.5119
+        ]
+      ]
     }
   ]
 }
