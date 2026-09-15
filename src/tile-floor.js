@@ -166,7 +166,11 @@ export async function buildTileFloor({ scene, model, fragments, floorY, baseUrl,
   await fragments.core.update(true);
 
   const fy = floorY + 0.02;
-  const groutMat = new THREE.MeshLambertMaterial({ color: 0xbdb9ad });
+  // Standard rather than Lambert throughout, so the floor responds to the fixtures above
+  // it (Lambert has no specular term, so it never could). Grout is unglazed cement and
+  // stays matte; the tiles themselves are glazed and are the shiniest thing in the house.
+  const groutMat = new THREE.MeshStandardMaterial({ color: 0xbdb9ad, roughness: 0.92 });
+  const TILE_ROUGH = 0.3;
   const col = new THREE.Color();
 
   for (const fl of floors) {
@@ -180,7 +184,7 @@ export async function buildTileFloor({ scene, model, fragments, floorY, baseUrl,
     if (fl.pattern === "hexagon") {
       const hexes = []; hexagon(hexes, b);
       const geo = new THREE.CylinderGeometry(HEXR * 0.92, HEXR * 0.92, TH, 6); // pointy-top hex prism
-      const mat = new THREE.MeshLambertMaterial({ clippingPlanes: planes });
+      const mat = new THREE.MeshStandardMaterial({ clippingPlanes: planes, roughness: TILE_ROUGH });
       const inst = new THREE.InstancedMesh(geo, mat, hexes.length);
       inst.receiveShadow = true;
       const m = new THREE.Matrix4();
@@ -192,7 +196,7 @@ export async function buildTileFloor({ scene, model, fragments, floorY, baseUrl,
       scene.add(inst);
     } else {
       const boxes = []; PATTERNS[fl.pattern](boxes, b);
-      const mat = new THREE.MeshLambertMaterial({ clippingPlanes: planes });
+      const mat = new THREE.MeshStandardMaterial({ clippingPlanes: planes, roughness: TILE_ROUGH });
       const inst = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), mat, boxes.length);
       inst.receiveShadow = true;
       const m = new THREE.Matrix4(), pos = new THREE.Vector3(), scl = new THREE.Vector3();

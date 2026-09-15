@@ -4,12 +4,25 @@
 // transparent in the plan/overview (so you can see down into the rooms).
 import * as THREE from "three";
 
+// How opaque a ceiling is in the plan/dollhouse overview. ONE number for all three
+// ceiling systems — the ground floor's slabs here, the attic's sloped soffit and the
+// wing's raked IfcCovering (povCeilingMats), and the second floor's flat slab
+// (exhibitCeilingMats) — so the overview reads consistently and there is one place to
+// tune it. At the old 0.45 the floor plan underneath was hard to read.
+export const PLAN_CEIL_OPACITY = 0.15;
+
+// Flat ceiling paint. Plaster is matte but not featureless — at the old 0.95 it was
+// perfectly Lambertian, so a ceiling lamp inches below it produced no sheen whatever and
+// the brightest surface in the room read as flat card. Shared with the exhibits' ceilings
+// in main.js so every ceiling in the house takes light the same way.
+export const CEIL_ROUGH = 0.72;
+
 export function buildCeilings({ scene, rooms, ceilingY, openings = [] }) {
   // Each IfcSpace box is inset half a wall thickness from the wall centerlines, so
   // growing it by exactly one wall thickness lands the ceiling edge on the wall
   // CENTERLINE (halfway through the wall) — abutting the neighbour, not overlapping.
   const WALL = 0.4583 * 0.3048;                          // wall thickness (m), per model.json
-  const mat = new THREE.MeshStandardMaterial({ color: 0xf2efe9, roughness: 0.95 });
+  const mat = new THREE.MeshStandardMaterial({ color: 0xf2efe9, roughness: CEIL_ROUGH });
   const slab = (cx, cz, sx, sz) => {
     if (sx < 0.05 || sz < 0.05) return;
     const m = new THREE.Mesh(new THREE.BoxGeometry(sx, 0.06, sz), mat);
@@ -47,7 +60,7 @@ export function buildCeilings({ scene, rooms, ceilingY, openings = [] }) {
   const setPlanView = (p) => {
     if (p === plan) return; plan = p;
     mat.transparent = p;
-    mat.opacity = p ? 0.45 : 1.0;   // semi-transparent in the overview (see down into rooms, like the attic)
+    mat.opacity = p ? PLAN_CEIL_OPACITY : 1.0;   // a ghost in the overview (see down into the rooms)
     mat.depthWrite = !p;
     mat.needsUpdate = true;
   };

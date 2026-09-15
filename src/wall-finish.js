@@ -21,9 +21,14 @@ export async function buildWallFinish({ scene, parent = scene, floorY, ceilingY,
   let data;
   try { data = await (await fetch(`${baseUrl}${manifestFile}`)).json(); } catch (e) { return; }
   const { ft = 0.3048, xs = -1, zs = 1, baseboardFt = 10 / 12, headFt = 7, casingFt = 0.33, walls = [] } = data || {};
-  const mill = new THREE.MeshStandardMaterial({ color: MILL, roughness: 0.8 });
-  const field = new THREE.MeshStandardMaterial({ color: FIELD, roughness: 0.85 });
-  const crownMat = new THREE.MeshStandardMaterial({ color: MILL, roughness: 0.8, side: THREE.DoubleSide });
+  // PAINT IS NOT CHALK. At 0.8/0.85 these were very nearly Lambertian, so a sconce a foot
+  // off the wall laid no sheen on it and the trim read the same as the field beside it.
+  // Millwork is enamelled and the field is a flat wall paint, so the trim is the smoother
+  // of the two — which is what makes a crown or a casing catch a lamp and stand off the
+  // wall, the whole point of running it.
+  const mill = new THREE.MeshStandardMaterial({ color: MILL, roughness: 0.55 });
+  const field = new THREE.MeshStandardMaterial({ color: FIELD, roughness: 0.68 });
+  const crownMat = new THREE.MeshStandardMaterial({ color: MILL, roughness: 0.55, side: THREE.DoubleSide });
   const world = (px, pz) => new THREE.Vector3(xs * px * ft, 0, -(zs * pz * ft));
 
   const bbH = baseboardFt * ft;
