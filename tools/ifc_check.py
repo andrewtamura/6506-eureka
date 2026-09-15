@@ -1624,11 +1624,18 @@ if _E and _W:
     # The retaining wall opens for each flight AND for the centre walk: three gaps, and the
     # flights' openings have to contain the flights, or a run drives through the wall.
     _rwn = [b for nm, b in _parts(ext, 'Retaining wall - north')]
-    check(len(_rwn) == 4, f'the north retaining wall runs in 4 pieces — three openings ({len(_rwn)})')
+    check(len(_rwn) == 3, f'the north retaining wall runs in 3 pieces — one opening per arm ({len(_rwn)})')
     _spans = sorted((b[0], b[1]) for b in _rwn)
     _holes = [(_spans[i][1], _spans[i + 1][0]) for i in range(len(_spans) - 1)]
-    check(len(_holes) == 3 and all(h[1] - h[0] > 2.0 for h in _holes),
+    check(len(_holes) == 2 and all(h[1] - h[0] > 2.0 for h in _holes),
           f'each opening is wide enough to walk ({[f"{a:.1f}..{b:.1f}" for a, b in _holes]})')
+    # ...and UNBROKEN ACROSS THE MIDDLE, which is what "the middle is just park strip" means
+    # structurally: the piece between the two arm gaps has to reach from one to the other.
+    if len(_holes) == 2:
+        _mid = [sp for sp in _spans if sp[0] >= _holes[0][1] - 0.01 and sp[1] <= _holes[1][0] + 0.01]
+        check(len(_mid) == 1 and near(_mid[0][0], _holes[0][1], 0.05) and near(_mid[0][1], _holes[1][0], 0.05),
+              f'the wall runs unbroken between the arms ({_mid[0][0]:.1f}..{_mid[0][1]:.1f})'
+              if _mid else 'the wall runs unbroken between the arms')
     # Neither arm may run into its neighbours: the centre walk between them, the driveway
     # off the east front yard, or the west property line.
     check(uE[1] < 7.0 - 0.05 and uW[0] > 12.0 + 0.05,
@@ -1638,10 +1645,29 @@ if _E and _W:
         _dvw = max(b[1] for b in _dv.values())          # the driveway's west edge
         check(uE[0] > _dvw + 0.05, f"the east arm stops short of the driveway ({uE[0]:.2f} vs {_dvw:.2f})")
     check(uW[1] < 47.0 - 0.05, f'the west arm stays inside the west property line ({uW[1]:.2f})')
-    # The centre walk is untouched by all of this.
-    _cw = extents(ext, lambda nm, p: nm.startswith('Entry step'))
-    check(len(_cw) == 3 and all(near(b[1] - b[0], 5.0, 0.01) for b in _cw.values()),
-          f'the centre walk keeps its three 5 ft steps ({len(_cw)})')
+    # THE CENTRE ROUTE IS GONE — walk, steps and the wall's opening together, so the middle
+    # is plain park strip below the wall and lawn above it. Asserted as an ABSENCE because
+    # the flag that retires it (frontage.centreWalk) also feeds the wall's gap list: leave
+    # half of it behind and you get steps onto grass, or a gap onto nothing.
+    _cw = extents(ext, lambda nm, p: nm.startswith('Entry step') or nm.startswith('Entry walk'))
+    check(not _cw, f'no centre walk and no entry steps ({sorted(_cw)})')
+    # CHEEK WALLS, one per edge of each arm, with a cap riding each.
+    for tag in ('east', 'west'):
+        ch = _parts(ext, f'Front approach {tag} cheek')
+        walls = [b for nm, b in ch if not nm.endswith('cap')]
+        caps = [b for nm, b in ch if nm.endswith('cap')]
+        check(len(walls) > 4 and len(caps) > 4, f'{tag} arm: cheek walls and caps ({len(walls)}/{len(caps)})')
+        if walls and caps:
+            check(min(b[4] for b in caps) > min(b[4] for b in walls),
+                  f'{tag}: the cap rides the wall rather than sitting in it')
+    # ...and NOT through the porch's own. The arm cheeks start where their outer face clears
+    # the cascade, so the porch's cheek carries the line over that stretch. A lap here would
+    # be two walls inside each other, which nothing at runtime would notice.
+    _pch = _parts(ext, 'Porch cheek wall')
+    _ach = _parts(ext, 'Front approach east cheek') + _parts(ext, 'Front approach west cheek')
+    _lap = [(a, b) for _, a in _ach for _, b in _pch
+            if min(a[1], b[1]) - max(a[0], b[0]) > 0.02 and min(a[3], b[3]) - max(a[2], b[2]) > 0.02]
+    check(not _lap, f'no arm cheek laps the porch cascade\'s own ({len(_lap)} overlaps)')
 
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)

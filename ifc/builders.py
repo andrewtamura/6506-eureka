@@ -2557,10 +2557,14 @@ def _front_door(rooms_cache):
 
 
 def _entry_stair_span(f, rooms_cache):
-    """Plan-x span (low, high) the front entry stair occupies on the north line —
-    the gap the retaining wall has to leave for it. None if there's no front door."""
+    """Plan-x span (low, high) the front entry stair occupies on the north line — the gap the
+    retaining wall has to leave for it. None if there's no front door, or if the CENTRE ROUTE
+    IS SWITCHED OFF (`frontage.centreWalk` false), which is what retires the straight walk and
+    its steps now that the two curved arms carry the approach: one flag drops the walk, the
+    steps and the wall's opening together, so the wall cannot be left with a gap onto nothing.
+    The entryWalk*/entryStep* figures stay in the config for turning it back on."""
     fd = _front_door(rooms_cache)
-    if not fd:
+    if not fd or not f.get("centreWalk", True):
         return None
     half = f.get("entryWalkWidthFt", 5.0) / 2.0
     return (fd["pos"] - half, fd["pos"] + half)
@@ -2777,6 +2781,11 @@ def add_front_approach(ctx, lot, rooms_cache):
     if not spec or not flights:
         return
     CONCRETE = (0.74, 0.73, 0.71)
+    STUCCO_C = (0.90, 0.88, 0.84)                       # matches the retaining wall
+    CAP_C = (0.95, 0.95, 0.93)                          # matches the porch's white caps
+    CHEEK_T = spec.get("cheekThickFt", 0.5)             # radial thickness
+    CHEEK_H = spec.get("cheekHeightFt", 1.9)            # parapet above the tread it flanks
+    CAP_T = 0.08
     max_riser = spec.get("maxRiserIn", 6.0) / 12.0
     SEG = int(spec.get("segmentsPerTread", 6))          # arc subdivisions per tread
     for fl in flights:
@@ -2799,6 +2808,52 @@ def add_front_approach(ctx, lot, rooms_cache):
                 v, fc = _prism(poly, (0, 0, (top - base) * FT))
                 add_brep(ctx, f"Front approach {side} tread {k}", v, fc, CONCRETE,
                          ifc_class="IfcSlab", predefined="BASESLAB")
+        # CHEEK WALLS, one per edge, exactly as the porch cascade has them: a solid stucco
+        # wall with a white cap riding its sloped top, swept as short straight segments so
+        # the arc reads smooth. The cap RAMPS with the arm's own descent plus a parapet, so
+        # it reads as a rail the whole way instead of a wall growing out of the ground.
+        #
+        # Each cheek starts where its edge CLEARS THE PORCH CASCADE. At the springing the
+        # outer edge runs back to well inside the cascade's footprint, and a cheek built
+        # from the top would drive straight through the porch's own — which nothing at
+        # runtime would notice. The porch's cheek carries the line over that stretch, which
+        # is what it is already there for. Derived from the cascade's foot, not a number.
+        cascade_foot = _front_door(rooms_cache)["fixed"] + PORCH_FOOT_FT
+        for r_face, out in ((fl["Ri"], -1), (fl["Ro"], +1)):
+            # pz on this edge is cz - r*cos(phi); it clears the cascade once that is north
+            # of the foot. cos(phi) <= (cz - foot)/r, and phi starts at 0 when already clear.
+            # Measured on the cheek's OUTERMOST face, not the tread edge: the wall's own
+            # thickness reaches further back than the edge it sits on, and taking the edge
+            # left it lapping the porch's cheek by 5 in.
+            c = (fl["cz"] - cascade_foot) / max(r_face, r_face + out * CHEEK_T)
+            a_start = 0.0 if c >= 1.0 else math.acos(min(1.0, max(-1.0, c)))
+            n_seg = max(1, int(round((math.pi / 2 - a_start) / (math.pi / 2) * n * SEG)))
+            for j in range(n_seg):
+                a0 = a_start + (math.pi / 2 - a_start) * j / n_seg
+                a1 = a_start + (math.pi / 2 - a_start) * (j + 1) / n_seg
+                pts = []
+                for r, a in ((r_face, a0), (r_face + out * CHEEK_T, a0),
+                             (r_face + out * CHEEK_T, a1), (r_face, a1)):
+                    px = fl["cx"] + fl["s"] * r * math.sin(a)
+                    pz = fl["cz"] - r * math.cos(a)
+                    pts.append((ctx.X(px), ctx.Y(pz)))
+                # The tread the cheek flanks, so the cap steps down with the flight.
+                tread_of = lambda a: -min(n - 1, int(a / dphi)) * dy
+                t0, t1 = tread_of(a0) + CHEEK_H, tread_of(a1) + CHEEK_H
+                wall = [(pts[0][0], pts[0][1], base * FT), (pts[1][0], pts[1][1], base * FT),
+                        (pts[2][0], pts[2][1], base * FT), (pts[3][0], pts[3][1], base * FT)]
+                # Sloping-topped prism: four bottom corners, four tops at the cap line.
+                tops = [t0, t0, t1, t1]
+                v = [(x, y, z) for (x, y, z) in wall] + \
+                    [(pts[i][0], pts[i][1], tops[i] * FT) for i in range(4)]
+                fcs = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4],
+                       [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
+                add_brep(ctx, f"Front approach {side} cheek", v, fcs, STUCCO_C,
+                         ifc_class="IfcWall")
+                capv = [(pts[i][0], pts[i][1], tops[i] * FT) for i in range(4)] + \
+                       [(pts[i][0], pts[i][1], (tops[i] + CAP_T) * FT) for i in range(4)]
+                add_brep(ctx, f"Front approach {side} cheek cap", capv, fcs, CAP_C,
+                         ifc_class="IfcBuildingElementProxy")
 
 
 def add_street_frontage(ctx, lot, rooms_cache):
