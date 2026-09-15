@@ -1491,10 +1491,17 @@ if _shw and _pe and _pn and _tl:
     t_ = _tl[0]
     sh_e = _shw['px'] - _shw['depthFt'] / 2                 # the shower's EAST face (opens E: depth runs px)
     sh_n = _shw['pz'] + _shw['widthFt'] / 2                 # ...and its NORTH face
-    # Its inner face sits 6 in EAST of the shower's east face: flush, the north wall had 4.77 ft
-    # for a pocket door that needs 5.16 (leaf + pocket + casing), and the owner chose depth
-    # over a narrower door. The pocket assertion below is what found it.
-    check(near(_pe['px'], sh_e - 0.5, 0.01), f"the WC's east wall stands 6 in east of a wall flush with the shower's face ({_pe['px']:.3f} vs {sh_e - 0.5:.3f})")
+    # ONE LINE: the WC's east wall continues the shower's east wall, outer face to outer face,
+    # and the shower's tile walls are the partition's thickness so the line has no step in it.
+    # A WC 6 in deeper (for a 30 in pocket door) was tried; it cut the aisle to the vanity to
+    # 2 ft 9 in, and the owner took a smaller door instead. The pocket assertion below is what
+    # sizes the door.
+    check(near(_pe['px'] - _WALL / 2, sh_e, 0.01), f"the WC's east wall is on the shower's east face ({_pe['px'] - _WALL / 2:.3f} vs {sh_e:.3f})")
+    check(near(_shw.get('wallFt', 0.3), _WALL, 1e-3), f"the shower's walls are the partition's thickness ({_shw.get('wallFt', 0.3)} vs {_WALL})")
+    _van = next((it for it in _l2f if it['type'] == 'vanity' and _inw(it)), None)
+    if _van:
+        aisle = (_pe['px'] - _WALL / 2) - (_van['px'] + _van['depthFt'] / 2)   # px grows west: the line is west of the vanity's front
+        check(aisle >= 3.0, f'{aisle * 12:.0f} in of aisle between that line and the vanity (36 in wanted)')
     pe_lo, pe_hi = _pe['pz'] - _pe['lenFt'] / 2, _pe['pz'] + _pe['lenFt'] / 2
     pn_lo, pn_hi = _pn['px'] - _pn['lenFt'] / 2, _pn['px'] + _pn['lenFt'] / 2
     n_face_s, n_face_n = _pn['pz'] - _WALL / 2, _pn['pz'] + _WALL / 2
@@ -1510,7 +1517,7 @@ if _shw and _pe and _pn and _tl:
     check(front >= 1.75, f'{front * 12:.0f} in in front of the bowl (21 in minimum)')
     d_ = _pn.get('door') or {}
     d_lo, d_hi = d_.get('atFt', 0) - d_.get('widthFt', 0) / 2, d_.get('atFt', 0) + d_.get('widthFt', 0) / 2
-    check(d_.get('sliding') is True and near(d_.get('widthFt', 0), 2.5, 1e-6), f"a 30 in pocket door in the north wall ({d_})")
+    check(d_.get('sliding') is True and 2.0 - 1e-6 <= d_.get('widthFt', 0) <= 2.5, f"a pocket door of 24-30 in in the north wall ({d_})")
     check(d_lo - 0.33 >= e_face_w + 0.1 - 1e-3 and d_hi + 0.33 <= _wface - 0.1,
           f'its casing lands on wall both sides ({d_lo - 0.33:.3f} vs {e_face_w:.3f}; {d_hi + 0.33:.3f} vs {_wface:.3f})')
     # The pocket: the leaf is built from its `hinge` jamb and slides the OTHER way, so the
@@ -1541,6 +1548,19 @@ if _shw and _pe and _pn and _tl:
         else:
             ok = near(abs(w['at'] - _pe['px']), _WALL / 2, 0.01) and near(min(w['lo'], w['hi']), sh_n, 0.01)
         check(ok, f"face {w['side']} sits on its partition ({w['along']} at {w['at']}, {w['lo']}..{w['hi']})")
+    # THE TUB: freestanding, run north-south in the south-east corner, 12 in off the east wall.
+    _tub = [it for it in _l2f if it['type'] == 'tub' and _inw(it)]
+    check(len(_tub) == 1 and _tub[0]['dFt'] > _tub[0]['wFt'], f'one freestanding tub, run north-south ({len(_tub)})')
+    if _tub:
+        tb = _tub[0]
+        e_gap = (tb['px'] - tb['wFt'] / 2) - (wing_e + _WALL / 2)
+        s_gap = (tb['pz'] - tb['dFt'] / 2) - (wing_s + _WALL / 2)
+        check(near(e_gap, 1.0, 0.01), f'its east side {e_gap * 12:.1f} in off the east wall (12 wanted)')
+        check(0.3 <= s_gap <= 1.0, f'its south end {s_gap * 12:.0f} in off the south wall')
+        if _van:
+            check((_van['pz'] - _van['widthFt'] / 2) - (tb['pz'] + tb['dFt'] / 2) >= 1.0, 'a foot or more between its north end and the vanity')
+        walk = sh_e - (tb['px'] + tb['wFt'] / 2)
+        check(walk >= 2.0, f'{walk * 12:.0f} in between the tub and the shower wall (24 in floor)')
     _wcc = [it for it in _l2f if it['type'] == 'recessed' and e_face_w < it['px'] < _wface and sh_n < it['pz'] < n_face_s]
     check(len(_wcc) == 1 and (not _sc or near(_wcc[0]['ceilFt'], _zof(_wcc[0]['px']), 0.02)), f'one can in the WC, on the ceiling plane ({len(_wcc)})')
 

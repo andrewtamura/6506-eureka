@@ -303,34 +303,34 @@
       "depthFt": 2.5
     },
     {
-      "_note": "WC EAST WALL, centred 6 in EAST of the shower's east face (-17.729 vs -17.229), so the room is 6 in deeper than a wall flush with the shower would make it (clear 5.27 ft, inner face -17.5). Flush was tried first and the north wall then had 4.77 ft for a pocket door that needs leaf 2.5 + pocket 2.33 + casing 0.33; the owner chose to deepen the room rather than narrow the door. Runs from the shower's north face (pz -3.688) to under the north wall's end (-0.23). Level top at the raked ceiling there (z(-17.729) = 8.432).",
+      "_note": "WC EAST WALL, continuing the shower's east wall: its east face is the shower's east face (-17.229), so the two are one line from the south wall to the WC's north wall and the aisle to the vanity stays 3 ft 5 in. A deeper WC (6 in past this line, for a 30 in pocket door) was tried and pushed that aisle to 2 ft 9 in; the owner chose to keep the line and take a smaller door. Runs from the shower's north face (pz -3.688) to under the north wall's end (-0.23). Level top at the raked ceiling there (z(-17.0) = 8.493).",
       "type": "partition",
-      "px": -17.729,
+      "px": -17.0,
       "pz": -1.959,
       "axis": "z",
       "lenFt": 3.458,
-      "heightFt": 8.43
+      "heightFt": 8.49
     },
     {
-      "_note": "WC NORTH WALL at pz -0.459 (north face -0.23, leaving 0.83 ft to the bedroom door's south jamb for its casing), from the bedroom wall's face (-12.229) across the east partition's end (-17.958). Its top RAKES with the shed ceiling: topFt = z(px) at both ends. The 30 in POCKET door (edges -17.07..-14.57) is built from the west jamb and slides west into the wall toward the bedroom door: 2.34 ft of pocket for a leaf that leaves 2 in of pull showing, and its east casing (0.33) clears the WC's inner east face (-17.5) by 0.10. Owner's choice: the room is 3 ft wide, too small to swing a leaf inward.",
+      "_note": "WC NORTH WALL at pz -0.459 (north face -0.23, leaving 0.83 ft to the bedroom door's south jamb for its casing), from the bedroom wall's face (-12.229) across the east wall's end (-17.229). Its top RAKES with the shed ceiling: topFt = z(px) at both ends. The 24 in POCKET door (edges -16.2..-14.2) is built from the west jamb and slides west into the wall toward the bedroom door: 1.97 ft of pocket for a leaf that leaves 2 in of pull showing; its east casing (0.33) clears the WC's inner east face (-16.771) by 0.24. A 30 in leaf needs 5.2 ft of wall and this one has 4.54, so the owner took the smaller door over a deeper room.",
       "type": "partition",
-      "px": -15.0935,
+      "px": -14.729,
       "pz": -0.459,
       "axis": "x",
-      "lenFt": 5.729,
+      "lenFt": 5.0,
       "topFt": [
         [
           -12.229,
           8.89
         ],
         [
-          -17.958,
-          8.413
+          -17.229,
+          8.474
         ]
       ],
       "door": {
-        "atFt": -15.82,
-        "widthFt": 2.5,
+        "atFt": -15.2,
+        "widthFt": 2.0,
         "sliding": true,
         "hinge": "W"
       }
@@ -348,7 +348,16 @@
       "px": 29.25,
       "pz": 4.5,
       "faces": "S",
-      "_note": "WATER CLOSET toilet, a conventional tank, on the WEST wall inside the WC north of the shower: the anchor sits 1.1 ft in front of the wall face (-12.229; buildToilet's tank runs -1.1..-0.6), centred in the 3 ft clear width (pz -3.688..-0.688), 15 in each side; the bowl's front (-14.229) leaves 3 ft 3 in to the WC's east wall face (-17.5)."
+      "_note": "WATER CLOSET toilet, a conventional tank, on the WEST wall inside the WC north of the shower: the anchor sits 1.1 ft in front of the wall face (-12.229; buildToilet's tank runs -1.1..-0.6), centred in the 3 ft clear width (pz -3.688..-0.688), 15 in each side; the bowl's front (-14.229) leaves 2 ft 6 in to the WC's east wall face (-16.771)."
+    },
+    {
+      "_note": "FREESTANDING TUB in the south-east corner, run NORTH-SOUTH (wFt is the E-W footprint, dFt the N-S), 28 in x 66 in. Its east side stands 12 in off the east wall's face (-22.688 -> -21.688) and its south end 6 in off the south wall's; the north end leaves 1 ft 7 in to the vanity. The floor filler stands at the north end, the vanity side. The aisle between the tub and the shower's arch wall is 2 ft 1 in; the room is 10 ft 5 in inside and the shower takes five of them.",
+      "type": "tub",
+      "px": -20.523,
+      "pz": -8.438,
+      "wFt": 2.33,
+      "dFt": 5.5,
+      "filler": "N"
     },
     {
       "_note": "FAMILY ROOM (landing north bay, x 3.9167..15.0833, z 5..16.0833): sofa against the west wall facing the TV on the east wall, with a rug between.",
@@ -378,7 +387,7 @@
       "material": "sage"
     },
     {
-      "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4), one open room. DOOR near the NW corner on the west wall. Double VANITY on the EAST wall centred on the north-east window (z -0.74), a sink and mirror either side of the glass, sconces outboard, counter at 34 in under the sill. Double SHOWER along the WEST wall, 8 x 5 ft, long side on the bedroom partition, two heads on that wall, a 6 ft SEGMENTAL arched doorless entry facing the room (springs at 6 ft 3, rises 1 ft 9 \u2014 a semicircle would apex above the ceiling). Five feet deep so that the west south transom (px -14.73) is CENTRED in its south end wall, equal tile either side, and is cut out of it (side cutout, da = (px_window - px_shower) * A[0] for a shower opening E). Wall-hung TOILET on the south wall near the SE corner under the east transom, facing north. No WC room. The ceiling over the shower rakes 8.47..8.89 (see level2 slopedCeiling), so the tile stops LEVEL at 8.4, just under its lowest point, with the raked plaster above \u2014 the usual detail; the tile does not rake.",
+      "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4), one open room. DOOR near the NW corner on the west wall. Double VANITY on the EAST wall centred on the north-east window (z -0.74), a sink and mirror either side of the glass, sconces outboard, counter at 34 in under the sill. Double SHOWER along the WEST wall, 8 x 5 ft, long side on the bedroom partition, two heads on that wall, a 6 ft SEGMENTAL arched doorless entry facing the room (springs at 6 ft 3, rises 1 ft 9 \u2014 a semicircle would apex above the ceiling). Five feet deep so that the west south transom (px -14.73) is CENTRED in its south end wall, equal tile either side, and is cut out of it (side cutout, da = (px_window - px_shower) * A[0] for a shower opening E). Wall-hung TOILET on the south wall near the SE corner under the east transom, facing north. No WC room. The ceiling over the shower rakes 8.47..8.89 (see level2 slopedCeiling), so the tile stops LEVEL at 8.4, just under its lowest point, with the raked plaster above \u2014 the usual detail; the tile does not rake. Its tiled walls are the PARTITION thickness (wallFt 0.4583): the north end wall continues as the water closet's east wall, one line from the south wall to the WC's north wall, and a 3.6 in tile wall meeting a 5.5 in partition read as one wall with a step in it.",
       "type": "shower",
       "px": -14.7292,
       "pz": -7.688,
@@ -401,7 +410,8 @@
           "sillFt": 4.2,
           "headFt": 6.1
         }
-      ]
+      ],
+      "wallFt": 0.4583
     },
     {
       "type": "vanity",

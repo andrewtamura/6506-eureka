@@ -1267,7 +1267,10 @@ function buildShower(p) {
   const A = DIR[p.opens || "N"], P = [-A[1], A[0]];   // A = open (glass) side
   // Enclosure height is a parameter: a walk-in tiled to the ceiling is a different
   // thing from one stopping at 6'10", and the glass over the pony wall follows it.
-  const Wd = p.widthFt ?? 3.6, Dp = p.depthFt ?? 3.2, H = p.heightFt ?? 6.8, wt = 0.3;
+  // `wallFt` is the tiled walls' thickness, INSIDE the footprint. 0.3 is a tiled stud wall; a
+  // shower whose end wall continues as a room partition wants the partition's 0.4583, or the
+  // two read as one wall with a step in it.
+  const Wd = p.widthFt ?? 3.6, Dp = p.depthFt ?? 3.2, H = p.heightFt ?? 6.8, wt = p.wallFt ?? 0.3;
   const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
   let q;
   // Curb ONLY across the walk-in opening — not a full pan — so the continuous hex
@@ -1533,28 +1536,64 @@ function buildTV(p) {
   return g;
 }
 
-// A freestanding soaking tub. Anchor (px,pz) = footprint centre; wFt (E-W) x
-// dFt (N-S) footprint. `deckFt` > 0 sits the tub on a raised stone platform (a
-// step-up "elevated" spa deck). A slim floor-mounted filler stands at one end.
+// A freestanding soaking tub. Anchor (px,pz) = footprint centre; wFt (E-W) x dFt (N-S)
+// footprint, `heightFt` to the rim (1.95). `deckFt` > 0 sits it on a raised stone platform
+// (a step-up spa deck). `filler` names the compass end the floor-mounted filler stands at.
+//
+// Modelled as a tub is made, not as a block: a HOLLOW shell — a rounded-rectangle ring
+// extruded to the rim, so the inside walls are real faces seen from above — with a floor
+// in the bottom, a rolled rim overhanging the shell, and a water surface 6 in below the
+// rim. The first version was a rounded box with the "basin" a second rounded box standing
+// proud of its top, which read from any angle as one pill lying on another.
 function buildTub(p) {
   const ft = FT, g = new THREE.Group();
   const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
-  const box = (opx, opz, yc, sx, sz, hy, mat, rad = 0) => {
-    const geo = rad > 0 ? new RoundedBoxGeometry(sx * ft, hy * ft, sz * ft, 5, rad * ft)
-                        : new THREE.BoxGeometry(sx * ft, hy * ft, sz * ft);
-    const m = new THREE.Mesh(geo, mat); m.position.copy(V(opx, opz, yc)); m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
-  };
   const acrylic = new THREE.MeshStandardMaterial({ color: 0xf6f7f5, roughness: 0.15, metalness: 0.05 });
-  const water = new THREE.MeshStandardMaterial({ color: 0xdbe7ea, roughness: 0.2 });
+  const water = new THREE.MeshStandardMaterial({ color: 0xcfe0e4, roughness: 0.1, transparent: true, opacity: 0.8 });
+  water.depthWrite = false;
   const stone = new THREE.MeshStandardMaterial({ color: col(p.deckMaterial || "limestone", 0xcdc3b0), roughness: 0.75 });
   const chrome = new THREE.MeshStandardMaterial({ color: 0xc7ccd0, roughness: 0.25, metalness: 0.8 });
-  const W = p.wFt ?? 6.0, D = p.dFt ?? 2.8, deck = p.deckFt ?? 0, tubH = 1.9;
-  if (deck > 0) box(0, 0, deck / 2, W + 1.0, D + 1.0, deck, stone, 0.06);   // raised deck (step up), 6" ledge around the tub
-  const rad = Math.min(W, D) * 0.3;
-  box(0, 0, deck + tubH / 2, W, D, tubH, acrylic, rad);                      // tub body (rounded)
-  box(0, 0, deck + tubH - 0.12, W - 0.8, D - 0.8, 1.2, water, rad * 0.8);    // recessed basin, rim frames it
+  const W = p.wFt ?? 6.0, D = p.dFt ?? 2.8, H = p.heightFt ?? 1.95, deck = p.deckFt ?? 0;
+  const t = 0.12, rimW = 0.22;                                  // shell wall, rolled rim width (ft)
+  const r = Math.min(W, D) * 0.42;                              // corner radius: near-oval ends
+  if (deck > 0) {                                               // raised deck (step up), 6" ledge around the tub
+    const m = new THREE.Mesh(new RoundedBoxGeometry((W + 1.0) * ft, deck * ft, (D + 1.0) * ft, 5, 0.06 * ft), stone);
+    m.position.copy(V(0, 0, deck / 2)); m.castShadow = true; m.receiveShadow = true; g.add(m);
+  }
+  // a rounded rectangle w x d (ft) with corner radius rr, centred on the origin, in metres
+  const rrect = (w, d, rr) => {
+    const sh = new THREE.Shape(), x0 = -w * ft / 2, y0 = -d * ft / 2, wm = w * ft, dm = d * ft, rm = Math.min(rr * ft, wm / 2, dm / 2);
+    sh.moveTo(x0 + rm, y0); sh.lineTo(x0 + wm - rm, y0); sh.absarc(x0 + wm - rm, y0 + rm, rm, -Math.PI / 2, 0, false);
+    sh.lineTo(x0 + wm, y0 + dm - rm); sh.absarc(x0 + wm - rm, y0 + dm - rm, rm, 0, Math.PI / 2, false);
+    sh.lineTo(x0 + rm, y0 + dm); sh.absarc(x0 + rm, y0 + dm - rm, rm, Math.PI / 2, Math.PI, false);
+    sh.lineTo(x0, y0 + rm); sh.absarc(x0 + rm, y0 + rm, rm, Math.PI, 1.5 * Math.PI, false);
+    return sh;
+  };
+  // a horizontal slab of the shape (optionally ringed by a hole), `h` ft thick, base at `y` ft.
+  // The shape's plane is turned to lie flat: shape x stays E-W, shape y becomes N-S, the
+  // extrusion rises.
+  const slab = (outer, hole, h, y, mat) => {
+    if (hole) outer.holes.push(hole);
+    const geo = new THREE.ExtrudeGeometry(outer, { depth: h * ft, bevelEnabled: false, curveSegments: 16 });
+    const m = new THREE.Mesh(geo, mat); m.rotation.x = -Math.PI / 2; m.position.y = y * ft;
+    m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  slab(rrect(W, D, r), rrect(W - 2 * t, D - 2 * t, r - t), H, deck, acrylic);                    // the shell, hollow
+  slab(rrect(W - 2 * t, D - 2 * t, r - t), null, 0.2, deck, acrylic);                             // the floor inside it
+  slab(rrect(W + 0.04, D + 0.04, r + 0.02), rrect(W - 2 * rimW, D - 2 * rimW, r - rimW), 0.1, deck + H - 0.05, acrylic); // rolled rim
+  const ws = slab(rrect(W - 2 * t - 0.02, D - 2 * t - 0.02, r - t), null, 0.02, deck + H - 0.55, water); // water, 6 in down
+  ws.castShadow = false;
+  // Floor filler at one end: `filler` names the compass end it stands at (default "W", the
+  // original). A tub run north-south wants it at a N/S end, or it stands in the basin's rim.
+  const fs = p.filler || "W";
+  const fx = fs === "W" ? -(W / 2 - 0.35) : fs === "E" ? (W / 2 - 0.35) : 0;
+  const fz = fs === "N" ? (D / 2 - 0.35) : fs === "S" ? -(D / 2 - 0.35) : 0;
   const post = new THREE.Mesh(new THREE.CylinderGeometry(0.055 * ft, 0.055 * ft, 2.7 * ft, 16), chrome);
-  post.position.copy(V(-(W / 2 - 0.4), 0, deck + 1.35)); g.add(post);        // floor filler at one end
+  post.position.copy(V(fx, fz, deck + 1.35)); post.castShadow = true; g.add(post);
+  const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.045 * ft, 0.045 * ft, 0.55 * ft, 12), chrome);
+  const toward = new THREE.Vector3(-(-fx) * ft, 0, -(-fz) * ft).normalize();                   // from the post toward the tub centre
+  spout.position.copy(V(fx, fz, deck + 2.7)).addScaledVector(toward, 0.27 * ft);
+  spout.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), toward); spout.castShadow = true; g.add(spout);
   return g;
 }
 
