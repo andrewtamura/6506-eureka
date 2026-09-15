@@ -32,7 +32,11 @@ export async function buildWoodFloor({ scene, model, fragments, floorY, baseUrl,
   await fragments.core.update(true);
 
   const fy = floorY + 0.02;                  // plank underside, just above the slab
-  const baseMat = new THREE.MeshLambertMaterial({ color: 0x2a1c0d }); // groove colour
+  // STANDARD, not Lambert. Lambert has no specular term at all, so no lamp could ever lay
+  // a highlight on the floor and a satin-finished oak read exactly like matte card. The
+  // groove backer stays rough — it is the shadow between boards, and a shine in there
+  // would light the one part of the floor that should stay dark.
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0x2a1c0d, roughness: 0.9 });   // groove colour
   const planks = [];
   for (const fl of floors) {
     const bx = fl.box, [cr, cg, cb] = fl.rgb;
@@ -59,7 +63,10 @@ export async function buildWoodFloor({ scene, model, fragments, floorY, baseUrl,
   }
 
   const inst = new THREE.InstancedMesh(
-    new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({}), planks.length);
+    new THREE.BoxGeometry(1, 1, 1),
+    // Site-finished oak in satin: enough sheen to carry a lamp's reflection down the
+    // board, nowhere near the wet gloss a lower number gives.
+    new THREE.MeshStandardMaterial({ roughness: 0.45 }), planks.length);
   const m = new THREE.Matrix4(), col = new THREE.Color();
   planks.forEach((p, i) => {
     m.makeScale(p.len, PH, p.depth);

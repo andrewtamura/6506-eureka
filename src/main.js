@@ -5,6 +5,7 @@
 // Clicking an element raycasts the model and shows its IFC properties.
 
 import * as THREE from "three";
+import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import * as OBC from "@thatopen/components";
 import * as FRAGS from "@thatopen/fragments";
 import { setupLighting } from "./lighting.js";
@@ -14,7 +15,7 @@ import { buildSubfloor } from "./subfloor.js";
 import { buildTileFloor } from "./tile-floor.js";
 import { buildFurniture, buildChair, buildRug, buildSofa } from "./furniture.js";
 import { buildWallFinish } from "./wall-finish.js";
-import { buildCeilings } from "./ceilings.js";
+import { buildCeilings, PLAN_CEIL_OPACITY, CEIL_ROUGH } from "./ceilings.js";
 import { consolidateStatic } from "./consolidate.js";
 import { setupPerf, applyDprOverride } from "./perf.js";
 import { createWalker } from "./pov.js";
@@ -876,6 +877,32 @@ async function main() {
   world.renderer.three.shadowMap.type = THREE.PCFSoftShadowMap;
   world.renderer.three.localClippingEnabled = true;   // clip tile mosaics to their room box
 
+  // TONE MAPPING. three defaults to NoToneMapping, which CLIPS: every luminance over 1.0
+  // lands on flat white, so a lamp near a wall painted a hard white disc with no falloff
+  // in it and "too bright" was the only note anyone could give. ACES rolls the highlights
+  // off instead, so the gradient a point light actually casts becomes visible and the
+  // fixtures' emissive lenses read as bright rather than as blown. Exposure carries the
+  // midtones back up, since the filmic curve darkens them: every emissive intensity in
+  // the scene was hand-tuned against the clipping output, and one exposure is the honest
+  // way to rebalance them all rather than editing twenty numbers.
+  world.renderer.three.toneMapping = THREE.ACESFilmicToneMapping;
+  world.renderer.three.toneMappingExposure = 1.1;
+
+  // AN ENVIRONMENT, so surfaces have something to reflect. Without one the envMap term is
+  // zero in every MeshStandardMaterial, which leaves walls and floors pure Lambert: lit
+  // only where a lamp points, with no sheen and no bounce, and roughness doing nothing at
+  // all. There is no global illumination here (the ambient fill in lighting.js says so in
+  // its own comment), so this is what stands in for bounced light. RoomEnvironment ships
+  // with three — no asset to fetch, nothing to clear with the agent proxy.
+  const pmrem = new THREE.PMREMGenerator(world.renderer.three);
+  const envRT = pmrem.fromScene(new RoomEnvironment(), 0.04);
+  world.scene.three.environment = envRT.texture;
+  pmrem.dispose();
+  // Held low on purpose: this is bounce light, not a second sun. It is also driven by the
+  // sun's own `day` factor below, so the house is not ambiently lit at 2 a.m.
+  const ENV_DAY = 0.4;
+  world.scene.three.environmentIntensity = ENV_DAY;
+
   const grids = components.get(OBC.Grids);
   grids.create(world);
 
@@ -885,6 +912,15 @@ async function main() {
   // rises on the left (dawn) and sets on the right (dusk) — its daily arc. The
   // top half of the ring is tinted day, the bottom half night.
   const { setTime, setSeason, focusShadow, refreshShadow, onTime } = setupLighting(scene);
+  // The environment is DAYLIGHT bounce, so it follows the sun. Held constant it lit every
+  // wall in the house at midnight — the same mistake the skylight wells made before they
+  // were put on this hook, and the same fix. A small floor is kept at night so the lamps
+  // still have something to reflect in; without it a dark room's surfaces go back to
+  // being pure diffuse, which is the thing this change is for.
+  onTime((day) => {
+    scene.environmentIntensity = 0.06 + (ENV_DAY - 0.06) * day;
+    invalidate();
+  });
   const lightEl = document.getElementById("lighting");
   const caption = (t) => {
     const d = document.createElement("div");
@@ -1247,7 +1283,6 @@ async function main() {
         // sloped, translucent IfcCovering under the shed roof (see model.json
         // slopedCeiling), and it toggles with the rest.
         if ((lvl.id === "attic" || lvl.id === "level2") && mat.transparent && mat.opacity < 0.95 && mat.color && mat.color.r > 0.7) {
-          mat.userData._planOpacity = mat.opacity;
           povCeilingMats.push(mat);
         }
         mat.needsUpdate = true;
@@ -1341,7 +1376,13 @@ async function main() {
     // is isolated to the exterior massing — global ambient/hemisphere lights can't
     // be, since they're gated by the camera's layers rather than per-object.
     onTime((day) => {
-      const k = 0.34 * day;
+      // 0.12, not the 0.34 this used to be. The fill is a FAKE for sky bounce, added when
+      // nothing in the scene supplied any; with a real environment map now lighting the
+      // same faces, the old figure double-counted and the house went chalk-white at noon
+      // — the stucco lost its warmth and the lawn its colour. Kept rather than removed
+      // because it is per-object and the environment is not: it is what lets the exterior
+      // read as light masonry while interiors stay lit only through their windows.
+      const k = 0.12 * day;
       for (const mat of extFillMats) {
         if (!mat.userData._fillBase) continue;
         mat.emissive.copy(mat.userData._fillBase).multiplyScalar(k);
@@ -1548,6 +1589,10 @@ async function main() {
   let setPlanView = () => {};          // assigned once ceilings exist (POV opaque / plan transparent)
   let setActiveLevel = () => {};       // assigned once the level switcher is built (highlights the current level)
   let activeLevelId = null;            // the level currently framed — perf.js dims the OTHERS to measure light cost
+  // Forward handle to the lighting radio, which is built much later than focusLevel is
+  // defined. Same idiom as setActiveLevel above, and it keeps focusLevel out of the
+  // temporal dead zone if a tab is clicked before init finishes.
+  let selectLightingFor = () => {};
   const EYE = 1.63;                    // eye height for a 5'8" person (~1.63 m)
   const LOOK_DIST = 0.05;              // orbit radius indoors: ~0 so you spin in place
   const ROOM_INSET = 0.55;             // keep the standing point this far from walls (m)
@@ -1749,7 +1794,11 @@ async function main() {
     invalidate();
     for (const mat of [...povCeilingMats, ...exhibitCeilingMats]) {
       mat.transparent = plan;
-      mat.opacity = plan ? (mat.userData._planOpacity ?? 0.45) : 1.0;
+      // The shared ghost, not each material's AUTHORED opacity. These came in at the 0.45
+      // the IFC asked for (transparency 0.55) and the flat slab was built to match, which
+      // veiled the floor plan under them. How see-through a ceiling is in the OVERVIEW is
+      // a viewer decision, not a property of the model, so one constant governs all three.
+      mat.opacity = plan ? PLAN_CEIL_OPACITY : 1.0;
       mat.depthWrite = !plan;
       mat.needsUpdate = true;
     }
@@ -1768,7 +1817,7 @@ async function main() {
   const groundPos = model.object.position;
   const fxMetal = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.5, metalness: 0.6 });
   const fxShade = new THREE.MeshStandardMaterial({ color: 0xfff6e6, emissive: 0xffe7b8, emissiveIntensity: 1.2, roughness: 0.45 });
-  const newCeilMat = () => new THREE.MeshStandardMaterial({ color: 0xf2efe9, roughness: 0.95, transparent: true, opacity: 0.45, depthWrite: false, side: THREE.DoubleSide });
+  const newCeilMat = () => new THREE.MeshStandardMaterial({ color: 0xf2efe9, roughness: CEIL_ROUGH, transparent: true, opacity: PLAN_CEIL_OPACITY, depthWrite: false, side: THREE.DoubleSide });
   // `reachFt` caps the light so it lights ITS room and stops. Uncapped, a fixture in every
   // room meant every room was also being lit by its neighbours. 14 ft covers the longest
   // room here (the foyer, ~22 ft) from a centred fixture.
@@ -2044,6 +2093,12 @@ async function main() {
     overviewControls();
     frameModel(liveBox(mv), transition);
     setActiveLevel(id);
+    // LOOKING AT A LEVEL LIGHTS THAT LEVEL. Hung off focusLevel — an explicit request for
+    // a model — and NOT off setActiveLevel, which also fires when the camera rests on a
+    // backed-out view (see the `rest` handler): hooking the setter would change the
+    // lighting mid-pan. It runs after the `await exhibitsReady` path above, so a level
+    // that is still streaming lights up when it actually arrives.
+    selectLightingFor(id);
   };
 
   // Persistent segmented control: one tab per model (levels.json order — Exterior,
@@ -2201,6 +2256,14 @@ async function main() {
   // only dims a light if some scene has already spoken for its level, and until now
   // nothing had. That is why a phone with the exhibits loaded reported 87 lights on.
   selectLighting("auto");
+  // Which lighting row a level tab selects. The exhibits' ids are already the keys
+  // selectLighting takes, so the radio lands on the matching row and the two controls
+  // cannot disagree. The LOT tab picks "auto" rather than "exterior": auto drives the
+  // same (exterior-only) fixtures but on the sun's photocell, so the lanterns are lit
+  // at night and off at noon, where "exterior" pins them on at full in broad daylight.
+  const TAB_LIGHTING = { ground: "ground", level2: "level2", attic: "attic",
+                         exterior: "auto", "exterior-alt": "auto" };
+  selectLightingFor = (id) => { const row = TAB_LIGHTING[id]; if (row) selectLighting(row); };
   window.__eureka.selectLighting = selectLighting;   // debug handle: kitchen-check drives it
   window.__eureka.litModel = () => litModel;
 
@@ -2227,17 +2290,24 @@ async function main() {
   // IfcOpeningElement void boxes (rendered semi-opaque) so cased openings and
   // open doorways are fully see-through.
   {
-    const doorMat = new THREE.MeshLambertMaterial({ color: 0x9b7653 });
+    // Standard rather than Lambert, like the floors and the wall finish: a door is one of
+    // the largest surfaces you stand next to, and under Lambert it took no sheen from the
+    // fixture over it at all. Varnished wood, so smoother than the walls.
+    const doorMat = new THREE.MeshStandardMaterial({ color: 0x9b7653, roughness: 0.5 });
     // The front door's recessed panels go a shade darker than its stiles and rails, the
     // same trick ifc/builders.py uses (`panelc`): it is what makes the panelling read in
     // flat light instead of dissolving into one brown rectangle.
-    const doorPanel = new THREE.MeshLambertMaterial({ color: 0x7d5c40 });
+    const doorPanel = new THREE.MeshStandardMaterial({ color: 0x7d5c40, roughness: 0.5 });
     // Crittall section: near-black, to match the screen's frame in ifc/builders.py.
-    const steelMat = new THREE.MeshLambertMaterial({ color: 0x2b2d30 });
+    // METAL, now that there is an environment for it to reflect. A near-black Lambert
+    // section read as a flat silhouette; a metallic one picks the room up along its edges,
+    // which is most of what makes steel glazing look like steel.
+    const steelMat = new THREE.MeshStandardMaterial({ color: 0x2b2d30, roughness: 0.38, metalness: 0.8 });
     // Glazing for a divided-light leaf. depthWrite off so the muntins and whatever is
     // beyond the door both read through it.
-    const doorGlass = new THREE.MeshLambertMaterial({ color: 0xc6d7da, transparent: true,
-                                                      opacity: 0.28, depthWrite: false });
+    const doorGlass = new THREE.MeshStandardMaterial({ color: 0xc6d7da, transparent: true,
+                                                       opacity: 0.28, depthWrite: false,
+                                                       roughness: 0.08, metalness: 0 });
     const dmap = await model.getItemsOfCategories([/IFCDOOR/]);
     const ids = Object.values(dmap).flat();
     const boxes = await model.getBoxes(ids);

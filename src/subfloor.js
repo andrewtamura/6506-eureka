@@ -30,7 +30,9 @@ export async function buildSubfloor({ scene, model, fragments, floorY, baseUrl, 
   await fragments.core.update(true);
 
   const fy = floorY + 0.02;
-  const baseMat = new THREE.MeshLambertMaterial({ color: 0x3a2c18 });   // seam groove colour
+  // Standard like the other floors, so the attic takes light the same way the rooms below
+  // it do. Bare plywood is the roughest surface in the house and stays that way.
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0x3a2c18, roughness: 0.95 });   // seam groove colour
   const tiles = [];
   for (const fl of areas) {
     const bx = fl.box, [cr, cg, cb] = fl.rgb;
@@ -55,7 +57,7 @@ export async function buildSubfloor({ scene, model, fragments, floorY, baseUrl, 
   }
 
   const inst = new THREE.InstancedMesh(
-    new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({}), tiles.length);
+    new THREE.BoxGeometry(1, 1, 1), new THREE.MeshStandardMaterial({ roughness: 0.92 }), tiles.length);
   const m = new THREE.Matrix4(), col = new THREE.Color();
   tiles.forEach((p, i) => {
     m.makeScale(p.len, PH, p.depth);
