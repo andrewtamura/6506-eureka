@@ -318,14 +318,13 @@
       "_note": "ALCOVE toilet, a conventional tank, backed onto the WEST wall: the anchor sits 1.1 ft in front of the wall face (-12.229; buildToilet's tank runs -1.1..-0.6), centred in the alcove's 3 ft clear width (pz -3.688..-0.688), 18 in each side; the bowl's front (-14.229) leaves 2 ft to the open east end."
     },
     {
-      "_note": "FREESTANDING TUB in the south-east corner, TILTED 10 degrees: `rot: 10` swings its NORTH end toward the WEST and its south end toward the east. That is the direction the owner wanted, and it is recorded here as a FACT about which way the tub points rather than as a rule, because reasoning from the word 'clockwise' produced the opposite sign first time and an explanation for the miss (the viewer's plan looks along the house with north at the bottom) does not hold up \u2014 turning a view 180 degrees does not reverse a rotation. So: north end WEST. Change it only against a render someone has looked at. 15 degrees was asked for first and measured: it widens the footprint from 2 ft 4 to 3 ft 8 and the room has only 5 ft 6 beside the shower, which pinched the approach to the shower arch to 17.5 in. At 10 the tub clears the east wall by 6.5 in, the south wall by 4.1 in, and the walkway to the shower holds 20 in.",
+      "_note": "FREESTANDING TUB in the south-east corner, running NORTH-SOUTH and SQUARE to the walls (wFt is the E-W footprint, dFt the N-S), 28 in x 66 in. Its east side stands 12 in off the east wall's face (-22.688 -> -21.688) and its south end 6 in off the south wall's; the north end leaves 1 ft 7 in to the vanity and the walkway to the shower's arch is 25.5 in. The floor filler stands at the north end, the vanity side. DO NOT TILT IT. A tilt was asked for and tried at 15 degrees (measured: it widens the footprint from 2 ft 4 to 3 ft 8, and with only 5 ft 6 of room beside the shower it cut the walkway to 17.5 in) and then at 10 in BOTH directions, each shipped and each rejected on sight. The owner settled it square. At these clearances an angled tub reads as knocked askew rather than placed, because it stays nearly parallel to two walls it is inches from; the version that could work is a bigger angle with the tub pulled well off both walls, which costs the walkway.",
       "type": "tub",
       "px": -20.523,
       "pz": -8.438,
       "wFt": 2.33,
       "dFt": 5.5,
-      "filler": "N",
-      "rot": 10
+      "filler": "N"
     },
     {
       "_note": "FAMILY ROOM (landing north bay, x 3.9167..15.0833, z 5..16.0833): sofa against the west wall facing the TV on the east wall, with a rug between.",
@@ -355,7 +354,7 @@
       "material": "sage"
     },
     {
-      "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4), one open room. DOOR near the NW corner on the west wall. Double VANITY on the EAST wall centred on the north-east window (z -0.74), a sink and mirror either side of the glass, sconces outboard, counter at 34 in under the sill. Double SHOWER along the WEST wall, 8 x 5 ft, long side on the bedroom partition, two heads on that wall, a 6 ft SEGMENTAL arched doorless entry facing the room (springs at 6 ft 3, rises 1 ft 9 \u2014 a semicircle would apex above the ceiling). Five feet deep so that the west south transom (px -14.73) is CENTRED in its south end wall, equal tile either side, and is cut out of it (side cutout, da = (px_window - px_shower) * A[0] for a shower opening E). Wall-hung TOILET on the south wall near the SE corner under the east transom, facing north. No WC room. The ceiling over the shower rakes 8.47..8.89 (see level2 slopedCeiling), so the tile stops LEVEL at 8.4, just under its lowest point, with the raked plaster above \u2014 the usual detail; the tile does not rake. Its tiled walls are the PARTITION thickness (wallFt 0.4583): the north end wall continues as the water closet's east wall, one line from the south wall to the WC's north wall, and a 3.6 in tile wall meeting a 5.5 in partition read as one wall with a step in it. The two heads are on the back (west) wall at 7 ft 0 with a valve under each: the back-wall branch of buildShower used to hard-code them at 5 ft 6 and drew no valve at all.",
+      "_note": "PRIMARY EN-SUITE (extension x -22.92..-12, z -11.92..4), one open room. DOOR near the NW corner on the west wall. Double VANITY on the EAST wall centred on the north-east window (z -0.74), a sink and mirror either side of the glass, sconces outboard, counter at 34 in under the sill. Double SHOWER along the WEST wall, 8 x 5 ft, long side on the bedroom partition, two heads on that wall, a 6 ft SEGMENTAL arched doorless entry facing the room (springs at 6 ft 3, rises 1 ft 9 \u2014 a semicircle would apex above the ceiling). Five feet deep so that the west south transom (px -14.73) is CENTRED in its south end wall, equal tile either side, and is cut out of it (side cutout, da = (px_window - px_shower) * A[0] for a shower opening E). Wall-hung TOILET on the south wall near the SE corner under the east transom, facing north. No WC room. The ceiling over the shower rakes 8.47..8.89 (see level2 slopedCeiling), so the tile stops LEVEL at 8.4, just under its lowest point, with the raked plaster above \u2014 the usual detail; the tile does not rake. Its tiled walls are the PARTITION thickness (wallFt 0.4583): the north end wall continues as the water closet's east wall, one line from the south wall to the WC's north wall, and a 3.6 in tile wall meeting a 5.5 in partition read as one wall with a step in it. The two heads are on the back (west) wall at 7 ft 0 with a valve under each: the back-wall branch of buildShower used to hard-code them at 5 ft 6 and drew no valve at all. The enclosure is tiled in 2 x 6 modules stacked vertically (joints aligned both ways), laid proud of each wall so the slab behind reads as the grout. `tileModule` is opt-in, so the ground floor's shower keeps its plain walls.",
       "type": "shower",
       "px": -14.7292,
       "pz": -7.688,
@@ -380,7 +379,11 @@
         }
       ],
       "wallFt": 0.4583,
-      "headFt": 7.0
+      "headFt": 7.0,
+      "tileModule": {
+        "wFt": 0.1667,
+        "hFt": 0.5
+      }
     },
     {
       "_note": "TOILET ALCOVE, north side. A single full-height partition returning from the WEST wall (its face, px -12.229) at 90 degrees and running 4 ft east to px -16.229. With the shower's north wall (pz -3.688) as the other side, that makes an alcove 3 ft wide by 4 ft deep, OPEN to the east: the toilet is centred in it with 18 in each side and 2 ft of clear floor in front of the bowl. It replaces the enclosed water closet that stood here \u2014 two partitions and a pocket door \u2014 which the owner asked to open up. Full height under the shed ceiling, so topFt is z(px) at both ends; buildPartition draws a doorless raked wall as one trapezoid.",

@@ -1,18 +1,18 @@
 [
   {
     "name": "Ext Bath - Tile Flooring",
-    "pattern": "hexagon"
+    "pattern": "checkerboard"
   },
   {
     "name": "WC - Tile Flooring",
-    "pattern": "hexagon"
+    "pattern": "checkerboard"
   },
   {
     "name": "Ext Vestibule - Tile Flooring",
-    "pattern": "hexagon"
+    "pattern": "checkerboard"
   },
   {
     "name": "Ext Laundry - Tile Flooring",
-    "pattern": "hexagon"
+    "pattern": "checkerboard"
   }
 ]

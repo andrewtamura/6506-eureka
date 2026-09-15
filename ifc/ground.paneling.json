@@ -36,6 +36,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": true,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -65,6 +66,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": true,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -98,6 +100,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": true,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -122,6 +125,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": true,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -151,6 +155,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": false,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -188,6 +193,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": false,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -212,6 +218,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": false,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -251,6 +258,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": false,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -280,6 +288,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": true,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -319,6 +328,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": true,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -343,6 +353,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": true,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -372,6 +383,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": true,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -409,6 +421,7 @@
       "noCornice": false,
       "noBattens": false,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": true,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -448,6 +461,7 @@
       "noCornice": false,
       "noBattens": false,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": true,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -477,6 +491,7 @@
       "noCornice": false,
       "noBattens": false,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": true,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -516,6 +531,7 @@
       "noCornice": false,
       "noBattens": false,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": true,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -540,6 +556,7 @@
       "noCornice": false,
       "noBattens": false,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": true,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -587,6 +604,7 @@
       "noCornice": false,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": true,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -616,6 +634,7 @@
       "noCornice": false,
       "noBattens": false,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": true,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -645,6 +664,7 @@
       "noCornice": false,
       "noBattens": false,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": true,
       "corniceBreaks": [
         [
@@ -678,6 +698,7 @@
       "noCornice": false,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": true,
       "mitreLo": true,
       "mitreHi": false,
@@ -705,6 +726,7 @@
       "noCornice": false,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": false,
       "mitreLo": false,
       "mitreHi": true,
@@ -756,6 +778,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": false,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -792,6 +815,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": false,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -816,6 +840,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": false,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -840,6 +865,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": false,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -871,6 +897,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": false,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -900,6 +927,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": false,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -932,6 +960,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": false,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -961,6 +990,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": false,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -990,6 +1020,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": false,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -1020,6 +1051,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": false,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -1052,6 +1084,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": false,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -1076,6 +1109,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": false,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -1107,6 +1141,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": false,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -1131,6 +1166,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": false,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -1160,6 +1196,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": false,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -1189,6 +1226,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": false,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -1241,6 +1279,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": false,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -1274,6 +1313,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": true,
+      "chairRailFt": null,
       "coved": false,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -1306,6 +1346,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": false,
       "corniceBreaks": [],
       "rakedCornice": []
@@ -1338,6 +1379,7 @@
       "noCornice": true,
       "noBattens": true,
       "wainscot": false,
+      "chairRailFt": null,
       "coved": false,
       "corniceBreaks": [],
       "rakedCornice": []
