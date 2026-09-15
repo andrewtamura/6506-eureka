@@ -1706,6 +1706,19 @@ if _E and _W:
               f'{tag}: {len(t)} treads, risers {max(steps) * 12 if steps else 0:.1f} in, even and under 6')
     check(len(tops(_W)) > len(tops(_E)),
           f'the west flight takes more risers than the east ({len(tops(_W))} vs {len(tops(_E))}) — the lot falls west')
+    # IT FITS INSIDE THE HOUSE. The approach spanned 46.5 ft against the primary block's 43 ft
+    # wall faces — wider than the roof over them, so it read as bigger than the building it
+    # leads to, and nothing measured that. `arcRadiusFt` is the main lever: a quarter arc runs
+    # its radius in px as well as in pz, so the radius is BOTH how far the arms reach sideways
+    # and how far north the forecourt must come to meet them. Measured over every approach
+    # part, caps included, since the cap oversails the wall it rides.
+    _mp = extents(ext, lambda nm, p: nm == 'Massing - primary').get('Massing - primary')
+    check(_mp is not None, 'the primary massing is measurable')
+    if _mp:
+        _ax, _bx = min(b[0] for nm, b in _fa), max(b[1] for nm, b in _fa)
+        check(_ax > _mp[0] + 0.05 and _bx < _mp[1] - 0.05,
+              f'the approach sits inside the primary structure ({_bx - _ax:.2f} ft against '
+              f'{_mp[1] - _mp[0]:.2f}, inset {_ax - _mp[0]:.2f} east / {_mp[1] - _bx:.2f} west)')
     # The retaining wall opens for each flight AND for the centre walk: three gaps, and the
     # flights' openings have to contain the flights, or a run drives through the wall.
     _rwn = [b for nm, b in _parts(ext, 'Retaining wall - north')]
@@ -1766,6 +1779,14 @@ if _E and _W:
         check(_cs[5] > _terr + 1.0, f'...standing proud of the terrace as its parapet ({_cs[5] - _terr:.2f} ft)')
         check(near(_cs[0], uE[1], 0.05) and near(_cs[1], uW[0], 0.05),
               f'and spanning arm to arm ({_cs[0]:.2f}..{_cs[1]:.2f})')
+        # AND IT STAYS OFF THE RIGHT-OF-WAY. This wall stands at radius Ri - cheekT from the
+        # arc's centre, and that centre sits on the sidewalk's near edge — so it is the floor
+        # under `arcRadiusFt`, and the one thing a radius set too small breaks SILENTLY:
+        # everything still builds, with the courtyard's wall out on the park strip and the
+        # courtyard itself pinched off before it reaches the property line to be entered from.
+        _pl = _sw[2] - model['lot']['frontage'].get('parkStripWidthFt', 6)
+        check(_cs[3] < _pl - 0.05,
+              f'...and stays off the right-of-way ({_cs[3]:.3f} vs the property line {_pl:.3f})')
         # NO JOG where it meets each arm. The arc carries a radius that just reaches this pz,
         # and it does so at px = cx — so the cheek's courtyard face is TANGENT to the straight
         # run there and the two northmost extents have to agree exactly. A jog of five inches

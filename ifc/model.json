@@ -170,14 +170,15 @@
       "entryStepCount": 3,
       "entryTreadFt": 1.0,
       "doubleWalk": {
-        "_note": "A DOUBLE front walkup. Two curved flights flank the centre walk, each a quarter arc that leaves the porch cascade's outer corner running along the house and turns to meet the sidewalk head on, so you climb facing the door at the top and the street at the bottom. They land FLUSH on the sidewalk's near edge, crossing the planting strip. The arc's radius is DERIVED \u2014 the sidewalk's near edge less the cascade's foot \u2014 so the flights spring exactly where the porch lands and cannot drift off it. Risers are derived per flight too, and the two come out DIFFERENT on purpose: the right-of-way falls toward the NW corner, so the west flight lands lower and needs more of them. Each arm carries CHEEK WALLS on both edges \u2014 solid stucco with a white cap, as on the porch cascade \u2014 whose top ramps with the arm's own descent plus cheekHeightFt, so it reads as a rail the whole way. A cheek starts where its edge clears the cascade's footprint: built from the springing the outer one would drive through the porch's own cheek, and the porch's carries the line over that stretch instead.",
-        "widthFt": 6.0,
-        "springOutFt": 6.5,
+        "_note": "A DOUBLE front walkup. Two curved arms flank a courtyard, each a quarter arc that leaves the forecourt deck running along the house and turns to meet the sidewalk head on, so you climb facing the door at the top and the street at the bottom. They land FLUSH on the sidewalk's near edge, crossing the planting strip. Risers are derived per arm and the two come out DIFFERENT on purpose: the right-of-way falls toward the NW corner, so the west arm lands lower and needs more of them. Each arm carries CHEEK WALLS on both edges — solid stucco with a white cap — whose top ramps with the arm's own descent plus cheekHeightFt, so it reads as a rail the whole way. THE SIZE OF THE WHOLE APPROACH IS SET HERE. Its half-width from the front door is springOutFt + widthFt + 10.5 ft whatever the curvature, because arcRadiusFt is capped from below: the wall framing the courtyard stands at radius arcRadiusFt - widthFt/2 - cheekThickFt from the arc's centre, and that centre sits on the sidewalk's near edge, so anything under parkStripWidthFt + widthFt/2 + cheekThickFt puts that wall on the public right-of-way. At 12.25 / 4.5 / 4.5 the approach spans 39 ft against the primary structure's 43 ft wall faces — 2 ft inside each corner, which is what keeps it from reading as bigger than the house. ifc_check measures both.",
+        "arcRadiusFt": 12.25,
+        "widthFt": 4.5,
+        "springOutFt": 4.5,
         "maxRiserIn": 6.0,
         "segmentsPerTread": 6,
         "cheekThickFt": 0.5,
         "cheekHeightFt": 1.9
-      },
+    },
       "centreWalk": false
     }
   },

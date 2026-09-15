@@ -2689,11 +2689,10 @@ def add_yard_fence(ctx, lot, rooms_cache, base):
             i += 1
 
 
-# WHERE THE ARMS' ARC IS ANCHORED, as an offset NORTH of the house's front wall. It is the
-# old porch cascade's foot (terrace depth 3.0 plus four 0.95 ft treads), and the radius is
-# `n1 - foot`, so it sets where the arms spring and — through porch_deck_edge — where the
-# deck stops flaring. The cascade itself is gone; this is now purely the line the approach
-# is set out from, and moving it moves the whole forecourt.
+# FALLBACK anchor for the arms' arc, as an offset NORTH of the house's front wall: the old
+# porch cascade's foot (terrace depth 3.0 plus four 0.95 ft treads). The radius is AUTHORED
+# now — `doubleWalk.arcRadiusFt`, because it is what sizes the whole approach — and this is
+# only what `_approach_arc` falls back to when the spec does not carry one.
 PORCH_FOOT_FT = 3.0 + 4 * 0.95
 
 
@@ -2780,8 +2779,15 @@ def _approach_arc(f, rooms_cache, lot, half_wall):
     cheek_t = spec.get("cheekThickFt", 0.5)
     out = spec.get("springOutFt", 6.5)
     n1 = north + STRIP                                  # the sidewalk's near edge
-    foot = fd["fixed"] + PORCH_FOOT_FT                  # the cascade's foot
-    R = n1 - foot                                       # so the arc's top tangent lands on it
+    # THE RADIUS IS AUTHORED, because it is what sizes the approach. A quarter arc runs its
+    # radius in pz as well as in px, so `R` is BOTH how far the arms reach east-west and how
+    # far north the forecourt has to come to meet them: the deck's edge lands at `n1 - Ri`
+    # and the wall framing the courtyard at `n1 - (Ri - cheek_t)`. That is the floor on it —
+    # under `STRIP + W/2 + cheek_t` the wall stands on the public right-of-way, and the
+    # courtyard never reaches the property line to be entered from. ifc_check asserts it
+    # rather than clamping here, so a value set too small fails loudly instead of quietly
+    # building a walkup across the park strip.
+    R = spec.get("arcRadiusFt") or (n1 - (fd["fixed"] + PORCH_FOOT_FT))
     Ri, Ro = R - W / 2, R + W / 2
     flights = []
     for s in (-1, +1):
