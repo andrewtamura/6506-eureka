@@ -34,7 +34,15 @@ const URL = process.env.CHECK_URL ||
 const MAX_CALLS = FULL ? 680 : 420;      // ground: 333 merged / 1857 before. full: 613 / 879 before
 const MAX_MESHES = FULL ? 700 : 420;    // meshes in the scene and drawable
 const MIN_ABSORBED = FULL ? 2500 : 1400;// authored meshes the merge swallowed
-const MAX_FRAG_LOOSE = FULL ? 250 : 120;// model-owned meshes still drawing separately
+// Mergeable (opaque, single-material) model meshes still drawing on their own — the ones the
+// consolidate pass could have taken and did not. It reads 76 on the full scene, and 76 is not
+// a regression: MEASURED ACROSS TWO BUILDS DIFFERING BY ~500 PRODUCTS (balustraded quarter
+// arcs, then a circular ring) it did not move by one, while `merged` sat at 113 in both. So
+// it does not scale with the model's geometry, which is exactly what makes it worth asserting
+// — if the pass stopped running, every mesh it absorbs would land in this bucket instead.
+// An earlier 40 came from a probe taken BEFORE the level switch this harness performs, which
+// is not the moment it measures; that was the wrong number, not a real failure.
+const MAX_FRAG_LOOSE = FULL ? 110 : 60;
 
 const b = await puppeteer.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
   args: ['--use-gl=swiftshader', '--no-sandbox', '--enable-unsafe-swiftshader'], protocolTimeout: 900000 });
@@ -105,15 +113,32 @@ const m = await page.evaluate(async () => {
     }
   }
   // Selection highlighting is gone from the viewer, which is what lets consolidate
-  // merge a fragments model's own meshes. Assert that it actually does: count the
-  // visible, unmerged meshes still owned by a model. Before, every one of them drew
-  // separately because each carried its own material so it could be recoloured.
+  // merge a fragments model's own meshes. Assert that it actually does — but count only
+  // the meshes it COULD have merged.
+  //
+  // A raw count of unmerged model meshes is not that. Most of them carry a MATERIAL ARRAY:
+  // that is fragments batching several materials into one mesh, which `mergeable` rejects
+  // outright and which consolidate has never touched. Their number tracks how much geometry
+  // the model holds, not whether the pass ran — putting balustrades on the front approach
+  // added 13 of them and moved the frame by ONE draw call, which failed a budget that was
+  // meant to catch someone adding 800 unmerged meshes. Transparent members are left out on
+  // purpose too (merging them gives the group one sort position).
+  //
+  // What is left — opaque, single-material, still drawing on its own — is the real signal:
+  // those are singleton groups the pass looked at and had nothing to pair with. If the pass
+  // stopped running, every mesh it currently absorbs would land in exactly this bucket.
   const fragRoots = new Set();
   for (const [, m] of window.__eureka.fragments.list) if (m.object) fragRoots.add(m.object);
-  let fragLoose = 0;
+  let fragLoose = 0, fragBatched = 0, fragTrans = 0, fragMerged = 0;
   const fwalk = (o, inFrag) => {
     const f = inFrag || fragRoots.has(o);
-    if (o.isMesh && f && o.visible && !o.userData.merged) fragLoose++;
+    if (o.isMesh && f && o.visible) {
+      const mat = o.material;
+      if (o.userData.merged) fragMerged++;
+      else if (Array.isArray(mat)) fragBatched++;
+      else if (!mat || mat.transparent || mat.opacity < 1) fragTrans++;
+      else fragLoose++;
+    }
     for (const c of o.children) fwalk(c, f);
   };
   fwalk(s, false);
@@ -130,7 +155,8 @@ const m = await page.evaluate(async () => {
     inspect = { hit: !!hit, id: hit ? hit.localId : null };
   } catch (e) { inspect = { hit: false, error: String(e).slice(0, 120) }; }
 
-  return { ms: frameMs, calls: drawCalls, triangles: tris, fragLoose, inspect,
+  return { ms: frameMs, calls: drawCalls, triangles: tris, inspect,
+           fragLoose, fragBatched, fragTrans, fragMerged,
            visible, hidden, pickable, ...window.__eureka.consolidated,
            absorbed: (window.__eureka.consolidated?.absorbed || 0) +
                      (window.__eureka.consolidatedExhibits?.absorbed || 0),
@@ -212,7 +238,8 @@ console.log(`  consolidate pass         ${m.buildMs} ms at init`);
 console.log(`  render()                 ${m.ms} ms/frame  (swiftshader; indicative only)`);
 console.log(`  renderer mode            ${demand.mode === 0 ? 'MANUAL (on demand)' : 'AUTO'}`);
 console.log(`  frames drawn: idle 2 s   ${demand.idleFrames}   while panning  ${demand.movingFrames}`);
-console.log(`  model-owned meshes still drawing separately  ${m.fragLoose}`);
+console.log(`  model-owned meshes: ${m.fragMerged} merged, ${m.fragBatched} batched by fragments, ` +
+            `${m.fragTrans} transparent, ${m.fragLoose} mergeable and still loose`);
 console.log(`  perf HUD                 ${hud.button ? (hud.before.exists ? 'built at startup' : 'built on first use') : 'NO BUTTON'}`);
 console.log(`  benchmark                ${bench.fps.toFixed(1)} fps flat out, ${bench.frameMs.toFixed(1)} ms/frame = ${bench.cpuMs.toFixed(1)} cpu + ${bench.other.toFixed(1)} other`);
 console.log(`  lights                   ${bench.lights.before} on -> ${bench.lights.dimmed} dimmed -> ${bench.lights.restored} restored`);
@@ -245,7 +272,10 @@ if (FULL) A(bench.lights.dimmed < bench.lights.before,
 A(m.inspect && m.inspect.hit,
   `tap-to-inspect still resolves an element (${m.inspect ? (m.inspect.error || 'localId ' + m.inspect.id) : 'no result'}) — fragments picks against its own data, not the hidden meshes`);
 A(m.fragLoose <= MAX_FRAG_LOOSE,
-  `fragments geometry is merged too (${m.fragLoose} model-owned meshes still drawing, budget ${MAX_FRAG_LOOSE})`);
+  `fragments geometry is merged too (${m.fragLoose} mergeable model meshes still loose, budget ` +
+  `${MAX_FRAG_LOOSE}; ${m.fragMerged} merged, ${m.fragBatched} batched by fragments)`);
+A(m.fragMerged >= (FULL ? 12 : 6),
+  `...and the pass really ran on them (${m.fragMerged} merged model meshes)`);
 A(demand.mode === 0, `renderer is in MANUAL mode — frames drawn on demand, not every tick`);
 A(demand.idleFrames <= 8, `idle costs only the safety heartbeat (${demand.idleFrames} frames in 2 s)`);
 A(demand.movingFrames >= 10, `panning still draws (${demand.movingFrames} frames over 30 camera steps)`);

@@ -455,7 +455,9 @@ def build_level(cfg, rooms_cache, level):
                     ctx.furniture.append({"type": "window_bench", "px": round(cx, 3), "pz": knee_z,
                                           "widthFt": dm_spec.get("widthFt", 3.5)})
     elif kind == "exterior":
-        B.add_lot(ctx, cfg["lot"], rooms)
+        B.add_lot(ctx, cfg["lot"], rooms,
+                  cut=B.approach_arc_lines(cfg["lot"].get("frontage") or {},
+                                           rooms_cache, cfg["lot"], ctx.T / B.FT / 2))
         # Solid massing blocks (per building part, at their storey heights) +
         # roofs — closed, so the interior is never visible from any angle. A
         # crawlspace band raises the whole thing off grade.

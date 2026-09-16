@@ -170,14 +170,19 @@
       "entryStepCount": 3,
       "entryTreadFt": 1.0,
       "doubleWalk": {
-        "_note": "A DOUBLE front walkup. Two curved flights flank the centre walk, each a quarter arc that leaves the porch cascade's outer corner running along the house and turns to meet the sidewalk head on, so you climb facing the door at the top and the street at the bottom. They land FLUSH on the sidewalk's near edge, crossing the planting strip. The arc's radius is DERIVED \u2014 the sidewalk's near edge less the cascade's foot \u2014 so the flights spring exactly where the porch lands and cannot drift off it. Risers are derived per flight too, and the two come out DIFFERENT on purpose: the right-of-way falls toward the NW corner, so the west flight lands lower and needs more of them. Each arm carries CHEEK WALLS on both edges \u2014 solid stucco with a white cap, as on the porch cascade \u2014 whose top ramps with the arm's own descent plus cheekHeightFt, so it reads as a rail the whole way. A cheek starts where its edge clears the cascade's footprint: built from the springing the outer one would drive through the porch's own cheek, and the porch's carries the line over that stretch instead.",
-        "widthFt": 6.0,
-        "springOutFt": 6.5,
+        "_note": "A HORSESHOE front approach \\u2014 two flights each sweeping arcSweepDeg about ITS OWN centre (150 degrees: at a full 180 the foot points straight across the channel and you turn square into it, so both arms are brought UP 30 degrees and you meet the first tread at about 60 degrees instead), offset half of passageFt either side of the door, so the two semicircles bulge apart and the straight channel between them is the way in. A full 180 degree sweep about a COMMON centre closes the ring instead: it makes a court you can only reach by climbing the stair that encloses it, which is what the first attempt built. The channel runs passageFt wide and unbroken from the sidewalk, past the foot of each flight, to the lobe each one encloses \\u2014 a lozenge 10 ft at the ends swelling to 16 ft in the middle. Both flights climb to ONE LANDING spanning the channel at the door. The court sits at STREET GRADE so you walk in on the flat and the flights carry the whole 4 ft rise; risers are derived and the two MATCH, since they start from one level court. Each run is a masonry balustrade (skirt, plinth, turned balusters, coping): the outer one is guarded the whole way, the inner one stops a tread short of the bottom, which is where you step off the channel onto the flight.",
+        "arcSweepDeg": 150.0,
+        "arcRadiusFt": 5.0,
+        "passageFt": 10.0,
+        "widthFt": 4.0,
+        "deckDepthFt": 3.0,
         "maxRiserIn": 6.0,
         "segmentsPerTread": 6,
         "cheekThickFt": 0.5,
-        "cheekHeightFt": 1.9
-      },
+        "guardHeightFt": 3.0,
+        "plinthFt": 0.7,
+        "copingFt": 0.4
+    },
       "centreWalk": false
     }
   },

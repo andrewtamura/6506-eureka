@@ -515,6 +515,31 @@ sp = _cfg.get('sidePorch') or {}
 SP = extents(ext, lambda nm, p: nm.startswith('Side porch'))
 
 
+_BOXES = {}
+
+
+def _box(model, p):
+    """This product's box, MEMOISED. Tessellating a product is the expensive thing this
+    script does, and the front approach alone is asked for its parts a dozen times over —
+    once the arms became balustrades that was 160 balusters re-shaped on every call, and the
+    run went from under a minute to several. Keyed on the model and the product's express id,
+    which is stable within a file and distinct between the four."""
+    key = (id(model), p.id())
+    if key not in _BOXES:
+        try:
+            # HOLD THE SHAPE. `create_shape(...).geometry.verts` is a view into a buffer the
+            # shape owns; inlined, the temporary is collected before numpy finishes copying
+            # and the array comes back as whatever was in that memory — which reads as
+            # plausible small floats often enough to be believed, and as 1e73 when it is not.
+            sh = ifcopenshell.geom.create_shape(S, p)
+            v = np.array(sh.geometry.verts).reshape(-1, 3)
+            px, pz, y = -v[:, 0] / FT, v[:, 1] / FT, v[:, 2] / FT
+            _BOXES[key] = (px.min(), px.max(), pz.min(), pz.max(), y.min(), y.max())
+        except Exception:
+            _BOXES[key] = None
+    return _BOXES[key]
+
+
 def _parts(model, prefix):
     """Per-PRODUCT boxes. `extents` unions by name, which is what is wanted almost
     everywhere and is exactly wrong for the deck: its pieces share a name, so the union
@@ -524,13 +549,9 @@ def _parts(model, prefix):
         nm = getattr(p, 'Name', None) or ''
         if not nm.startswith(prefix):
             continue
-        try:
-            sh = ifcopenshell.geom.create_shape(S, p)
-        except Exception:
-            continue
-        v = np.array(sh.geometry.verts).reshape(-1, 3)
-        px, pz, y = -v[:, 0] / FT, v[:, 1] / FT, v[:, 2] / FT
-        out.append((nm, (px.min(), px.max(), pz.min(), pz.max(), y.min(), y.max())))
+        b = _box(model, p)
+        if b is not None:
+            out.append((nm, b))
     return out
 
 
@@ -1692,9 +1713,15 @@ if _E and _W:
     _sw = extents(ext, lambda nm, p: nm == 'Sidewalk - north').get('Sidewalk - north')
     check(_sw is not None, 'the north sidewalk is measurable')
     if _sw:
-        for tag, u in (('east', uE), ('west', uW)):
-            check(near(u[3], _sw[2], 0.02),
-                  f'the {tag} flight lands on the sidewalk edge ({u[3]:.2f} vs {_sw[2]:.2f})')
+        # The RING's outer face is what meets the sidewalk — the treads stop a balustrade's
+        # thickness short of it, which is right and which the old flights did not do because
+        # they ran out to the walk head on.
+        # THE COURT is what meets the sidewalk — the flights stop short of it, and the
+        # channel between them runs on to the walk. That is the access the horseshoe exists
+        # for, and the closed ring it replaced had none of it.
+        _chN = max((b[3] for nm, b in _parts(ext, 'Front approach court')), default=0)
+        check(near(_chN, _sw[2], 0.02),
+              f'the court runs out to the sidewalk ({_chN:.2f} vs {_sw[2]:.2f})')
     # Risers: even within a flight, none over 6 in, and the WEST flight has more — the
     # right-of-way falls that way, and forcing the two to match would mean a false grade.
     tops = lambda parts: sorted({round(b[5], 3) for b in parts}, reverse=True)
@@ -1704,16 +1731,35 @@ if _E and _W:
         check(near(t[0], _terr, 0.02), f'the {tag} flight springs at the terrace ({t[0]:.2f})')
         check(len(steps) == 0 or (max(steps) - min(steps) < 0.01 and max(steps) <= 0.5 + 1e-6),
               f'{tag}: {len(t)} treads, risers {max(steps) * 12 if steps else 0:.1f} in, even and under 6')
-    check(len(tops(_W)) > len(tops(_E)),
-          f'the west flight takes more risers than the east ({len(tops(_W))} vs {len(tops(_E))}) — the lot falls west')
+    # THE WEST FLIGHT TAKES MORE. Its foot is 0.4 ft lower: the right-of-way falls toward the
+    # NW corner and the court's paving follows the street across the channel rather than
+    # sitting level, because held level its east edge sank under the park strip.
+    check(len(tops(_W)) >= len(tops(_E)),
+          f'the west flight takes at least as many risers as the east '
+          f'({len(tops(_W))} vs {len(tops(_E))}) — the lot falls west')
+    # IT FITS INSIDE THE HOUSE. The approach spanned 46.5 ft against the primary block's 43 ft
+    # wall faces — wider than the roof over them, so it read as bigger than the building it
+    # leads to, and nothing measured that. `arcRadiusFt` is the main lever: a quarter arc runs
+    # its radius in px as well as in pz, so the radius is BOTH how far the arms reach sideways
+    # and how far north the forecourt must come to meet them. Measured over every approach
+    # part, caps included, since the cap oversails the wall it rides.
+    _mp = extents(ext, lambda nm, p: nm == 'Massing - primary').get('Massing - primary')
+    check(_mp is not None, 'the primary massing is measurable')
+    if _mp:
+        _ax, _bx = min(b[0] for nm, b in _fa), max(b[1] for nm, b in _fa)
+        check(_ax > _mp[0] + 0.05 and _bx < _mp[1] - 0.05,
+              f'the approach sits inside the primary structure ({_bx - _ax:.2f} ft against '
+              f'{_mp[1] - _mp[0]:.2f}, inset {_ax - _mp[0]:.2f} east / {_mp[1] - _bx:.2f} west)')
     # The retaining wall opens for each flight AND for the centre walk: three gaps, and the
     # flights' openings have to contain the flights, or a run drives through the wall.
     _rwn = [b for nm, b in _parts(ext, 'Retaining wall - north')]
     check(len(_rwn) == 2, f'the north retaining wall runs in 2 pieces — one opening for the whole approach ({len(_rwn)})')
     _spans = sorted((b[0], b[1]) for b in _rwn)
     _holes = [(_spans[i][1], _spans[i + 1][0]) for i in range(len(_spans) - 1)]
-    check(len(_holes) == 1 and _holes[0][1] - _holes[0][0] > 20.0,
-          f'one opening across the whole approach ({[f"{a:.1f}..{b:.1f}" for a, b in _holes]})')
+    _rx = (min(b[0] for nm, b in _fa), max(b[1] for nm, b in _fa))
+    check(len(_holes) == 1 and _holes[0][0] <= _rx[0] + 0.1 and _holes[0][1] >= _rx[1] - 0.1,
+          f'one opening, and it clears the ring ({[f"{a:.1f}..{b:.1f}" for a, b in _holes]} '
+          f'vs {_rx[0]:.1f}..{_rx[1]:.1f})')
     # Neither arm may run into its neighbours: the driveway off the east front yard, or the
     # west property line. (There is no centre walk left to clear — the arms meet in the
     # middle now — but the lot's own edges are still there to hit.)
@@ -1728,23 +1774,35 @@ if _E and _W:
     # behind and you get steps onto grass, or a gap onto nothing.
     _cw = extents(ext, lambda nm, p: nm.startswith('Entry step') or nm.startswith('Entry walk'))
     check(not _cw, f'no centre walk and no entry steps ({sorted(_cw)})')
-    # CHEEK WALLS, one per edge of each arm, with a cap riding each.
-    for tag in ('east', 'west'):
-        for run_ in ('inner', 'outer'):
-            ch = _parts(ext, f'Front approach {tag} {run_} cheek')
-            walls = [b for nm, b in ch if not nm.endswith('cap')]
-            caps = [b for nm, b in ch if nm.endswith('cap')]
-            check(len(walls) > 4 and len(caps) > 4,
-                  f'{tag} arm, {run_} run: cheek walls and caps ({len(walls)}/{len(caps)})')
-            if walls and caps:
-                check(min(b[4] for b in caps) > min(b[4] for b in walls),
-                      f'{tag} {run_}: the cap rides the wall rather than sitting in it')
+    # EVERY RUN IS A BALUSTRADE IN COURSES: a skirt up to the surface it guards, a plinth,
+    # turned balusters, a coping. Their stacking is asserted as DIFFERENCES between the run's
+    # own extremes rather than by comparing one member's top to another's bottom — the runs
+    # rake, so the coping's lowest point is below the plinth's highest at the other end of the
+    # same run, and a naive comparison fails on geometry that is perfectly correct.
+    _dw = model['lot']['frontage']['doubleWalk']
+    _GH, _PH, _CH = (_dw.get('guardHeightFt', 3.0), _dw.get('plinthFt', 0.7), _dw.get('copingFt', 0.4))
+    for _rn in ('east inner', 'east outer', 'west inner', 'west outer'):
+        pre = f'Front approach {_rn}'
+        crs = {k: [b for nm, b in _parts(ext, f'{pre} {k}')] for k in ('skirt', 'plinth', 'coping')}
+        nbal = len(_parts(ext, f'{pre} baluster'))
+        check(all(crs[k] for k in crs) and nbal > 8,
+              f'{_rn}: skirt/plinth/coping/balusters '
+              f'({len(crs["skirt"])}/{len(crs["plinth"])}/{len(crs["coping"])}/{nbal})')
+        if all(crs[k] for k in crs):
+            sk_hi = max(b[5] for b in crs['skirt'])
+            check(near(max(b[5] for b in crs['plinth']) - sk_hi, _PH, 0.02) and
+                  near(min(b[4] for b in crs['coping']) - min(b[4] for b in crs['plinth']),
+                       _PH + _GH - _PH - _CH, 0.02),
+                  f'{_rn}: the plinth sits on the skirt and the coping clears the balusters')
+            check(near(max(b[5] for b in crs['coping']) - sk_hi, _GH, 0.02),
+                  f'{_rn}: {max(b[5] for b in crs["coping"]) - sk_hi:.2f} ft to the top of the '
+                  f'coping (authored {_GH})')
     # NOTHING INTERPENETRATES. The arms' cheeks pass through the retaining wall and run up
     # beside the porch's own, so both are places two solids can end up inside each other —
     # invisible in a render, and the interference this round exists to resolve. Tested on
     # real FOOTPRINTS, because a curved segment's bounding box reported four clashes with
     # the porch that did not exist, and would equally have hidden one that did.
-    _armch = _hulls(ext, 'Front approach', skip=lambda n: 'cheek' not in n or n.endswith('cap'))
+    _armch = _hulls(ext, 'Front approach', skip=lambda n: not n.endswith('skirt'))
     _rwh = _hulls(ext, 'Retaining wall - north')
     check(_armch and _rwh, f'the walls are measurable ({len(_armch)}/{len(_rwh)})')
     check(not _laps(_armch, _rwh), f'no arm cheek cuts the retaining wall ({len(_laps(_armch, _rwh))})')
@@ -1752,68 +1810,115 @@ if _E and _W:
     # so a survivor here would be a second wall standing beside them.
     check(not extents(ext, lambda nm, p: nm.startswith('Porch cheek')),
           "the old porch's cheek walls are gone")
-    # THE COURTYARD'S FRAME is one wall: the east inner cheek, a straight run across the
-    # middle, the west inner cheek. It is emitted as its own product rather than left to the
-    # retaining wall, which sat 0.43 ft north of the cheeks' face and read as a jog.
-    _cs = extents(ext, lambda nm, p: nm == 'Front approach courtyard wall').get('Front approach courtyard wall')
-    check(_cs is not None, "the courtyard's south wall exists")
-    check(not extents(ext, lambda nm, p: nm.startswith('Retaining wall - north courtyard')),
-          'and the retaining wall keeps no piece between the arms')
-    if _cs:
-        _cheek_top = max((b[5] for nm, b in _fa if 'cheek' in nm and not nm.endswith('cap')), default=0)
-        check(near(_cs[5], _cheek_top, 0.02),
-              f"its top runs flat at the cheeks' height ({_cs[5]:.2f} vs {_cheek_top:.2f})")
-        check(_cs[5] > _terr + 1.0, f'...standing proud of the terrace as its parapet ({_cs[5] - _terr:.2f} ft)')
-        check(near(_cs[0], uE[1], 0.05) and near(_cs[1], uW[0], 0.05),
-              f'and spanning arm to arm ({_cs[0]:.2f}..{_cs[1]:.2f})')
-        # NO JOG where it meets each arm. The arc carries a radius that just reaches this pz,
-        # and it does so at px = cx — so the cheek's courtyard face is TANGENT to the straight
-        # run there and the two northmost extents have to agree exactly. A jog of five inches
-        # is what shipped before and what nobody could see in a plan.
-        for tag, edge in (('east', _cs[0]), ('west', _cs[1])):
-            # The cheek's own northmost point is at the SIDEWALK, 10 ft further on, so the
-            # test has to pick the piece that actually meets the wall: the one whose plan
-            # span ends on px = cx. Measured against max pz it read 36.146 and passed
-            # nothing useful.
-            g = [b for nm, b in _parts(ext, f'Front approach {tag} inner cheek')
-                 if not nm.endswith('cap') and (near(b[0], edge, 0.02) or near(b[1], edge, 0.02))]
-            check(g and near(max(b[3] for b in g), _cs[3], 0.02),
-                  f'the {tag} cheek meets it without a jog ({max((b[3] for b in g), default=0):.3f} vs {_cs[3]:.3f})')
-        # THE COURTYARD IS OPEN TO THE SIDEWALK: between the arms, nothing stands north of
-        # that wall, so you walk in off the street.
-        _mouth = [nm for nm, b in _fa
-                  if ('cheek' in nm or 'courtyard wall' in nm)
-                  and b[0] > _cs[0] + 0.05 and b[1] < _cs[1] - 0.05 and b[2] > _cs[3] + 0.05]
-        check(not _mouth, f'no wall closes the courtyard off from the sidewalk ({len(_mouth)})')
-    # ...AND YOU CAN WALK IN OFF THE STREET. With no wall on the property line the lot's
-    # 4 in grass plane was left hanging over a 1.2-1.8 ft drop to the park strip — sky
-    # visible underneath from the strip, and a step no one could take. The bank replaces
-    # it: lot grade at the wall, falling to the park strip's own grade at the sidewalk.
-    _bank = [b for nm, b in _parts(ext, 'Front approach courtyard bank')]
-    check(_bank, f'the courtyard is banked to the street ({len(_bank)} pieces)')
-    if _bank and _cs and _sw:
-        _b = (min(b[2] for b in _bank), max(b[3] for b in _bank),
-              min(b[4] for b in _bank), max(b[5] for b in _bank))
-        check(near(_b[0], _cs[3], 0.02), f"it starts at the wall's face ({_b[0]:.3f} vs {_cs[3]:.3f})")
-        check(near(_b[1], _sw[2], 0.02), f'and runs out to the sidewalk ({_b[1]:.3f} vs {_sw[2]:.3f})')
-        check(_b[3] > -0.05, f'level with the lot where it meets the wall ({_b[3]:.2f})')
-        _ps = extents(ext, lambda nm, p: nm == 'Park strip - north').get('Park strip - north')
-        check(_ps and _b[2] > _ps[4] - 0.05,
-              f'and no lower than the park strip it lands on ({_b[2]:.2f} vs {_ps[4] if _ps else 0:.2f})')
-        # WALKABLE, not a cliff: the whole fall is taken over the 9 ft park strip.
-        _slope = (_b[3] - _b[2] - 0.33) / (_sw[2] - _cs[3])
-        check(_slope < 0.25, f'a bank you can walk up, not a step (1:{1 / max(_slope, 1e-6):.1f})')
+    # THE COURT at the centre of the ring, and at STREET GRADE — level with the park strip at
+    # the door, so you walk in off the sidewalk on the flat and the flights carry the whole
+    # rise. That is the choice that makes the treads 2.4 ft rather than 3.8: a 180 degree
+    # sweep is about 19 ft of run however little you are climbing, so the rise has to earn it.
+    _ct = [b for nm, b in _parts(ext, 'Front approach court')]
+    check(_ct, f'the ring encloses a paved court ({len(_ct)} pieces)')
+    _ps = extents(ext, lambda nm, p: nm == 'Park strip - north').get('Park strip - north')
+    if _ct and _ps:
+        _cy = (min(b[4] for b in _ct), max(b[5] for b in _ct))
+        _cpxall = (min(b[0] for b in _ct), max(b[1] for b in _ct))
+        # The right-of-way FALLS east to west, so it is its grade AT THE DOOR that the court
+        # has to match. Against the band's overall minimum this would be comparing with the
+        # NW corner, 1.5 ft lower, and would pass on a court at the wrong level.
+        _nw = model['lot']['frontage'].get('nwDropIn', 36) / 12.0
+        _grade = lambda px: -_nw * max(0.0, min(1.0, (px - _ps[0]) / (_ps[1] - _ps[0])))
+        # It FOLLOWS the street rather than sitting level: its high and low edges have to be
+        # the street's own grade at the court's own east and west extremes. Compared against
+        # one figure at the door this passed on a level slab, which is what buried its east
+        # edge under the park strip.
+        check(abs(_cy[1] - _grade(_cpxall[0])) < 0.1 and abs(_cy[1] - _cy[0] - 0.33 -
+              abs(_grade(_cpxall[1]) - _grade(_cpxall[0]))) < 0.1,
+              f'it follows the street across its width ({_cy[0]:.2f}..{_cy[1]:.2f} vs '
+              f'{_grade(_cpxall[1]):.2f}..{_grade(_cpxall[0]):.2f})')
+        _cpx, _cpz = (min(b[0] for b in _ct), max(b[1] for b in _ct)), \
+                     (min(b[2] for b in _ct), max(b[3] for b in _ct))
+        check(near((_cpx[0] + _cpx[1]) / 2, _door, 0.05),
+              f'centred on the front door ({(_cpx[0] + _cpx[1]) / 2:.2f} vs {_door})')
+        # A LOZENGE, not a circle: `passageFt` at the ends where you walk in, swelling by the
+        # two lobes the flights enclose. The channel's width is the access requirement and is
+        # measured where it is narrowest — at the sidewalk, clear of the lobes.
+        _dw2 = model['lot']['frontage']['doubleWalk']
+        _P = _dw2.get('passageFt', 10.0)
+        _Ri2 = _dw2.get('arcRadiusFt', 5.0) - _dw2.get('widthFt', 4.0) / 2
+        _Ro2 = _dw2.get('arcRadiusFt', 5.0) + _dw2.get('widthFt', 4.0) / 2
+        _sw2 = math.radians(_dw2.get('arcSweepDeg', 150.0))
+        # The court reaches the walk's INNER edge while the flight is above it and its OUTER
+        # edge past the foot, where the flight has stopped and the wedge is court instead. Past
+        # 90 degrees of sweep that flare is the wider of the two, so the lobe alone does not
+        # set the width — assuming it did is what this read when the arms came up 30 degrees.
+        _reach = max(_Ri2 * math.sin(min(_sw2, math.pi / 2)), _Ro2 * math.sin(_sw2))
+        _mouth = [b for b in _ct if b[3] > _sw[2] - 0.1]
+        check(_mouth and near(max(b[1] for b in _mouth) - min(b[0] for b in _mouth), _P, 0.05),
+              f'the channel is {max(b[1] for b in _mouth) - min(b[0] for b in _mouth) if _mouth else 0:.2f} ft '
+              f'wide where it meets the sidewalk (asked {_P})')
+        check(near(_cpx[1] - _cpx[0], _P + 2 * _reach, 0.05),
+              f'and swells to {_cpx[1] - _cpx[0]:.2f} ft at the lobes '
+              f'(expected {_P + 2 * _reach:.2f})')
+    # THE DECK RUNS OUT TO THE RING. Its north edge follows the ring's own outer circle, which
+    # reaches 1.3 ft further south at the door's axis than at the terrace's corners — cut
+    # straight it would leave a wedge of nothing between the deck and the top tread. Tested as
+    # footprints touching, since both are fans whose boxes overlap either way.
+    _deckh = _hulls(ext, 'Porch floor')
+    _ringh = _hulls(ext, 'Front approach', skip=lambda n: not n.endswith('skirt'))
+    check(_deckh and _ringh and _laps(_deckh, _ringh, tol=-0.05),
+          f'the deck runs out to the ring, no gap ({len(_deckh)} deck pieces)')
+    # The quarter-arc scheme's pieces are gone with it: there is no wall across a courtyard
+    # and no grass bank, because the ring itself now retains the lot at the property line.
+    for _dead in ('Front approach courtyard wall', 'Front approach courtyard bank',
+                  'Retaining wall - north courtyard'):
+        check(not extents(ext, lambda nm, p, _d=_dead: nm.startswith(_d)), f'{_dead} is gone')
+    # THE 4 IN SPHERE RULE, on every balustrade run. The house holds its side porch guard to
+    # it and ifc_check already measures that one; a guard over the arms' 4 ft drop is no
+    # different. It is also WHY the spacing is derived rather than authored: the widest
+    # opening falls at the balusters' NECKS, not at their bellies, so it is taken from the
+    # narrowest section of the real turned profile — measured off a built baluster, not from
+    # a nominal width that could drift away from the geometry.
+    _neck, _nm_b = None, None
+    for _p in ext.by_type('IfcProduct'):
+        if (getattr(_p, 'Name', None) or '').endswith('baluster'):
+            _sh = ifcopenshell.geom.create_shape(S, _p)          # held: see _box
+            _v = np.array(_sh.geometry.verts).reshape(-1, 3)
+            _bx, _bz, _by = -_v[:, 0] / FT, _v[:, 1] / FT, _v[:, 2] / FT
+            _cxb, _czb = (_bx.min() + _bx.max()) / 2, (_bz.min() + _bz.max()) / 2
+            _r, _ry = np.hypot(_bx - _cxb, _bz - _czb), np.round(_by, 4)
+            _neck = 2 * min(_r[_ry == _t].max() for _t in np.unique(_ry))
+            break
+    check(_neck is not None and 0.2 < _neck < 0.35,
+          f'the balusters are turned — neck {(_neck or 0) * 12:.1f} in across, '
+          f'belly {(max(_bx) - min(_bx)) * 12 if _neck else 0:.1f}')
+    for _rn in ('east inner', 'east outer', 'west inner', 'west outer'):
+        _b = [((b[0] + b[1]) / 2, (b[2] + b[3]) / 2)
+              for nm, b in _parts(ext, f'Front approach {_rn} baluster')]
+        if len(_b) < 2 or not _neck:
+            check(False, f'{_rn}: balusters are measurable ({len(_b)})')
+            continue
+        # NEAREST NEIGHBOUR rather than a sort along the run: the outer run is a straight
+        # terrace edge and an arc meeting at a right angle, so there is no one parameter to
+        # order it by. Taking the minimum also skips the stretch across a pier, which is
+        # solid and therefore not an opening at all.
+        _gap = max(min(math.hypot(q[0] - a[0], q[1] - a[1]) for q in _b if q is not a)
+                   for a in _b) - _neck
+        check(_gap < 1 / 3 - 1e-9,
+              f'{_rn}: {len(_b)} balusters, widest opening {_gap * 12:.2f} in (under 4)')
     # EACH RUN IS ONE CONTINUOUS WALL — the point of this round. Measured as footprints
     # TOUCHING, because a run's extents are identical whether its pieces meet or not, and a
     # gap of a foot in a 60 ft sweep is invisible in a plan at any zoom anyone looks at.
-    _noCap = lambda n: n.endswith('cap')
-    _red = ([h for nm, h in _hulls(ext, 'Front approach east inner cheek', skip=_noCap)]
-            + [h for nm, h in _hulls(ext, 'Front approach courtyard wall', skip=_noCap)]
-            + [h for nm, h in _hulls(ext, 'Front approach west inner cheek', skip=_noCap)])
+    # The SKIRT is the member that has to be continuous: it is what retains, and the plinth
+    # and coping ride it. The balusters are discrete by design, so testing the whole run would
+    # only ever report them adrift.
+    # The courtyard's frame is the two inner runs plus the LANDING's rail between them: the
+    # flights' top ends sit on the same line it does, so the three close the top of the
+    # horseshoe as one. Without the landing in this set the two arcs are simply two arcs.
+    _red = ([h for nm, h in _hulls(ext, 'Front approach east inner skirt')]
+            + [h for nm, h in _hulls(ext, 'Front approach landing skirt')]
+            + [h for nm, h in _hulls(ext, 'Front approach west inner skirt')])
     _ok, _adrift = _connected(_red)
     check(_ok, f'the courtyard frame is ONE continuous wall ({len(_red)} parts, {_adrift} adrift)')
     for tag in ('east', 'west'):
-        _blue = [h for nm, h in _hulls(ext, f'Front approach {tag} outer cheek', skip=_noCap)]
+        _blue = [h for nm, h in _hulls(ext, f'Front approach {tag} outer skirt')]
         _ok, _adrift = _connected(_blue)
         check(_ok, f'the {tag} flanking wall is ONE continuous wall ({len(_blue)} parts, {_adrift} adrift)')
     # THE FORECOURT IS ONE FLAT DECK level with the front door, reaching from the house out
@@ -1826,30 +1931,27 @@ if _E and _W:
     # pieces whose union box swallows the walls beside it, and the walls abut its edge
     # exactly, so the test asks for 0.6 in of REAL overlap before calling it an intrusion.
     _deck = _hulls(ext, 'Porch floor')
-    _standing = _laps(_armch + _hulls(ext, 'Front approach courtyard wall', skip=_noCap), _deck, tol=0.05)
+    _standing = _laps(_armch + _hulls(ext, 'Front approach courtyard skirt'), _deck, tol=0.05)
     check(_deck and not _standing, f'nothing stands on the forecourt deck ({len(_standing)})')
     _pf = extents(ext, lambda nm, p: nm == 'Porch floor').get('Porch floor')
     check(_pf is not None and near(_pf[5], _terr, 0.02),
           f'the forecourt deck is level with the door ({_pf[5] if _pf else 0:.2f} vs {_terr:.2f})')
-    if _pf and _cs:
-        check(near(_pf[3], _cs[2], 0.02),
-              f"and runs out to the courtyard's south wall ({_pf[3]:.2f} vs {_cs[2]:.2f})")
     # THE RUN REACHES THE HOUSE, so the wall is continuous sidewalk to front wall. It used to
     # be measured against the porch's cheek; that wall is gone, so this is re-aimed at the
     # house itself rather than dropped.
     for tag in ('east', 'west'):
-        g = [b for nm, b in _parts(ext, f'Front approach {tag} outer cheek') if not nm.endswith('cap')]
-        check(g and _fw is not None and near(min(b[2] for b in g), _fw, 0.05),
-              f'the {tag} run dies into the house wall ({min(b[2] for b in g) if g else 0:.2f} vs {_fw})')
+        g = [b for nm, b in _parts(ext, f'Front approach {tag} outer skirt')]
+        check(g and _pf is not None and min(b[2] for b in g) > _pf[2] + 0.05,
+              f'the {tag} run stops clear of the house, on the deck ({min(b[2] for b in g) if g else 0:.2f})')
     # AND IT RAMPS rather than stepping. A cheek that stepped with its treads has one top per
     # tread; a ramped one has one per segment, so counting distinct tops tells them apart —
     # which is the correction this round is for, and invisible in a plan.
     for tag in ('east', 'west'):
-        g = [b for nm, b in _parts(ext, f'Front approach {tag} inner cheek') if not nm.endswith('cap')]
+        g = [b for nm, b in _parts(ext, f'Front approach {tag} inner coping')]
         treads = len({round(b[5], 3) for nm, b in _parts(ext, f'Front approach {tag} tread')})
         tops = len({round(b[5], 3) for b in g})
         check(tops > 2 * treads,
-              f'the {tag} cheek ramps rather than stepping ({tops} distinct tops over {treads} treads)')
+              f'the {tag} coping ramps rather than stepping ({tops} distinct tops over {treads} treads)')
 
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)
