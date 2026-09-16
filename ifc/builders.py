@@ -1186,19 +1186,44 @@ def deck_extent(rooms_cache, lot, half_wall_ft):
             min(B["family"]["z1"], B["family"]["z2"]))
 
 
-def add_lot(ctx, lot, rooms):
+def add_lot(ctx, lot, rooms, cut=None):
     """A flat lot plane `widthFt` wide, positioned so the building sits
     `westMarginFt` inside the west line (west = +plan x) and the scullery
     `scullerySouthFt` off the south line (south = min plan z). Depth follows
-    from the front yard — see lot_lines."""
+    from the front yard — see lot_lines.
+
+    `cut` is `(cx, cz, r)` — the front approach's ring, which is EXCAVATED: its court sits at
+    street grade, 1.5 ft below the lawn, so a lawn plane carried straight across would float
+    over the court and you would see grass in the middle of it. Cut as px COLUMNS, each
+    stopping at the circle, which keeps the plane one flat slab everywhere else."""
     west, east, south, north, depth = lot_lines(
         lot, [r["bounds"] for r in rooms], ctx.T / FT / 2)
     cx, cz = (west + east) / 2, (south + north) / 2
-    lotmesh = make_box(ctx, "IfcSlab", "Lot",
-                       lot["widthFt"] * FT, depth * FT, 0.1,
-                       ctx.X(cx), ctx.Y(cz), -0.11, predefined="BASESLAB", color=(0.46, 0.55, 0.34))
-    run("spatial.assign_container", ctx.model, products=[lotmesh], relating_structure=ctx.storey)
-    return lotmesh
+    GRASS, TH, TOP = (0.46, 0.55, 0.34), 0.1, -0.01
+    if not cut:
+        lotmesh = make_box(ctx, "IfcSlab", "Lot",
+                           lot["widthFt"] * FT, depth * FT, TH,
+                           ctx.X(cx), ctx.Y(cz), -0.11, predefined="BASESLAB", color=GRASS)
+        run("spatial.assign_container", ctx.model, products=[lotmesh], relating_structure=ctx.storey)
+        return lotmesh
+    # Tuck the lawn a hair UNDER the ring's outer face rather than butting it, so the two do
+    # not z-fight along a 54 ft seam.
+    ax, az, ar = cut[0], cut[1], cut[2] - 0.05
+    M = 96
+    for k in range(M):
+        x0 = east + (west - east) * k / M
+        x1 = east + (west - east) * (k + 1) / M
+        def stop(px):
+            d = ar * ar - (px - ax) ** 2
+            return min(az - math.sqrt(d), north) if d > 0 else north
+        z0, z1 = stop(x0), stop(x1)
+        if z0 - south <= 1e-6 and z1 - south <= 1e-6:
+            continue
+        poly = [(ctx.X(x0), ctx.Y(south)), (ctx.X(x1), ctx.Y(south)),
+                (ctx.X(x1), ctx.Y(max(z1, south))), (ctx.X(x0), ctx.Y(max(z0, south)))]
+        v, fc = _prism([(x, z, TOP - TH) for x, z in poly], (0, 0, TH))
+        add_brep(ctx, "Lot", v, fc, GRASS, ifc_class="IfcSlab", predefined="BASESLAB")
+    return None
 
 
 def _newell_normal(loop):
@@ -1627,19 +1652,7 @@ def add_porch(ctx, rooms_cache, base, width_ft=9.0, deck_arc=None):
     riser, Wbot = base / nst, 13.0                     # bottom flare width (ft, reduced)
     ins, ft_t = 0.04, 0.06
     wt, ph, cap = 0.5 * FT, 2.2 * FT, 0.08             # cheek-wall thickness/parapet/cap
-    zTf = fy + TD                                      # where the terrace starts to flare
-    # THE FORECOURT IS ONE FLAT DECK, level with the front door. It used to be a cascade of
-    # five splayed steps down to lot grade; the two curved arms carry that rise from the
-    # sidewalk now, so steps here would be a second, redundant climb. Its edge comes from
-    # porch_deck_edge — the ONE curve the terrace's edge wall is also built on — which flares
-    # out to the arm's centreline and then runs straight on it, so the deck ends exactly
-    # where the wall framing the courtyard springs.
-    _z0, _z1, _half = porch_deck_edge(fd, deck_arc)
-    # With the arms in place the flare begins at the threshold itself, so the straight
-    # terrace below has zero depth and `box` drops it — the slices cover that stretch.
-    zTf = ctx.Y(_z0) if deck_arc else zTf
-    zFt = ctx.Y(_z1) if deck_arc else zTf + (nst - 1) * tread
-    wcurve = lambda t: _half(_z0 + t * (_z1 - _z0)) * FT   # `_half` is keyed on pz
+    zTf = fy + TD                                      # the threshold terrace's far edge
     xL, xR = ix - PWh, ix + PWh
 
     def box(name, x0, x1, y0, y1, z0, h, cls="IfcSlab", color=FLOOR_C):
@@ -1649,28 +1662,32 @@ def add_porch(ctx, rooms_cache, base, width_ft=9.0, deck_arc=None):
                      (x0 + x1) / 2, (y0 + y1) / 2, z0, color=color)
         run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
 
-    # terrace landing (stucco skirt + painted floor) at the threshold
-    box("Porch skirt", xL + ins, xR - ins, fy, zTf, 0.0, base - ft_t, color=BASE_C)
-    box("Porch floor", xL, xR, fy, zTf, base - ft_t, ft_t, color=FLOOR_C)
-    # ...and the FLARED DECK beyond it, the same level surface widening along the same
-    # curve the steps used to follow, so the forecourt reads as the porch grown out to meet
-    # the arms rather than as a separate platform. Emitted as slices because the flare is a
-    # curve, not a splay.
-    M_DECK = 12
+    if not deck_arc:
+        box("Porch skirt", xL + ins, xR - ins, fy, zTf, 0.0, base - ft_t, color=BASE_C)
+        box("Porch floor", xL, xR, fy, zTf, base - ft_t, ft_t, color=FLOOR_C)
+        return
+    # THE THRESHOLD TERRACE, level with the front door, running from the front wall out to
+    # THE RING. Its north edge is the approach's own outer circle, so the deck and the top
+    # tread are one surface and there is no wedge of nothing between them — which a straight
+    # edge would leave, since the circle reaches 1.3 ft further south at the door's axis than
+    # it does at the terrace's corners. Emitted as px COLUMNS for that reason.
+    acx, acz, aouter = deck_arc
+    pL, pR = fd["pos"] - width_ft / 2, fd["pos"] + width_ft / 2   # in PLAN feet
+    arc_pz = lambda px: acz - math.sqrt(max(aouter * aouter - (px - acx) ** 2, 0.0))
+    M_DECK = 16
     for j in range(M_DECK):
-        t0, t1 = j / M_DECK, (j + 1) / M_DECK
-        h0, h1 = wcurve(t0), wcurve(t1)
-        z0, z1 = zTf + t0 * (zFt - zTf), zTf + t1 * (zFt - zTf)
-        poly = [(ix - h0, z0), (ix + h0, z0), (ix + h1, z1), (ix - h1, z1)]
+        p0 = pL + (pR - pL) * j / M_DECK
+        p1 = pL + (pR - pL) * (j + 1) / M_DECK
+        z0 = max(arc_pz(p0), fd["fixed"] + TD / FT)
+        z1 = max(arc_pz(p1), fd["fixed"] + TD / FT)
+        poly = [(ctx.X(p0), fy), (ctx.X(p1), fy), (ctx.X(p1), ctx.Y(z1)), (ctx.X(p0), ctx.Y(z0))]
         v, fc = _prism([(x, z, 0.0) for x, z in poly], (0, 0, base - ft_t))
         add_brep(ctx, "Porch skirt", v, fc, BASE_C, ifc_class="IfcSlab", predefined="BASESLAB")
         v, fc = _prism([(x, z, base - ft_t) for x, z in poly], (0, 0, ft_t))
         add_brep(ctx, "Porch floor", v, fc, FLOOR_C, ifc_class="IfcSlab", predefined="BASESLAB")
 
-    # NO CHEEK WALLS HERE. The stoop's own splayed pair is gone: the forecourt is now one
-    # flat terrace and the arms' outer cheeks carry on along its edge into the house, so a
-    # second set of walls beside them was the last piece of the old stoop still standing.
-    # add_front_approach builds that edge, off the same `wcurve` this deck flares on.
+    # NO CHEEK WALLS HERE. The ring's own outer balustrade comes round to meet the deck, and
+    # the opening it leaves at the top is exactly the tread the deck is flush with.
 
 
 
@@ -2698,76 +2715,31 @@ def add_yard_fence(ctx, lot, rooms_cache, base):
             i += 1
 
 
-# FALLBACK anchor for the arms' arc, as an offset NORTH of the house's front wall: the old
-# porch cascade's foot (terrace depth 3.0 plus four 0.95 ft treads). The radius is AUTHORED
-# now — `doubleWalk.arcRadiusFt`, because it is what sizes the whole approach — and this is
-# only what `_approach_arc` falls back to when the spec does not carry one.
-PORCH_FOOT_FT = 3.0 + 4 * 0.95
-
-
-def porch_deck_edge(fd, arc=None):
-    """The forecourt deck's edge, in PLAN FEET, as `half(pz)` plus the range it covers.
-
-    THE DECK AND THE ARMS MEET ON A STRAIGHT LINE, and this is where that is decided. For any
-    pz between `n1 - Ro` and `n1 - Ri` the arm's arc carries a radius that just reaches that
-    pz, and that point sits at px = cx — so the arm TOUCHES the line px = cx over that whole
-    stretch. The deck therefore flares out to the arm's own centreline offset by `n1 - Ro`,
-    then runs STRAIGHT on it to `n1 - Ri`, where the wall framing the courtyard takes over.
-
-    Built that way every junction is exact: the deck's flare ends where the outer cheek
-    springs, and its straight run ends where the inner cheek springs. Flared all the way to
-    the property line instead — which is what it did — the deck arrived 1.5 ft short of the
-    outer cheek and 0.77 ft shy of the inner one, leaving a gap in one wall and a jog in the
-    other. `arc` is (cx_half, z_flare_end, z_straight_end); without it the old extent stands.
-    """
-    z0 = fd["fixed"] + PORCH_TD
-    if not arc:
-        return z0, z0 + 4 * 0.95, (lambda pz: PORCH_HALF)
-    wide, z_flare, z_end = arc
-    # THE FLARE STARTS AT THE FRONT WALL, not 3 ft out from it. Kept behind the old straight
-    # threshold terrace it had 0.8 ft in which to widen 2 ft a side before the arm's
-    # springing — which is a step, not a flare, and the wall riding its edge jogged with it.
-    # Spread over the whole 3.8 ft the deck and that wall read as one trumpet opening out to
-    # the arms.
-    z0 = fd["fixed"]
-
-    def half(pz):
-        if pz <= z0:
-            return PORCH_HALF
-        if pz >= z_flare:
-            return wide
-        t = (pz - z0) / (z_flare - z0)
-        return PORCH_HALF + (wide - PORCH_HALF) * (t ** 1.8)
-    return z0, z_end, half
-
-
 def approach_arc_lines(f, rooms_cache, lot, half_wall):
-    """`(wide, z_flare, z_end)` for porch_deck_edge — the arm's half-offset and the two pz
-    stations its arc touches px = cx between. One place, so the deck, the framing wall and
-    the arms cannot disagree about where they meet."""
+    """`(cx, cz, outer)` — the front approach's ring, for the deck to stop on. One place, so
+    the deck and the ring cannot disagree about where they meet."""
     fl = _approach_arc(f, rooms_cache, lot, half_wall)
-    if not fl:
-        return None
-    a = fl[0]
-    return abs(a["cx"] - _front_door(rooms_cache)["pos"]), a["cz"] - a["Ro"], a["cz"] - a["Ri"]
+    return (fl[0]["cx"], fl[0]["cz"], fl[0]["outer"]) if fl else None
 
 
 PORCH_TD = 3.0                                      # terrace depth off the front wall
-PORCH_HALF = 9.0 / 2                                # half-width at the threshold
 
 
 def _approach_arc(f, rooms_cache, lot, half_wall):
-    """The two curved front flights, as pure geometry — no IFC.
+    """The front approach as pure geometry — no IFC. A RING, not two separate arms.
 
-    Each flight is a QUARTER ARC in plan: it leaves the porch cascade's outer corner
-    heading along the house (tangent east-west) and turns to meet the sidewalk head on
-    (tangent north-south), so you climb it facing the door at the top and the street at
-    the bottom. Returning the maths on its own lets the retaining wall ask where the
-    flights cross it without rebuilding them.
+    Both flights sweep `arcSweepDeg` about ONE centre on the door's axis, so the space they
+    enclose is a circle: you come off the sidewalk over the bottom treads, which lie flush
+    with the court, and climb either way round to the porch. At 180 degrees that closes the
+    ring, and the geometry stops being a choice — a full sweep about a common centre makes
+    the footprint as DEEP as it is WIDE, and there are only ~20 ft between the front wall and
+    the sidewalk. So the radius is DERIVED from what is left after the threshold terrace, and
+    the whole approach comes out 17 ft across against the house's 43. Authoring a radius
+    instead would just be a number that had to agree with that subtraction.
 
-    Yields one dict per flight: `s` (-1 east / +1 west), the arc centre `cx`/`cz`, the
-    centreline radius `R`, the tread half-width, the landing's plan x and its grade, and
-    the plan-x span the flight occupies ON the property line — the gap the wall leaves.
+    Yields one dict per flight: `s` (-1 east / +1 west), the shared centre `cx`/`cz`, the
+    radii, the sweep, the court's floor level, and the plan-x span the flight occupies ON the
+    property line — the gap the retaining wall leaves, which the ring straddles.
     """
     spec = (f or {}).get("doubleWalk")
     fd = _front_door(rooms_cache)
@@ -2776,7 +2748,7 @@ def _approach_arc(f, rooms_cache, lot, half_wall):
     B = {k: v["bounds"] for k, v in rooms_cache.items()}
     # `half_wall` MUST be the figure add_street_frontage passes (ctx.T / FT / 2). Passing
     # 0.0 here moved the property line 2.75 in and the flights stopped that far short of
-    # the sidewalk they are meant to land on — silently, because everything still built.
+    # the sidewalk they are meant to meet — silently, because everything still built.
     west, east, south, north, _ = lot_lines(lot, B.values(), half_wall)
     STRIP = f.get("parkStripWidthFt", 6)
     WT = f.get("wallThicknessIn", 10) / 12.0
@@ -2784,53 +2756,39 @@ def _approach_arc(f, rooms_cache, lot, half_wall):
     x_flat = east + f.get("northLevelFromEastFt", 25)
     drop_n = lambda px: -nw * max(0.0, min(1.0, (px - x_flat) / (west - x_flat)))
 
-    W = spec.get("widthFt", 6.0)
+    W = spec.get("widthFt", 4.0)
     cheek_t = spec.get("cheekThickFt", 0.5)
-    out = spec.get("springOutFt", 6.5)
+    deck_d = spec.get("deckDepthFt", PORCH_TD)
+    sweep = math.radians(spec.get("arcSweepDeg", 180.0))
     n1 = north + STRIP                                  # the sidewalk's near edge
-    # THE RADIUS IS AUTHORED, because it is what sizes the approach. A quarter arc runs its
-    # radius in pz as well as in px, so `R` is BOTH how far the arms reach east-west and how
-    # far north the forecourt has to come to meet them: the deck's edge lands at `n1 - Ri`
-    # and the wall framing the courtyard at `n1 - (Ri - cheek_t)`. That is the floor on it —
-    # under `STRIP + W/2 + cheek_t` the wall stands on the public right-of-way, and the
-    # courtyard never reaches the property line to be entered from. ifc_check asserts it
-    # rather than clamping here, so a value set too small fails loudly instead of quietly
-    # building a walkup across the park strip.
-    R = spec.get("arcRadiusFt") or (n1 - (fd["fixed"] + PORCH_FOOT_FT))
+    # THE FIT. The ring runs from the threshold terrace out to the sidewalk, so its outer
+    # radius is half of what is left, and everything else follows from it.
+    outer = (n1 - (fd["fixed"] + deck_d)) / 2
+    R = outer - cheek_t - W / 2
     Ri, Ro = R - W / 2, R + W / 2
+    cx, cz = fd["pos"], n1 - outer
+    # THE COURT IS AT STREET GRADE, level with the park strip and the sidewalk at the door,
+    # so you walk in off the street on the flat and the flights carry the whole rise. It is
+    # also what makes the rise 4 ft rather than 2.5: at 2.5 the treads come out 3.8 ft deep,
+    # because a 180 degree sweep is ~19 ft of run however little you are climbing.
+    courtY = drop_n(cx)
     flights = []
     for s in (-1, +1):
-        cx = fd["pos"] + s * out                        # centre sits over the cascade's corner
-        land = cx + s * R                               # where the centreline meets the sidewalk
-        # Where the flight crosses the property line: on the arc, a point at radius r
-        # reaches pz = north when r*cos(phi) = STRIP, so its plan-x offset is
-        # sqrt(r^2 - STRIP^2).
-        #
-        # Taken at the arm's FULL WIDTH — the cheek walls' outer faces, not the tread edges
-        # — and across the wall's whole THICKNESS rather than at one face. Both matter:
-        # cut to the treads the wall stood inside the cheeks, and measured at the north
-        # face alone it still cut them, because the arm's inner edge turns south, dips
-        # INTO the wall band and comes back out, reaching as far as the arc's centreline
-        # before it does. Sampled through the band the opening covers the whole sweep, and
-        # the piece left between the two arms lands exactly on their springings — which is
-        # what makes the retaining wall the thing that connects them.
+        # Where the flight crosses the property line: a point at radius r reaches pz = north
+        # when r*cos(phi) = cz - north, so its plan-x offset is sqrt(r^2 - (cz - north)^2).
+        # Sampled across the wall's whole THICKNESS rather than at one face, and taken at the
+        # ring's full width — cut to the treads the wall stood inside the balustrades.
         rin, rout = Ri - cheek_t, Ro + cheek_t
         xs = []
         for r in (rin, rout):
-            # The arc's own southernmost point, where it turns and its px reaches the
-            # centreline. Added EXACTLY rather than hoped for from the sampling below: it
-            # falls between samples, and missing it left the opening a foot narrow and the
-            # wall still cutting the cheek.
-            if north - WT <= n1 - r <= north:
-                xs.append(cx)
             for k in range(13):
-                pz = (north - WT) + WT * k / 12.0
-                d = n1 - pz
-                if r >= d:
+                d = cz - ((north - WT) + WT * k / 12.0)
+                if r >= abs(d):
                     xs.append(cx + s * math.sqrt(max(r * r - d * d, 0.0)))
         span = (min(xs), max(xs)) if xs else (cx, cx)
-        flights.append({"s": s, "cx": cx, "cz": n1, "R": R, "Ri": Ri, "Ro": Ro,
-                        "land": land, "landY": drop_n(land), "span": span})
+        flights.append({"s": s, "cx": cx, "cz": cz, "R": R, "Ri": Ri, "Ro": Ro,
+                        "outer": outer, "sweep": sweep, "courtY": courtY,
+                        "land": cx, "landY": courtY, "span": span})
     return flights
 
 
@@ -3025,22 +2983,22 @@ def _balustrade(ctx, name, sections, guard_h, plinth_h, coping_h, stone, cap_c,
 
 
 def add_front_approach(ctx, lot, rooms_cache, terrace=0.0):
-    """A DOUBLE front walkup: two curved flights flanking the centre walk, sweeping out
-    from the porch cascade's corners, down through the retaining wall and across the
-    planting strip to land flush on the sidewalk.
+    """A CIRCULAR front approach: two flights sweeping 180 degrees about one centre, wrapping
+    a court at street grade and meeting the porch's threshold terrace at the top.
 
-    The centre walk and its three steps are untouched — these are the two arms either
-    side of it, and the lawn stays as a panel between each arm and the walk.
+    It replaces two quarter arcs that sprang from the porch and ran out to the sidewalk. Those
+    read as BIGGER THAN THE HOUSE — 39 ft against a 43 ft facade, having already been cut back
+    from 46.5 — because a quarter arc spends its whole radius reaching sideways. Curled right
+    round, the same climb is 17 ft across.
 
-    RISERS ARE DERIVED PER FLIGHT, not authored, and the two come out DIFFERENT: the
-    right-of-way falls toward the NW corner, so the west flight lands lower than the east
-    and needs more of them. Forcing them to match would mean either a false grade or one
-    flight not meeting the sidewalk it is supposed to connect to.
+    RISERS ARE DERIVED, and the two flights now MATCH: they start from one level court rather
+    than from a sidewalk that falls to the west, so a difference between them would be a
+    fiction. That is a change from the quarter-arc scheme, where the east flight took 7 and
+    the west 10.
 
-    Every tread is emitted as a fan of small trapezoid prisms rather than one annular
-    sector, because `add_brep` orients faces against the solid's centroid and that is only
-    valid for CONVEX solids — an annulus is not one. Same reason add_street_frontage
-    breaks its corner L into separate prisms.
+    Every tread is a fan of small trapezoid prisms rather than one annular sector, because
+    `add_brep` orients faces against the solid's centroid and that is only valid for CONVEX
+    solids — an annulus is not one.
     """
     f = lot.get("frontage") or {}
     spec = f.get("doubleWalk")
@@ -3050,185 +3008,79 @@ def add_front_approach(ctx, lot, rooms_cache, terrace=0.0):
     CONCRETE = (0.74, 0.73, 0.71)
     STUCCO_C = (0.90, 0.88, 0.84)                       # matches the retaining wall
     CAP_C = (0.95, 0.95, 0.93)                          # matches the porch's white caps
-    CHEEK_T = spec.get("cheekThickFt", 0.5)             # radial thickness of every run
-    # THE THREE COURSES OF THE BALUSTRADE, above the surface each run guards. The total is
-    # the house's own guard height (the side porch's 3.0), which is what the arms' 4 ft drop
-    # asks for; the plinth and coping are subtracted from it so the baluster's own length is
-    # derived and the three always sum to the authored figure.
+    CHEEK_T = spec.get("cheekThickFt", 0.5)
     GUARD_H = spec.get("guardHeightFt", 3.0)
     PLINTH_H = spec.get("plinthFt", 0.7)
     COPING_H = spec.get("copingFt", 0.4)
     max_riser = spec.get("maxRiserIn", 6.0) / 12.0
-    SEG = int(spec.get("segmentsPerTread", 6))          # arc subdivisions per tread
+    SEG = int(spec.get("segmentsPerTread", 6))
+    e0 = flights[0]
+    cx, cz, sweep = e0["cx"], e0["cz"], e0["sweep"]
+    Ri, Ro, courtY = e0["Ri"], e0["Ro"], e0["courtY"]
+    fall = terrace - courtY
+    n = max(1, int(math.ceil(fall / max_riser - 1e-9)))
+    dy = fall / n
+    base = courtY - 0.4                                 # a common underside below the walk
+    # phi = 0 is the TOP, at the porch; phi = sweep is the BOTTOM, in the court. The top and
+    # bottom TREADS are the two openings: at the top the tread is level with the terrace and
+    # the deck runs up to it, at the bottom it is level with the court. Both are stepped over
+    # rather than guarded, which is what lets you walk in off the street at all.
+    open_phi = sweep / n
     for fl in flights:
         side = "east" if fl["s"] < 0 else "west"
-        # The arm climbs to the TERRACE, not to lot grade: the forecourt between the house
-        # and the courtyard wall is one flat deck level with the front door, so the route
-        # from sidewalk to threshold is a single continuous rise. That is what makes the two
-        # arms and the steps to the door one structure rather than three.
-        fall = terrace - fl["landY"]                    # full rise, sidewalk to terrace
-        n = max(1, int(math.ceil(fall / max_riser - 1e-9)))
-        dy = fall / n
-        base = fl["landY"] - 0.4                        # a common underside below the walk
-        dphi = (math.pi / 2) / n
         for k in range(n):
-            top = terrace - k * dy                      # tread k is level at this height
+            top = terrace - k * dy
             for j in range(SEG):
-                a0 = (k + j / SEG) * dphi
-                a1 = (k + (j + 1) / SEG) * dphi
+                a0 = (k + j / SEG) * (sweep / n)
+                a1 = (k + (j + 1) / SEG) * (sweep / n)
                 poly = []
-                for r, a in ((fl["Ri"], a0), (fl["Ro"], a0), (fl["Ro"], a1), (fl["Ri"], a1)):
-                    px = fl["cx"] + fl["s"] * r * math.sin(a)
-                    pz = fl["cz"] - r * math.cos(a)
-                    poly.append((ctx.X(px), ctx.Y(pz), base * FT))
+                for r, a in ((Ri, a0), (Ro, a0), (Ro, a1), (Ri, a1)):
+                    poly.append((ctx.X(cx + fl["s"] * r * math.sin(a)),
+                                 ctx.Y(cz - r * math.cos(a)), base * FT))
                 v, fc = _prism(poly, (0, 0, (top - base) * FT))
                 add_brep(ctx, f"Front approach {side} tread {k}", v, fc, CONCRETE,
                          ifc_class="IfcSlab", predefined="BASESLAB")
-        # CHEEK WALLS, one per edge, exactly as the porch cascade has them: a solid stucco
-        # wall with a white cap riding its sloped top, swept as short straight segments so
-        # the arc reads smooth. The cap RAMPS with the arm's own descent plus a parapet, so
-        # it reads as a rail the whole way instead of a wall growing out of the ground.
-        #
-        # EACH CHEEK IS SWEPT WHOLE, from the springing at the terrace round to the sidewalk.
-        # The porch's own splayed cascade cheeks are gone and the terrace edge wall stops
-        # exactly where the arm springs, so the only place those two meet is the CORNER at
-        # (cx, cz - Ro): the edge wall running north-south into it, the arc turning east-west
-        # out of it. Their footprints necessarily overlap there, the way any two walls do at
-        # a mitre — and the clash test that used to drop the overlapping segment is what left
-        # a 1.3 in notch on the east and a 4 in one on the west, the kind of gap this is all
-        # meant to close.
-        fd_pos = _front_door(rooms_cache)["pos"]
-        deck_arc = approach_arc_lines(f, rooms_cache, lot, ctx.T / FT / 2)
 
-        # THE RUNS ARE BALUSTRADES, not solid walls: a skirt up to the surface they guard,
-        # then plinth, turned balusters and coping. `_balustrade` takes a run as a list of
-        # cross-sections and does the rest, so the arms, the terrace's edge and the
-        # courtyard's south side all come off ONE code path — the duplication between them
-        # is what produced the jog and the mitre notch the last two rounds went to fix.
-        ramp = lambda a: terrace - (a / (math.pi / 2)) * (terrace - fl["landY"])
-        n_seg = n * SEG
+        # THE BALUSTRADES, inner and outer, each stopping short of its own opening. The walk
+        # line ramps smoothly in the angle from the terrace down to the court, so the coping
+        # reads as one raking curve rather than a flight of blocks.
+        ramp = lambda a: terrace - (a / sweep) * fall
 
-        def arc_sections(r_face, out):
-            secs = []
-            for j_ in range(n_seg + 1):
-                a = (math.pi / 2) * j_ / n_seg
+        def sections(r_face, out, a_from, a_to):
+            secs, m = [], max(2, int(round((a_to - a_from) / sweep * n * SEG)))
+            for j_ in range(m + 1):
+                a = a_from + (a_to - a_from) * j_ / m
                 ro = r_face + out * CHEEK_T
-                secs.append(((fl["cx"] + fl["s"] * r_face * math.sin(a), fl["cz"] - r_face * math.cos(a)),
-                             (fl["cx"] + fl["s"] * ro * math.sin(a), fl["cz"] - ro * math.cos(a)),
+                secs.append(((cx + fl["s"] * r_face * math.sin(a), cz - r_face * math.cos(a)),
+                             (cx + fl["s"] * ro * math.sin(a), cz - ro * math.cos(a)),
                              base, ramp(a)))
             return secs
 
-        # THE COURTYARD'S FRAME IS ONE LINE and the inner cheeks are two thirds of it, so they
-        # carry NO pier where they meet the wall between them: the arc springs tangent to the
-        # east-west direction there, and a pier would break the single sweep on purpose.
-        _balustrade(ctx, f"Front approach {side} inner", arc_sections(fl["Ri"], -1),
-                    GUARD_H, PLINTH_H, COPING_H, STUCCO_C, CAP_C, pier_ends=(False, True))
+        # OUTER: from the deck's opening at the top, round to the bottom. INNER: from the top,
+        # round to the court's opening at the bottom. Neither guards the tread you step over.
+        _balustrade(ctx, f"Front approach {side} outer", sections(Ro, +1, open_phi, sweep),
+                    GUARD_H, PLINTH_H, COPING_H, STUCCO_C, CAP_C)
+        _balustrade(ctx, f"Front approach {side} inner", sections(Ri, -1, 0.0, sweep - open_phi),
+                    GUARD_H, PLINTH_H, COPING_H, STUCCO_C, CAP_C)
 
-        # THE OUTER RUN TURNS A RIGHT ANGLE at the springing. The deck's edge arrives from the
-        # house heading north; the arc leaves heading east-west, tangent to the house. The two
-        # are emitted as separate runs meeting at a corner pier rather than swept through the
-        # corner, because a band across it collapses to a triangle — the two faces share the
-        # point (cx, cz - Ro) exactly — and a zero-area face has no normal to orient.
-        _balustrade(ctx, f"Front approach {side} outer", arc_sections(fl["Ro"], +1),
-                    GUARD_H, PLINTH_H, COPING_H, STUCCO_C, CAP_C, pier_ends=("joint", True))
-
-        # CARRY ON INTO THE HOUSE. The porch's own splayed cheeks are gone, so this run is
-        # what guards the terrace's edge: from where the arm springs it follows the DECK'S OWN
-        # EDGE (porch_deck_edge, the same curve the deck is laid on) back to the front wall.
-        fd_ = _front_door(rooms_cache)
-        z0e, z1e, halff = porch_deck_edge(fd_, deck_arc)
-        # ...and it STOPS where the arm springs. Beyond that the deck's edge is the straight
-        # line px = cx and the ARM is standing on it, at the same level, so the two are one
-        # surface and a wall there would split it.
-        zh, zf = fd_["fixed"], (deck_arc[1] if deck_arc else z1e)
-        M_E = 18
-        edge = []
-        for j_ in range(M_E + 1):
-            za = zh + (zf - zh) * j_ / M_E
-            ha = halff(za)
-            edge.append(((fd_pos + fl["s"] * ha, za),
-                         (fd_pos + fl["s"] * (ha + CHEEK_T), za), 0.0, terrace))
-        _balustrade(ctx, f"Front approach {side} outer", edge,
-                    GUARD_H, PLINTH_H, COPING_H, STUCCO_C, CAP_C, pier_ends=(True, "joint"))
-        # The corner pier itself, square on the springing. Both runs are axis-aligned here —
-        # the edge runs in pz, the arc departs in px — so a square block is the right shape
-        # and needs no rotation. It is what the two runs die into instead of mitring.
-        _pq = [(fl["cx"] + fl["s"] * (CHEEK_T + 0.06), zf + 0.06),
-               (fl["cx"] - fl["s"] * 0.06, zf + 0.06),
-               (fl["cx"] - fl["s"] * 0.06, zf - CHEEK_T - 0.06),
-               (fl["cx"] + fl["s"] * (CHEEK_T + 0.06), zf - CHEEK_T - 0.06)]
-        for nm_, lo_, hi_, c_, cls_ in (("pier", base, terrace + GUARD_H, STUCCO_C, "IfcWall"),
-                                        ("pier cap", terrace + GUARD_H, terrace + GUARD_H + 0.14,
-                                         CAP_C, "IfcBuildingElementProxy")):
-            v = [(ctx.X(x), ctx.Y(z), lo_ * FT) for x, z in _pq] + \
-                [(ctx.X(x), ctx.Y(z), hi_ * FT) for x, z in _pq]
-            add_brep(ctx, f"Front approach {side} outer {nm_}", v, _FCS8, c_, ifc_class=cls_)
-
-    # NO NORTH WALL — the courtyard is entered from the sidewalk, so the two inner cheeks
-    # simply end there.
-    #
-    # ITS SOUTH SIDE IS THE SAME RUN AS THE CHEEKS. The inner cheeks spring tangent to the
-    # east-west direction at px = cx, so a straight run between them continues the curve
-    # exactly: same thickness, same faces, same courses. It carries no pier at either end for
-    # that reason — the three pieces are one balustrade from sidewalk to sidewalk.
-    if len(flights) == 2:
-        e, w = sorted(flights, key=lambda fl: fl["cx"])
-        z_s, z_n = e["cz"] - e["Ri"], e["cz"] - (e["Ri"] - CHEEK_T)
-        deep = min(fl["landY"] for fl in flights) - 0.4
-        M_C = 24
-        court = [((e["cx"] + (w["cx"] - e["cx"]) * k / M_C, z_s),
-                  (e["cx"] + (w["cx"] - e["cx"]) * k / M_C, z_n), deep, terrace)
-                 for k in range(M_C + 1)]
-        _balustrade(ctx, "Front approach courtyard", court,
-                    GUARD_H, PLINTH_H, COPING_H, STUCCO_C, CAP_C, pier_ends=(False, False))
-
-        # AND THE COURTYARD FOLLOWS THE SIDEWALK'S GRADE, on a BANK rather than behind a
-        # wall. Its north side is open, so the retaining wall that held the lot 1.2-1.8 ft
-        # above the park strip is gone across the whole mouth — and what that left was the
-        # lot's 4 in grass plane hanging over the drop with SKY UNDERNEATH, which is what a
-        # render from the park strip shows and what no plan view can. Putting a wall back
-        # would close the courtyard off again, so the change of level is taken as a grass
-        # bank instead: lot grade at the property line falling with the park strip out to
-        # the sidewalk, ~1:6, walkable straight off the street.
-        B_ = {k: v["bounds"] for k, v in rooms_cache.items()}
-        west_, east_, _, north_, _ = lot_lines(lot, B_.values(), ctx.T / FT / 2)
-        nw_ = f.get("nwDropIn", 36) / 12.0
-        x_flat_ = east_ + f.get("northLevelFromEastFt", 25)
-        drop_n = lambda px: -nw_ * max(0.0, min(1.0, (px - x_flat_) / (west_ - x_flat_)))
-        GRASS = (0.46, 0.55, 0.34)                      # matches the park strip
-        TH_ = f.get("pavingThicknessIn", 4) / 12.0
-        LIFT = 0.02                                     # clear of the strip it lands on
-        rin, n1_ = e["Ri"] - CHEEK_T, e["cz"]
-
-        def mouth(pz):
-            """The courtyard's width at this pz — the two inner cheeks' own faces."""
-            h = math.sqrt(max(rin * rin - (n1_ - pz) ** 2, 0.0))
-            return e["cx"] - h, w["cx"] + h
-
-        # The first band runs from the WALL to the property line and is FLAT at lot grade:
-        # it buries the lot plane's cut edge, which is the thing that was showing daylight.
-        # Only past the line does the bank start to fall.
-        bands = [(z_n, north_)] + [(north_ + (n1_ - north_) * i / 6,
-                                    north_ + (n1_ - north_) * (i + 1) / 6) for i in range(6)]
-        for za, zb in bands:
-            ta = max(0.0, (za - north_) / (n1_ - north_))
-            tb = max(0.0, (zb - north_) / (n1_ - north_))
-            ea, wa = mouth(za)
-            eb, wb = mouth(zb)
-            for jx in range(4):
-                xa0, xa1 = ea + (wa - ea) * jx / 4, ea + (wa - ea) * (jx + 1) / 4
-                xb0, xb1 = eb + (wb - eb) * jx / 4, eb + (wb - eb) * (jx + 1) / 4
-                cs = [(xa0, za, ta), (xa1, za, ta), (xb1, zb, tb), (xb0, zb, tb)]
-                # TWO TRIANGLES, not a quad. The top is bilinear — level along the property
-                # line, tilted with drop_n at the sidewalk — so four corners do not lie in a
-                # plane, and add_brep orients faces against the centroid, which only works
-                # on a convex solid.
-                for tri in ((0, 1, 2), (0, 2, 3)):
-                    poly = [(ctx.X(cs[k][0]), ctx.Y(cs[k][1]),
-                             (cs[k][2] * drop_n(cs[k][0]) + LIFT) * FT) for k in tri]
-                    v, fc = _prism(poly, (0, 0, -TH_ * FT))
-                    add_brep(ctx, "Front approach courtyard bank", v, fc, GRASS,
-                             ifc_class="IfcSlab", predefined="BASESLAB")
+    # THE COURT, paved and level at street grade, filling the ring to the walk's inner edge.
+    # It runs out to Ri rather than stopping at the inner balustrade's face, so that under the
+    # two openings — where there is no balustrade — it meets the bottom treads flush and you
+    # walk straight in off the park strip.
+    TH = f.get("pavingThicknessIn", 4) / 12.0
+    # LIFTED a hair. The court is at street grade and its northern half lies over the park
+    # strip, which is at exactly the same level there — left coplanar the two z-fight and the
+    # grass shows through the paving in patches.
+    LIFT = 0.02
+    M_C = 32
+    for k in range(M_C):
+        b0, b1 = 2 * math.pi * k / M_C, 2 * math.pi * (k + 1) / M_C
+        poly = [(ctx.X(cx), ctx.Y(cz), (courtY + LIFT) * FT),
+                (ctx.X(cx + Ri * math.sin(b0)), ctx.Y(cz - Ri * math.cos(b0)), (courtY + LIFT) * FT),
+                (ctx.X(cx + Ri * math.sin(b1)), ctx.Y(cz - Ri * math.cos(b1)), (courtY + LIFT) * FT)]
+        v, fc = _prism(poly, (0, 0, -TH * FT))
+        add_brep(ctx, "Front approach court", v, fc, CONCRETE,
+                 ifc_class="IfcSlab", predefined="BASESLAB")
 
 
 def add_street_frontage(ctx, lot, rooms_cache, terrace=0.0):
