@@ -1213,21 +1213,30 @@ def _newell_normal(loop):
     return n
 
 
-def add_brep(ctx, name, verts, faces, color, predefined=None, ifc_class="IfcRoof", transparency=0.0):
+def add_brep(ctx, name, verts, faces, color, predefined=None, ifc_class="IfcRoof", transparency=0.0,
+             wind=True):
     """Create a product whose body is a faceted-BREP closed solid from `verts`
     (metres) and `faces` (vertex-index loops). Each face loop is auto-oriented
     so its normal points away from the solid centroid (outward) — valid for the
-    convex roof solids here, so the renderer never culls a face."""
+    convex roof solids here, so the renderer never culls a face.
+
+    `wind=False` takes the loops AS GIVEN. That test is only valid on a CONVEX solid: on a
+    turned baluster the neck's faces sit closer to the axis than the centroid is tall, so the
+    dot product flips sign and the vase comes out inside out. A caller that can compute its
+    own outward winding — `_lathe` does, from the axis — passes False and is believed."""
     m = ctx.model
     cen = [sum(v[k] for v in verts) / len(verts) for k in range(3)]
     pts = [m.create_entity("IfcCartesianPoint", Coordinates=(float(v[0]), float(v[1]), float(v[2]))) for v in verts]
     ifc_faces = []
     for f in faces:
-        loop = [verts[i] for i in f]
-        nrm = _newell_normal(loop)
-        fc = [sum(p[k] for p in loop) / len(loop) for k in range(3)]
-        outward = sum((fc[k] - cen[k]) * nrm[k] for k in range(3)) >= 0
-        idx = list(f) if outward else list(f)[::-1]
+        if wind:
+            loop = [verts[i] for i in f]
+            nrm = _newell_normal(loop)
+            fc = [sum(p[k] for p in loop) / len(loop) for k in range(3)]
+            outward = sum((fc[k] - cen[k]) * nrm[k] for k in range(3)) >= 0
+            idx = list(f) if outward else list(f)[::-1]
+        else:
+            idx = list(f)
         poly = m.create_entity("IfcPolyLoop", Polygon=[pts[i] for i in idx])
         bound = m.create_entity("IfcFaceOuterBound", Bound=poly, Orientation=True)
         ifc_faces.append(m.create_entity("IfcFace", Bounds=[bound]))
@@ -2825,6 +2834,196 @@ def _approach_arc(f, rooms_cache, lot, half_wall):
     return flights
 
 
+def add_brep_instances(ctx, name, verts, faces, color, placements, ifc_class="IfcRoof",
+                       predefined=None, wind=True):
+    """One BREP body, many products — the geometry is built ONCE about the origin and each
+    placement gets its own product pointing at the same representation.
+
+    A turned baluster is ~190 vertices and there are well over a hundred of them; written out
+    per product that alone took exterior.ifc from 2.7 MB to 10 MB, and every regeneration
+    commits the whole file. Shared representations with per-product placements are ordinary
+    IFC, `use-world-coords` resolves them for the harness, and web-ifc resolves them for the
+    viewer, so nothing downstream can tell the difference except the file size."""
+    m = ctx.model
+    cen = [sum(v[k] for v in verts) / len(verts) for k in range(3)]
+    pts = [m.create_entity("IfcCartesianPoint", Coordinates=(float(v[0]), float(v[1]), float(v[2]))) for v in verts]
+    ifc_faces = []
+    for f in faces:
+        idx = list(f)
+        if wind:
+            loop = [verts[i] for i in f]
+            nrm = _newell_normal(loop)
+            fc = [sum(q[k] for q in loop) / len(loop) for k in range(3)]
+            if sum((fc[k] - cen[k]) * nrm[k] for k in range(3)) < 0:
+                idx = idx[::-1]
+        poly = m.create_entity("IfcPolyLoop", Polygon=[pts[i] for i in idx])
+        bound = m.create_entity("IfcFaceOuterBound", Bound=poly, Orientation=True)
+        ifc_faces.append(m.create_entity("IfcFace", Bounds=[bound]))
+    shell = m.create_entity("IfcClosedShell", CfsFaces=ifc_faces)
+    brep = m.create_entity("IfcFacetedBrep", Outer=shell)
+    rep = m.create_entity("IfcShapeRepresentation", ContextOfItems=ctx.body,
+                          RepresentationIdentifier="Body", RepresentationType="Brep", Items=[brep])
+    if color is not None:
+        assign_color(ctx, rep, color)
+    out = []
+    for x, y, z in placements:
+        kwargs = {"ifc_class": ifc_class, "name": name}
+        if predefined:
+            kwargs["predefined_type"] = predefined
+        product = run("root.create_entity", m, **kwargs)
+        run("geometry.assign_representation", m, product=product, representation=rep)
+        run("geometry.edit_object_placement", m, product=product, matrix=matrix(x, y, z))
+        run("spatial.assign_container", m, products=[product], relating_structure=ctx.storey)
+        out.append(product)
+    return out
+
+
+def _lathe(x, y, z0, profile, sides=12):
+    """A closed SOLID OF REVOLUTION about the vertical axis at (x, y), all metres.
+
+    `profile` is (radius, height above z0) from bottom to top, every radius > 0 — a baluster
+    has a flat foot and a flat abacus, so there is no apex to special-case. Faces are wound
+    OUTWARD here and handed to add_brep with `wind=False`: its centroid test is only valid on
+    a convex solid, and a vase baluster is not one.
+
+    The winding: rings run counter-clockwise seen from above, so a side loop taken
+    `[lower j, lower j+1, upper j+1, upper j]` has its normal pointing away from the axis, the
+    bottom cap is that order reversed (normal down) and the top cap is it as-is (normal up).
+    """
+    rings = [[(x + r * math.cos(2 * math.pi * j / sides),
+               y + r * math.sin(2 * math.pi * j / sides), z0 + dz) for j in range(sides)]
+             for r, dz in profile]
+    verts = [v for ring in rings for v in ring]
+    n, top = sides, len(verts) - sides
+    faces = [list(range(n))[::-1], [top + j for j in range(n)]]
+    for i in range(len(rings) - 1):
+        lo, hi = i * n, (i + 1) * n
+        for j in range(n):
+            k = (j + 1) % n
+            faces.append([lo + j, lo + k, hi + k, hi + j])
+    return verts, faces
+
+
+# A TURNED MASONRY BALUSTER: (radius in FEET, height as a fraction of the baluster's own).
+# The radii are absolute because a baluster's girth is set by the stone and by the sphere
+# rule, not by how tall the run happens to be. Widest across the belly at 0.38 ft (4.6 in),
+# NARROWEST at the neck at 0.275 ft (3.3 in) — and the neck is the number that matters,
+# because the widest opening between two balusters is where they are thinnest.
+BALUSTER_PROFILE = [
+    (0.190, 0.00), (0.190, 0.05),                   # foot
+    (0.155, 0.08), (0.155, 0.10),                   # cavetto off it
+    (0.190, 0.19), (0.190, 0.26),                   # the belly
+    (0.178, 0.34), (0.158, 0.46),
+    (0.1375, 0.62), (0.1375, 0.66),                 # the neck
+    (0.152, 0.72), (0.140, 0.76),                   # astragal
+    (0.178, 0.89), (0.178, 0.92),                   # bell
+    (0.190, 0.95), (0.190, 1.00),                   # abacus
+]
+BALUSTER_SIDES = 12
+_FCS8 = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
+
+
+def _balustrade(ctx, name, sections, guard_h, plinth_h, coping_h, stone, cap_c,
+                cope_o=0.05, pier_o=0.06, pier_l=0.75, max_gap=0.30, pier_ends=(True, True)):
+    """A MASONRY BALUSTRADE swept along `sections`: a solid skirt, a plinth, turned balusters
+    and a coping, with a pier at whichever ends `pier_ends` asks for.
+
+    Each section is `(a, b, base, walk)` in PLAN FEET — the run's two faces, its underside,
+    and the level of the surface it guards. `a` is always the WALK side, so a pier grows
+    inward and cannot widen the approach's envelope, which is measured against the house.
+
+    Only the SKIRT is what retains and what has to be continuous; the plinth and coping sweep
+    the whole run too and simply disappear inside the piers, which saves trimming them and
+    keeps the continuity test looking at one member.
+
+    BALUSTER SPACING IS DERIVED, not authored. The widest opening falls at the NECKS, so the
+    spacing is the neck's diameter plus `max_gap`, and each run then divides into a whole
+    number of bays — which can only tighten it, never loosen it. Where two runs meet with no
+    pier (the courtyard's frame is one line from sidewalk to sidewalk) each ends half a bay
+    short, so the seam opening comes out a full bay like every other. ifc_check measures the
+    built openings rather than trusting any of this.
+    """
+    mid = lambda sec: ((sec[0][0] + sec[1][0]) / 2, (sec[0][1] + sec[1][1]) / 2)
+    mids = [mid(sec) for sec in sections]
+    cum = [0.0]
+    for i in range(len(mids) - 1):
+        cum.append(cum[-1] + math.hypot(mids[i + 1][0] - mids[i][0], mids[i + 1][1] - mids[i][1]))
+    L = cum[-1]
+    if L <= 1e-6:
+        return
+
+    def widen(a, b, o):
+        dx, dz = b[0] - a[0], b[1] - a[1]
+        h = math.hypot(dx, dz) or 1.0
+        dx, dz = dx / h * o, dz / h * o
+        return (a[0] - dx, a[1] - dz), (b[0] + dx, b[1] + dz)
+
+    def solid(nm, a0, b0, a1, b1, lo0, hi0, lo1, hi1, color, cls):
+        if hi0 - lo0 <= 1e-6 and hi1 - lo1 <= 1e-6:
+            return
+        quad, los, his = [a0, b0, b1, a1], [lo0, lo0, lo1, lo1], [hi0, hi0, hi1, hi1]
+        v = [(ctx.X(quad[k][0]), ctx.Y(quad[k][1]), los[k] * FT) for k in range(4)] + \
+            [(ctx.X(quad[k][0]), ctx.Y(quad[k][1]), his[k] * FT) for k in range(4)]
+        add_brep(ctx, nm, v, _FCS8, color, ifc_class=cls)
+
+    bal_h = guard_h - plinth_h - coping_h
+    for i in range(len(sections) - 1):
+        (a0, b0, bs0, w0), (a1, b1, bs1, w1) = sections[i], sections[i + 1]
+        ca0, cb0 = widen(a0, b0, cope_o)
+        ca1, cb1 = widen(a1, b1, cope_o)
+        solid(name + " skirt", a0, b0, a1, b1, bs0, w0, bs1, w1, stone, "IfcWall")
+        solid(name + " plinth", a0, b0, a1, b1, w0, w0 + plinth_h, w1, w1 + plinth_h,
+              stone, "IfcWall")
+        solid(name + " coping", ca0, cb0, ca1, cb1, w0 + plinth_h + bal_h, w0 + guard_h,
+              w1 + plinth_h + bal_h, w1 + guard_h, cap_c, "IfcRailing")
+
+    def at(s):
+        """The run's section at arc length `s`, interpolated — so a pier lands where it is
+        asked for rather than snapping to whatever the sweep's subdivision happens to be."""
+        s = max(0.0, min(L, s))
+        i = 0
+        while i < len(cum) - 2 and cum[i + 1] < s:
+            i += 1
+        t = (s - cum[i]) / max(cum[i + 1] - cum[i], 1e-9)
+        lerp = lambda p, q: (p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t)
+        f = lambda k: sections[i][k] + (sections[i + 1][k] - sections[i][k]) * t
+        return lerp(sections[i][0], sections[i + 1][0]), lerp(sections[i][1], sections[i + 1][1]), f(2), f(3)
+
+    PIER_CAP = 0.14
+    for want, s0, s1 in ((pier_ends[0], 0.0, pier_l), (pier_ends[1], L - pier_l, L)):
+        if want is not True:                            # "joint" sets back without a pier
+            continue
+        A0, B0, bs0, w0 = at(s0)
+        A1, B1, bs1, w1 = at(s1)
+        pa0, pb0 = widen(A0, B0, pier_o)
+        pa1, pb1 = widen(A1, B1, pier_o)
+        solid(name + " pier", pa0, pb0, pa1, pb1, bs0, w0 + guard_h, bs1, w1 + guard_h,
+              stone, "IfcWall")
+        solid(name + " pier cap", pa0, pb0, pa1, pb1, w0 + guard_h, w0 + guard_h + PIER_CAP,
+              w1 + guard_h, w1 + guard_h + PIER_CAP, cap_c, "IfcBuildingElementProxy")
+
+    # SET BACK FROM WHATEVER CLOSES THE RUN, pier or not. Where two runs meet at a corner the
+    # pier is emitted once, outside, and each run passes "joint" for that end: it still stops
+    # its balusters short, and without that both runs put one half a bay into the corner and
+    # the two came out 0.5 in apart, buried in the pier. A tangent junction (the courtyard's
+    # frame) passes False and runs straight through, which is the whole point of it.
+    neck = 2 * min(r for r, _ in BALUSTER_PROFILE)
+    s0 = pier_l if pier_ends[0] else 0.0
+    s1 = (L - pier_l) if pier_ends[1] else L
+    span = max(s1 - s0, 0.0)
+    if span <= 1e-6:
+        return
+    nb = max(1, int(math.ceil(span / (neck + max_gap) - 1e-9)))
+    v, fc = _lathe(0.0, 0.0, 0.0, [(r * FT, z * bal_h * FT) for r, z in BALUSTER_PROFILE],
+                   BALUSTER_SIDES)
+    spots = []
+    for i in range(nb):
+        A, B, _bs, w = at(s0 + span * (i + 0.5) / nb)
+        spots.append((ctx.X((A[0] + B[0]) / 2), ctx.Y((A[1] + B[1]) / 2), (w + plinth_h) * FT))
+    add_brep_instances(ctx, name + " baluster", v, fc, cap_c, spots,
+                       ifc_class="IfcRailing", wind=False)
+
+
 def add_front_approach(ctx, lot, rooms_cache, terrace=0.0):
     """A DOUBLE front walkup: two curved flights flanking the centre walk, sweeping out
     from the porch cascade's corners, down through the retaining wall and across the
@@ -2851,9 +3050,14 @@ def add_front_approach(ctx, lot, rooms_cache, terrace=0.0):
     CONCRETE = (0.74, 0.73, 0.71)
     STUCCO_C = (0.90, 0.88, 0.84)                       # matches the retaining wall
     CAP_C = (0.95, 0.95, 0.93)                          # matches the porch's white caps
-    CHEEK_T = spec.get("cheekThickFt", 0.5)             # radial thickness
-    CHEEK_H = spec.get("cheekHeightFt", 1.9)            # parapet above the tread it flanks
-    CAP_T = 0.08
+    CHEEK_T = spec.get("cheekThickFt", 0.5)             # radial thickness of every run
+    # THE THREE COURSES OF THE BALUSTRADE, above the surface each run guards. The total is
+    # the house's own guard height (the side porch's 3.0), which is what the arms' 4 ft drop
+    # asks for; the plinth and coping are subtracted from it so the baluster's own length is
+    # derived and the three always sum to the authored figure.
+    GUARD_H = spec.get("guardHeightFt", 3.0)
+    PLINTH_H = spec.get("plinthFt", 0.7)
+    COPING_H = spec.get("copingFt", 0.4)
     max_riser = spec.get("maxRiserIn", 6.0) / 12.0
     SEG = int(spec.get("segmentsPerTread", 6))          # arc subdivisions per tread
     for fl in flights:
@@ -2896,97 +3100,87 @@ def add_front_approach(ctx, lot, rooms_cache, terrace=0.0):
         fd_pos = _front_door(rooms_cache)["pos"]
         deck_arc = approach_arc_lines(f, rooms_cache, lot, ctx.T / FT / 2)
 
-        for r_face, out in ((fl["Ri"], -1), (fl["Ro"], +1)):
-            # The two runs are named apart — the courtyard's frame is the INNER cheeks plus
-            # the wall between them, the walls flanking the approach are the OUTER cheeks plus
-            # the terrace's edge — so each can be tested for continuity on its own. Unnamed,
-            # a gap in one was hidden by the other's parts sitting in the same bucket.
-            run_nm = f"Front approach {side} {'inner' if out < 0 else 'outer'} cheek"
-            n_seg = n * SEG
-            for j in range(n_seg):
-                a0 = (math.pi / 2) * j / n_seg
-                a1 = (math.pi / 2) * (j + 1) / n_seg
-                pts = []
-                for r, a in ((r_face, a0), (r_face + out * CHEEK_T, a0),
-                             (r_face + out * CHEEK_T, a1), (r_face, a1)):
-                    pts.append((ctx.X(fl["cx"] + fl["s"] * r * math.sin(a)),
-                                ctx.Y(fl["cz"] - r * math.cos(a))))
-                # SMOOTH, not stepped. The cap ramps linearly in the arc angle from the
-                # terrace down to the sidewalk, so the wall reads as one sweep rather than a
-                # flight of blocks — and it arrives at the courtyard wall's own height
-                # exactly where they meet, which is what makes those two one surface.
-                ramp = lambda a: terrace - (a / (math.pi / 2)) * (terrace - fl["landY"])
-                t0, t1 = ramp(a0) + CHEEK_H, ramp(a1) + CHEEK_H
-                tops = [t0, t0, t1, t1]
-                v = [(pts[i][0], pts[i][1], base * FT) for i in range(4)] + \
-                    [(pts[i][0], pts[i][1], tops[i] * FT) for i in range(4)]
-                fcs = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4],
-                       [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
-                add_brep(ctx, run_nm, v, fcs, STUCCO_C, ifc_class="IfcWall")
-                capv = [(pts[i][0], pts[i][1], tops[i] * FT) for i in range(4)] + \
-                       [(pts[i][0], pts[i][1], (tops[i] + CAP_T) * FT) for i in range(4)]
-                add_brep(ctx, run_nm + " cap", capv, fcs, CAP_C,
-                         ifc_class="IfcBuildingElementProxy")
-            # CARRY ON INTO THE HOUSE. The porch's own splayed cheeks are gone, so this wall
-            # is what guards the terrace's edge: from where the arm springs it runs along the
-            # DECK'S OWN FLARE (porch_deck_edge, the same curve the deck is laid on) back to
-            # the front wall, level at the terrace's parapet height so the whole top line
-            # round the forecourt — arms, courtyard wall, terrace edge — is one height.
-            if out > 0:
-                fd_ = _front_door(rooms_cache)
-                z0e, z1e, halff = porch_deck_edge(fd_, deck_arc)
-                top_e = terrace + CHEEK_H
-                # From the FRONT WALL, not from where the flare starts: the deck's first
-                # 3 ft run at the threshold is straight-sided, and beginning at the flare
-                # left that stretch of terrace edge unguarded and the wall not touching the
-                # house it is supposed to die into. `halff` clamps below t=0, so the run
-                # before the flare comes out at the threshold half-width on its own.
-                # ...and it STOPS where the flare does. Beyond that the deck's edge is the
-                # straight line px = cx, and the ARM is standing on it — its top tread is at
-                # the same level, so the two are one surface and a wall there would split it.
-                zh, zf = fd_["fixed"], (deck_arc[1] if deck_arc else z1e)
-                M_E = 18
-                for j in range(M_E):
-                    u0, u1 = j / M_E, (j + 1) / M_E
-                    za, zb = zh + u0 * (zf - zh), zh + u1 * (zf - zh)
-                    # `halff` takes a pz, not a normalised t — handing it a 0..1 fraction
-                    # put every station below z0, so it answered PORCH_HALF throughout and
-                    # the wall ran dead straight 1.5 ft inboard of the deck it guards.
-                    ha, hb = halff(za), halff(zb)
-                    quad = [(fd_pos + fl["s"] * ha, za), (fd_pos + fl["s"] * (ha + CHEEK_T), za),
-                            (fd_pos + fl["s"] * (hb + CHEEK_T), zb), (fd_pos + fl["s"] * hb, zb)]
-                    fcs2 = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4],
-                            [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
-                    v = [(ctx.X(x), ctx.Y(z), 0.0) for x, z in quad] + \
-                        [(ctx.X(x), ctx.Y(z), top_e * FT) for x, z in quad]
-                    add_brep(ctx, f"Front approach {side} outer cheek", v, fcs2, STUCCO_C, ifc_class="IfcWall")
-                    v = [(ctx.X(x), ctx.Y(z), top_e * FT) for x, z in quad] + \
-                        [(ctx.X(x), ctx.Y(z), (top_e + CAP_T) * FT) for x, z in quad]
-                    add_brep(ctx, f"Front approach {side} outer cheek cap", v, fcs2, CAP_C,
-                             ifc_class="IfcBuildingElementProxy")
+        # THE RUNS ARE BALUSTRADES, not solid walls: a skirt up to the surface they guard,
+        # then plinth, turned balusters and coping. `_balustrade` takes a run as a list of
+        # cross-sections and does the rest, so the arms, the terrace's edge and the
+        # courtyard's south side all come off ONE code path — the duplication between them
+        # is what produced the jog and the mitre notch the last two rounds went to fix.
+        ramp = lambda a: terrace - (a / (math.pi / 2)) * (terrace - fl["landY"])
+        n_seg = n * SEG
+
+        def arc_sections(r_face, out):
+            secs = []
+            for j_ in range(n_seg + 1):
+                a = (math.pi / 2) * j_ / n_seg
+                ro = r_face + out * CHEEK_T
+                secs.append(((fl["cx"] + fl["s"] * r_face * math.sin(a), fl["cz"] - r_face * math.cos(a)),
+                             (fl["cx"] + fl["s"] * ro * math.sin(a), fl["cz"] - ro * math.cos(a)),
+                             base, ramp(a)))
+            return secs
+
+        # THE COURTYARD'S FRAME IS ONE LINE and the inner cheeks are two thirds of it, so they
+        # carry NO pier where they meet the wall between them: the arc springs tangent to the
+        # east-west direction there, and a pier would break the single sweep on purpose.
+        _balustrade(ctx, f"Front approach {side} inner", arc_sections(fl["Ri"], -1),
+                    GUARD_H, PLINTH_H, COPING_H, STUCCO_C, CAP_C, pier_ends=(False, True))
+
+        # THE OUTER RUN TURNS A RIGHT ANGLE at the springing. The deck's edge arrives from the
+        # house heading north; the arc leaves heading east-west, tangent to the house. The two
+        # are emitted as separate runs meeting at a corner pier rather than swept through the
+        # corner, because a band across it collapses to a triangle — the two faces share the
+        # point (cx, cz - Ro) exactly — and a zero-area face has no normal to orient.
+        _balustrade(ctx, f"Front approach {side} outer", arc_sections(fl["Ro"], +1),
+                    GUARD_H, PLINTH_H, COPING_H, STUCCO_C, CAP_C, pier_ends=("joint", True))
+
+        # CARRY ON INTO THE HOUSE. The porch's own splayed cheeks are gone, so this run is
+        # what guards the terrace's edge: from where the arm springs it follows the DECK'S OWN
+        # EDGE (porch_deck_edge, the same curve the deck is laid on) back to the front wall.
+        fd_ = _front_door(rooms_cache)
+        z0e, z1e, halff = porch_deck_edge(fd_, deck_arc)
+        # ...and it STOPS where the arm springs. Beyond that the deck's edge is the straight
+        # line px = cx and the ARM is standing on it, at the same level, so the two are one
+        # surface and a wall there would split it.
+        zh, zf = fd_["fixed"], (deck_arc[1] if deck_arc else z1e)
+        M_E = 18
+        edge = []
+        for j_ in range(M_E + 1):
+            za = zh + (zf - zh) * j_ / M_E
+            ha = halff(za)
+            edge.append(((fd_pos + fl["s"] * ha, za),
+                         (fd_pos + fl["s"] * (ha + CHEEK_T), za), 0.0, terrace))
+        _balustrade(ctx, f"Front approach {side} outer", edge,
+                    GUARD_H, PLINTH_H, COPING_H, STUCCO_C, CAP_C, pier_ends=(True, "joint"))
+        # The corner pier itself, square on the springing. Both runs are axis-aligned here —
+        # the edge runs in pz, the arc departs in px — so a square block is the right shape
+        # and needs no rotation. It is what the two runs die into instead of mitring.
+        _pq = [(fl["cx"] + fl["s"] * (CHEEK_T + 0.06), zf + 0.06),
+               (fl["cx"] - fl["s"] * 0.06, zf + 0.06),
+               (fl["cx"] - fl["s"] * 0.06, zf - CHEEK_T - 0.06),
+               (fl["cx"] + fl["s"] * (CHEEK_T + 0.06), zf - CHEEK_T - 0.06)]
+        for nm_, lo_, hi_, c_, cls_ in (("pier", base, terrace + GUARD_H, STUCCO_C, "IfcWall"),
+                                        ("pier cap", terrace + GUARD_H, terrace + GUARD_H + 0.14,
+                                         CAP_C, "IfcBuildingElementProxy")):
+            v = [(ctx.X(x), ctx.Y(z), lo_ * FT) for x, z in _pq] + \
+                [(ctx.X(x), ctx.Y(z), hi_ * FT) for x, z in _pq]
+            add_brep(ctx, f"Front approach {side} outer {nm_}", v, _FCS8, c_, ifc_class=cls_)
 
     # NO NORTH WALL — the courtyard is entered from the sidewalk, so the two inner cheeks
     # simply end there.
     #
-    # ITS SOUTH SIDE IS THE SAME WALL AS THE CHEEKS. The inner cheeks spring tangent to the
+    # ITS SOUTH SIDE IS THE SAME RUN AS THE CHEEKS. The inner cheeks spring tangent to the
     # east-west direction at px = cx, so a straight run between them continues the curve
-    # exactly: same 0.5 thickness, same faces, same top. Built here rather than left to the
-    # retaining wall, which sat 0.77 ft further north on the property line and put a jog in
-    # what is meant to read as one sweep.
+    # exactly: same thickness, same faces, same courses. It carries no pier at either end for
+    # that reason — the three pieces are one balustrade from sidewalk to sidewalk.
     if len(flights) == 2:
         e, w = sorted(flights, key=lambda fl: fl["cx"])
         z_s, z_n = e["cz"] - e["Ri"], e["cz"] - (e["Ri"] - CHEEK_T)
-        top = terrace + CHEEK_H
         deep = min(fl["landY"] for fl in flights) - 0.4
-        quad = [(e["cx"], z_s), (w["cx"], z_s), (w["cx"], z_n), (e["cx"], z_n)]
-        fcs = [[0, 1, 2, 3], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]]
-        v = [(ctx.X(x), ctx.Y(z), deep * FT) for x, z in quad] + \
-            [(ctx.X(x), ctx.Y(z), top * FT) for x, z in quad]
-        add_brep(ctx, "Front approach courtyard wall", v, fcs, STUCCO_C, ifc_class="IfcWall")
-        v = [(ctx.X(x), ctx.Y(z), top * FT) for x, z in quad] + \
-            [(ctx.X(x), ctx.Y(z), (top + CAP_T) * FT) for x, z in quad]
-        add_brep(ctx, "Front approach courtyard wall cap", v, fcs, CAP_C,
-                 ifc_class="IfcBuildingElementProxy")
+        M_C = 24
+        court = [((e["cx"] + (w["cx"] - e["cx"]) * k / M_C, z_s),
+                  (e["cx"] + (w["cx"] - e["cx"]) * k / M_C, z_n), deep, terrace)
+                 for k in range(M_C + 1)]
+        _balustrade(ctx, "Front approach courtyard", court,
+                    GUARD_H, PLINTH_H, COPING_H, STUCCO_C, CAP_C, pier_ends=(False, False))
 
         # AND THE COURTYARD FOLLOWS THE SIDEWALK'S GRADE, on a BANK rather than behind a
         # wall. Its north side is open, so the retaining wall that held the lot 1.2-1.8 ft

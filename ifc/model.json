@@ -170,14 +170,16 @@
       "entryStepCount": 3,
       "entryTreadFt": 1.0,
       "doubleWalk": {
-        "_note": "A DOUBLE front walkup. Two curved arms flank a courtyard, each a quarter arc that leaves the forecourt deck running along the house and turns to meet the sidewalk head on, so you climb facing the door at the top and the street at the bottom. They land FLUSH on the sidewalk's near edge, crossing the planting strip. Risers are derived per arm and the two come out DIFFERENT on purpose: the right-of-way falls toward the NW corner, so the west arm lands lower and needs more of them. Each arm carries CHEEK WALLS on both edges — solid stucco with a white cap — whose top ramps with the arm's own descent plus cheekHeightFt, so it reads as a rail the whole way. THE SIZE OF THE WHOLE APPROACH IS SET HERE. Its half-width from the front door is springOutFt + widthFt + 10.5 ft whatever the curvature, because arcRadiusFt is capped from below: the wall framing the courtyard stands at radius arcRadiusFt - widthFt/2 - cheekThickFt from the arc's centre, and that centre sits on the sidewalk's near edge, so anything under parkStripWidthFt + widthFt/2 + cheekThickFt puts that wall on the public right-of-way. At 12.25 / 4.5 / 4.5 the approach spans 39 ft against the primary structure's 43 ft wall faces — 2 ft inside each corner, which is what keeps it from reading as bigger than the house. ifc_check measures both.",
+        "_note": "A DOUBLE front walkup. Two curved arms flank a courtyard, each a quarter arc that leaves the forecourt deck running along the house and turns to meet the sidewalk head on, so you climb facing the door at the top and the street at the bottom. They land FLUSH on the sidewalk's near edge, crossing the planting strip. Risers are derived per arm and the two come out DIFFERENT on purpose: the right-of-way falls toward the NW corner, so the west arm lands lower and needs more of them. Each arm carries CHEEK WALLS on both edges — solid stucco with a white cap — built as MASONRY BALUSTRADES \u2014 a solid skirt up to the surface each one guards, then a plinth, turned balusters and a coping, ramping with the arm's own descent so the top reads as one raking line. guardHeightFt is the house's own guard height (the side porch's 3.0), which the arms' 4 ft drop asks for; the baluster's length is what is left after plinthFt and copingFt, and its SPACING is derived from the neck's diameter so the widest opening stays inside the 4 in sphere rule on a curve. THE SIZE OF THE WHOLE APPROACH IS SET HERE. Its half-width from the front door is springOutFt + widthFt + 10.5 ft whatever the curvature, because arcRadiusFt is capped from below: the wall framing the courtyard stands at radius arcRadiusFt - widthFt/2 - cheekThickFt from the arc's centre, and that centre sits on the sidewalk's near edge, so anything under parkStripWidthFt + widthFt/2 + cheekThickFt puts that wall on the public right-of-way. At 12.25 / 4.5 / 4.5 the approach spans 39 ft against the primary structure's 43 ft wall faces — 2 ft inside each corner, which is what keeps it from reading as bigger than the house. ifc_check measures both.",
         "arcRadiusFt": 12.25,
         "widthFt": 4.5,
         "springOutFt": 4.5,
         "maxRiserIn": 6.0,
         "segmentsPerTread": 6,
         "cheekThickFt": 0.5,
-        "cheekHeightFt": 1.9
+        "guardHeightFt": 3.0,
+        "plinthFt": 0.7,
+        "copingFt": 0.4
     },
       "centreWalk": false
     }
