@@ -204,23 +204,15 @@ function addLandscapeLighting(parent, onFixture) {
     }
   }
 
-  // 6) Rear deck / patio: string lights strung from the house's south wall to the
-  //    top of the CMU garden wall, plus warm cap lights along that wall — lighting
-  //    the outdoor room off the family-room patio doors.
+  // 6) Rear deck / patio: warm cap lights along the top of the CMU garden wall,
+  //    lighting the outdoor room off the family-room patio doors.
+  //
+  //    There were string lights here too, four catenary strands from the house's south
+  //    wall to that garden wall. They are gone. `wireMat` stays where it is declared —
+  //    the WEST side-yard post (2) still strings from it, and pulling it out with these
+  //    would have taken that set down as well.
   {
-    const houseS = -11.9167, wallS = -23.2, hHouse = 9, hWall = 7;
-    const bulbMat = new THREE.MeshStandardMaterial({ color: 0xfff3d4, emissive: 0xffca73, emissiveIntensity: 1.2, roughness: 0.35 });
-    const mids = [];
-    for (const px of [-19, -13, -7, -1]) {             // strands span the deck (family/extension bay)
-      const A = P(px, houseS, hHouse), B = P(px, wallS, hWall);
-      const sag = 1.3 * FT, pts = [];
-      for (let i = 0; i <= 16; i++) { const t = i / 16, p = A.clone().lerp(B, t); p.y -= sag * 4 * t * (1 - t); pts.push(p); }
-      const curve = new THREE.CatmullRomCurve3(pts);
-      parent.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 20, 0.012, 5, false), wireMat));
-      for (let i = 1; i < 16; i += 2) { const b = new THREE.Mesh(new THREE.SphereGeometry(0.05, 10, 8), bulbMat); b.position.copy(pts[i]); parent.add(b); }
-      mids.push(curve.getPoint(0.5));
-    }
-    for (const idx of [0, 3]) { const light = new THREE.PointLight(0xffe0b0, 5, 9, 2); light.position.copy(mids[idx]); parent.add(light); onFixture && onFixture(light, bulbMat); }
+    const wallS = -23.2, hWall = 7;
     const capMat = new THREE.MeshStandardMaterial({ color: 0xfff0cc, emissive: 0xffcf85, emissiveIntensity: 1.0, roughness: 0.5 });
     for (const px of [-18, -6, 6, 18]) {               // post-cap lights on the CMU wall top
       const g = new THREE.Group(); g.position.copy(P(px, wallS, hWall)); parent.add(g);
