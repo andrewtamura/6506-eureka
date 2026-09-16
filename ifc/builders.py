@@ -3116,18 +3116,23 @@ def add_front_approach(ctx, lot, rooms_cache, terrace=0.0):
     v, fc = _prism([(ctx.X(x), ctx.Y(z), yc(x)) for x, z in quad], (0, 0, -TH * FT))
     add_brep(ctx, "Front approach court", v, fc, CONCRETE,
              ifc_class="IfcSlab", predefined="BASESLAB")
-    M_C = 24
+    # The lobe runs to the WALK'S INNER EDGE while the flight is above it, and out to its
+    # OUTER edge past the foot, where the flight has stopped and the wedge it would have
+    # occupied is court instead. That flare is what opens the entry: you meet the first tread
+    # across a splayed mouth rather than turning square into the end of a wall.
     for fl in flights:
-        for k in range(M_C):
-            b0, b1 = math.pi * k / M_C, math.pi * (k + 1) / M_C
-            x0 = fl["cx"] + fl["s"] * Ri * math.sin(b0)
-            x1 = fl["cx"] + fl["s"] * Ri * math.sin(b1)
-            poly = [(ctx.X(fl["cx"]), ctx.Y(cz), yc(fl["cx"])),
-                    (ctx.X(x0), ctx.Y(cz - Ri * math.cos(b0)), yc(x0)),
-                    (ctx.X(x1), ctx.Y(cz - Ri * math.cos(b1)), yc(x1))]
-            v, fc = _prism(poly, (0, 0, -TH * FT))
-            add_brep(ctx, "Front approach court", v, fc, CONCRETE,
-                     ifc_class="IfcSlab", predefined="BASESLAB")
+        for lo, hi, rr in ((0.0, sweep, Ri), (sweep, math.pi, Ro)):
+            m = max(1, int(round((hi - lo) / math.pi * 24)))
+            for k in range(m):
+                b0, b1 = lo + (hi - lo) * k / m, lo + (hi - lo) * (k + 1) / m
+                x0 = fl["cx"] + fl["s"] * rr * math.sin(b0)
+                x1 = fl["cx"] + fl["s"] * rr * math.sin(b1)
+                poly = [(ctx.X(fl["cx"]), ctx.Y(cz), yc(fl["cx"])),
+                        (ctx.X(x0), ctx.Y(cz - rr * math.cos(b0)), yc(x0)),
+                        (ctx.X(x1), ctx.Y(cz - rr * math.cos(b1)), yc(x1))]
+                v, fc = _prism(poly, (0, 0, -TH * FT))
+                add_brep(ctx, "Front approach court", v, fc, CONCRETE,
+                         ifc_class="IfcSlab", predefined="BASESLAB")
 
 
 def add_street_frontage(ctx, lot, rooms_cache, terrace=0.0):

@@ -1843,12 +1843,20 @@ if _E and _W:
         _dw2 = model['lot']['frontage']['doubleWalk']
         _P = _dw2.get('passageFt', 10.0)
         _Ri2 = _dw2.get('arcRadiusFt', 5.0) - _dw2.get('widthFt', 4.0) / 2
+        _Ro2 = _dw2.get('arcRadiusFt', 5.0) + _dw2.get('widthFt', 4.0) / 2
+        _sw2 = math.radians(_dw2.get('arcSweepDeg', 150.0))
+        # The court reaches the walk's INNER edge while the flight is above it and its OUTER
+        # edge past the foot, where the flight has stopped and the wedge is court instead. Past
+        # 90 degrees of sweep that flare is the wider of the two, so the lobe alone does not
+        # set the width — assuming it did is what this read when the arms came up 30 degrees.
+        _reach = max(_Ri2 * math.sin(min(_sw2, math.pi / 2)), _Ro2 * math.sin(_sw2))
         _mouth = [b for b in _ct if b[3] > _sw[2] - 0.1]
         check(_mouth and near(max(b[1] for b in _mouth) - min(b[0] for b in _mouth), _P, 0.05),
               f'the channel is {max(b[1] for b in _mouth) - min(b[0] for b in _mouth) if _mouth else 0:.2f} ft '
               f'wide where it meets the sidewalk (asked {_P})')
-        check(near(_cpx[1] - _cpx[0], _P + 2 * _Ri2, 0.05),
-              f'and swells to {_cpx[1] - _cpx[0]:.2f} ft at the lobes (expected {_P + 2 * _Ri2:.2f})')
+        check(near(_cpx[1] - _cpx[0], _P + 2 * _reach, 0.05),
+              f'and swells to {_cpx[1] - _cpx[0]:.2f} ft at the lobes '
+              f'(expected {_P + 2 * _reach:.2f})')
     # THE DECK RUNS OUT TO THE RING. Its north edge follows the ring's own outer circle, which
     # reaches 1.3 ft further south at the door's axis than at the terrace's corners — cut
     # straight it would leave a wedge of nothing between the deck and the top tread. Tested as
