@@ -462,9 +462,15 @@ def build_level(cfg, rooms_cache, level):
         # roofs — closed, so the interior is never visible from any angle. A
         # crawlspace band raises the whole thing off grade.
         crawl = level.get("crawlspaceFt", 0) * B.FT
+        # THE PATIO IS ONE INCH UNDER THE FINISHED FLOOR, in PLAN FEET. Authored as a drop
+        # rather than as a height above grade: written absolutely, raising `crawlspaceFt` would
+        # leave the patio behind and turn the threshold into a step, with nothing to catch it.
+        _patio = (level.get("crawlspaceFt", 0)
+                  - ((cfg["lot"].get("frontage") or {}).get("doubleWalk") or {}).get("patioDropIn", 0) / 12.0)
         B.add_massing(ctx, level["roofGroups"], rooms_cache, crawl,
                       deck_arc=B.approach_arc_lines(cfg["lot"].get("frontage") or {},
-                                                    rooms_cache, cfg["lot"], ctx.T / B.FT / 2))
+                                                    rooms_cache, cfg["lot"], ctx.T / B.FT / 2),
+                      porch_base=_patio * B.FT)
         B.add_fenestration(ctx, level["roofGroups"], rooms_cache, crawl)
         B.add_deck(ctx, cfg["lot"], rooms_cache, crawl)
         B.add_lot_wall(ctx, cfg["lot"], rooms_cache, crawl)
@@ -478,8 +484,9 @@ def build_level(cfg, rooms_cache, level):
                               terrace=level.get("crawlspaceFt", 0))
         # `crawl` is in METRES (it is a z for the massing); add_front_approach works in plan
         # feet, so hand it the authored figure rather than the converted one.
-        B.add_front_approach(ctx, cfg["lot"], rooms_cache,
-                             terrace=level.get("crawlspaceFt", 0))
+        # ...and the flights climb to the PATIO, not to the house, so their top tread lands
+        # flush with it rather than standing an inch proud mid-route.
+        B.add_front_approach(ctx, cfg["lot"], rooms_cache, terrace=_patio)
         B.add_driveway(ctx, cfg["lot"], rooms_cache)
 
     ifc_name = f"{lid}.ifc"

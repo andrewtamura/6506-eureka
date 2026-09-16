@@ -1709,7 +1709,12 @@ if _E and _W:
           f'...and reaching the same way out ({uE[2]:.2f}..{uE[3]:.2f})')
     # LANDING ON THE SIDEWALK is the whole point of the change, so it is measured against the
     # sidewalk's own near edge rather than a number repeated here.
-    _terr = next((lv.get('crawlspaceFt', 0) for lv in model['levels'] if lv['id'] == 'exterior'), 0)
+    # The flights climb to the PATIO, which sits `patioDropIn` UNDER the house's finished
+    # floor so water runs away from the threshold — not to `crawlspaceFt`, which is the
+    # house's own level and is what this used to compare against.
+    _ffl = next((lv.get('crawlspaceFt', 0) for lv in model['levels'] if lv['id'] == 'exterior'), 0)
+    _drop = model['lot']['frontage']['doubleWalk'].get('patioDropIn', 0) / 12.0
+    _terr = _ffl - _drop
     _sw = extents(ext, lambda nm, p: nm == 'Sidewalk - north').get('Sidewalk - north')
     check(_sw is not None, 'the north sidewalk is measurable')
     if _sw:
@@ -1933,9 +1938,21 @@ if _E and _W:
     _deck = _hulls(ext, 'Porch floor')
     _standing = _laps(_armch + _hulls(ext, 'Front approach courtyard skirt'), _deck, tol=0.05)
     check(_deck and not _standing, f'nothing stands on the forecourt deck ({len(_standing)})')
+    # THE PATIO IS SET UNDER THE THRESHOLD, deliberately, and the drop is measured against the
+    # house's OWN finished floor rather than against the authored number — pinned to the
+    # number the two could drift apart and this would still pass.
     _pf = extents(ext, lambda nm, p: nm == 'Porch floor').get('Porch floor')
-    check(_pf is not None and near(_pf[5], _terr, 0.02),
-          f'the forecourt deck is level with the door ({_pf[5] if _pf else 0:.2f} vs {_terr:.2f})')
+    _cs = extents(ext, lambda nm, p: nm == 'Crawlspace - primary').get('Crawlspace - primary')
+    check(_pf and _cs and near(_cs[5] - _pf[5], _drop, 0.005),
+          f'the patio sits {(_cs[5] - _pf[5]) * 12 if _pf and _cs else 0:.2f} in under the '
+          f'finished floor (authored {_drop * 12:.0f}) — {_pf[5] * 12 if _pf else 0:.1f} in over grade')
+    # ...and the flights land FLUSH on it. A step here is in the middle of the route, between
+    # the top tread and the patio it opens onto, and nothing measured it before.
+    for tag in ('east', 'west'):
+        _t0 = [b for nm, b in _parts(ext, f'Front approach {tag} tread 0')]
+        check(_t0 and _pf and near(max(b[5] for b in _t0), _pf[5], 0.005),
+              f"the {tag} flight's top tread is flush with the patio "
+              f'({(max(b[5] for b in _t0) - _pf[5]) * 12 if _t0 and _pf else 0:+.3f} in)')
     # THE RUN REACHES THE HOUSE, so the wall is continuous sidewalk to front wall. It used to
     # be measured against the porch's cheek; that wall is gone, so this is re-aimed at the
     # house itself rather than dropped.

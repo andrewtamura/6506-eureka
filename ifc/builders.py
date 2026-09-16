@@ -1543,7 +1543,7 @@ def _high_edge(part, ref):
     return "y1" if rcy < pcy else "y2"
 
 
-def add_massing(ctx, groups, rooms_cache, crawl=0.0, deck_arc=None):
+def add_massing(ctx, groups, rooms_cache, crawl=0.0, deck_arc=None, porch_base=None):
     """Build the exterior as solid massing blocks (so the interior is never
     visible) capped with roofs: a two-storey primary under a hip, a two-storey
     extension under a shed sloping away from the primary, and a one-storey
@@ -1633,7 +1633,11 @@ def add_massing(ctx, groups, rooms_cache, crawl=0.0, deck_arc=None):
             run("spatial.assign_container", ctx.model, products=[wt], relating_structure=ctx.storey)
 
     if crawl > 0:
-        add_porch(ctx, rooms_cache, crawl, deck_arc=deck_arc)
+        # THE PORCH SITS BELOW THE HOUSE. `crawl` is the massing's own crawlspace band and must
+        # stay where it is; the patio is set an inch under the finished floor so water runs away
+        # from the threshold, and handing that lowered figure in as `crawl` would sink the house
+        # with it.
+        add_porch(ctx, rooms_cache, crawl if porch_base is None else porch_base, deck_arc=deck_arc)
 
 
 def add_porch(ctx, rooms_cache, base, width_ft=9.0, deck_arc=None):
