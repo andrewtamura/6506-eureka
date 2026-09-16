@@ -73,6 +73,11 @@
     "yardFence": {
       "_note": "A 6 ft stained BOARD fence closing the rear yard: from the east extension's NE corner, east along that wing's north wall face, to the east property line. Its first 15 ft ride the new deck terrace.",
       "_noteDatum": "heightDatum says what the 6 ft is measured from. 'surface' = 6 ft above whatever it stands on, so it steps up over the deck and doubles as that edge's guard now the rails are gone. 'grade' = one flat top line 6 ft above grade, which over the deck is exactly 42 in \u2014 a code guard \u2014 and is the one-word retreat if a fence-height cap turns out to bite.",
+      "gate": {
+        "_note": "A gate at the extension end so the driveway reaches the back yard \u2014 the drive's south edge IS this fence line. clearanceIn is the building face to the hinge post's near face, the room the leaf needs to swing clear of the wall. It sits BESIDE the run's terminal post rather than replacing it: that post is on the wing's corner by construction and add_side_porch punches its landing slab around it.",
+        "widthFt": 3.5,
+        "clearanceIn": 6.0
+      },
       "heightFt": 6.0,
       "heightDatum": "surface",
       "boardWidthIn": 5.5,

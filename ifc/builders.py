@@ -2728,8 +2728,23 @@ def add_yard_fence(ctx, lot, rooms_cache, base):
     # wall for privacy it no longer does, so this is one run on grade; the split stays
     # because the deck's north edge is a number that has already moved once.
     over_deck = deck_south - 1e-6 <= fence_z <= deck_north + 1e-6
+    # A GATE AT THE EXTENSION END, so the driveway reaches the back yard — the drive's south
+    # edge IS this fence line, so it opens straight off the paving. It sits BESIDE the run's
+    # terminal post rather than replacing it: that post is on the wing's corner by
+    # construction and `add_side_porch` punches its landing slab around it, so moving it would
+    # leave the porch notched around nothing.
+    hp = YARD_POST_FT / 2
+    gate = f.get("gate") or {}
+    gw = gate.get("widthFt", 3.5)
+    g_clear = gate.get("clearanceIn", 6.0) / 12.0
+    hinge_c = latch_c = None
+    if gate and not over_deck:
+        # The clearance that matters is the building face to the post's near face: that is the
+        # room the leaf needs to swing without catching the wall.
+        hinge_c = x_start - g_clear - hp
+        latch_c = hinge_c - hp - gw - hp
     segs = ([(east, deck_east, 0.0), (deck_east, x_start, base)] if over_deck
-            else [(east, x_start, 0.0)])
+            else [(east, latch_c - hp if latch_c is not None else x_start, 0.0)])
     for si, (lo, hi, y0) in enumerate(segs):
         if hi - lo <= 1e-6:
             continue
@@ -2740,7 +2755,6 @@ def add_yard_fence(ctx, lot, rooms_cache, base):
         n = max(1, int(round((hi - lo) / post_oc)))
         for i in range(n + 1):
             xc = lo + (hi - lo) * i / n
-            hp = YARD_POST_FT / 2
             box(f"Yard fence post {si}.{i}", xc - hp, xc + hp,
                 fence_z - hp, fence_z + hp, y0, top - y0 + 0.08)
         # rails, spread between the base and the top
@@ -2755,6 +2769,33 @@ def add_yard_fence(ctx, lot, rooms_cache, base):
                 fence_z + Tb / 2, fence_z + Tb / 2 + Tb, y0, top - y0)
             c += oc
             i += 1
+
+    if hinge_c is None:
+        return
+    # THE GATE. The shortened run above stops at the latch post, so the terminal post on the
+    # wing's corner has to be emitted here — the run posts both ends of ITS span, and that
+    # span no longer reaches the building.
+    gtop = H * FT
+    for gi, xc in enumerate((hinge_c, latch_c)):
+        box(f"Yard gate post {gi}", xc - hp, xc + hp,
+            fence_z - hp, fence_z + hp, 0.0, gtop + 0.08)
+    box("Yard fence post corner", x_start - hp, x_start + hp,
+        fence_z - hp, fence_z + hp, 0.0, gtop + 0.08)
+    # The leaf: the run's own boards and rails, held off the posts and the ground so it can
+    # swing. Indexed like the fence's, because `extents()` unions by name and an unindexed
+    # rank collapses into one box the harness cannot measure.
+    g_lo, g_hi = latch_c + hp + 0.08, hinge_c - hp - 0.08
+    g_y0 = 2 / 12.0 * FT                                  # ground clearance under the leaf
+    for j in range(2):
+        yc = g_y0 + (gtop - g_y0) * (j + 0.5) / 2
+        box(f"Yard gate rail {j}", g_lo, g_hi, fence_z - Tb / 2, fence_z + Tb / 2,
+            yc - 0.06, 0.12)
+    i, c = 0, g_lo + oc / 2
+    while c < g_hi - 1e-6:
+        box(f"Yard gate board {i}", c - Wb / 2, c + Wb / 2,
+            fence_z + Tb / 2, fence_z + Tb / 2 + Tb, g_y0, gtop - g_y0)
+        c += oc
+        i += 1
 
 
 def approach_arc_lines(f, rooms_cache, lot, half_wall):

@@ -336,7 +336,7 @@ check(checked_ud > 0, f'an under-stair door exists to check ({checked_ud})')
 # reading them back out of model.json would assert nothing. The property lines come from
 # the built `Lot` slab, which add_lot makes exactly widthFt wide.
 print('\nREAR DECK & YARD')
-D = extents(ext, lambda nm, p: nm.startswith(('Deck', 'Hot tub', 'Yard fence', 'Lot wall')))
+D = extents(ext, lambda nm, p: nm.startswith(('Deck', 'Hot tub', 'Yard fence', 'Yard gate', 'Lot wall')))
 east_line, west_line = E['Lot'][0], E['Lot'][1]
 _cfg = json.load(open('ifc/model.json'))['lot']
 dk = _cfg['deck']; tb = dk['hotTub']; fn = _cfg['yardFence']
@@ -444,7 +444,41 @@ if boards:
     run_lo = min(b[0] for b in boards.values()); run_hi = max(b[1] for b in boards.values())
     fence_line = (min(b[2] for b in boards.values()) + max(b[3] for b in boards.values())) / 2
     check(near(run_lo, east_line, 0.4), f'the fence reaches the east property line ({run_lo:.3f})')
-    check(near(run_hi, -22.9167, 0.4), f"and starts at the extension's NE corner ({run_hi:.3f})")
+    # ...and the BOARDED run now stops at the gate, not at the building. The gate carries the
+    # line the rest of the way, so what is asserted is the assembly reaching the corner.
+    _bx = sorted((b[0] + b[1]) / 2 for b in boards.values())
+    oc_guess = min((_bx[i + 1] - _bx[i] for i in range(len(_bx) - 1)), default=0.5) * 1.5
+    _gp = {nm: b for nm, b in D.items() if nm.startswith('Yard gate post')}
+    _wing_e = -22.9167
+    check(len(_gp) == 2, f'the yard fence has a gate in it ({len(_gp)} gate posts)')
+    if len(_gp) == 2:
+        _near, _far = sorted(_gp.values(), key=lambda b: -b[1])       # nearest the building first
+        # THE CLEARANCE THE ASK PINS: building face to the hinge post's near face, the room
+        # the leaf needs to swing without catching the wall.
+        _clr = _wing_e - _near[1]
+        check(near(_clr, 0.5, 0.02), f'the gate stands {_clr * 12:.1f} in clear of the building')
+        _open = _near[0] - _far[1]
+        check(near(_open, 3.5, 0.02), f'and its clear opening is {_open:.2f} ft')
+        # THE GAP HAS TO BE A REAL GAP. A leaf drawn over an unbroken run reads correctly from
+        # almost every angle, so the boards are what gets measured, not the leaf.
+        _in = [nm for nm, b in boards.items() if b[1] > _far[1] + 0.01 and b[0] < _near[0] - 0.01]
+        check(not _in, f'no fence board crosses the opening ({len(_in)})')
+        # Against the latch post's EAST face — the side the boards arrive on. Compared with
+        # its west face this read 0.68 ft short and failed on geometry that is correct: px
+        # grows WEST here, so a post's b[1] is the face AWAY from the run.
+        _short = _far[0] - run_hi
+        check(0 <= _short < oc_guess,
+              f'the boarded run stops at the gate ({_short:.2f} ft short of the post, '
+              f'under one board pitch)')
+        # The leaf tops out with the fence, so the two read as one line.
+        _lf = [b for nm, b in D.items() if nm.startswith('Yard gate board')]
+        check(_lf and near(max(b[5] for b in _lf), max(b[5] for b in boards.values()), 0.02),
+              f'and the leaf tops out with the fence ({max(b[5] for b in _lf) if _lf else 0:.2f})')
+    # The fence ASSEMBLY still reaches the wing's corner — the terminal post does, and the
+    # side porch is notched around that very post.
+    _corner_post = [b for nm, b in D.items()
+                    if nm.startswith('Yard fence post') and b[0] <= _wing_e and b[1] >= _wing_e]
+    check(_corner_post, f"and the assembly still reaches the extension's NE corner")
     # Classified by the height each board STANDS ON, not by where it is in plan. The
     # first version split on the deck's east edge, which only worked while the fence
     # happened to cross it; once the terrace moved that test put 61 grade boards "on
