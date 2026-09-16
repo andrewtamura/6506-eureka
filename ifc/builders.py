@@ -2494,10 +2494,14 @@ def add_picket_fence(ctx, lot, rooms_cache):
     B = {k: v["bounds"] for k, v in rooms_cache.items()}
     pxs = [v for r in B.values() for v in (r["x1"], r["x2"])]
     pzs = [v for r in B.values() for v in (r["z1"], r["z2"])]
-    west, _, south, _, _ = lot_lines(lot, B.values(), ctx.T / FT / 2)
+    west, _, south, north_pl, _ = lot_lines(lot, B.values(), ctx.T / FT / 2)
     scu_west = max(B["scullery"]["x1"], B["scullery"]["x2"])  # CMU south wall ends here
-    north = max(pzs)                                 # house north exterior wall plane
-    house_west = max(pxs)                            # house's west exterior wall (NW corner at z=north)
+    # `house_north` is the HOUSE'S north wall plane; `north_pl` is the PROPERTY LINE, 11 ft
+    # beyond it. This used to be one name, `north`, holding the wall plane and shadowing the
+    # line of the same name out of lot_lines — which reads as if the fence already ran to the
+    # boundary when it stopped well short of it.
+    house_north = max(pzs)
+    house_west = max(pxs)                            # house's west exterior wall
 
     def box(name, xc, zc, xd, zd, z0, h):
         b = make_box(ctx, "IfcRailing", name, xd * FT, zd * FT, h, ctx.X(xc), ctx.Y(zc), z0, color=WHITE)
@@ -2561,13 +2565,30 @@ def add_picket_fence(ctx, lot, rooms_cache):
     # ...which is now the DECK's west edge, not the scullery's wall — see add_lot_wall.
     scu_west = max(scu_west, deck_extent(rooms_cache, lot, ctx.T / FT / 2)[0])
     run_fence("x", south, scu_west, west)            # south: end of CMU -> SW corner
-    run_fence("z", west, south, north)               # west (side yard): SW corner -> north wall plane
-    # north leg: extend east from the west line to the house's NW corner, with a
-    # gated trellis arbor in the middle of the leg.
+    # ...and the WEST leg carries on past the house to the NORTH PROPERTY LINE, not to the
+    # house's wall plane. `Retaining wall - west` runs the full depth with its top flush with
+    # lot grade, so the extension has the same support the rest of the leg has.
+    run_fence("z", west, south, north_pl)            # west: SW corner -> NW corner
+    # THE FRONT LEG, along the property line, from the walkup east to that west corner. Its
+    # east end is the approach's own span — the SAME figure the retaining wall's opening is
+    # cut from — so the fence, the wall carrying it and the walkup cannot drift apart. Without
+    # a walkup there is no opening, and the leg runs the whole line.
+    _fl = _approach_arc(lot.get("frontage") or {}, rooms_cache, lot, ctx.T / FT / 2)
+    approach_west = max((f["span"][1] for f in _fl), default=None)
+    # SET BACK so the last post BUTTS the walkup instead of standing in it. `run_fence` centres
+    # a post on each end of the span, so a leg started on the approach's own span buries half a
+    # post cap (0.23) plus the balustrade's coping oversail in the masonry — measured at 3.4 in
+    # of overlap, which is not a connection, it is a clash that happens to be the same colour.
+    POST_CAP_HALF, COPE_OVERSAIL = 0.23, 0.07
+    run_fence("x", north_pl,
+              approach_west + POST_CAP_HALF + COPE_OVERSAIL if approach_west is not None else -1e9,
+              west)
+    # The cross leg at the house's north wall stays: it is the gate between the front yard and
+    # the side yard, which is what it already reads as now that the fence encloses both.
     xg = (house_west + west) / 2
-    run_fence("x", north, house_west, xg - 1.75)     # house -> gate
-    run_fence("x", north, xg + 1.75, west)           # gate -> west corner
-    gate_trellis(xg, north)
+    run_fence("x", house_north, house_west, xg - 1.75)   # house -> gate
+    run_fence("x", house_north, xg + 1.75, west)         # gate -> west corner
+    gate_trellis(xg, house_north)
 
 
 def _front_door(rooms_cache):
