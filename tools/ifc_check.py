@@ -2000,14 +2000,37 @@ if _pf_parts and _pl_n is not None:
     # through, or a post driven into the balustrade.
     _front = [b for nm, b in _pf_parts if b[2] > _pl_n - 1.2]
     _appr = [b for nm, b in _fa if b[3] > _pl_n - 1.2 and b[2] < _pl_n + 0.4]
-    check(_front and _appr, f'front leg and approach are both measurable ({len(_front)}/{len(_appr)})')
+    check(_front and _appr, f'front legs and approach are both measurable ({len(_front)}/{len(_appr)})')
     if _front and _appr:
-        # POSITIVE and small: the last post has to BUTT the balustrade, not stand inside it.
-        # An `abs()` here passed a 3.4 in overlap, which is a clash that happens to be the
-        # same colour as the thing it is clashing with.
-        _gap = min(b[0] for b in _front) - max(b[1] for b in _appr)
-        check(-0.02 < _gap < 0.4,
-              f'the front leg butts the walkup ({_gap:+.2f} ft — touching, not buried in it)')
+        # SPLIT BY SIDE. There are two front legs now, one each side of the walkup, and a
+        # single `min(px)` over both stops measuring the west leg's junction the moment the
+        # east one exists — it picks up that leg's driveway end, 50 ft away, and passes.
+        _ae, _aw = min(b[0] for b in _appr), max(b[1] for b in _appr)
+        # Split on the approach's MIDLINE, by each part's own centre. Splitting on its edges
+        # instead — "east leg = parts entirely clear of it" — drops an OVERLAPPING post out of
+        # both legs, and the junction is then measured to the next post along: a set-back
+        # removed on purpose still read +0.32 ft and passed. The filter was hiding the one
+        # thing it exists to catch.
+        _amid = (_ae + _aw) / 2
+        _lg_e = [b for b in _front if (b[0] + b[1]) / 2 < _amid]
+        _lg_w = [b for b in _front if (b[0] + b[1]) / 2 >= _amid]
+        check(_lg_e and _lg_w,
+              f'a front leg each side of the walkup ({len(_lg_e)} east, {len(_lg_w)} west)')
+        # POSITIVE and small at each junction: the last post has to BUTT the balustrade, not
+        # stand inside it. An `abs()` here passed a 3.4 in overlap, which is a clash that
+        # happens to be the same colour as the thing it is clashing with.
+        for _lbl, _g in (('west', (min(b[0] for b in _lg_w) - _aw) if _lg_w else None),
+                         ('east', (_ae - max(b[1] for b in _lg_e)) if _lg_e else None)):
+            check(_g is not None and -0.02 < _g < 0.4,
+                  f'the {_lbl} leg butts the walkup ({_g:+.2f} ft — touching, not buried in it)')
+        # AND THE EAST LEG STOPS AT THE DRIVEWAY rather than running onto the pad. Its end,
+        # the retaining wall's end and the drive's edge are all `x_flat` by construction, so
+        # this catches that derivation being replaced by a typed number.
+        _drv = extents(ext, lambda nm, p: nm == 'Driveway').get('Driveway')
+        if _lg_e and _drv:
+            _dg = min(b[0] for b in _lg_e) - _drv[1]
+            check(-0.02 < _dg < 0.4,
+                  f"the east leg stops on the driveway's edge ({_dg:+.2f} ft at px {_drv[1]:.2f})")
     # AND IT STAYS LOW. 36 in to the picket tips, which is what "keep the height low" pins.
     _tips = max(b[5] for nm, b in _parts(ext, 'Fence picket'))
     check(near(_tips, 3.0, 0.02), f'the pickets stand {_tips * 12:.1f} in')
