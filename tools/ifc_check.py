@@ -1716,9 +1716,12 @@ if _E and _W:
         # The RING's outer face is what meets the sidewalk — the treads stop a balustrade's
         # thickness short of it, which is right and which the old flights did not do because
         # they ran out to the walk head on.
-        _ringN = max((b[3] for nm, b in _fa if nm.endswith(('skirt', 'plinth'))), default=0)
-        check(near(_ringN, _sw[2], 0.02),
-              f'the ring meets the sidewalk ({_ringN:.2f} vs {_sw[2]:.2f})')
+        # THE COURT is what meets the sidewalk — the flights stop short of it, and the
+        # channel between them runs on to the walk. That is the access the horseshoe exists
+        # for, and the closed ring it replaced had none of it.
+        _chN = max((b[3] for nm, b in _parts(ext, 'Front approach court')), default=0)
+        check(near(_chN, _sw[2], 0.02),
+              f'the court runs out to the sidewalk ({_chN:.2f} vs {_sw[2]:.2f})')
     # Risers: even within a flight, none over 6 in, and the WEST flight has more — the
     # right-of-way falls that way, and forcing the two to match would mean a false grade.
     tops = lambda parts: sorted({round(b[5], 3) for b in parts}, reverse=True)
@@ -1728,11 +1731,12 @@ if _E and _W:
         check(near(t[0], _terr, 0.02), f'the {tag} flight springs at the terrace ({t[0]:.2f})')
         check(len(steps) == 0 or (max(steps) - min(steps) < 0.01 and max(steps) <= 0.5 + 1e-6),
               f'{tag}: {len(t)} treads, risers {max(steps) * 12 if steps else 0:.1f} in, even and under 6')
-    # THE TWO FLIGHTS MATCH, which they did not under the quarter arcs: those landed on a
-    # sidewalk that falls to the west, so the west one needed three more risers. Both now
-    # start from ONE LEVEL COURT, so a difference between them would be a fiction.
-    check(len(tops(_W)) == len(tops(_E)),
-          f'both flights take the same risers ({len(tops(_E))}) — they start from one level court')
+    # THE WEST FLIGHT TAKES MORE. Its foot is 0.4 ft lower: the right-of-way falls toward the
+    # NW corner and the court's paving follows the street across the channel rather than
+    # sitting level, because held level its east edge sank under the park strip.
+    check(len(tops(_W)) >= len(tops(_E)),
+          f'the west flight takes at least as many risers as the east '
+          f'({len(tops(_W))} vs {len(tops(_E))}) — the lot falls west')
     # IT FITS INSIDE THE HOUSE. The approach spanned 46.5 ft against the primary block's 43 ft
     # wall faces — wider than the roof over them, so it read as bigger than the building it
     # leads to, and nothing measured that. `arcRadiusFt` is the main lever: a quarter arc runs
@@ -1815,20 +1819,36 @@ if _E and _W:
     _ps = extents(ext, lambda nm, p: nm == 'Park strip - north').get('Park strip - north')
     if _ct and _ps:
         _cy = (min(b[4] for b in _ct), max(b[5] for b in _ct))
-        check(_cy[1] - _cy[0] < 0.5, f'it is one level surface ({_cy[0]:.2f}..{_cy[1]:.2f})')
+        _cpxall = (min(b[0] for b in _ct), max(b[1] for b in _ct))
         # The right-of-way FALLS east to west, so it is its grade AT THE DOOR that the court
         # has to match. Against the band's overall minimum this would be comparing with the
         # NW corner, 1.5 ft lower, and would pass on a court at the wrong level.
         _nw = model['lot']['frontage'].get('nwDropIn', 36) / 12.0
-        _street = -_nw * max(0.0, min(1.0, (_door - _ps[0]) / (_ps[1] - _ps[0])))
-        check(abs(_cy[1] - _street) < 0.1,
-              f'and it sits at street grade ({_cy[1]:.2f} vs {_street:.2f} at the door)')
+        _grade = lambda px: -_nw * max(0.0, min(1.0, (px - _ps[0]) / (_ps[1] - _ps[0])))
+        # It FOLLOWS the street rather than sitting level: its high and low edges have to be
+        # the street's own grade at the court's own east and west extremes. Compared against
+        # one figure at the door this passed on a level slab, which is what buried its east
+        # edge under the park strip.
+        check(abs(_cy[1] - _grade(_cpxall[0])) < 0.1 and abs(_cy[1] - _cy[0] - 0.33 -
+              abs(_grade(_cpxall[1]) - _grade(_cpxall[0]))) < 0.1,
+              f'it follows the street across its width ({_cy[0]:.2f}..{_cy[1]:.2f} vs '
+              f'{_grade(_cpxall[1]):.2f}..{_grade(_cpxall[0]):.2f})')
         _cpx, _cpz = (min(b[0] for b in _ct), max(b[1] for b in _ct)), \
                      (min(b[2] for b in _ct), max(b[3] for b in _ct))
         check(near((_cpx[0] + _cpx[1]) / 2, _door, 0.05),
               f'centred on the front door ({(_cpx[0] + _cpx[1]) / 2:.2f} vs {_door})')
-        check(near(_cpx[1] - _cpx[0], _cpz[1] - _cpz[0], 0.05),
-              f'and round, not oval ({_cpx[1] - _cpx[0]:.2f} across by {_cpz[1] - _cpz[0]:.2f})')
+        # A LOZENGE, not a circle: `passageFt` at the ends where you walk in, swelling by the
+        # two lobes the flights enclose. The channel's width is the access requirement and is
+        # measured where it is narrowest — at the sidewalk, clear of the lobes.
+        _dw2 = model['lot']['frontage']['doubleWalk']
+        _P = _dw2.get('passageFt', 10.0)
+        _Ri2 = _dw2.get('arcRadiusFt', 5.0) - _dw2.get('widthFt', 4.0) / 2
+        _mouth = [b for b in _ct if b[3] > _sw[2] - 0.1]
+        check(_mouth and near(max(b[1] for b in _mouth) - min(b[0] for b in _mouth), _P, 0.05),
+              f'the channel is {max(b[1] for b in _mouth) - min(b[0] for b in _mouth) if _mouth else 0:.2f} ft '
+              f'wide where it meets the sidewalk (asked {_P})')
+        check(near(_cpx[1] - _cpx[0], _P + 2 * _Ri2, 0.05),
+              f'and swells to {_cpx[1] - _cpx[0]:.2f} ft at the lobes (expected {_P + 2 * _Ri2:.2f})')
     # THE DECK RUNS OUT TO THE RING. Its north edge follows the ring's own outer circle, which
     # reaches 1.3 ft further south at the door's axis than at the terrace's corners — cut
     # straight it would leave a wedge of nothing between the deck and the top tread. Tested as
@@ -1881,8 +1901,11 @@ if _E and _W:
     # The SKIRT is the member that has to be continuous: it is what retains, and the plinth
     # and coping ride it. The balusters are discrete by design, so testing the whole run would
     # only ever report them adrift.
+    # The courtyard's frame is the two inner runs plus the LANDING's rail between them: the
+    # flights' top ends sit on the same line it does, so the three close the top of the
+    # horseshoe as one. Without the landing in this set the two arcs are simply two arcs.
     _red = ([h for nm, h in _hulls(ext, 'Front approach east inner skirt')]
-            + [h for nm, h in _hulls(ext, 'Front approach courtyard skirt')]
+            + [h for nm, h in _hulls(ext, 'Front approach landing skirt')]
             + [h for nm, h in _hulls(ext, 'Front approach west inner skirt')])
     _ok, _adrift = _connected(_red)
     check(_ok, f'the courtyard frame is ONE continuous wall ({len(_red)} parts, {_adrift} adrift)')
