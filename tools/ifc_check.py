@@ -2069,5 +2069,125 @@ if _pf_parts and _pl_n is not None:
     _tips = max(b[5] for nm, b in _parts(ext, 'Fence picket'))
     check(near(_tips, 3.0, 0.02), f'the pickets stand {_tips * 12:.1f} in')
 
+# ---------------------------------------------------------------------------------
+# THE GARDEN WALKS. Two paver fields, and what is asserted is that each END LANDS ON THE
+# THING IT IS SUPPOSED TO MEET — a walk is exactly the element that looks right in a
+# render while floating an inch clear of the step it serves. Every figure is read off
+# built geometry: the deck's own grade paver, the side porch's, the gate's posts, the
+# driveway's edge, the picket fence's post face.
+print('\nGARDEN WALKS')
+gw = _cfg.get('gardenWalk') or {}
+GW = extents(ext, lambda nm, p: nm.startswith('Garden walk paver')
+             or nm.startswith('Garden walk side paver'))
+GB = extents(ext, lambda nm, p: nm.startswith('Garden walk bed'))
+_main = {nm: b for nm, b in GW.items() if 'side' not in nm}
+_side = {nm: b for nm, b in GW.items() if 'side' in nm}
+# Half a joint: every paver is inset that much all round, so a field's measured edge sits
+# inside the line it was laid to. Named because it is the tolerance on every butt below.
+_HJ = gw.get('jointIn', 0.5) / 24.0
+if gw:
+    check(len(_main) > 10 and len(_side) > 3,
+          f'both walks are laid paver by paver ({len(_main)} main, {len(_side)} branch)')
+if _main and _side:
+    _w_e = min(b[0] for b in _main.values())        # east edge (px grows WEST)
+    _w_w = max(b[1] for b in _main.values())
+    _w_s = min(b[2] for b in _main.values())
+    _w_n = max(b[3] for b in _main.values())
+    # --- the south end. Against the deck's OWN grade paver, not against a coordinate.
+    _deck_toe = D['Deck step N3'][3]
+    check(near(_w_s - _deck_toe, _HJ, 0.05),
+          f"it starts at the rear deck's bottom step ({_w_s:.3f} vs {_deck_toe:.3f})")
+    # --- through the gate. The POSITIVE CONTROL first: without it, "no paver is outside
+    # the opening" passes for a walk that stops short of the fence entirely.
+    _gpost = {nm: b for nm, b in D.items() if nm.startswith('Yard gate post')}
+    if len(_gpost) == 2:
+        _near_p, _far_p = sorted(_gpost.values(), key=lambda b: -b[1])
+        _op_w, _op_e = _near_p[0], _far_p[1]        # the clear opening's two faces
+        _fz = (min(b[2] for b in _gpost.values()) + max(b[3] for b in _gpost.values())) / 2
+        _thru = [nm for nm, b in _main.items() if b[2] < _fz < b[3]]
+        check(_thru, f'and passes through the gate ({len(_thru)} pavers cross the fence line)')
+        _out = [nm for nm in _thru
+                if _main[nm][0] < _op_e - 0.01 or _main[nm][1] > _op_w + 0.01]
+        check(not _out,
+              f'pinching to the clear opening as it does ({len(_out)} outside '
+              f'{_op_e:.3f}..{_op_w:.3f})')
+        # ...and no paver is INSIDE a post. The punch is what makes the pinch real; without
+        # it the row would simply be drawn over the posts and read the same from above.
+        _hit = [nm for nm, b in _main.items()
+                if any(b[1] > q[0] + 0.01 and b[0] < q[1] - 0.01
+                       and b[3] > q[2] + 0.01 and b[2] < q[3] - 0.01 for q in _gpost.values())]
+        check(not _hit, f'with no paver run into a gate post ({len(_hit)})')
+    # --- beside the drive. The walk is positioned OFF the driveway's west edge, so this
+    # measures the planting joint the owner asked to keep rather than a coordinate.
+    _drive_w = DV['Driveway'][1]
+    _run = [b for b in _main.values() if b[3] < _w_n - gw.get('returnFt', 4.0)]
+    _joint = min(b[0] for b in _run) - _drive_w
+    check(near(_joint, gw['plantingJointIn'] / 12.0, 0.05),
+          f"a {_joint * 12:.1f} in planting joint is left between the walk and the drive")
+    # ...and the TOP of the run turns east onto it, so the walk ends on paving.
+    _ret = [b for b in _main.values() if b[2] > _w_n - gw.get('returnFt', 4.0)]
+    _reach = min(b[0] for b in _ret) - _drive_w
+    check(_ret and near(_reach, _HJ, 0.02),
+          f'and its top turns east onto the driveway ({_reach:+.3f} ft off its edge)')
+    # --- IT STAYS ON THE LOT. This is the assertion that records the design decision: the
+    # walk stops at the picket fence's post face and lets the drive carry you to the public
+    # walk, which is why there is no opening cut in the fence, no gap in the retaining wall
+    # and no sloped crossing of the planting strip. Paired with a reach test, or a walk that
+    # stopped at the gate would pass it.
+    # Re-measured rather than taken from `E`, which is REBOUND further up this file — the
+    # bands dict it holds at line 79 is a loop variable by the time this runs.
+    _north_pl = extents(ext, lambda nm, p: nm == 'Lot')['Lot'][3]
+    _fence_face = _north_pl - 0.23                  # PICKET_CAP_HALF, the widest thing on it
+    check(_w_n <= _fence_face + 0.01 and _w_n > _fence_face - 0.5,
+          f'it dies on the picket fence and never crosses the property line '
+          f'({_w_n:.3f}, fence face {_fence_face:.3f}, line {_north_pl:.3f})')
+    # Per-PRODUCT, via `_parts`: `extents` unions by name and every picket post cap on the
+    # lot shares one, so the union reaches the SOUTH leg 50 ft away and the test passes on
+    # any build at all — it did, before this was measured properly.
+    _on = [nm for nm, q in _parts(ext, 'Fence')
+           if q[1] > _w_e + 0.01 and q[0] < _w_w - 0.01 and q[3] > _w_s + 0.01 and q[2] < _w_n - 0.01]
+    check(not _on, f'and nothing of the picket fence stands on it ({len(_on)} parts)')
+    # --- the branch. South edge on the side porch's own grade paver, east edge on the main
+    # walk, and wide enough to catch the whole foot of the flight — step off the stairs at
+    # either edge and you are still on paving.
+    _toe = SP['Side porch step 3']
+    _s_s = min(b[2] for b in _side.values())
+    check(near(_s_s - _toe[3], _HJ, 0.05),
+          f"the branch starts at the side entrance's bottom step ({_s_s:.3f} vs {_toe[3]:.3f})")
+    # px grows WEST, so the branch runs west off the main walk and the joint between them is
+    # its MIN px against the walk's MAX. Taken the other way round this read -11.55 ft, which
+    # is the branch's whole length rather than a joint.
+    _gap = min(b[0] for b in _side.values()) - _w_w
+    check(near(_gap, 2 * _HJ, 0.05), f'and meets the main walk ({_gap:.3f} ft joint)')
+    check(min(b[0] for b in _side.values()) <= _toe[0] + 0.05
+          and max(b[1] for b in _side.values()) >= _toe[1] - 0.05,
+          f"covering the full width of that flight ({_toe[0]:.2f}..{_toe[1]:.2f})")
+    # --- and both are WALKS, not flights: every paver tops out at lot grade.
+    _high = [nm for nm, b in GW.items() if not near(b[5], 0.0, 0.02)]
+    check(not _high, f'every paver is laid at lot grade ({len(_high)} off)')
+    # --- THE JOINTS SHOW BEDDING, NOT LAWN. The only thing under a paver is `add_lot`'s
+    # grass plane, so without a setting course every joint reads as turf growing through the
+    # walk. Asserted two ways because either alone passes on a build that looks wrong: the
+    # course has to be BELOW the pavers (or it z-fights them) and it has to COVER the field
+    # (or the joints it misses still show green).
+    _reveal = gw.get('bedRevealIn', 1.0) / 12.0
+    check(GB and all(near(b[5], -_reveal, 0.01) for b in GB.values()),
+          f'each field is bedded {_reveal * 12:.2f} in below the pavers ({len(GB)} courses)')
+    # ...and ABOVE THE LAWN. `add_lot` sets the grass plane 1 cm below grade, so a course
+    # bedded deeper than that sits under the turf and every joint still reads green. This is
+    # the assertion, not the one above: the first bedding course passed that and looked
+    # identical to having none.
+    _lawn = extents(ext, lambda nm, p: nm == 'Lot')['Lot'][5]
+    check(GB and min(b[5] for b in GB.values()) > _lawn + 0.005,
+          f'standing proud of the lawn plane, so the joints read as bedding '
+          f'({min(b[5] for b in GB.values()):.4f} vs {_lawn:.4f})')
+    _dry = [nm for nm, b in GW.items()
+            if not any(q[0] <= b[0] + 0.01 and q[1] >= b[1] - 0.01
+                       and q[2] <= b[2] + 0.01 and q[3] >= b[3] - 0.01 for q in GB.values())]
+    check(not _dry, f'and no paver is laid straight on the lawn ({len(_dry)} unbedded)')
+else:
+    check(False, 'both garden walks are authored and built')
+
+
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)

@@ -488,6 +488,9 @@ def build_level(cfg, rooms_cache, level):
         # flush with it rather than standing an inch proud mid-route.
         B.add_front_approach(ctx, cfg["lot"], rooms_cache, terrace=_patio)
         B.add_driveway(ctx, cfg["lot"], rooms_cache)
+        # Last, because it dies on three things already built: the driveway's west edge,
+        # the rear deck's grade paver and the side porch's.
+        B.add_garden_walk(ctx, cfg["lot"], rooms_cache)
 
     ifc_name = f"{lid}.ifc"
     m.write(os.path.join(HERE, ifc_name))

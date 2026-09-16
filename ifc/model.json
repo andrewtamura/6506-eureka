@@ -70,6 +70,19 @@
       "widthFt": 20,
       "stallWidthFt": 9
     },
+    "gardenWalk": {
+      "_note": "Stone paver walks on the east side. The MAIN one runs from the foot of the rear deck's north flight, straight north through the yard fence's gate, up the side yard beside the driveway, and turns EAST onto the drive at the top \u2014 the drive and its apron already carry you to the public sidewalk, so the walk stops short of the property line and needs no opening in the picket fence, no gap in the retaining wall and no sloped crossing of the planting strip. The SIDE one branches from the side entrance's steps east to it.",
+      "_noteJoint": "plantingJointIn is the strip of lawn LEFT between the walk and the drive \u2014 the walk is positioned off the drive's west edge, not off a coordinate. returnFt is how much of the top of the run widens east to meet the paving.",
+      "widthFt": 4.0,
+      "plantingJointIn": 6.0,
+      "returnFt": 4.0,
+      "paverFt": 2.0,
+      "paverRunFt": 1.0,
+      "jointIn": 0.5,
+      "thickIn": 2.5,
+      "_noteBed": "bedRevealIn is how far the setting course sits below the paver faces. It must stay UNDER the lawn plane\u2019s own 1 cm setdown (add_lot), or the course is below the grass and every joint still reads green.",
+      "bedRevealIn": 0.25
+    },
     "yardFence": {
       "_note": "A 6 ft stained BOARD fence closing the rear yard: from the east extension's NE corner, east along that wing's north wall face, to the east property line. Its first 15 ft ride the new deck terrace.",
       "_noteDatum": "heightDatum says what the 6 ft is measured from. 'surface' = 6 ft above whatever it stands on, so it steps up over the deck and doubles as that edge's guard now the rails are gone. 'grade' = one flat top line 6 ft above grade, which over the deck is exactly 42 in \u2014 a code guard \u2014 and is the one-word retreat if a fence-height cap turns out to bite.",

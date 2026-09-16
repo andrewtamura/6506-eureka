@@ -1124,6 +1124,10 @@ def rects_minus(rects, hole):
 
 EXT_WING = ("ext_bath", "wc", "ext_vestibule", "ext_laundry")   # the house's east extension
 YARD_POST_FT = 0.5                                              # the yard fence's 6 in square posts
+PICKET_CAP_HALF = 0.23                                          # half a picket-fence post CAP, the
+# widest thing on that fence. Up here rather than inside `add_picket_fence` because two other
+# builders have to stop short of it: the front legs butt the walkup with it, and the garden walk
+# dies on the front leg's post face rather than running under the fence.
 
 
 def wing_bays(rooms_cache):
@@ -1157,6 +1161,29 @@ def yard_fence_line(rooms_cache, half_wall_ft):
     line = max(max(B[k]["z1"], B[k]["z2"]) for k in EXT_WING if k in B) + half_wall_ft
     x_start = min(min(B[k]["x1"], B[k]["x2"]) for k in EXT_WING if k in B)
     return line, x_start
+
+
+def yard_gate_span(lot, rooms_cache, half_wall_ft):
+    """`(fence_z, east_face, west_face)` for the yard gate's CLEAR OPENING, in plan feet,
+    or None if no gate is authored.
+
+    Shared for the same reason `yard_fence_line` is: the gate is cut by `add_yard_fence`
+    and walked through by `add_garden_walk`, and a walk that derives the opening for
+    itself is a walk that one day runs into a post. Note `east_face`/`west_face` are the
+    faces of the two POSTS, not their centres — the opening, which is what you can
+    actually pass through.
+
+    px grows WEST, so the hinge post (against the building) has the LOWER magnitude and
+    the latch post stands east of it."""
+    f = lot.get("yardFence") or {}
+    gate = f.get("gate") or {}
+    if not f or not gate:
+        return None
+    fence_z, x_start = yard_fence_line(rooms_cache, half_wall_ft)
+    hp = YARD_POST_FT / 2
+    hinge_c = x_start - gate.get("clearanceIn", 6.0) / 12.0 - hp
+    latch_c = hinge_c - hp - gate.get("widthFt", 3.5) - hp
+    return fence_z, latch_c + hp, hinge_c - hp
 
 
 
@@ -2579,7 +2606,7 @@ def add_picket_fence(ctx, lot, rooms_cache):
     # a post on each end of the span, so a leg started on the approach's own span buries half a
     # post cap (0.23) plus the balustrade's coping oversail in the masonry — measured at 3.4 in
     # of overlap, which is not a connection, it is a clash that happens to be the same colour.
-    POST_CAP_HALF, COPE_OVERSAIL = 0.23, 0.07
+    POST_CAP_HALF, COPE_OVERSAIL = PICKET_CAP_HALF, 0.07
     run_fence("x", north_pl,
               approach_west + POST_CAP_HALF + COPE_OVERSAIL if approach_west is not None else -1e9,
               west)
@@ -2673,6 +2700,165 @@ def add_driveway(ctx, lot, rooms_cache):
     paving("Driveway apron", north, north + STRIP)   # across the planting strip to the walk
 
 
+def add_garden_walk(ctx, lot, rooms_cache):
+    """Two stone-paver walks on the east side of the lot.
+
+    The MAIN walk runs from the foot of the rear deck's north flight, straight north
+    through the yard fence's gate, up the side yard beside the driveway, and turns EAST
+    onto the drive at the top. It deliberately stops short of the north property line:
+    the drive and its apron already carry you to the public sidewalk, so ending on the
+    paving means no opening cut in the picket fence's front leg, no gap in the retaining
+    wall, and no sloped crossing of the planting strip — the walk stays on flat lot grade
+    the whole way. The SIDE walk is a branch from the side entrance's steps east to it.
+
+    Every end is DERIVED from the thing it dies on, not typed: the south end from the
+    deck's own grade paver, the north end from the picket fence's post face, the east
+    edge from the driveway's, the opening from `yard_gate_span`. A walk is exactly the
+    kind of element that looks right in a render while floating an inch off the step it
+    is supposed to meet.
+
+    Laid paver by paver in a RUNNING BOND rather than as one slab, because that is what
+    was asked for and because a slab cannot show a bond. Each paver is inset half a joint
+    on all four sides, and any paver that would run into a gate post is PUNCHED with
+    `rects_minus` — so the row crossing the fence pinches from the walk's width to the
+    gate's clear opening, which is what a walk through a gate actually does.
+
+    The lawn's top sits 1 cm BELOW grade (see `add_lot`), so a paver whose top is at
+    grade stands proud of the grass with no lift needed — the same reckoning the driveway
+    uses. Named with an index because `extents()` unions products by name."""
+    w = lot.get("gardenWalk") or {}
+    if not w:
+        return
+    STONE = (0.66, 0.63, 0.58)                       # warm stone. Blue MUST stay <= red or
+    # the viewer reads the material as window glass and makes it glow at night.
+    BEDDING = (0.34, 0.32, 0.29)                     # the setting course seen through the joints
+    f = lot.get("frontage") or {}
+    d = lot.get("deck") or {}
+    sp = lot.get("sidePorch") or {}
+    B = {k: v["bounds"] for k, v in rooms_cache.items()}
+    if not all(k in B for k in EXT_WING):
+        return
+    half_wall = ctx.T / FT / 2
+    _, east, _, north_pl, _ = lot_lines(lot, B.values(), half_wall)
+
+    WIDTH = w.get("widthFt", 4.0)
+    JOINT = w.get("jointIn", 0.5) / 12.0
+    TH = w.get("thickIn", 2.5) / 12.0
+    BED = w.get("bedRevealIn", 1.0) / 12.0           # how far the setting course sits down
+    PW, PR = w.get("paverFt", 2.0), w.get("paverRunFt", 1.0)
+
+    # --- the corridor. East edge held a planting joint off the DRIVE's west edge, which
+    # `_driveway_span` puts on `x_flat`; px grows west, so the walk's west edge is the
+    # larger number.
+    x_flat = east + f.get("northLevelFromEastFt", 25)
+    wx_e = x_flat + w.get("plantingJointIn", 6.0) / 12.0
+    wx_w = wx_e + WIDTH
+
+    # --- the two ends. SOUTH: the rear deck's north flight is `stepCount` risers, the last
+    # of which is a paver flush with grade, so its north edge is where you stand.
+    nst, tread = d.get("stepCount", 4), d.get("treadFt", 0.92)
+    _, _, _, deck_north = deck_extent(rooms_cache, lot, half_wall)
+    z_s = deck_north + nst * tread
+    # NORTH: the picket fence's front leg stands ON the property line, so the walk dies on
+    # its post FACE rather than under it.
+    z_n = north_pl - PICKET_CAP_HALF
+    if z_n - z_s <= PR:
+        return
+    # Where the run widens onto the drive — SNAPPED to a row boundary. Left free, a row
+    # straddles it and that paver belongs to neither bedding course below, which is a real
+    # gap under a real paver and not just a bookkeeping one.
+    z_turn = z_s + max(0.0, math.floor((z_n - w.get("returnFt", 4.0) - z_s) / PR)) * PR
+
+    gate = yard_gate_span(lot, rooms_cache, half_wall)
+    hp = YARD_POST_FT / 2
+    posts = []
+    if gate:
+        gz, g_east, g_west = gate
+        posts = [(g_east - YARD_POST_FT, g_east, gz - hp, gz + hp),
+                 (g_west, g_west + YARD_POST_FT, gz - hp, gz + hp)]
+
+    def paver(name, x1, x2, z1, z2):
+        """One unit, inset half a joint all round so the bond reads as laid, not poured."""
+        x1, x2 = min(x1, x2) + JOINT / 2, max(x1, x2) - JOINT / 2
+        z1, z2 = min(z1, z2) + JOINT / 2, max(z1, z2) - JOINT / 2
+        if x2 - x1 <= JOINT or z2 - z1 <= JOINT:      # a sliver left by a punch
+            return
+        b = make_box(ctx, "IfcSlab", name, (x2 - x1) * FT, (z2 - z1) * FT, TH * FT,
+                     ctx.X((x1 + x2) / 2), ctx.Y((z1 + z2) / 2), -TH * FT,
+                     predefined="BASESLAB", color=STONE)
+        run("spatial.assign_container", ctx.model, products=[b], relating_structure=ctx.storey)
+
+    def field(prefix, lo, hi, anchor, near, far, swap):
+        """A paver field in running bond. Rows march `lo..hi` at the `PR` pitch; each row
+        spans `near..far` across, in `PW` units. `swap` is False when the run is the plan-z
+        axis and True when it is plan-x.
+
+        Unit boundaries are anchored on `anchor` rather than on the row's own near edge,
+        so the bond survives a row that is WIDER than the others — which the last rows of
+        the main run are, where it widens onto the drive. Anchored to the edge, the whole
+        course would jump half a unit at the turn.
+
+        `near`/`far` may be callables of the row's start, for exactly that widening."""
+        i, c = 0, lo
+        while c < hi - 1e-6:
+            r1, r2 = c, min(c + PR, hi)
+            e = near(r1) if callable(near) else near
+            g = far(r1) if callable(far) else far
+            off = PW / 2 if i % 2 else 0.0           # alternate rows stagger the cross joints
+            p = anchor - off + math.floor((e - anchor + off) / PW) * PW
+            j = 0
+            while p < g - 1e-6:
+                q1, q2 = max(p, e), min(p + PW, g)
+                if q2 - q1 > JOINT:
+                    rects = [(q1, q2, r1, r2) if not swap else (r1, r2, q1, q2)]
+                    for hole in posts:
+                        rects = rects_minus(rects, hole)
+                    for k, (x1, x2, zz1, zz2) in enumerate(rects):
+                        paver(f"{prefix} {i}.{j}.{k}" if len(rects) > 1
+                              else f"{prefix} {i}.{j}", x1, x2, zz1, zz2)
+                    j += 1
+                p += PW
+            c += PR
+            i += 1
+
+    def bed(i, x1, x2, z1, z2):
+        """The setting course under a field. Without it the JOINTS SHOW LAWN: the only thing
+        under a paver is `add_lot`'s grass plane, so every 0.5 in joint reads as turf growing
+        through the walk — which is what the first render showed. Its top sits `BED` below the
+        pavers' so the two cannot be coplanar, and it is never seen except through a joint.
+
+        `BED` HAS TO BE SMALLER THAN THE LAWN'S OWN SETDOWN. `add_lot` puts the grass plane
+        1 cm (0.033 ft) below grade, so a course bedded an inch down sits UNDER the lawn and
+        the joints still read green — which is exactly what the second render showed. Half a
+        joint clears it with room to spare and is what a setting bed actually looks like."""
+        b_ = make_box(ctx, "IfcSlab", f"Garden walk bed {i}", abs(x2 - x1) * FT,
+                      abs(z2 - z1) * FT, (TH - BED) * FT,
+                      ctx.X((x1 + x2) / 2), ctx.Y((z1 + z2) / 2), -TH * FT,
+                      predefined="BASESLAB", color=BEDDING)
+        run("spatial.assign_container", ctx.model, products=[b_], relating_structure=ctx.storey)
+
+    # --- the main run, north up the side yard. Its last `returnFt` widens EAST to the
+    # drive's edge, so the walk turns onto the paving rather than dead-ending beside it.
+    field("Garden walk paver", z_s, z_n, wx_e,
+          lambda z: x_flat if z >= z_turn - 1e-6 else wx_e, wx_w, False)
+    # Split at the turn rather than along the corridor's east edge: the bond staggers half a
+    # unit on alternate rows, so in the widened rows a paver crosses that edge and would sit
+    # half on one course and half on the other. Split in z, and every paver has one bed.
+    bed(0, wx_e, wx_w, z_s, z_turn)
+    bed(1, x_flat, wx_w, z_turn, z_n)
+
+    # --- the branch from the side entrance. Its south edge is the side porch's own grade
+    # paver, so you step off the flight onto it; its west end buries into the house wall
+    # with the same 0.05 `add_side_porch` uses, and its east end butts the main walk.
+    if sp:
+        pz_s = max(max(B[k]["z1"], B[k]["z2"]) for k in EXT_WING)
+        s_z = pz_s + sp.get("depthFt", 5.0) + nst * tread
+        px_w = max(max(B[k]["x1"], B[k]["x2"]) for k in EXT_WING) + 0.05
+        if px_w - wx_w > PR:
+            field("Garden walk side paver", wx_w, px_w, s_z, s_z, s_z + WIDTH, True)
+            bed(2, wx_w, px_w, s_z, s_z + WIDTH)
+
+
 def add_yard_fence(ctx, lot, rooms_cache, base):
     """A 6 ft stained BOARD fence closing the rear yard: from the east extension's NE
     corner, east along that wing's north wall face, to the east property line.
@@ -2733,16 +2919,15 @@ def add_yard_fence(ctx, lot, rooms_cache, base):
     # terminal post rather than replacing it: that post is on the wing's corner by
     # construction and `add_side_porch` punches its landing slab around it, so moving it would
     # leave the porch notched around nothing.
+    # The opening itself comes from `yard_gate_span`, which the garden walk reads too — the
+    # clearance that governs it is the building face to the hinge post's NEAR face, the room
+    # the leaf needs to swing without catching the wall.
     hp = YARD_POST_FT / 2
-    gate = f.get("gate") or {}
-    gw = gate.get("widthFt", 3.5)
-    g_clear = gate.get("clearanceIn", 6.0) / 12.0
+    span = None if over_deck else yard_gate_span(lot, rooms_cache, half_wall)
     hinge_c = latch_c = None
-    if gate and not over_deck:
-        # The clearance that matters is the building face to the post's near face: that is the
-        # room the leaf needs to swing without catching the wall.
-        hinge_c = x_start - g_clear - hp
-        latch_c = hinge_c - hp - gw - hp
+    if span:
+        _, g_east, g_west = span
+        latch_c, hinge_c = g_east - hp, g_west + hp
     segs = ([(east, deck_east, 0.0), (deck_east, x_start, base)] if over_deck
             else [(east, latch_c - hp if latch_c is not None else x_start, 0.0)])
     for si, (lo, hi, y0) in enumerate(segs):
