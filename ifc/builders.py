@@ -2494,7 +2494,7 @@ def add_picket_fence(ctx, lot, rooms_cache):
     B = {k: v["bounds"] for k, v in rooms_cache.items()}
     pxs = [v for r in B.values() for v in (r["x1"], r["x2"])]
     pzs = [v for r in B.values() for v in (r["z1"], r["z2"])]
-    west, _, south, north_pl, _ = lot_lines(lot, B.values(), ctx.T / FT / 2)
+    west, east, south, north_pl, _ = lot_lines(lot, B.values(), ctx.T / FT / 2)
     scu_west = max(B["scullery"]["x1"], B["scullery"]["x2"])  # CMU south wall ends here
     # `house_north` is the HOUSE'S north wall plane; `north_pl` is the PROPERTY LINE, 11 ft
     # beyond it. This used to be one name, `north`, holding the wall plane and shadowing the
@@ -2583,6 +2583,16 @@ def add_picket_fence(ctx, lot, rooms_cache):
     run_fence("x", north_pl,
               approach_west + POST_CAP_HALF + COPE_OVERSAIL if approach_west is not None else -1e9,
               west)
+    # ...and the MIRROR of it east of the walkup, out to the driveway. Both ends are already
+    # derived: `_driveway_span` puts the drive's west edge ON `x_flat`, and `x_flat` is the same
+    # station where the retaining wall carrying this leg stops, so the fence's end, the wall's
+    # end and the drive's edge are one number rather than three that have to agree.
+    approach_east = min((fl["span"][0] for fl in _fl), default=None)
+    x_flat = east + (lot.get("frontage") or {}).get("northLevelFromEastFt", 25)
+    if approach_east is not None:
+        run_fence("x", north_pl,
+                  approach_east - (POST_CAP_HALF + COPE_OVERSAIL),   # butt the walkup
+                  x_flat + POST_CAP_HALF)                            # butt the drive
     # The cross leg at the house's north wall stays: it is the gate between the front yard and
     # the side yard, which is what it already reads as now that the fence encloses both.
     xg = (house_west + west) / 2
