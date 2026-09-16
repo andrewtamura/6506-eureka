@@ -436,6 +436,7 @@ check(not intruders, 'no railing of any name stands on the deck'
 # railings has quietly stopped running.
 check(any(nm.startswith('Fence') for nm in R), f'...and the picket fence is still built ({len(R)} railings in all)')
 
+
 # --- the yard fence ----------------------------------------------------------------
 boards = {nm: b for nm, b in D.items() if nm.startswith('Yard fence board')}
 check(len(boards) > 20, f'the yard fence is built board by board ({len(boards)} boards)')
@@ -1969,6 +1970,47 @@ if _E and _W:
         tops = len({round(b[5], 3) for b in g})
         check(tops > 2 * treads,
               f'the {tag} coping ramps rather than stepping ({tops} distinct tops over {treads} treads)')
+
+
+print('\nPICKET FENCE')
+# THE PICKET FENCE RUNS TO THE BOUNDARY, round the NW corner and along the front line to the
+# walkup. It used to stop at the house's north wall plane, 11 ft short of the property line.
+_pf_parts = _parts(ext, 'Fence') + _parts(ext, 'Gate') + _parts(ext, 'Trellis')
+_lotf = model['lot']['frontage']
+_pl_n = _sw_edge = None
+_psw = extents(ext, lambda nm, p: nm == 'Sidewalk - north').get('Sidewalk - north')
+if _psw:
+    _pl_n = _psw[2] - _lotf.get('parkStripWidthFt', 6)          # north property line
+_pl_w = max(b[1] for nm, b in _parts(ext, 'Retaining wall - west'))  # west line, off its own wall
+check(_pf_parts and _pl_n is not None, f'the picket fence is measurable ({len(_pf_parts)} parts)')
+if _pf_parts and _pl_n is not None:
+    _fx, _fz = max(b[1] for nm, b in _pf_parts), max(b[3] for nm, b in _pf_parts)
+    # A POST AT THE CORNER, not just geometry that reaches it: a run stopping a bay short
+    # still reports the right extents from its rails, and the corner is what was asked for.
+    _corner = [b for nm, b in _parts(ext, 'Fence post')
+               if abs((b[0] + b[1]) / 2 - _pl_w) < 0.4 and abs((b[2] + b[3]) / 2 - _pl_n) < 0.4]
+    check(_corner, f'a post turns the NW corner ({_pl_w:.2f}, {_pl_n:.3f}) — {len(_corner)} there')
+    check(near(_fz, _pl_n + 0.23, 0.05),
+          f'the fence reaches the north property line ({_fz:.2f} vs {_pl_n:.3f} + a post cap)')
+    # ...and no FURTHER. Past the line is the park strip, which drops 3 ft at the west end, so
+    # a leg that overshot would be cantilevered over the fall.
+    check(_fz <= _pl_n + 0.25, f'and does not overhang the park strip ({_fz - _pl_n:.2f} ft past)')
+    # IT MEETS THE WALKUP. The front leg's east end and the retaining wall's opening both come
+    # from the approach's own span, so this catches them drifting apart — a gap you could walk
+    # through, or a post driven into the balustrade.
+    _front = [b for nm, b in _pf_parts if b[2] > _pl_n - 1.2]
+    _appr = [b for nm, b in _fa if b[3] > _pl_n - 1.2 and b[2] < _pl_n + 0.4]
+    check(_front and _appr, f'front leg and approach are both measurable ({len(_front)}/{len(_appr)})')
+    if _front and _appr:
+        # POSITIVE and small: the last post has to BUTT the balustrade, not stand inside it.
+        # An `abs()` here passed a 3.4 in overlap, which is a clash that happens to be the
+        # same colour as the thing it is clashing with.
+        _gap = min(b[0] for b in _front) - max(b[1] for b in _appr)
+        check(-0.02 < _gap < 0.4,
+              f'the front leg butts the walkup ({_gap:+.2f} ft — touching, not buried in it)')
+    # AND IT STAYS LOW. 36 in to the picket tips, which is what "keep the height low" pins.
+    _tips = max(b[5] for nm, b in _parts(ext, 'Fence picket'))
+    check(near(_tips, 3.0, 0.02), f'the pickets stand {_tips * 12:.1f} in')
 
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)
