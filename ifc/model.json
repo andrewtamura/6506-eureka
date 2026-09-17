@@ -83,6 +83,16 @@
       "_noteBed": "bedRevealIn is how far the setting course sits below the paver faces. It must stay UNDER the lawn plane\u2019s own 1 cm setdown (add_lot), or the course is below the grass and every joint still reads green.",
       "bedRevealIn": 0.25
     },
+    "streetTrees": {
+      "_note": "Four small flowering ornamentals on the north planting strip, two in each grass section either side of the walkup, on the sections' quarter points \u2014 which makes them symmetric about the walkup's centreline for free, since the sections are already mirror images. Each sits on its own flat planting circle terraced into the strip's 4% fall: a mulch disc inside a stone ring, the ring rising out of grade on the circle's uphill edge and standing the full fall on the downhill one. The trees themselves are procedural three.js meshes (see src/furniture.js) \u2014 nothing built from IFC primitives reads as a tree.",
+      "circleFt": 6.0,
+      "ringWidthIn": 4.0,
+      "ringLipIn": 1.0,
+      "depthFt": 0.75,
+      "_noteSize": "A 5-10 year old ornamental, not a mature one: about 11 ft to the top of the crown and a 7 ft spread. The trunk caliper is derived from heightFt in src/furniture.js, so it comes down with the canopy.",
+      "heightFt": 11.0,
+      "spreadFt": 7.0
+    },
     "yardFence": {
       "_note": "A 6 ft stained BOARD fence closing the rear yard: from the east extension's NE corner, east along that wing's north wall face, to the east property line. Its first 15 ft ride the new deck terrace.",
       "_noteDatum": "heightDatum says what the 6 ft is measured from. 'surface' = 6 ft above whatever it stands on, so it steps up over the deck and doubles as that edge's guard now the rails are gone. 'grade' = one flat top line 6 ft above grade, which over the deck is exactly 42 in \u2014 a code guard \u2014 and is the one-word retreat if a fence-height cap turns out to bite.",

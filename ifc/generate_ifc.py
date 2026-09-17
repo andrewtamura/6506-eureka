@@ -491,6 +491,8 @@ def build_level(cfg, rooms_cache, level):
         # Last, because it dies on three things already built: the driveway's west edge,
         # the rear deck's grade paver and the side porch's.
         B.add_garden_walk(ctx, cfg["lot"], rooms_cache)
+        # After the frontage: the tree terraces SIT ON the park strip rather than cutting it.
+        B.add_street_trees(ctx, cfg["lot"], rooms_cache)
 
     ifc_name = f"{lid}.ifc"
     m.write(os.path.join(HERE, ifc_name))

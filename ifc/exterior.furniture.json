@@ -23,6 +23,42 @@
       "dFt": 7.0,
       "rimFt": 2.5,
       "deckFt": 2.5
+    },
+    {
+      "type": "street_tree",
+      "px": -21.75,
+      "pz": 31.6458,
+      "y": -0.0335,
+      "heightFt": 11.0,
+      "spreadFt": 7.0,
+      "seed": 0
+    },
+    {
+      "type": "street_tree",
+      "px": -9.25,
+      "pz": 31.6458,
+      "y": -0.1859,
+      "heightFt": 11.0,
+      "spreadFt": 7.0,
+      "seed": 1
+    },
+    {
+      "type": "street_tree",
+      "px": 40.75,
+      "pz": 31.6458,
+      "y": -0.7955,
+      "heightFt": 11.0,
+      "spreadFt": 7.0,
+      "seed": 0
+    },
+    {
+      "type": "street_tree",
+      "px": 28.25,
+      "pz": 31.6458,
+      "y": -0.6431,
+      "heightFt": 11.0,
+      "spreadFt": 7.0,
+      "seed": 1
     }
   ]
 }

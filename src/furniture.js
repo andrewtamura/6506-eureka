@@ -3283,7 +3283,92 @@ function buildWallMirror(p) {
   return g;
 }
 
-const BUILDERS = { wall_basin: buildWallBasin, chandelier: buildChandelier, hot_tub: buildHotTub, mudroom_bench: buildMudroomBench, wall_mirror: buildWallMirror, recessed: buildRecessed, pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight,
+// A SMALL ORNAMENTAL STREET TREE: a trunk, a vase of limbs, and ONE canopy.
+//
+// The crown is a SINGLE solid of revolution — a `LatheGeometry` swept from a crown
+// profile — rather than a cluster of foliage puffs. A puff cluster is the obvious way to
+// draw a canopy and it reads as a bunch of separate bushes balanced on a stick; one bulb
+// with a proper crown silhouette reads as a tree at every distance, and it is one mesh
+// instead of nineteen.
+//
+// The profile is what does the work: it leaves the fork at nothing, flares fast, carries
+// its widest point BELOW the middle and rounds over to a soft apex. Widest at the middle
+// is a ball on a stick; widest at the top is a mushroom.
+//
+// Opaque, and the materials are MODULE-LEVEL and shared by all four trees, which is what
+// lets consolidate.js merge them away — alpha-mapped foliage is the obvious way to draw
+// leaves and the wrong one, since it refuses to merge transparents and the draw calls
+// would then be permanent. Nothing here mutates a material in place (see CLAUDE.md on why
+// our meshes are deliberately not grouped by material LOOK).
+const TREE_BARK = new THREE.MeshStandardMaterial({ color: 0x6b5a48, roughness: 0.92 });
+const TREE_LEAF = new THREE.MeshStandardMaterial({ color: 0x5f7f47, roughness: 0.95 });
+const _UP = new THREE.Vector3(0, 1, 0);
+// (radius, height) up the crown, both as fractions of its spread and its own height.
+const CROWN_PROFILE = [
+  [0.00, 0.00], [0.40, 0.05], [0.68, 0.12], [0.86, 0.21], [0.96, 0.31],
+  [1.00, 0.42], [0.98, 0.54], [0.92, 0.65], [0.80, 0.76], [0.60, 0.87],
+  [0.34, 0.95], [0.00, 1.00],
+];
+
+function buildStreetTree(p) {
+  const ft = FT, g = new THREE.Group();
+  const H = (p.heightFt ?? 16) * ft;              // overall height
+  const S = (p.spreadFt ?? 12) * ft;              // crown spread
+  // Deterministic per-tree variation, from the same one-liner the floor builders use so a
+  // tree's growth is stable across reloads rather than sparkling. Mirrored pairs share a
+  // seed, so the pair reads as matched.
+  const seed = p.seed ?? 0;
+  const rnd = (k) => hash(seed * 97.3 + k * 13.7 + 5.1);
+
+  /** A tapering limb from `a` along `dir` for `len`, `r0` at the butt to `r1` at the tip. */
+  const limb = (a, dir, len, r0, r1) => {
+    const d = dir.clone().normalize();
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, len, 7), TREE_BARK);
+    m.quaternion.setFromUnitVectors(_UP, d);
+    m.position.copy(a).addScaledVector(d, len / 2);
+    m.castShadow = true; m.receiveShadow = true;
+    g.add(m);
+    return a.clone().addScaledVector(d, len);
+  };
+
+  // --- trunk: a root flare, then the shaft to the first fork. The caliper is DERIVED from
+  // the tree's height (0.0072 of it, so 11 ft gives a 1.9 in stem and 16 ft a 2.8 in one) —
+  // written absolutely it stayed a mature tree's trunk when the canopy came down to a
+  // ten-year-old's. It tapers UPWARD: r0 is the butt and r1 the tip, and the first version
+  // had those the wrong way round, so the trunk quietly grew fatter as it rose.
+  const rBase = H * 0.0072, rFork = rBase * 0.72;
+  const FORK = H * 0.28, FLARE = H * 0.022;
+  limb(new THREE.Vector3(0, 0, 0), _UP, FLARE, rBase * 1.26, rBase);
+  const fork = limb(new THREE.Vector3(0, FLARE, 0), _UP, FORK - FLARE, rBase, rFork);
+
+  // --- the limbs, splaying out of the fork and up into the canopy. They are short on
+  // purpose: everything above the crown's underside is inside the bulb and would never be
+  // seen, so a second order of branching is geometry nobody looks at.
+  const N = 4, a0 = rnd(0) * Math.PI * 2;
+  for (let i = 0; i < N; i++) {
+    const az = a0 + (i / N) * Math.PI * 2 + (rnd(i + 1) - 0.5) * 0.5;
+    const lean = 0.48 + rnd(i + 10) * 0.20;
+    const dir = new THREE.Vector3(Math.sin(az) * Math.sin(lean), Math.cos(lean),
+                                  Math.cos(az) * Math.sin(lean));
+    limb(fork, dir, H * (0.24 + rnd(i + 20) * 0.06), rFork * 0.82, rFork * 0.42);
+  }
+
+  // --- THE CANOPY: one lathe, springing from the fork and carrying to the full height.
+  const y0 = H * 0.38, CH = H - y0, maxR = S / 2;
+  const crown = new THREE.Mesh(
+    new THREE.LatheGeometry(CROWN_PROFILE.map(([r, t]) => new THREE.Vector2(r * maxR, t * CH)), 32),
+    TREE_LEAF);
+  crown.position.y = y0;
+  // A touch of per-tree girth and a turn on it, so four trees off one profile are not four
+  // copies of the same object.
+  crown.scale.set(0.94 + rnd(30) * 0.14, 0.92 + rnd(31) * 0.18, 0.94 + rnd(32) * 0.14);
+  crown.rotation.y = rnd(33) * Math.PI * 2;
+  crown.castShadow = true; crown.receiveShadow = true;
+  g.add(crown);
+  return g;
+}
+
+const BUILDERS = { wall_basin: buildWallBasin, chandelier: buildChandelier, hot_tub: buildHotTub, mudroom_bench: buildMudroomBench, wall_mirror: buildWallMirror, recessed: buildRecessed, pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight, street_tree: buildStreetTree,
   range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, open_shelves: buildOpenShelves, counter_stool: buildCounterStool, banquette: buildBanquette, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, bentwood_chair: buildBentwoodChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, wall_toilet: buildWallToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 // Re-export a few individual builders so the viewer can drop single procedural
 // pieces (e.g. patio furniture on the alt roof deck) without going through the
