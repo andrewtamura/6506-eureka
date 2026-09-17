@@ -2859,6 +2859,115 @@ def add_garden_walk(ctx, lot, rooms_cache):
             bed(2, wx_w, px_w, s_z, s_z + WIDTH)
 
 
+def frontage_gap(f, rooms_cache, lot, half_wall_ft):
+    """The plan-x span the front approach occupies where it crosses the north property
+    line, or None — the SAME collapse `add_street_frontage` cuts the retaining wall's
+    opening from, so anything else placed on the frontage lands beside the walkup rather
+    than in front of it.
+
+    Not shared with that function's own `gaps` list, which it needs uncollapsed to tell the
+    courtyard's south wall from the ordinary runs. What is shared is the derivation."""
+    spans = [g for g in ([_entry_stair_span(f, rooms_cache)] +
+                         [fl["span"] for fl in _approach_arc(f, rooms_cache, lot, half_wall_ft)]) if g]
+    if not spans:
+        return None
+    return min(g[0] for g in spans), max(g[1] for g in spans)
+
+
+def add_street_trees(ctx, lot, rooms_cache):
+    """Four small flowering ornamentals on the north planting strip, each on its own flat
+    6 ft planting circle terraced into the strip's fall.
+
+    The strip falls a steady 4% east to west and the walkup crosses it, leaving two equal
+    grass sections either side. The trees sit on each section's QUARTER POINTS, which makes
+    them symmetric about the walkup's centreline for free — the sections are already mirror
+    images of each other, so nothing here has to know where that centreline is.
+
+    A TERRACE IS FLAT AT ITS CIRCLE'S UPHILL EDGE, so the ring rises out of grade on the
+    high side and stands the full fall on the low one — a flat pad, retained where it needs
+    to be and dying into grade where it does not, the way `wall_n` dies to nothing at
+    `x_flat`. Levelled at the circle's CENTRE instead, half the ring is buried and the other
+    half stands an inch and a half: correct on paper and invisible in a render.
+
+    The strip is NOT cut for them. It is one convex quad prism (`ramp_n`) and punching a
+    circle out of it would mean fanning the whole band into wedges; the terraces sit ON it
+    instead, exactly as the garden walks sit on the lawn. Each is two interpenetrating
+    solids of revolution — a stone cylinder with a mulch one inside it — so what reads as a
+    RING needs no annulus. An annulus is not convex, so `add_brep`'s centroid test cannot
+    orient it and it would have to be hand-wound; two cylinders need none of that.
+
+    The trees themselves are procedural three.js meshes (CLAUDE.md's rule — nothing built
+    from IFC primitives is going to read as a tree), recorded to the viewer manifest the way
+    `add_deck` records the hot tub. Mirrored pairs carry the SAME seed, so the pair reads as
+    matched rather than as two trees that happen to be the same distance out."""
+    t = lot.get("streetTrees") or {}
+    if not t:
+        return
+    STONE = (0.66, 0.63, 0.58)                       # the garden walks' stone
+    MULCH = (0.30, 0.24, 0.18)                       # blue <= red, or the viewer glows it at night
+    f = lot.get("frontage") or {}
+    B = {k: v["bounds"] for k, v in rooms_cache.items()}
+    half_wall = ctx.T / FT / 2
+    west, east, _, north_pl, _ = lot_lines(lot, B.values(), half_wall)
+    x_flat = east + f.get("northLevelFromEastFt", 25)
+    nw = f.get("nwDropIn", 36) / 12.0
+    STRIP = f.get("parkStripWidthFt", 9)
+
+    def drop_n(px):
+        """Right-of-way grade (ft below the lot) on the north frontage at plan x — the same
+        ramp `add_street_frontage` builds the strip from."""
+        return -nw * max(0.0, min(1.0, (px - x_flat) / (west - x_flat)))
+
+    gap = frontage_gap(f, rooms_cache, lot, half_wall)
+    if not gap:
+        return
+    gap_lo, gap_hi = max(gap[0], x_flat), min(gap[1], west)
+    R = t.get("circleFt", 6.0) / 2
+    RING = R + t.get("ringWidthIn", 4.0) / 12.0
+    LIP = t.get("ringLipIn", 1.0) / 12.0
+    DEPTH = t.get("depthFt", 0.75)
+    LIFT = 0.02                                      # off the strip's surface at the uphill tangent,
+    # where a pad levelled to that edge is otherwise exactly coplanar with it
+    cz = north_pl + STRIP / 2                        # the strip's midline
+
+    def solid(name, v, fc, color):
+        add_brep(ctx, name, v, fc, color, ifc_class="IfcSlab", predefined="BASESLAB", wind=False)
+
+    def pad_disc(name, cx, top, color):
+        v, fc = _lathe(ctx.X(cx), ctx.Y(cz), (top - DEPTH) * FT,
+                       [(R * FT, 0.0), (R * FT, DEPTH * FT)], 48)
+        solid(name, v, fc, color)
+
+    def rim(name, cx, top, color):
+        """An ANNULUS, not a disc. A cylinder a little wider than the pad looks identical on
+        every bounding box and covers the mulch with its own top cap."""
+        v, fc = _tube(ctx.X(cx), ctx.Y(cz), (top - DEPTH) * FT, R * FT, RING * FT, DEPTH * FT, 48)
+        solid(name, v, fc, color)
+
+    # East section first, then west, each walked from its own outer end inwards, so a pair
+    # index is the same distance from the centreline on both sides.
+    sections = [(x_flat, gap_lo), (west, gap_hi)]
+    i = 0
+    for sec in sections:
+        lo, hi = min(sec), max(sec)
+        if hi - lo < 4 * R:
+            continue
+        for pair, q in enumerate((0.25, 0.75)):
+            # Quarter points, measured from the section's OUTER end (the property corner or
+            # the driveway) so pair 0 is the outer tree on both sides.
+            cx = sec[0] + (sec[1] - sec[0]) * q
+            pad = drop_n(cx - R) + LIFT              # flat at the circle's uphill (east) edge
+            rim(f"Street tree ring {i}", cx, pad + LIP, STONE)
+            pad_disc(f"Street tree terrace {i}", cx, pad, MULCH)
+            ctx.furniture.append({
+                "type": "street_tree", "px": round(cx, 4), "pz": round(cz, 4),
+                "y": round(pad * FT, 4),             # world METRES: buildFurniture reads `y` as-is
+                "heightFt": t.get("heightFt", 16.0), "spreadFt": t.get("spreadFt", 12.0),
+                "seed": pair,                        # mirrored pairs match
+            })
+            i += 1
+
+
 def add_yard_fence(ctx, lot, rooms_cache, base):
     """A 6 ft stained BOARD fence closing the rear yard: from the east extension's NE
     corner, east along that wing's north wall face, to the east property line.
@@ -3118,6 +3227,33 @@ def add_brep_instances(ctx, name, verts, faces, color, placements, ifc_class="If
         run("spatial.assign_container", m, products=[product], relating_structure=ctx.storey)
         out.append(product)
     return out
+
+
+def _tube(x, y, z0, r_in, r_out, h, sides=48):
+    """A closed HOLLOW CYLINDER about the vertical axis at (x, y), all metres — an annulus
+    `r_in`..`r_out` extruded `h` from `z0`.
+
+    `_lathe` cannot do this: it fills every ring to the axis, so its top cap is a disc.
+    That is not a nitpick — the first tree ring here WAS a `_lathe` cylinder a little wider
+    than the mulch disc inside it, and its top cap covered the mulch completely. It measured
+    correctly on every bounding box and rendered as a plain stone circle.
+
+    Wound OUTWARD explicitly and handed to `add_brep` with `wind=False`, for the same reason
+    `_lathe` is: the centroid test is only valid on a convex solid, and a tube is not one —
+    its inner wall faces the axis, which is the side the centroid is on."""
+    ring = lambda r, z: [(x + r * math.cos(2 * math.pi * j / sides),
+                          y + r * math.sin(2 * math.pi * j / sides), z) for j in range(sides)]
+    verts = ring(r_in, z0) + ring(r_out, z0) + ring(r_in, z0 + h) + ring(r_out, z0 + h)
+    n = sides
+    bi, bo, ti, to = 0, n, 2 * n, 3 * n
+    faces = []
+    for j in range(n):
+        k = (j + 1) % n
+        faces.append([bo + j, bo + k, to + k, to + j])    # outer wall, normal away from the axis
+        faces.append([bi + k, bi + j, ti + j, ti + k])    # inner wall, normal TOWARD it
+        faces.append([ti + j, to + j, to + k, ti + k])    # top annulus, normal up
+        faces.append([bi + k, bo + k, bo + j, bi + j])    # bottom annulus, normal down
+    return verts, faces
 
 
 def _lathe(x, y, z0, profile, sides=12):

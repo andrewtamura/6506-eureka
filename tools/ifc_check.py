@@ -2189,5 +2189,142 @@ else:
     check(False, 'both garden walks are authored and built')
 
 
+# ---------------------------------------------------------------------------------
+# THE STREET TREES. Four ornamentals on the north planting strip, each on its own flat
+# circle terraced into a strip that falls a steady 4%. What is asserted is the two things
+# that make that a terrace rather than a decal: the pad is FLAT, and each pad is at its
+# OWN level. A build that laid four discs flush with the ramp would look almost identical
+# in a render and pass anything weaker. Every figure is read off built geometry — the
+# frontage's grade from the retaining wall it holds up, the centreline from the gap that
+# wall leaves for the walkup.
+print('\nSTREET TREES')
+st = _cfg.get('streetTrees') or {}
+_terr = [(nm, b) for nm, b in _parts(ext, 'Street tree terrace')]
+_ring = [(nm, b) for nm, b in _parts(ext, 'Street tree ring')]
+if st:
+    check(len(_terr) == 4 and len(_ring) == 4,
+          f'four planting circles are built, each with its ring ({len(_terr)} / {len(_ring)})')
+if st and len(_terr) == 4 and len(_ring) == 4:
+    _lot = extents(ext, lambda nm, p: nm == 'Lot')['Lot']
+    _rwe = extents(ext, lambda nm, p: nm == 'Retaining wall - north east of entry')
+    _rww = extents(ext, lambda nm, p: nm == 'Retaining wall - north west of entry')
+    _rwe, _rww = _rwe['Retaining wall - north east of entry'], _rww['Retaining wall - north west of entry']
+    # The frontage's fall, from the wall that retains it: the north leg dies to nothing at
+    # `x_flat` (its east end) and stands its full drop at the west line.
+    _x_flat, _west, _nw = _rwe[0], _lot[1], -_rww[4]
+
+    def _drop_n(px):
+        return -_nw * max(0.0, min(1.0, (px - _x_flat) / (_west - _x_flat)))
+
+    R = st['circleFt'] / 2
+    LIFT = 0.02
+    _c = sorted(((b[0] + b[1]) / 2, b) for _, b in _terr)
+    _cx = [c for c, _ in _c]
+    check(all(near(b[1] - b[0], st['circleFt'], 0.01) for _, b in _terr),
+          f"each planting circle measures {st['circleFt']} ft across "
+          f"({', '.join(f'{b[1] - b[0]:.3f}' for _, b in _terr)})")
+    # --- SYMMETRY, the ask. The centreline is the middle of the gap the walkup leaves in
+    # the retaining wall — derived from the built wall rather than from the door's 9.5, so
+    # the trees, the wall's opening and the walkup cannot drift apart.
+    _mid = (_rwe[1] + _rww[0]) / 2
+    _pairs = [(_cx[i] + _cx[3 - i]) / 2 for i in range(2)]
+    check(all(near(v, _mid, 0.01) for v in _pairs),
+          f'the four are symmetric about the walkup ({_mid:.3f}; pairs at '
+          f'{", ".join(f"{v:.3f}" for v in _pairs)})')
+    # --- EACH PAD IS FLAT. A bbox cannot show that — its top is one number whatever the
+    # solid does — so this counts VERTICES at the top. A revolution solid puts its whole
+    # top ring there; a disc sliced out of the sloping strip would put one.
+    # `sh` is held in a LOCAL. Inlined, `create_shape(...).geometry.verts` hands back a
+    # buffer that has already been freed: this very test read 0/4 on geometry that is
+    # correct, and the garbage was plausible enough to look like a real failure.
+    _flat = []
+    for q in ext.by_type('IfcProduct'):
+        if not (getattr(q, 'Name', None) or '').startswith('Street tree terrace'):
+            continue
+        sh = ifcopenshell.geom.create_shape(S, q)
+        y = np.array(sh.geometry.verts).reshape(-1, 3)[:, 2] / FT
+        ends = int((y > y.max() - 1e-4).sum()) + int((y < y.min() + 1e-4).sum())
+        _flat.append(ends == len(y) and near(y.max() - y.min(), st['depthFt'], 0.005))
+    check(_flat and all(_flat),
+          f'and each pad is FLAT, not a slice of the ramp ({sum(_flat)}/4) — every vertex on '
+          'one of two parallel planes, the solid exactly as deep as it was authored')
+    # --- EACH ON ITS OWN TERRACE, at the grade of its circle's UPHILL edge. px grows WEST
+    # and the frontage falls that way, so the uphill edge is `cx - R`.
+    _tops = sorted(round(b[5], 3) for _, b in _terr)
+    check(len(set(_tops)) == 4,
+          f"four distinct terrace levels ({', '.join(f'{v:.3f}' for v in _tops)} ft)")
+    _off = [b[5] - (_drop_n(c - R) + LIFT) for c, b in _c]
+    check(all(abs(v) < 0.01 for v in _off),
+          'each sits at the grade of its own circle\'s uphill edge '
+          f"(worst {max(_off, key=abs):+.4f} ft)")
+    # ...which means it dies into grade uphill and stands the full fall downhill. That fall
+    # is what the terrace exists for, so it is measured rather than assumed.
+    _fall = [(b[5] - _drop_n(c + R)) - LIFT for c, b in _c]
+    check(all(near(v, _nw * 2 * R / (_west - _x_flat), 0.01) for v in _fall),
+          f'standing {min(_fall) * 12:.1f} in proud on the downhill side and flush on the uphill')
+    # --- the ring is a RIM, not a disc: wider than the circle and standing above it.
+    _rc = sorted(((b[0] + b[1]) / 2, b) for _, b in _ring)
+    check(all(near(rb[1] - rb[0], st['circleFt'] + 2 * st['ringWidthIn'] / 12.0, 0.01)
+              for _, rb in _rc),
+          f"each ring is {st['ringWidthIn']:.0f} in wide around it")
+    check(all(near(rb[5] - tb[5], st['ringLipIn'] / 12.0, 0.01)
+              for (_, rb), (_, tb) in zip(_rc, _c)),
+          f"and stands {st['ringLipIn']:.0f} in above the mulch, so it reads as a rim")
+    # ...AND IS ACTUALLY HOLLOW. This is the only test that separates a ring from a disc a
+    # little wider than the pad: the two have the same bounding box, the same width and the
+    # same lip, and the disc's top cap covers the mulch completely. That is what shipped
+    # first, and it rendered as a plain stone circle. Measured as SOLID VOLUME, by the
+    # divergence theorem over the tessellation — which also proves the tube is not wound
+    # inside out, since that comes back negative.
+    _ri, _ro = R * FT, (R + st['ringWidthIn'] / 12.0) * FT
+    _n, _h = 48, st['depthFt'] * FT
+    _want = (_n / 2) * math.sin(2 * math.pi / _n) * (_ro ** 2 - _ri ** 2) * _h   # the 48-gon's, not pi's
+    _vols = []
+    for q in ext.by_type('IfcProduct'):
+        if not (getattr(q, 'Name', None) or '').startswith('Street tree ring'):
+            continue
+        sh = ifcopenshell.geom.create_shape(S, q)      # held in a LOCAL — see the pad test above
+        vv = np.array(sh.geometry.verts).reshape(-1, 3)
+        ff = np.array(sh.geometry.faces).reshape(-1, 3)
+        _vols.append(float(np.einsum('ij,ij->i', vv[ff[:, 0]],
+                                     np.cross(vv[ff[:, 1]], vv[ff[:, 2]])).sum() / 6.0))
+    check(_vols and all(near(v / _want, 1.0, 0.02) for v in _vols),
+          f'and is a true ANNULUS, not a disc ({min(_vols) / _want:.3f} of a ring\'s volume; '
+          f'a solid cylinder reads {_ro ** 2 / (_ro ** 2 - _ri ** 2):.2f})')
+    # --- IT ALL STAYS ON THE PLANTING STRIP. The strip is the city's, between the property
+    # line and the public walk, and the trees must not reach either.
+    # Re-measured: `E` is REBOUND further up this file, so the bands dict it holds at line
+    # 79 is long gone by the time this runs.
+    _ps = extents(ext, lambda nm, p: nm == 'Park strip - north')['Park strip - north']
+    _pl, _walk = _ps[2], _ps[3]
+    _spill = [nm for nm, b in _ring if b[2] < _pl + 0.01 or b[3] > _walk - 0.01]
+    check(not _spill,
+          f'every ring stays clear of the property line and the walk ({len(_spill)} spilling)')
+    # ...and clear of the walkup, the drive and the west line, which is what the quarter-point
+    # placement buys. Measured as the smallest of the four gaps.
+    _clear = min([_rwe[1] - max(b[1] for _, b in _ring if b[1] < _mid),
+                  min(b[0] for _, b in _ring if b[0] < _mid) - _x_flat,
+                  min(b[0] for _, b in _ring if b[0] > _mid) - _rww[0],
+                  _west - max(b[1] for _, b in _ring if b[1] > _mid)])
+    check(_clear > 2.0,
+          f'and clear of the walkup, the drive and the west line ({_clear:.2f} ft at the tightest)')
+    # --- THE TREES THEMSELVES ARE PROCEDURAL MESHES, so the only thing tying one to its
+    # terrace is the manifest. Nothing else in this file would catch a tree left on grade
+    # while its terrace moved.
+    _man = json.load(open('ifc/exterior.furniture.json'))
+    _tr = sorted((i for i in _man['items'] if i.get('type') == 'street_tree'),
+                 key=lambda i: i['px'])
+    check(len(_tr) == 4, f'four trees are recorded to the viewer manifest ({len(_tr)})')
+    if len(_tr) == 4:
+        _bad = [f"{t['px']:.2f}" for t, (c, b) in zip(_tr, _c)
+                if not (near(t['px'], c, 0.01) and near(t['y'] / FT, b[5], 0.01))]
+        check(not _bad, f"each standing on its own terrace ({len(_bad)} adrift)")
+        # Mirrored pairs share a seed, which is what makes four differently-grown trees
+        # read as a matched pair rather than as four strangers.
+        check(_tr[0]['seed'] == _tr[3]['seed'] and _tr[1]['seed'] == _tr[2]['seed']
+              and _tr[0]['seed'] != _tr[1]['seed'],
+              'and mirrored pairs are seeded alike, so each pair reads as matched')
+
+
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)

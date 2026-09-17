@@ -3283,7 +3283,99 @@ function buildWallMirror(p) {
   return g;
 }
 
-const BUILDERS = { wall_basin: buildWallBasin, chandelier: buildChandelier, hot_tub: buildHotTub, mudroom_bench: buildMudroomBench, wall_mirror: buildWallMirror, recessed: buildRecessed, pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight,
+// A SMALL FLOWERING ORNAMENTAL STREET TREE, modelled from its construction rather than as
+// a lollipop: a flared trunk to the first fork at about a third of its height, primary
+// limbs splaying and rising from it, each forking once, and the crown carried on the limb
+// ends rather than floating over them.
+//
+// Every part is OPAQUE. Alpha-mapped foliage is the obvious way to draw leaves and the
+// wrong one here: consolidate.js refuses to merge transparents, so a tree drawn that way
+// costs its draw calls on every frame forever. A cluster of low-detail icosahedra reads as
+// a crown at street distance and merges away to nothing.
+//
+// The materials are MODULE-LEVEL and shared by all four trees, which is what lets the
+// merge collapse them; nothing here mutates one in place (see CLAUDE.md on why our meshes
+// are deliberately not grouped by material LOOK).
+const TREE_BARK = new THREE.MeshStandardMaterial({ color: 0x6b5a48, roughness: 0.92 });
+const TREE_LEAF = [0x5c7a44, 0x6e8c4e, 0x46613a]
+  .map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.95 }));
+const TREE_BLOSSOM = new THREE.MeshStandardMaterial({ color: 0xe6c2ce, roughness: 0.9 });
+const _UP = new THREE.Vector3(0, 1, 0);
+
+function buildStreetTree(p) {
+  const ft = FT, g = new THREE.Group();
+  const H = (p.heightFt ?? 16) * ft;              // overall height
+  const S = (p.spreadFt ?? 12) * ft;              // crown spread
+  // Deterministic per-tree variation, from the same one-liner the floor builders use so a
+  // tree's growth is stable across reloads rather than sparkling. Mirrored pairs share a
+  // seed, so the pair reads as matched.
+  const seed = p.seed ?? 0;
+  const rnd = (k) => hash(seed * 97.3 + k * 13.7 + 5.1);
+
+  /** A tapering limb from `a` along `dir` for `len`, `r0` at the butt to `r1` at the tip. */
+  const limb = (a, dir, len, r0, r1) => {
+    const d = dir.clone().normalize();
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, len, 7), TREE_BARK);
+    m.quaternion.setFromUnitVectors(_UP, d);
+    m.position.copy(a).addScaledVector(d, len / 2);
+    m.castShadow = true; m.receiveShadow = true;
+    g.add(m);
+    return a.clone().addScaledVector(d, len);      // the tip, to grow from
+  };
+
+  const puff = (at, r, mat, flat = 0.84) => {
+    const m = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), mat);
+    m.position.copy(at);
+    m.scale.set(1, flat, 1);
+    m.castShadow = true; m.receiveShadow = true;
+    g.add(m);
+  };
+
+  // --- trunk: a root flare, then the shaft to the first fork ---------------------------
+  const FORK = H * 0.30, rBase = 0.115 * ft, rFork = 0.16 * ft;
+  limb(new THREE.Vector3(0, 0, 0), _UP, 0.35 * ft, 0.145 * ft, rBase);   // flare
+  const fork = limb(new THREE.Vector3(0, 0.35 * ft, 0), _UP, FORK - 0.35 * ft, rBase, rFork);
+
+  // --- primaries, then one fork each. The lean opens as the tree rises, which is what
+  // gives an ornamental its vase shape rather than a broom's.
+  const N = 4, tips = [];
+  const a0 = rnd(0) * Math.PI * 2;
+  for (let i = 0; i < N; i++) {
+    const az = a0 + (i / N) * Math.PI * 2 + (rnd(i + 1) - 0.5) * 0.5;
+    const lean = 0.52 + rnd(i + 10) * 0.22;                       // radians off vertical
+    const dir = new THREE.Vector3(Math.sin(az) * Math.sin(lean), Math.cos(lean),
+                                  Math.cos(az) * Math.sin(lean));
+    const L = H * (0.30 + rnd(i + 20) * 0.06);
+    const t1 = limb(fork, dir, L, rFork * 0.82, rFork * 0.5);
+    for (let j = 0; j < 2; j++) {
+      const sway = (j ? 1 : -1) * (0.30 + rnd(i * 3 + j + 30) * 0.18);
+      const d2 = dir.clone()
+        .applyAxisAngle(_UP, sway)
+        .lerp(_UP, 0.28 + rnd(i * 3 + j + 40) * 0.12).normalize();
+      tips.push(limb(t1, d2, H * (0.17 + rnd(i * 3 + j + 50) * 0.05), rFork * 0.5, rFork * 0.28));
+    }
+  }
+
+  // --- the crown sits ON the tips, plus one filling the middle so the vase does not read
+  // as a ring of separate bushes from above.
+  const R = S * 0.185;
+  tips.forEach((t, k) => {
+    puff(t, R * (0.85 + rnd(k + 60) * 0.35), TREE_LEAF[k % TREE_LEAF.length]);
+  });
+  puff(new THREE.Vector3(0, FORK + H * 0.34, 0), R * 1.15, TREE_LEAF[0], 0.62);
+
+  // --- blossom, tucked among the green rather than sitting on top of it
+  for (let k = 0; k < 6; k++) {
+    const t = tips[Math.floor(rnd(k + 70) * tips.length) % tips.length];
+    const az = rnd(k + 80) * Math.PI * 2, rr = R * (0.55 + rnd(k + 90) * 0.4);
+    puff(new THREE.Vector3(t.x + Math.sin(az) * rr, t.y + (rnd(k + 100) - 0.4) * R * 0.7,
+                           t.z + Math.cos(az) * rr),
+         R * (0.34 + rnd(k + 110) * 0.16), TREE_BLOSSOM, 0.8);
+  }
+  return g;
+}
+
+const BUILDERS = { wall_basin: buildWallBasin, chandelier: buildChandelier, hot_tub: buildHotTub, mudroom_bench: buildMudroomBench, wall_mirror: buildWallMirror, recessed: buildRecessed, pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight, street_tree: buildStreetTree,
   range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, open_shelves: buildOpenShelves, counter_stool: buildCounterStool, banquette: buildBanquette, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, bentwood_chair: buildBentwoodChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, wall_toilet: buildWallToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 // Re-export a few individual builders so the viewer can drop single procedural
 // pieces (e.g. patio furniture on the alt roof deck) without going through the
