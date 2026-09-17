@@ -621,13 +621,20 @@ if (gBase) {
   const rowsOf = m => m.ys.filter((y, i) => m.ys.findIndex(z => Math.abs(z - y) < 0.15) === i).length;
   const stacks = mods.filter(m => rowsOf(m) === 3), singles = mods.filter(m => rowsOf(m) === 1);
   console.log(`  base modules: ${mods.map(m => `${R(m.lo,2)}-${R(m.hi,2)}x${rowsOf(m)}`).join(' ')}`);
-  A(stacks.length === 4, `four banks of three drawers (${stacks.length})`);
+  // SIX since the microwave came out: its 2 ft bay is cabinetry now, and the module line
+  // that was the bay's edge is kept as a `divideAt`, so the opening reads as a 2 ft bank
+  // beside the 17-5/8 in one rather than as one 3'5-1/2" slab of drawer front.
+  A(stacks.length === 6, `six banks of three drawers (${stacks.length})`);
   A(singles.length === 2 && singles.every(m => m.lo > 12.3 && m.hi < 15.7),
     `the sink base keeps a pair of doors (${singles.length})`);
   A(stacks.every(m => (m.hi - m.lo) > 1.0),
     `narrowest drawer front ${R(Math.min(...stacks.map(m => m.hi - m.lo)) * 12, 1)} in — the 8-1/2 in one is gone`);
 }
-for (const k of ['microwave', 'range', 'dishwasher', 'hood']) A(!!app(k), `${k} present`);
+for (const k of ['range', 'dishwasher', 'hood']) A(!!app(k), `${k} present`);
+// ...and the MICROWAVE IS GONE, its bay filled with cabinetry. The line above is this
+// one's positive control: on its own, "no microwave" would pass just as happily if the
+// appliance collector stopped finding anything at all.
+A(!app('microwave'), 'no microwave — the east bay is drawers now');
 if (app('range') && app('hood')) {
   const rg = app('range'), hd = app('hood');
   A(Math.abs(rg.px - hd.px) < 0.02, 'hood centred over the range');
