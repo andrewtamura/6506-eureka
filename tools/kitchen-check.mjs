@@ -1104,9 +1104,16 @@ console.log('WAINSCOT + LIGHTING');
     const mm = meshes(s);
     A(Math.abs(s.pz - NWALL) < 0.02, `sconce on the north wall (${R(s.pz,4)})`);
     A(Math.min(...mm.map(m => m.yLo)) > 3.0 + 0.5, `sits ${R((Math.min(...mm.map(m => m.yLo)) - 3.0) * 12, 1)} in above the chair rail`);
+    // RAISED. These hung at 5'6" to centre and now hang at 6'3"; the bottom is what moves
+    // measurably, and 5.5 ft fails on the old pair.
+    A(Math.min(...mm.map(m => m.yLo)) > 5.5,
+      `and hung high — bottom at ${R(Math.min(...mm.map(m => m.yLo)), 2)} ft`);
     const gap = Math.min(Math.abs(s.px - (3.42 + 0.165)), Math.abs(s.px - (20.0417 - 0.165)));
     A(gap > 1.0, `${R(gap * 12, 1)} in clear of the nearest door casing`);
-    A(Math.max(...mm.map(m => NWALL - m.pzLo)) < 1.3, `projects ${R(Math.max(...mm.map(m => NWALL - m.pzLo)) * 12, 1)} in into the room`);
+    // CLOSE TO THE WALL, which is the thing that was actually asked for. The old bound was
+    // 1.3 ft — slack enough to pass the 12 in globe this replaced AND anything that could
+    // follow it, so it asserted nothing about the projection at all.
+    A(Math.max(...mm.map(m => NWALL - m.pzLo)) < 0.5, `projects ${R(Math.max(...mm.map(m => NWALL - m.pzLo)) * 12, 1)} in into the room`);
   }
   // Under-cabinet: above the worktop, below the uppers, and inside their footprint.
   const uc = has('undercabinet')[0];
@@ -1526,6 +1533,9 @@ console.log('EXTENSION FIXTURES');
     A(sc.length === 2, `two sconces at the mirror (${sc.length})`);
     if (sc.length === 2 && mir) {
       A(sc.every(m => Math.abs(m.pxLo - BE) < 0.1), 'both on the east wall');
+      // ALSO THE POSITIVE CONTROL on `buildSconce`'s default style. The scullery pair opts
+      // into "halfshade"; this pair and the powder room's lamp stay on the globe-and-arm
+      // branch, and if that branch broke, this is what fails. Do not delete it as redundant.
       A(sc.every(m => m.pxHi - m.pxLo < 0.9), `each projects ${R(Math.max(...sc.map(m => m.pxHi - m.pxLo)) * 12, 1)} in`);
       const pz = sc.map(m => m.pz).sort((a2, b2) => a2 - b2);
       A(pz[0] < mir.pzLo - 0.15 && pz[1] > mir.pzHi + 0.15 && pz[0] > casS + 0.15 && pz[1] < casN - 0.15,

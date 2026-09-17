@@ -260,7 +260,8 @@
           -12.1459
         ],
         "faces": "S",
-        "atFt": 5.5
+        "style": "halfshade",
+        "atFt": 6.25
       },
       {
         "type": "sconce",
@@ -269,7 +270,8 @@
           -12.1459
         ],
         "faces": "S",
-        "atFt": 5.5
+        "style": "halfshade",
+        "atFt": 6.25
       },
       {
         "type": "undercabinet",

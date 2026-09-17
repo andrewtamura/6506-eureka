@@ -2968,9 +2968,18 @@ function buildPendant(p) {
   return g;
 }
 
-// A wall sconce: backplate, brass arm out from the wall, opal globe. `faces` is the
-// room side it looks into, so the arm is laid along that direction rather than
-// assuming a wall axis.
+// A wall sconce. Two styles, because three rooms share this builder and they do not want
+// the same fixture:
+//
+//   "globe"     (default) backplate, brass arm out from the wall, opal globe. The bath
+//               pair flanking a mirror and the powder room's shadow-casting lamp are both
+//               this, and both are tuned — hence the default, so neither moves when the
+//               other style is added.
+//   "halfshade" a half-cone shade sitting DIRECTLY on the backplate, no arm. Projects
+//               about 4 in against the globe's 12, which is the whole point of it.
+//
+// `faces` is the room side it looks into, so the fixture is laid along that direction
+// rather than assuming a wall axis.
 function buildSconce(p) {
   const ft = FT, g = new THREE.Group();
   const A = DIR[p.faces || "S"], P = [-A[1], A[0]];
@@ -2978,20 +2987,46 @@ function buildSconce(p) {
   const at = (da, ds, y) => { const q = fplace(A, P, da, ds, 0, 0); return V(q[0], q[1], y); };
   const brass = BRASS(), opal = GLOW(0xffdda0, p.glow ?? 1.1);
   const Y = p.atFt ?? 5.5, ARM = p.armFt ?? 0.46, R = (p.globeFt ?? 0.52) / 2;
-  const PW = p.plateFt ?? 0.46, PH = p.plateHFt ?? 0.62;   // slim it down to flank a mirror
-  const [opx, opz, sx, sz] = fplace(A, P, 0.05, 0, 0.10, PW);
+  const half = (p.style || "globe") === "halfshade";
+  const PW = p.plateFt ?? (half ? 0.40 : 0.46);
+  const PH = p.plateHFt ?? (half ? 0.95 : 0.62);           // slim it down to flank a mirror
+  const outward = new THREE.Vector3(-A[0], 0, -A[1]).normalize();       // plan A -> world
+  // The half-cone is swept about `outward`, so its flat chord lies in the wall plane
+  // whichever wall it is on — the same reason the globe's arm is aimed rather than built
+  // along a world axis.
+  const face = Math.atan2(outward.x, outward.z);
+  const PD = half ? 0.06 : 0.10;                           // how far the backplate stands off
+  const [opx, opz, sx, sz] = fplace(A, P, PD / 2, 0, PD, PW);
   const plate = new THREE.Mesh(new RoundedBoxGeometry(sx * ft, PH * ft, sz * ft, 3, 0.03), brass);
   plate.position.copy(V(opx, opz, Y)); g.add(plate);                    // backplate
-  const outward = new THREE.Vector3(-A[0], 0, -A[1]).normalize();       // plan A -> world
-  const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, ARM * ft, 10), brass);
-  arm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), outward);
-  arm.position.copy(at(0.10 + ARM / 2, 0, Y)); g.add(arm);
-  const globe = new THREE.Mesh(new THREE.SphereGeometry(R * ft, 20, 14), opal);
-  globe.position.copy(at(0.10 + ARM + R * 0.7, 0, Y)); g.add(globe);
+  let opal2 = opal;
+  if (half) {
+    // Open top and bottom so it washes the wall both ways, and DoubleSide because it hangs
+    // ABOVE eye level: single-sided, you look up into it and see straight through to the
+    // wall. The shade is the emissive the lighting scenes drive, so it is what gets handed
+    // to userData.fixtures below.
+    const SR = p.shadeFt ?? 0.30, ST = p.shadeTopFt ?? 0.22, SH = p.shadeHFt ?? 0.58;
+    opal2 = GLOW(0xffdda0, p.glow ?? 1.1);
+    opal2.side = THREE.DoubleSide;
+    const shade = new THREE.Mesh(
+      new THREE.CylinderGeometry(ST * ft, SR * ft, SH * ft, 16, 1, true, -Math.PI / 2, Math.PI), opal2);
+    shade.rotation.y = face;
+    shade.position.copy(at(PD, 0, Y)); g.add(shade);
+    const cap = new THREE.Mesh(                                          // brass top, so it
+      new THREE.CylinderGeometry(ST * ft, ST * ft, 0.03 * ft, 16, 1, false, -Math.PI / 2, Math.PI), brass);
+    cap.rotation.y = face;                                               // reads as a shade
+    cap.position.copy(at(PD, 0, Y + SH / 2)); g.add(cap);                // and not a cone
+  } else {
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, ARM * ft, 10), brass);
+    arm.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), outward);
+    arm.position.copy(at(0.10 + ARM / 2, 0, Y)); g.add(arm);
+    const globe = new THREE.Mesh(new THREE.SphereGeometry(R * ft, 20, 14), opal);
+    globe.position.copy(at(0.10 + ARM + R * 0.7, 0, Y)); g.add(globe);
+  }
   // 8 ft, which is what the bath pair was tuned to by eye: a fixture sitting 3 in off a
   // wall washes the whole room from one small globe if you let its tail run. See buildRecessed.
   const light = new THREE.PointLight(0xffe7c0, p.intensity ?? 1.5, (p.reachFt ?? 8) * ft, 2);
-  light.position.copy(globe.position); g.add(light);
+  light.position.copy(at(half ? PD + 0.15 : 0.10 + ARM + R * 0.7, 0, Y)); g.add(light);
   // OPT-IN SHADOW CASTING, for the one lamp that needs it. Punctual lights in three are
   // not occluded by geometry, so a lamp lights everything in range THROUGH whatever is in
   // the way; `reachFt` is this project's only containment and it is a range cap, not a
@@ -3017,9 +3052,11 @@ function buildSconce(p) {
     // THE FIXTURE MUST NOT OCCLUDE ITSELF. The light is at the globe's centre and main.js
     // makes every opaque mesh a caster, so without this the globe encloses the lamp and
     // the room goes black; the arm, 55 mm away, would blot out a quarter of the sphere.
-    for (const m of [plate, arm, globe]) m.userData.noShadow = true;
+    // Walked rather than named: the half-shade branch has no `arm` or `globe`, and a
+    // ReferenceError here would take out the ONE shadow-casting lamp in the house.
+    g.traverse((m) => { if (m.isMesh) m.userData.noShadow = true; });
   }
-  g.userData.fixtures = [{ light, emissive: opal }];
+  g.userData.fixtures = [{ light, emissive: opal2 }];
   return g;
 }
 
