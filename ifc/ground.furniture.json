@@ -587,6 +587,17 @@
       "crownFt": 0.3
     },
     {
+      "type": "rug",
+      "px": 7.82292,
+      "pz": -14.478,
+      "rot": 0.0,
+      "w": 15.3542,
+      "d": 2.5,
+      "material": "flax",
+      "border": "sage",
+      "borderFt": 0.33
+    },
+    {
       "type": "cabinet_run",
       "px": 7.82292,
       "pz": -17.6458,

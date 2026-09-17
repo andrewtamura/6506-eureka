@@ -1028,6 +1028,54 @@ console.log('WAINSCOT + LIGHTING');
     && (m.pxHi - m.pxLo) < 0.45 && m.pzLo > NWALL - 0.35 && m.pzHi < NWALL + 0.05);
   A(stiles.length >= 8, `${stiles.length} panel stiles dividing the runs`);
 
+// THE RUNNER. A bound rug down the working length of the galley. What is asserted is the
+// two things a bounding box cannot see — that it still has a BORDER, and that it is
+// CENTRED in the walk — plus the ends, which are the base run's own rather than numbers.
+{ const rug = P.find(r => r.type === 'rug' && r.pz < -12 && r.pz > -19);
+  A(!!rug, 'a runner is laid in the galley');
+  if (rug && gBase) {
+    const rm = meshes(rug);
+    console.log(`  runner px ${R(rug.pxLo,3)}..${R(rug.pxHi,3)}  pz ${R(rug.pzLo,3)}..${R(rug.pzHi,3)}`);
+    // A BORDERED rug is a field plus four binding members. Drawn as one slab it has the
+    // same box, the same extents and the same colour under the harness's nose — the member
+    // count is the only thing that separates the two.
+    A(rm.length === 5, `bound, not a plain slab — a field and four binding members (${rm.length})`);
+    // The binding stands PROUD of the pile, which is what makes it read as a bound edge
+    // rather than as paint on the field.
+    const top = m => R(m.yHi, 4);
+    const tops = [...new Set(rm.map(top))].sort((u, v) => u - v);
+    A(tops.length === 2 && (tops[1] - tops[0]) > 0.005,
+      `the binding stands ${R((tops[1] - tops[0]) * 12, 2)} in proud of the pile`);
+    // ENDS: the base run's own, so the runner starts and stops with the cabinetry.
+    A(Math.abs(rug.pxLo - gBase.pxLo) < 0.05 && Math.abs(rug.pxHi - gBase.pxHi) < 0.05,
+      `it starts and stops with the cabinet run (${R(rug.pxLo,3)}/${R(gBase.pxLo,3)}, ${R(rug.pxHi,3)}/${R(gBase.pxHi,3)})`);
+    // CENTRED in the walk. Measured to the CABINET FACE, not to the knobs that set the
+    // walkway's tightest dimension, and to the north wall's BASEBOARD, which is the
+    // proudest thing on that wall at floor level — a rug lies on the floor, so the chair
+    // rail 2 ft above it is not what it has to miss.
+    const FACE = SWALL + 2.0;
+    const bb = Math.max(...L.filter(m => Math.abs(m.pzHi - NWALL) < 0.02 && m.yLo < 0.1
+      && (m.pxHi - m.pxLo) > 1.0 && m.pxLo > -0.3 && m.pxHi < 28.4).map(m => m.pzLo));
+    const south = rug.pzLo - FACE, north = bb - rug.pzHi;
+    A(south > 0.5 && north > 0.5,
+      `${R(south * 12, 1)} in of bare floor south of it and ${R(north * 12, 1)} in north — a runner, not wall to wall`);
+    A(Math.abs(south - north) < 0.1,
+      `and centred in the walk (${R(Math.abs(south - north) * 12, 2)} in out)`);
+    // Short of both openings, which is what "the counter's length" buys.
+    A(rug.pxHi < 16.17 - 0.3, `clear of the back door by ${R((16.17 - rug.pxHi) * 12, 1)} in`);
+    A(rug.pxHi < 20.0417, 'and nowhere near the kitchen portal');
+    // It LIES on the floor. A rug built as a slab standing proud is a trip hazard that
+    // renders as a rug from every angle but a raking one.
+    A(Math.max(...rm.map(m => m.yHi)) < 1 / 12,
+      `laid flat — ${R(Math.max(...rm.map(m => m.yHi)) * 12, 2)} in of pile`);
+  }
+  // POSITIVE CONTROL on having changed a SHARED builder: the dining room's rug carries no
+  // border, and without this a buildRug that broke on the un-bordered case would take it
+  // out in silence.
+  const din = P.find(r => r.type === 'rug' && r.pz > 0);
+  A(din && meshes(din).length === 1, `the dining room's plain rug still builds (${din ? meshes(din).length : 0} member)`);
+}
+
   // LIGHTING. The generic per-room semi-flush must be GONE from this room — that is
   // the half of "replace the fixtures" a screenshot makes easy to miss.
   const sc = P.filter(r => r.pz < -12 && r.pz > -19);

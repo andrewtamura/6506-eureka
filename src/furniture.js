@@ -11,7 +11,7 @@ const PALETTE = {
   lightoak: 0xb38f63, oak: 0xa9824f, walnut: 0x6b4a2f, darkwalnut: 0x3a2a1c,
   rug: 0x9c6b5a, sage: 0x8a9a86, slate: 0x4a5568, cabinet: 0xeae7df,
   leather: 0x8a6244, cane: 0xc9a870, beech: 0x6f4a2c,
-  ticking: 0x3c5a78, chalk: 0xf8f5ef,
+  ticking: 0x3c5a78, chalk: 0xf8f5ef, flax: 0xd8cdb4,
 };
 const col = (name, fallback) => new THREE.Color(PALETTE[name] ?? fallback);
 const fabricMat = (c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.95 });
@@ -173,13 +173,34 @@ function buildTable(p) {
 
 // A flat rectangular area rug (w x d in feet). Returned as a Group so its
 // y-offset survives when buildFurniture positions the group on the floor.
+// A rug, optionally BOUND: a pile field with a contrasting border run round it. The border
+// is opt-in (`borderFt`), so a plain rug stays one box and the dining room's is untouched.
+//
+// The binding sits a hair PROUDER than the field rather than flush. Flush, the two are
+// coplanar and the border reads as paint on the pile; 4 mm is enough to catch a shadow line
+// and have it read as a bound edge, which is what it is.
 function buildRug(p) {
   const ft = 0.3048;
   const g = new THREE.Group();
+  const T = 0.012;
+  // Both planes ride this lift. The instanced wood planks stand ~0.04 above the slab, so a
+  // rug laid at y = 0 disappears into the floor rather than onto it.
+  const Y = 0.03;
+  const W = (p.w ?? 8) * ft, D = (p.d ?? 6) * ft;
   const mat = new THREE.MeshStandardMaterial({ color: col(p.material || "rug", 0x9c6b5a), roughness: 1.0 });
-  const m = new THREE.Mesh(new THREE.BoxGeometry((p.w ?? 8) * ft, 0.012, (p.d ?? 6) * ft), mat);
-  m.position.y = 0.03; // sit on top of the instanced wood planks (which rise ~0.04 above the slab)
-  g.add(m);
+  const slab = (w, d, y, m, x = 0, z = 0) => {
+    const q = new THREE.Mesh(new THREE.BoxGeometry(w, y - Y + T, d), m);
+    q.position.set(x, (Y + y) / 2, z); q.receiveShadow = true; g.add(q); return q;
+  };
+  const B = (p.borderFt ?? 0) * ft;
+  if (B <= 0.004) { slab(W, D, Y, mat); return g; }
+  const bm = new THREE.MeshStandardMaterial({ color: col(p.border || "rug", 0x9c6b5a), roughness: 1.0 });
+  const YB = Y + 0.004;                              // the binding, proud of the pile
+  slab(W - 2 * B, D - 2 * B, Y, mat);                // field, inset all round
+  for (const sz of [-1, 1]) {                        // the two long sides
+    slab(W, B, YB, bm, 0, sz * (D - B) / 2);
+    slab(B, D - 2 * B, YB, bm, sz * (W - B) / 2, 0); // ...and the two ends, between them
+  }
   return g;
 }
 
