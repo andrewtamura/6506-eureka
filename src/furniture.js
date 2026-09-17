@@ -3331,10 +3331,15 @@ function buildStreetTree(p) {
     return a.clone().addScaledVector(d, len);
   };
 
-  // --- trunk: a root flare, then the shaft to the first fork ---------------------------
-  const FORK = H * 0.28, rBase = 0.115 * ft, rFork = 0.16 * ft;
-  limb(new THREE.Vector3(0, 0, 0), _UP, 0.35 * ft, 0.145 * ft, rBase);
-  const fork = limb(new THREE.Vector3(0, 0.35 * ft, 0), _UP, FORK - 0.35 * ft, rBase, rFork);
+  // --- trunk: a root flare, then the shaft to the first fork. The caliper is DERIVED from
+  // the tree's height (0.0072 of it, so 11 ft gives a 1.9 in stem and 16 ft a 2.8 in one) —
+  // written absolutely it stayed a mature tree's trunk when the canopy came down to a
+  // ten-year-old's. It tapers UPWARD: r0 is the butt and r1 the tip, and the first version
+  // had those the wrong way round, so the trunk quietly grew fatter as it rose.
+  const rBase = H * 0.0072, rFork = rBase * 0.72;
+  const FORK = H * 0.28, FLARE = H * 0.022;
+  limb(new THREE.Vector3(0, 0, 0), _UP, FLARE, rBase * 1.26, rBase);
+  const fork = limb(new THREE.Vector3(0, FLARE, 0), _UP, FORK - FLARE, rBase, rFork);
 
   // --- the limbs, splaying out of the fork and up into the canopy. They are short on
   // purpose: everything above the crown's underside is inside the bulb and would never be

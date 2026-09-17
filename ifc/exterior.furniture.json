@@ -29,8 +29,8 @@
       "px": -21.75,
       "pz": 31.6458,
       "y": -0.0335,
-      "heightFt": 16.0,
-      "spreadFt": 12.0,
+      "heightFt": 11.0,
+      "spreadFt": 7.0,
       "seed": 0
     },
     {
@@ -38,8 +38,8 @@
       "px": -9.25,
       "pz": 31.6458,
       "y": -0.1859,
-      "heightFt": 16.0,
-      "spreadFt": 12.0,
+      "heightFt": 11.0,
+      "spreadFt": 7.0,
       "seed": 1
     },
     {
@@ -47,8 +47,8 @@
       "px": 40.75,
       "pz": 31.6458,
       "y": -0.7955,
-      "heightFt": 16.0,
-      "spreadFt": 12.0,
+      "heightFt": 11.0,
+      "spreadFt": 7.0,
       "seed": 0
     },
     {
@@ -56,8 +56,8 @@
       "px": 28.25,
       "pz": 31.6458,
       "y": -0.6431,
-      "heightFt": 16.0,
-      "spreadFt": 12.0,
+      "heightFt": 11.0,
+      "spreadFt": 7.0,
       "seed": 1
     }
   ]
