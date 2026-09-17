@@ -621,13 +621,21 @@ if (gBase) {
   const rowsOf = m => m.ys.filter((y, i) => m.ys.findIndex(z => Math.abs(z - y) < 0.15) === i).length;
   const stacks = mods.filter(m => rowsOf(m) === 3), singles = mods.filter(m => rowsOf(m) === 1);
   console.log(`  base modules: ${mods.map(m => `${R(m.lo,2)}-${R(m.hi,2)}x${rowsOf(m)}`).join(' ')}`);
-  A(stacks.length === 4, `four banks of three drawers (${stacks.length})`);
+  // FIVE since the microwave came out, not six: its 2 ft gap REPLACED a module rather than
+  // splitting one, so closing it adds exactly one bank. The module line that was the gap's
+  // edge is kept as a `divideAt`, which is what makes the opening a 2 ft bank beside the
+  // 17-5/8 in one instead of a single 3'5-1/2" slab of drawer front.
+  A(stacks.length === 5, `five banks of three drawers (${stacks.length})`);
   A(singles.length === 2 && singles.every(m => m.lo > 12.3 && m.hi < 15.7),
     `the sink base keeps a pair of doors (${singles.length})`);
   A(stacks.every(m => (m.hi - m.lo) > 1.0),
     `narrowest drawer front ${R(Math.min(...stacks.map(m => m.hi - m.lo)) * 12, 1)} in — the 8-1/2 in one is gone`);
 }
-for (const k of ['microwave', 'range', 'dishwasher', 'hood']) A(!!app(k), `${k} present`);
+for (const k of ['range', 'dishwasher', 'hood']) A(!!app(k), `${k} present`);
+// ...and the MICROWAVE IS GONE, its bay filled with cabinetry. The line above is this
+// one's positive control: on its own, "no microwave" would pass just as happily if the
+// appliance collector stopped finding anything at all.
+A(!app('microwave'), 'no microwave — the east bay is drawers now');
 if (app('range') && app('hood')) {
   const rg = app('range'), hd = app('hood');
   A(Math.abs(rg.px - hd.px) < 0.02, 'hood centred over the range');
@@ -1020,6 +1028,60 @@ console.log('WAINSCOT + LIGHTING');
     && (m.pxHi - m.pxLo) < 0.45 && m.pzLo > NWALL - 0.35 && m.pzHi < NWALL + 0.05);
   A(stiles.length >= 8, `${stiles.length} panel stiles dividing the runs`);
 
+// THE RUNNER. A bound rug down the working length of the galley. What is asserted is the
+// two things a bounding box cannot see — that it still has a BORDER, and that it is
+// CENTRED in the walk — plus the ends, which are the base run's own rather than numbers.
+{ const rug = P.find(r => r.type === 'rug' && r.pz < -12 && r.pz > -19);
+  A(!!rug, 'a runner is laid in the galley');
+  if (rug && gBase) {
+    const rm = meshes(rug);
+    console.log(`  runner px ${R(rug.pxLo,3)}..${R(rug.pxHi,3)}  pz ${R(rug.pzLo,3)}..${R(rug.pzHi,3)}`);
+    // A BORDERED rug is a field plus four binding members. Drawn as one slab it has the
+    // same box, the same extents and the same colour under the harness's nose — the member
+    // count is the only thing that separates the two.
+    A(rm.length === 5, `bound, not a plain slab — a field and four binding members (${rm.length})`);
+    // The binding stands PROUD of the pile, which is what makes it read as a bound edge
+    // rather than as paint on the field.
+    const top = m => R(m.yHi, 4);
+    const tops = [...new Set(rm.map(top))].sort((u, v) => u - v);
+    A(tops.length === 2 && (tops[1] - tops[0]) > 0.005,
+      `the binding stands ${R((tops[1] - tops[0]) * 12, 2)} in proud of the pile`);
+    // ENDS: the base run's own, so the runner starts and stops with the cabinetry.
+    A(Math.abs(rug.pxLo - gBase.pxLo) < 0.05 && Math.abs(rug.pxHi - gBase.pxHi) < 0.05,
+      `it starts and stops with the cabinet run (${R(rug.pxLo,3)}/${R(gBase.pxLo,3)}, ${R(rug.pxHi,3)}/${R(gBase.pxHi,3)})`);
+    // CENTRED in the walk. Measured to the CABINET FACE, not to the knobs that set the
+    // walkway's tightest dimension, and to the north wall's BASEBOARD, which is the
+    // proudest thing on that wall at floor level — a rug lies on the floor, so the chair
+    // rail 2 ft above it is not what it has to miss.
+    const FACE = SWALL + 2.0;
+    const bb = Math.max(...L.filter(m => Math.abs(m.pzHi - NWALL) < 0.02 && m.yLo < 0.1
+      && (m.pxHi - m.pxLo) > 1.0 && m.pxLo > -0.3 && m.pxHi < 28.4).map(m => m.pzLo));
+    const south = rug.pzLo - FACE, north = bb - rug.pzHi;
+    A(south > 0.5 && north > 0.5,
+      `${R(south * 12, 1)} in of bare floor south of it and ${R(north * 12, 1)} in north — a runner, not wall to wall`);
+    A(Math.abs(south - north) < 0.1,
+      `and centred in the walk (${R(Math.abs(south - north) * 12, 2)} in out)`);
+    // Short of both openings, which is what "the counter's length" buys.
+    A(rug.pxHi < 16.17 - 0.3, `clear of the back door by ${R((16.17 - rug.pxHi) * 12, 1)} in`);
+    A(rug.pxHi < 20.0417, 'and nowhere near the kitchen portal');
+    // IT LIES FLAT — which is the rug's own THICKNESS, not its height above the datum.
+    // `buildRug` lifts every rug 0.03 m to clear the instanced wood planks, and those stand
+    // ~0.04 above the slab, so an absolute height measures the FLOOR BUILD-UP and says
+    // nothing about the rug. Asserted that way round first: the 1.57 in of "pile" it failed
+    // on was the planks.
+    const thick = Math.max(...rm.map(m => m.yHi)) - Math.min(...rm.map(m => m.yLo));
+    A(thick < 1 / 12, `laid flat — ${R(thick * 12, 2)} in thick, binding included`);
+    // ...and it is FLOOR furniture, not a slab parked at worktop height.
+    A(Math.max(...rm.map(m => m.yHi)) < 2.5 / 12,
+      `and lies on the floor (top ${R(Math.max(...rm.map(m => m.yHi)) * 12, 2)} in over the datum)`);
+  }
+  // POSITIVE CONTROL on having changed a SHARED builder: the dining room's rug carries no
+  // border, and without this a buildRug that broke on the un-bordered case would take it
+  // out in silence.
+  const din = P.find(r => r.type === 'rug' && r.pz > 0);
+  A(din && meshes(din).length === 1, `the dining room's plain rug still builds (${din ? meshes(din).length : 0} member)`);
+}
+
   // LIGHTING. The generic per-room semi-flush must be GONE from this room — that is
   // the half of "replace the fixtures" a screenshot makes easy to miss.
   const sc = P.filter(r => r.pz < -12 && r.pz > -19);
@@ -1042,9 +1104,16 @@ console.log('WAINSCOT + LIGHTING');
     const mm = meshes(s);
     A(Math.abs(s.pz - NWALL) < 0.02, `sconce on the north wall (${R(s.pz,4)})`);
     A(Math.min(...mm.map(m => m.yLo)) > 3.0 + 0.5, `sits ${R((Math.min(...mm.map(m => m.yLo)) - 3.0) * 12, 1)} in above the chair rail`);
+    // RAISED. These hung at 5'6" to centre and now hang at 6'3"; the bottom is what moves
+    // measurably, and 5.5 ft fails on the old pair.
+    A(Math.min(...mm.map(m => m.yLo)) > 5.5,
+      `and hung high — bottom at ${R(Math.min(...mm.map(m => m.yLo)), 2)} ft`);
     const gap = Math.min(Math.abs(s.px - (3.42 + 0.165)), Math.abs(s.px - (20.0417 - 0.165)));
     A(gap > 1.0, `${R(gap * 12, 1)} in clear of the nearest door casing`);
-    A(Math.max(...mm.map(m => NWALL - m.pzLo)) < 1.3, `projects ${R(Math.max(...mm.map(m => NWALL - m.pzLo)) * 12, 1)} in into the room`);
+    // CLOSE TO THE WALL, which is the thing that was actually asked for. The old bound was
+    // 1.3 ft — slack enough to pass the 12 in globe this replaced AND anything that could
+    // follow it, so it asserted nothing about the projection at all.
+    A(Math.max(...mm.map(m => NWALL - m.pzLo)) < 0.5, `projects ${R(Math.max(...mm.map(m => NWALL - m.pzLo)) * 12, 1)} in into the room`);
   }
   // Under-cabinet: above the worktop, below the uppers, and inside their footprint.
   const uc = has('undercabinet')[0];
@@ -1464,6 +1533,9 @@ console.log('EXTENSION FIXTURES');
     A(sc.length === 2, `two sconces at the mirror (${sc.length})`);
     if (sc.length === 2 && mir) {
       A(sc.every(m => Math.abs(m.pxLo - BE) < 0.1), 'both on the east wall');
+      // ALSO THE POSITIVE CONTROL on `buildSconce`'s default style. The scullery pair opts
+      // into "halfshade"; this pair and the powder room's lamp stay on the globe-and-arm
+      // branch, and if that branch broke, this is what fails. Do not delete it as redundant.
       A(sc.every(m => m.pxHi - m.pxLo < 0.9), `each projects ${R(Math.max(...sc.map(m => m.pxHi - m.pxLo)) * 12, 1)} in`);
       const pz = sc.map(m => m.pz).sort((a2, b2) => a2 - b2);
       A(pz[0] < mir.pzLo - 0.15 && pz[1] > mir.pzHi + 0.15 && pz[0] > casS + 0.15 && pz[1] < casN - 0.15,
