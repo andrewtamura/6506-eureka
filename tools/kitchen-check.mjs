@@ -1064,10 +1064,16 @@ console.log('WAINSCOT + LIGHTING');
     // Short of both openings, which is what "the counter's length" buys.
     A(rug.pxHi < 16.17 - 0.3, `clear of the back door by ${R((16.17 - rug.pxHi) * 12, 1)} in`);
     A(rug.pxHi < 20.0417, 'and nowhere near the kitchen portal');
-    // It LIES on the floor. A rug built as a slab standing proud is a trip hazard that
-    // renders as a rug from every angle but a raking one.
-    A(Math.max(...rm.map(m => m.yHi)) < 1 / 12,
-      `laid flat — ${R(Math.max(...rm.map(m => m.yHi)) * 12, 2)} in of pile`);
+    // IT LIES FLAT — which is the rug's own THICKNESS, not its height above the datum.
+    // `buildRug` lifts every rug 0.03 m to clear the instanced wood planks, and those stand
+    // ~0.04 above the slab, so an absolute height measures the FLOOR BUILD-UP and says
+    // nothing about the rug. Asserted that way round first: the 1.57 in of "pile" it failed
+    // on was the planks.
+    const thick = Math.max(...rm.map(m => m.yHi)) - Math.min(...rm.map(m => m.yLo));
+    A(thick < 1 / 12, `laid flat — ${R(thick * 12, 2)} in thick, binding included`);
+    // ...and it is FLOOR furniture, not a slab parked at worktop height.
+    A(Math.max(...rm.map(m => m.yHi)) < 2.5 / 12,
+      `and lies on the floor (top ${R(Math.max(...rm.map(m => m.yHi)) * 12, 2)} in over the datum)`);
   }
   // POSITIVE CONTROL on having changed a SHARED builder: the dining room's rug carries no
   // border, and without this a buildRug that broke on the un-bordered case would take it
