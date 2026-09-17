@@ -3283,24 +3283,32 @@ function buildWallMirror(p) {
   return g;
 }
 
-// A SMALL FLOWERING ORNAMENTAL STREET TREE, modelled from its construction rather than as
-// a lollipop: a flared trunk to the first fork at about a third of its height, primary
-// limbs splaying and rising from it, each forking once, and the crown carried on the limb
-// ends rather than floating over them.
+// A SMALL ORNAMENTAL STREET TREE: a trunk, a vase of limbs, and ONE canopy.
 //
-// Every part is OPAQUE. Alpha-mapped foliage is the obvious way to draw leaves and the
-// wrong one here: consolidate.js refuses to merge transparents, so a tree drawn that way
-// costs its draw calls on every frame forever. A cluster of low-detail icosahedra reads as
-// a crown at street distance and merges away to nothing.
+// The crown is a SINGLE solid of revolution — a `LatheGeometry` swept from a crown
+// profile — rather than a cluster of foliage puffs. A puff cluster is the obvious way to
+// draw a canopy and it reads as a bunch of separate bushes balanced on a stick; one bulb
+// with a proper crown silhouette reads as a tree at every distance, and it is one mesh
+// instead of nineteen.
 //
-// The materials are MODULE-LEVEL and shared by all four trees, which is what lets the
-// merge collapse them; nothing here mutates one in place (see CLAUDE.md on why our meshes
-// are deliberately not grouped by material LOOK).
+// The profile is what does the work: it leaves the fork at nothing, flares fast, carries
+// its widest point BELOW the middle and rounds over to a soft apex. Widest at the middle
+// is a ball on a stick; widest at the top is a mushroom.
+//
+// Opaque, and the materials are MODULE-LEVEL and shared by all four trees, which is what
+// lets consolidate.js merge them away — alpha-mapped foliage is the obvious way to draw
+// leaves and the wrong one, since it refuses to merge transparents and the draw calls
+// would then be permanent. Nothing here mutates a material in place (see CLAUDE.md on why
+// our meshes are deliberately not grouped by material LOOK).
 const TREE_BARK = new THREE.MeshStandardMaterial({ color: 0x6b5a48, roughness: 0.92 });
-const TREE_LEAF = [0x5c7a44, 0x6e8c4e, 0x46613a]
-  .map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.95 }));
-const TREE_BLOSSOM = new THREE.MeshStandardMaterial({ color: 0xe6c2ce, roughness: 0.9 });
+const TREE_LEAF = new THREE.MeshStandardMaterial({ color: 0x5f7f47, roughness: 0.95 });
 const _UP = new THREE.Vector3(0, 1, 0);
+// (radius, height) up the crown, both as fractions of its spread and its own height.
+const CROWN_PROFILE = [
+  [0.00, 0.00], [0.40, 0.05], [0.68, 0.12], [0.86, 0.21], [0.96, 0.31],
+  [1.00, 0.42], [0.98, 0.54], [0.92, 0.65], [0.80, 0.76], [0.60, 0.87],
+  [0.34, 0.95], [0.00, 1.00],
+];
 
 function buildStreetTree(p) {
   const ft = FT, g = new THREE.Group();
@@ -3320,58 +3328,38 @@ function buildStreetTree(p) {
     m.position.copy(a).addScaledVector(d, len / 2);
     m.castShadow = true; m.receiveShadow = true;
     g.add(m);
-    return a.clone().addScaledVector(d, len);      // the tip, to grow from
-  };
-
-  const puff = (at, r, mat, flat = 0.84) => {
-    const m = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), mat);
-    m.position.copy(at);
-    m.scale.set(1, flat, 1);
-    m.castShadow = true; m.receiveShadow = true;
-    g.add(m);
+    return a.clone().addScaledVector(d, len);
   };
 
   // --- trunk: a root flare, then the shaft to the first fork ---------------------------
-  const FORK = H * 0.30, rBase = 0.115 * ft, rFork = 0.16 * ft;
-  limb(new THREE.Vector3(0, 0, 0), _UP, 0.35 * ft, 0.145 * ft, rBase);   // flare
+  const FORK = H * 0.28, rBase = 0.115 * ft, rFork = 0.16 * ft;
+  limb(new THREE.Vector3(0, 0, 0), _UP, 0.35 * ft, 0.145 * ft, rBase);
   const fork = limb(new THREE.Vector3(0, 0.35 * ft, 0), _UP, FORK - 0.35 * ft, rBase, rFork);
 
-  // --- primaries, then one fork each. The lean opens as the tree rises, which is what
-  // gives an ornamental its vase shape rather than a broom's.
-  const N = 4, tips = [];
-  const a0 = rnd(0) * Math.PI * 2;
+  // --- the limbs, splaying out of the fork and up into the canopy. They are short on
+  // purpose: everything above the crown's underside is inside the bulb and would never be
+  // seen, so a second order of branching is geometry nobody looks at.
+  const N = 4, a0 = rnd(0) * Math.PI * 2;
   for (let i = 0; i < N; i++) {
     const az = a0 + (i / N) * Math.PI * 2 + (rnd(i + 1) - 0.5) * 0.5;
-    const lean = 0.52 + rnd(i + 10) * 0.22;                       // radians off vertical
+    const lean = 0.48 + rnd(i + 10) * 0.20;
     const dir = new THREE.Vector3(Math.sin(az) * Math.sin(lean), Math.cos(lean),
                                   Math.cos(az) * Math.sin(lean));
-    const L = H * (0.30 + rnd(i + 20) * 0.06);
-    const t1 = limb(fork, dir, L, rFork * 0.82, rFork * 0.5);
-    for (let j = 0; j < 2; j++) {
-      const sway = (j ? 1 : -1) * (0.30 + rnd(i * 3 + j + 30) * 0.18);
-      const d2 = dir.clone()
-        .applyAxisAngle(_UP, sway)
-        .lerp(_UP, 0.28 + rnd(i * 3 + j + 40) * 0.12).normalize();
-      tips.push(limb(t1, d2, H * (0.17 + rnd(i * 3 + j + 50) * 0.05), rFork * 0.5, rFork * 0.28));
-    }
+    limb(fork, dir, H * (0.24 + rnd(i + 20) * 0.06), rFork * 0.82, rFork * 0.42);
   }
 
-  // --- the crown sits ON the tips, plus one filling the middle so the vase does not read
-  // as a ring of separate bushes from above.
-  const R = S * 0.185;
-  tips.forEach((t, k) => {
-    puff(t, R * (0.85 + rnd(k + 60) * 0.35), TREE_LEAF[k % TREE_LEAF.length]);
-  });
-  puff(new THREE.Vector3(0, FORK + H * 0.34, 0), R * 1.15, TREE_LEAF[0], 0.62);
-
-  // --- blossom, tucked among the green rather than sitting on top of it
-  for (let k = 0; k < 6; k++) {
-    const t = tips[Math.floor(rnd(k + 70) * tips.length) % tips.length];
-    const az = rnd(k + 80) * Math.PI * 2, rr = R * (0.55 + rnd(k + 90) * 0.4);
-    puff(new THREE.Vector3(t.x + Math.sin(az) * rr, t.y + (rnd(k + 100) - 0.4) * R * 0.7,
-                           t.z + Math.cos(az) * rr),
-         R * (0.34 + rnd(k + 110) * 0.16), TREE_BLOSSOM, 0.8);
-  }
+  // --- THE CANOPY: one lathe, springing from the fork and carrying to the full height.
+  const y0 = H * 0.38, CH = H - y0, maxR = S / 2;
+  const crown = new THREE.Mesh(
+    new THREE.LatheGeometry(CROWN_PROFILE.map(([r, t]) => new THREE.Vector2(r * maxR, t * CH)), 32),
+    TREE_LEAF);
+  crown.position.y = y0;
+  // A touch of per-tree girth and a turn on it, so four trees off one profile are not four
+  // copies of the same object.
+  crown.scale.set(0.94 + rnd(30) * 0.14, 0.92 + rnd(31) * 0.18, 0.94 + rnd(32) * 0.14);
+  crown.rotation.y = rnd(33) * Math.PI * 2;
+  crown.castShadow = true; crown.receiveShadow = true;
+  g.add(crown);
   return g;
 }
 
