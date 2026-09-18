@@ -99,6 +99,15 @@
         "spreadFt": 4.5
       }
     },
+    "westPaving": {
+      "_note": "Basket-weave brick over the whole west park strip, cut to fill the rectangle exactly and cut ON THE CURVE where it meets the street trees' planter circles. Nominal 8x4 brick means an ACTUAL 7-5/8 x 3-5/8 with 3/8 in joints, so the module pitch is a clean 8 in and the joint is drawn rather than implied.",
+      "_noteBed": "jointRevealIn sinks the strip's own slab by that much and recolours it to mortar: laid flush, brick and slab are coplanar and z-fight, and every joint shows what is underneath \u2014 which on a grass slab is green.",
+      "brickLenIn": 8.0,
+      "jointIn": 0.375,
+      "thickIn": 2.25,
+      "jointRevealIn": 0.25,
+      "color": [0.55, 0.27, 0.21]
+    },
     "yardFence": {
       "_note": "A 6 ft stained BOARD fence closing the rear yard: from the east extension's NE corner, east along that wing's north wall face, to the east property line. Its first 15 ft ride the new deck terrace.",
       "_noteDatum": "heightDatum says what the 6 ft is measured from. 'surface' = 6 ft above whatever it stands on, so it steps up over the deck and doubles as that edge's guard now the rails are gone. 'grade' = one flat top line 6 ft above grade, which over the deck is exactly 42 in \u2014 a code guard \u2014 and is the one-word retreat if a fence-height cap turns out to bite.",

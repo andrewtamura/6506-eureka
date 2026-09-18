@@ -493,6 +493,8 @@ def build_level(cfg, rooms_cache, level):
         B.add_garden_walk(ctx, cfg["lot"], rooms_cache)
         # After the frontage: the tree terraces SIT ON the park strip rather than cutting it.
         B.add_street_trees(ctx, cfg["lot"], rooms_cache)
+        # After the trees: the brick is cut around their planter circles.
+        B.add_west_paving(ctx, cfg["lot"], rooms_cache)
 
     ifc_name = f"{lid}.ifc"
     m.write(os.path.join(HERE, ifc_name))

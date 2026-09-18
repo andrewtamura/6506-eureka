@@ -2434,5 +2434,80 @@ else:
     check(not wt, 'the west strip trees are authored and built')
 
 
+# ---------------------------------------------------------------------------------
+# THE WEST PAVING. Basket-weave brick over the whole strip. Three things a bounding box
+# cannot see and a render can hide: that it is a WEAVE rather than a running bond, that the
+# lattice is CENTRED so opposite edges take equal cuts, and that it follows the strip's fall
+# rather than lying flat. Each is asserted on built geometry.
+print('\nWEST PAVING')
+wp = _cfg.get('westPaving') or {}
+_brick = [(nm, b) for nm, b in _parts(ext, 'West paving')]
+if wp:
+    check(len(_brick) > 1000, f'the strip is paved brick by brick ({len(_brick)})')
+if wp and len(_brick) > 1000:
+    _ps = extents(ext, lambda nm, p: nm == 'Park strip - west')['Park strip - west']
+    _x0, _x1, _z0, _z1 = _ps[0], _ps[1], _ps[2], _ps[3]
+    _J = wp['jointIn'] / 12.0
+    _P = wp['brickLenIn'] / 12.0
+    # --- IT FILLS THE RECTANGLE. "Cut to fit perfectly" is the ask, so it is measured
+    # against the strip's OWN built extents, not against 9 x 51.
+    _fx0 = min(b[0] for _, b in _brick); _fx1 = max(b[1] for _, b in _brick)
+    _fz0 = min(b[2] for _, b in _brick); _fz1 = max(b[3] for _, b in _brick)
+    check(near(_fx0, _x0, 0.01) and near(_fx1, _x1, 0.01)
+          and near(_fz0, _z0, 0.01) and near(_fz1, _z1, 0.01),
+          f'and fills the rectangle exactly ({_fx0:.4f}..{_fx1:.4f} x {_fz0:.4f}..{_fz1:.4f})')
+    # --- IT IS A WEAVE. A basket weave laid with every brick the same way round is a running
+    # bond: same count, same extents, same colour, same everything but the look. The only
+    # measurable difference is that both orientations are present in quantity.
+    _long = [b for _, b in _brick if abs((b[1] - b[0]) - (_P - _J)) < 0.01]
+    _tall = [b for _, b in _brick if abs((b[3] - b[2]) - (_P - _J)) < 0.01]
+    check(len(_long) > 300 and len(_tall) > 300,
+          f'laid as a WEAVE, not a running bond ({len(_long)} running one way, {len(_tall)} the other)')
+    # --- THE LATTICE IS CENTRED, so opposite edges take equal cuts. Measured off the module
+    # lines the bricks actually sit on: the first line in from each edge should be the same
+    # distance in. Anchored at a corner instead, one edge gets a full module and the other a
+    # sliver, and the field would still fill the rectangle and still pass everything above.
+    _lines = sorted({round(b[0], 3) for _, b in _brick} | {round(b[1], 3) for _, b in _brick})
+    _first = min(v for v in _lines if v > _x0 + 0.1)
+    _last = max(v for v in _lines if v < _x1 - 0.1)
+    check(near(_first - _x0, _x1 - _last, 0.02),
+          f'the lattice is centred — {(_first - _x0) * 12:.2f} in cut at one long edge, '
+          f'{(_x1 - _last) * 12:.2f} in at the other')
+    # --- CUT ON THE CURVE. No brick may reach into a planter, tested against the rims' own
+    # built extents. Paired with a positive control: without it, "no overlap" passes just as
+    # happily for a field that stopped ten feet short of every tree.
+    _rims = [b for _, b in _parts(ext, 'Street tree west ring')]
+    _hit, _near_n = 0, 0
+    for _, b in _brick:
+        for r in _rims:
+            rcx, rcz = (r[0] + r[1]) / 2, (r[2] + r[3]) / 2
+            rr = (r[1] - r[0]) / 2
+            # nearest point of the brick's box to the rim's centre
+            dx = max(r[0] - b[1], b[0] - r[1], 0.0) if False else \
+                 max(rcx - b[1], b[0] - rcx, 0.0)
+            dz = max(rcz - b[3], b[2] - rcz, 0.0)
+            d = math.hypot(dx, dz)
+            if d < rr - 0.02:
+                _hit += 1
+            if d < rr + _P:
+                _near_n += 1
+    check(_hit == 0, f'no brick reaches into a planter ({_hit})')
+    check(_near_n > 60, f'...and the field really does come up to them ({_near_n} bricks within a module)')
+    # --- IT FOLLOWS THE FALL. The strip drops 2 ft over its run; a field laid flat would sit
+    # up to a foot proud at one end and buried at the other, and every check above would pass.
+    _tops = sorted(((b[2] + b[3]) / 2, b[5]) for _, b in _brick)
+    _lo, _hi = _tops[0], _tops[-1]
+    check(_hi[1] - _lo[1] < -1.5 and _hi[1] - _lo[1] > -2.5,
+          f'and follows the strip\'s fall ({_lo[1]:.3f} ft at the south end, {_hi[1]:.3f} at the north)')
+    # ...on the slab, which is now the mortar BED: sunk a joint's depth, or the two are
+    # coplanar, they z-fight, and every joint shows what is underneath.
+    # LIKE WITH LIKE. Both the bed and the field fall 2 ft over the run, so the bed's top
+    # against the bricks' LOWEST top compares the south end with the north one and reads
+    # -23.71 in — which is the slope, not the reveal. Both maxima are the south end.
+    _reveal = max(b[5] for _, b in _brick) - _ps[5]
+    check(near(_reveal, wp['jointRevealIn'] / 12.0, 0.01),
+          f'laid on the bed, which sits {_reveal * 12:.2f} in down so the joints read as mortar')
+
+
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))
 sys.exit(1 if fails else 0)
