@@ -2908,7 +2908,7 @@ def add_street_trees(ctx, lot, rooms_cache):
     f = lot.get("frontage") or {}
     B = {k: v["bounds"] for k, v in rooms_cache.items()}
     half_wall = ctx.T / FT / 2
-    west, east, _, north_pl, _ = lot_lines(lot, B.values(), half_wall)
+    west, east, south, north_pl, _ = lot_lines(lot, B.values(), half_wall)
     x_flat = east + f.get("northLevelFromEastFt", 25)
     nw = f.get("nwDropIn", 36) / 12.0
     STRIP = f.get("parkStripWidthFt", 9)
@@ -2928,17 +2928,19 @@ def add_street_trees(ctx, lot, rooms_cache):
     DEPTH = t.get("depthFt", 0.75)
     LIFT = 0.02                                      # off the strip's surface at the uphill tangent,
     # where a pad levelled to that edge is otherwise exactly coplanar with it
-    cz = north_pl + STRIP / 2                        # the strip's midline
+    cz_n = north_pl + STRIP / 2                      # the NORTH strip's midline
 
     def solid(name, v, fc, color):
         add_brep(ctx, name, v, fc, color, ifc_class="IfcSlab", predefined="BASESLAB", wind=False)
 
-    def pad_disc(name, cx, top, color):
+    # Both take a full plan point: the north strip's circles march along px and the west
+    # strip's along pz, so neither axis can be a closure over a fixed value.
+    def pad_disc(name, cx, cz, top, color):
         v, fc = _lathe(ctx.X(cx), ctx.Y(cz), (top - DEPTH) * FT,
                        [(R * FT, 0.0), (R * FT, DEPTH * FT)], 48)
         solid(name, v, fc, color)
 
-    def rim(name, cx, top, color):
+    def rim(name, cx, cz, top, color):
         """An ANNULUS, not a disc. A cylinder a little wider than the pad looks identical on
         every bounding box and covers the mulch with its own top cap."""
         v, fc = _tube(ctx.X(cx), ctx.Y(cz), (top - DEPTH) * FT, R * FT, RING * FT, DEPTH * FT, 48)
@@ -2957,15 +2959,46 @@ def add_street_trees(ctx, lot, rooms_cache):
             # the driveway) so pair 0 is the outer tree on both sides.
             cx = sec[0] + (sec[1] - sec[0]) * q
             pad = drop_n(cx - R) + LIFT              # flat at the circle's uphill (east) edge
-            rim(f"Street tree ring {i}", cx, pad + LIP, STONE)
-            pad_disc(f"Street tree terrace {i}", cx, pad, MULCH)
+            rim(f"Street tree ring {i}", cx, cz_n, pad + LIP, STONE)
+            pad_disc(f"Street tree terrace {i}", cx, cz_n, pad, MULCH)
             ctx.furniture.append({
-                "type": "street_tree", "px": round(cx, 4), "pz": round(cz, 4),
+                "type": "street_tree", "px": round(cx, 4), "pz": round(cz_n, 4),
                 "y": round(pad * FT, 4),             # world METRES: buildFurniture reads `y` as-is
                 "heightFt": t.get("heightFt", 16.0), "spreadFt": t.get("spreadFt", 12.0),
                 "seed": pair,                        # mirrored pairs match
             })
             i += 1
+
+    # --- THE WEST STRIP. The same detail, turned through ninety degrees: this band falls
+    # along its RUN rather than across it, so the circles march in pz and each terrace is
+    # flat at its own SOUTH edge, which is the high side here.
+    w = t.get("west") or {}
+    n = int(w.get("count", 0))
+    if n <= 0:
+        return
+    WALK = f.get("sidewalkWidthFt", 4)
+    sw = f.get("swDropIn", 12) / 12.0
+    cx_w = west + WALK + STRIP / 2                   # the WEST strip's midline
+
+    def drop_w(pz):
+        """Right-of-way grade on the west frontage — 1 ft down at the SW corner to 3 at the
+        NW, the same ramp `add_street_frontage` builds that strip from."""
+        return -(sw + (nw - sw) * max(0.0, min(1.0, (pz - south) / (north_pl - south))))
+
+    # The (2i+1)/2n points: equal spacing with end margins of half a gap, which is the north
+    # strip's quarter-point rule generalised from two trees to three.
+    for k in range(n):
+        cz = south + (north_pl - south) * (2 * k + 1) / (2 * n)
+        pad = drop_w(cz - R) + LIFT                  # flat at the circle's uphill (south) edge
+        rim(f"Street tree west ring {k}", cx_w, cz, pad + LIP, STONE)
+        pad_disc(f"Street tree west terrace {k}", cx_w, cz, pad, MULCH)
+        ctx.furniture.append({
+            "type": "street_tree", "form": "columnar",
+            "px": round(cx_w, 4), "pz": round(cz, 4),
+            "y": round(pad * FT, 4),
+            "heightFt": w.get("heightFt", 13.0), "spreadFt": w.get("spreadFt", 4.5),
+            "seed": 10 + k,
+        })
 
 
 def add_yard_fence(ctx, lot, rooms_cache, base):
