@@ -91,7 +91,13 @@
       "depthFt": 0.75,
       "_noteSize": "A 5-10 year old ornamental, not a mature one: about 11 ft to the top of the crown and a 7 ft spread. The trunk caliper is derived from heightFt in src/furniture.js, so it comes down with the canopy.",
       "heightFt": 11.0,
-      "spreadFt": 7.0
+      "spreadFt": 7.0,
+      "west": {
+        "_note": "Three columnar uprights on the WEST strip, visually distinct from the north four: a spire rather than a round crown, and a deeper cooler green. Same age as the north planting, which in a narrow form is about 13 ft. They sit on the (2i+1)/6 points of the strip's run \u2014 equal spacing with end margins of half a gap \u2014 and get the same terraced circle, since that band falls 3.9% along its length.",
+        "count": 3,
+        "heightFt": 13.0,
+        "spreadFt": 4.5
+      }
     },
     "yardFence": {
       "_note": "A 6 ft stained BOARD fence closing the rear yard: from the east extension's NE corner, east along that wing's north wall face, to the east property line. Its first 15 ft ride the new deck terrace.",

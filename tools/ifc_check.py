@@ -2312,8 +2312,11 @@ if st and len(_terr) == 4 and len(_ring) == 4:
     # terrace is the manifest. Nothing else in this file would catch a tree left on grade
     # while its terrace moved.
     _man = json.load(open('ifc/exterior.furniture.json'))
-    _tr = sorted((i for i in _man['items'] if i.get('type') == 'street_tree'),
-                 key=lambda i: i['px'])
+    # Scoped to the ROUND-crowned ones. Unscoped this counted every street tree on the lot,
+    # and it failed at 7 the moment the west strip was planted — correct geometry breaking an
+    # assertion that had quietly assumed there would only ever be one planting.
+    _tr = sorted((i for i in _man['items'] if i.get('type') == 'street_tree'
+                  and i.get('form') is None), key=lambda i: i['px'])
     check(len(_tr) == 4, f'four trees are recorded to the viewer manifest ({len(_tr)})')
     if len(_tr) == 4:
         _bad = [f"{t['px']:.2f}" for t, (c, b) in zip(_tr, _c)
@@ -2324,6 +2327,111 @@ if st and len(_terr) == 4 and len(_ring) == 4:
         check(_tr[0]['seed'] == _tr[3]['seed'] and _tr[1]['seed'] == _tr[2]['seed']
               and _tr[0]['seed'] != _tr[1]['seed'],
               'and mirrored pairs are seeded alike, so each pair reads as matched')
+
+
+# ---------------------------------------------------------------------------------
+# THE WEST STREET TREES. The same terraced circle turned through ninety degrees: this band
+# falls along its RUN rather than across it, so the circles march in pz and each pad is flat
+# at its own SOUTH edge. Named apart from the north four (`Street tree west ...`) precisely
+# so `_parts`, which matches on startswith, keeps measuring those four for the block above.
+print('\nWEST STREET TREES')
+wt = (st.get('west') or {}) if st else {}
+_wterr = [(nm, b) for nm, b in _parts(ext, 'Street tree west terrace')]
+_wring = [(nm, b) for nm, b in _parts(ext, 'Street tree west ring')]
+if wt:
+    check(len(_wterr) == wt['count'] and len(_wring) == wt['count'],
+          f"{wt['count']} planting circles on the west strip, each with its ring "
+          f'({len(_wterr)} / {len(_wring)})')
+if wt and len(_wterr) == wt['count'] and len(_wring) == wt['count'] and wt['count'] >= 2:
+    _ps = extents(ext, lambda nm, p: nm == 'Park strip - west')['Park strip - west']
+    _sw = extents(ext, lambda nm, p: nm == 'Sidewalk - west')['Sidewalk - west']
+    _cb = extents(ext, lambda nm, p: nm == 'Curb - west')['Curb - west']
+    _s, _n = _ps[2], _ps[3]                        # the strip's own run, south to north
+    # The west frontage's fall, read off the built SIDEWALK: its top is -swDrop at the south
+    # end and -nwDrop at the north, and the slab's own thickness is what separates the box's
+    # minimum from that north-end top.
+    _th = _cfg['frontage']['pavingThicknessIn'] / 12.0
+    _swd, _nwd = -_sw[5], -(_sw[4] + _th)
+
+    def _drop_w(pz):
+        return -(_swd + (_nwd - _swd) * max(0.0, min(1.0, (pz - _s) / (_n - _s))))
+
+    R = st['circleFt'] / 2
+    LIFT = 0.02
+    _c = sorted(((b[2] + b[3]) / 2, b) for _, b in _wterr)
+    _cz = [c for c, _ in _c]
+    check(all(near(b[1] - b[0], st['circleFt'], 0.01) for _, b in _wterr),
+          f"each circle measures {st['circleFt']} ft across "
+          f"({', '.join(f'{b[1] - b[0]:.3f}' for _, b in _wterr)})")
+    # --- EQUALLY SPACED, which is the ask. Asserted on the built centres directly rather
+    # than inferred from the placement rule that produced them, and the END MARGINS are
+    # included: even gaps with the whole row shoved to one end is not what was asked for.
+    _gaps = [_cz[i + 1] - _cz[i] for i in range(len(_cz) - 1)]
+    check(max(_gaps) - min(_gaps) < 0.01,
+          f"equally spaced — {', '.join(f'{g:.3f}' for g in _gaps)} ft between them")
+    _m0, _m1 = _cz[0] - _s, _n - _cz[-1]
+    check(near(_m0, _m1, 0.01) and near(_m0, _gaps[0] / 2, 0.01),
+          f'and centred in the strip ({_m0:.2f} ft off each end, half a gap)')
+    # --- FLAT, and each on its OWN level. Same two tests as the north block: a bounding box
+    # cannot show flatness, and four pads quietly sharing one level passes everything else.
+    # `sh` held in a LOCAL — inlined, `create_shape(...).geometry.verts` is a freed buffer.
+    _flat = []
+    for q in ext.by_type('IfcProduct'):
+        if not (getattr(q, 'Name', None) or '').startswith('Street tree west terrace'):
+            continue
+        sh = ifcopenshell.geom.create_shape(S, q)
+        y = np.array(sh.geometry.verts).reshape(-1, 3)[:, 2] / FT
+        ends = int((y > y.max() - 1e-4).sum()) + int((y < y.min() + 1e-4).sum())
+        _flat.append(ends == len(y) and near(y.max() - y.min(), st['depthFt'], 0.005))
+    check(_flat and all(_flat), f'each pad is FLAT, not a slice of the ramp ({sum(_flat)}/{len(_flat)})')
+    check(len({round(b[5], 3) for _, b in _wterr}) == len(_wterr),
+          f'{len(_wterr)} distinct terrace levels '
+          f"({', '.join(f'{b[5]:.3f}' for _, b in _c)} ft)")
+    _off = [b[5] - (_drop_w(c - R) + LIFT) for c, b in _c]
+    check(all(abs(v) < 0.01 for v in _off),
+          "each at the grade of its own circle's uphill (south) edge "
+          f'(worst {max(_off, key=abs):+.4f} ft)')
+    # --- the rims are true ANNULI, by solid volume. A disc a little wider than the pad has
+    # the same box, the same width and the same lip, and covers the mulch completely.
+    _ri, _ro = R * FT, (R + st['ringWidthIn'] / 12.0) * FT
+    _want = (48 / 2) * math.sin(2 * math.pi / 48) * (_ro ** 2 - _ri ** 2) * (st['depthFt'] * FT)
+    _vols = []
+    for q in ext.by_type('IfcProduct'):
+        if not (getattr(q, 'Name', None) or '').startswith('Street tree west ring'):
+            continue
+        sh = ifcopenshell.geom.create_shape(S, q)
+        vv = np.array(sh.geometry.verts).reshape(-1, 3)
+        ff = np.array(sh.geometry.faces).reshape(-1, 3)
+        _vols.append(float(np.einsum('ij,ij->i', vv[ff[:, 0]],
+                                     np.cross(vv[ff[:, 1]], vv[ff[:, 2]])).sum() / 6.0))
+    check(_vols and all(near(v / _want, 1.0, 0.02) for v in _vols),
+          f"and each rim is a true ANNULUS ({min(_vols) / _want:.3f} of a ring's volume)")
+    # --- BETWEEN THE SIDEWALK AND THE CURB, measured off those two built bands.
+    _gw = min(b[0] for _, b in _wring) - _sw[1]
+    _gc = _cb[0] - max(b[1] for _, b in _wring)
+    check(_gw > 1.0 and _gc > 1.0,
+          f'clear of the walk by {_gw:.2f} ft and of the curb by {_gc:.2f} ft')
+    # --- THE TREES ARE COLUMNAR, which is the only place the "different from the north
+    # four" lives — the terraces are deliberately identical.
+    _man = json.load(open('ifc/exterior.furniture.json'))
+    _tr = sorted((i for i in _man['items'] if i.get('type') == 'street_tree'
+                  and i.get('form') == 'columnar'), key=lambda i: i['pz'])
+    check(len(_tr) == wt['count'], f'{len(_tr)} columnar trees recorded to the viewer manifest')
+    if len(_tr) == wt['count']:
+        _bad = [f"{t['pz']:.2f}" for t, (c, b) in zip(_tr, _c)
+                if not (near(t['pz'], c, 0.01) and near(t['y'] / FT, b[5], 0.01))]
+        check(not _bad, f'each standing on its own terrace ({len(_bad)} adrift)')
+        # ...and they are a DIFFERENT TREE from the north four, not just differently placed.
+        _north = [i for i in _man['items'] if i.get('type') == 'street_tree'
+                  and i.get('form') != 'columnar']
+        check(len(_north) == 4 and all(i.get('form') is None for i in _north),
+              f'while the north four keep the round crown ({len(_north)} of them)')
+        check(all(t['spreadFt'] < t['heightFt'] / 2 for t in _tr)
+              and all(i['spreadFt'] > i['heightFt'] / 2 for i in _north),
+              f"and are genuinely upright — {_tr[0]['heightFt']:.0f} x {_tr[0]['spreadFt']:.1f} ft "
+              f"against the north's {_north[0]['heightFt']:.0f} x {_north[0]['spreadFt']:.1f}")
+else:
+    check(not wt, 'the west strip trees are authored and built')
 
 
 print('\n' + ('ALL CHECKS PASSED' if not fails else f'{len(fails)} FAILED'))

@@ -3360,12 +3360,23 @@ function buildWallMirror(p) {
 // our meshes are deliberately not grouped by material LOOK).
 const TREE_BARK = new THREE.MeshStandardMaterial({ color: 0x6b5a48, roughness: 0.92 });
 const TREE_LEAF = new THREE.MeshStandardMaterial({ color: 0x5f7f47, roughness: 0.95 });
+// A second, deeper and cooler green for the columnar form, so the west frontage reads as a
+// different species from the north one and not just a different shape. Module-level and
+// shared by all three, which is what lets consolidate.js collapse them.
+const TREE_LEAF_DARK = new THREE.MeshStandardMaterial({ color: 0x3f5c40, roughness: 0.95 });
 const _UP = new THREE.Vector3(0, 1, 0);
 // (radius, height) up the crown, both as fractions of its spread and its own height.
 const CROWN_PROFILE = [
   [0.00, 0.00], [0.40, 0.05], [0.68, 0.12], [0.86, 0.21], [0.96, 0.31],
   [1.00, 0.42], [0.98, 0.54], [0.92, 0.65], [0.80, 0.76], [0.60, 0.87],
   [0.34, 0.95], [0.00, 1.00],
+];
+// The COLUMNAR crown: a flame rather than a ball. Swelling fast off nothing, widest at 40%
+// and drawn to a point — over a canopy two and a half times its own width that reads as a
+// spire. The profile is the whole difference between the two forms; the sweep is the same.
+const SPIRE_PROFILE = [
+  [0.00, 0.00], [0.45, 0.05], [0.72, 0.12], [0.92, 0.25], [1.00, 0.40],
+  [0.98, 0.55], [0.88, 0.70], [0.70, 0.82], [0.45, 0.92], [0.00, 1.00],
 ];
 
 function buildStreetTree(p) {
@@ -3398,6 +3409,23 @@ function buildStreetTree(p) {
   const FORK = H * 0.28, FLARE = H * 0.022;
   limb(new THREE.Vector3(0, 0, 0), _UP, FLARE, rBase * 1.26, rBase);
   const fork = limb(new THREE.Vector3(0, FLARE, 0), _UP, FORK - FLARE, rBase, rFork);
+
+  // --- COLUMNAR: foliage carried almost to the ground off a single stem, so there are no
+  // limbs to draw — anything above the crown's underside is inside it and never seen. The
+  // stem is what the eye reads below that, and it starts at 20% of the height rather than
+  // the ornamental's 38%, which is what stops a spire reading as a lollipop.
+  if ((p.form || "round") === "columnar") {
+    const y0 = H * 0.20, CHc = H - y0, maxRc = S / 2;
+    const spire = new THREE.Mesh(
+      new THREE.LatheGeometry(SPIRE_PROFILE.map(([r, t]) => new THREE.Vector2(r * maxRc, t * CHc)), 24),
+      TREE_LEAF_DARK);
+    spire.position.y = y0;
+    spire.scale.set(0.94 + rnd(30) * 0.12, 0.94 + rnd(31) * 0.14, 0.94 + rnd(32) * 0.12);
+    spire.rotation.y = rnd(33) * Math.PI * 2;
+    spire.castShadow = true; spire.receiveShadow = true;
+    g.add(spire);
+    return g;
+  }
 
   // --- the limbs, splaying out of the fork and up into the canopy. They are short on
   // purpose: everything above the crown's underside is inside the bulb and would never be

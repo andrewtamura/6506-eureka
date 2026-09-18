@@ -59,6 +59,36 @@
       "heightFt": 11.0,
       "spreadFt": 7.0,
       "seed": 1
+    },
+    {
+      "type": "street_tree",
+      "form": "columnar",
+      "px": 55.5,
+      "pz": -15.3715,
+      "y": -0.3645,
+      "heightFt": 13.0,
+      "spreadFt": 4.5,
+      "seed": 10
+    },
+    {
+      "type": "street_tree",
+      "form": "columnar",
+      "px": 55.5,
+      "pz": 1.6354,
+      "y": -0.5677,
+      "heightFt": 13.0,
+      "spreadFt": 4.5,
+      "seed": 11
+    },
+    {
+      "type": "street_tree",
+      "form": "columnar",
+      "px": 55.5,
+      "pz": 18.6423,
+      "y": -0.7709,
+      "heightFt": 13.0,
+      "spreadFt": 4.5,
+      "seed": 12
     }
   ]
 }
