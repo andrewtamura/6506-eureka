@@ -3001,6 +3001,168 @@ def add_street_trees(ctx, lot, rooms_cache):
         })
 
 
+def add_west_paving(ctx, lot, rooms_cache):
+    """BASKET-WEAVE BRICK over the whole west park strip, cut to fill the rectangle exactly
+    and cut ON THE CURVE where it meets the street trees' planter circles.
+
+    The bond is the checkerboard: an 8 in module holding two 8x4 bricks, laid along px when
+    `i + j` is even and along pz when odd. Nominal 8x4 means an ACTUAL 7-5/8 x 3-5/8 with
+    3/8 in joints, so the module pitch is a clean 8 in and the joint is drawn rather than
+    implied — a field of touching 8x4 blocks reads as one slab with lines scratched on it.
+
+    THE GRID IS CENTRED ON THE RECTANGLE, not anchored to a corner. 9 ft is 13.5 modules
+    across and the run is 76.53, so neither divides — which is the point of cutting it in.
+    Centred, the cuts come out equal at opposite edges; anchored at a corner you get a full
+    module at one edge and a sliver at the other.
+
+    CUT ON THE CURVE against the rim's OWN 48-gon, the same faceting `_tube` builds it from,
+    so the two agree by construction rather than by tolerance. Clipping a rect to a few
+    outward half-planes leaves a CONVEX polygon, which is what `_prism` needs — it emits each
+    cap as one face loop and `add_brep` orients them against the centroid, valid only for a
+    convex solid. Where a brick straddles a facet vertex both half-planes cut it, which
+    over-trims by the sagitta — 0.18 in on this radius — and errs AWAY from the rim.
+
+    Whole bricks go through `add_brep_instances`: two bodies, one per orientation, because a
+    rotated box is just a box with its dimensions swapped and `add_brep_instances` passes no
+    rotation. About two thirds of the field is whole, and writing those out per product is
+    what took exterior.ifc from 2.7 to 10 MB the last time it was done by hand."""
+    w = lot.get("westPaving") or {}
+    if not w:
+        return
+    BRICK = tuple(w.get("color", (0.55, 0.27, 0.21)))
+    f = lot.get("frontage") or {}
+    t = lot.get("streetTrees") or {}
+    B = {k: v["bounds"] for k, v in rooms_cache.items()}
+    half_wall = ctx.T / FT / 2
+    west, east, south, north_pl, _ = lot_lines(lot, B.values(), half_wall)
+    WALK = f.get("sidewalkWidthFt", 4)
+    STRIP = f.get("parkStripWidthFt", 9)
+    nw = f.get("nwDropIn", 36) / 12.0
+    sw = f.get("swDropIn", 12) / 12.0
+
+    def drop_w(pz):
+        """The west frontage's grade — the same ramp the strip itself is built from."""
+        return -(sw + (nw - sw) * max(0.0, min(1.0, (pz - south) / (north_pl - south))))
+
+    x0, x1 = west + WALK, west + WALK + STRIP
+    z0, z1 = south, north_pl
+    PITCH = w.get("brickLenIn", 8) / 12.0
+    JOINT = w.get("jointIn", 0.375) / 12.0
+    TH = w.get("thickIn", 2.25) / 12.0
+
+    # The circles to cut around, taken from the SAME derivation `add_street_trees` places
+    # them by rather than from their built extents — the two must not be able to drift.
+    wt = t.get("west") or {}
+    R_OUT = t.get("circleFt", 6.0) / 2 + t.get("ringWidthIn", 4.0) / 12.0
+    SIDES = 48
+    APO = R_OUT * math.cos(math.pi / SIDES)          # the 48-gon's apothem, not its radius
+    cx_t = west + WALK + STRIP / 2
+    circles = [(cx_t, south + (north_pl - south) * (2 * k + 1) / (2 * int(wt.get("count", 0))))
+               for k in range(int(wt.get("count", 0)))]
+
+    def clip(poly, nx, nz, d):
+        """Sutherland-Hodgman: keep the side of `n . p >= d`. Convex in, convex out."""
+        out = []
+        for i in range(len(poly)):
+            a, b = poly[i], poly[(i + 1) % len(poly)]
+            da = nx * a[0] + nz * a[1] - d
+            db = nx * b[0] + nz * b[1] - d
+            if da >= 0:
+                out.append(a)
+            if (da >= 0) != (db >= 0):
+                s = da / (da - db)
+                out.append((a[0] + (b[0] - a[0]) * s, a[1] + (b[1] - a[1]) * s))
+        return out
+
+    def place(rect):
+        """A brick rect clipped to the strip and to every circle. Returns (poly, whole)."""
+        ax0, ax1, az0, az1 = rect
+        ax0, ax1 = max(ax0, x0), min(ax1, x1)
+        az0, az1 = max(az0, z0), min(az1, z1)
+        if ax1 - ax0 < 0.02 or az1 - az0 < 0.02:
+            return None, False
+        whole = (ax0, ax1, az0, az1) == rect
+        poly = [(ax0, az0), (ax1, az0), (ax1, az1), (ax0, az1)]
+        for ccx, ccz in circles:
+            # Nearest and furthest points of the rect from the centre. Testing the CORNERS
+            # for "clear of it" misses a brick whose EDGE passes closer than any corner.
+            dn = math.hypot(max(ccx - ax1, ax0 - ccx, 0.0), max(ccz - az1, az0 - ccz, 0.0))
+            df = max(math.hypot(px - ccx, pz - ccz) for px, pz in poly)
+            if dn >= R_OUT:
+                continue                              # clear of it
+            if df <= APO:
+                return None, False                    # inside the planter
+            whole = False
+            for k in range(SIDES):
+                th = 2 * math.pi * (k + 0.5) / SIDES
+                nx, nz = math.cos(th), math.sin(th)
+                dd = nx * ccx + nz * ccz + APO
+                # CLIP ONLY BY FACETS THE BRICK STRADDLES. "Outside a convex polygon" is not
+                # the intersection of its outside half-planes — a point outside the polygon
+                # is INSIDE most of them. Clipping wherever any vertex was inside therefore
+                # deleted whole bricks on the far side of the circle, which is what left a
+                # stepped gap around each planter instead of a cut curve.
+                ins = [nx * px + nz * pz < dd for px, pz in poly]
+                if any(ins) and not all(ins):
+                    poly = clip(poly, nx, nz, dd)
+                    if len(poly) < 3:
+                        return None, False
+            if len(poly) >= 3:                        # a sliver left inside the ring
+                gx_ = sum(p[0] for p in poly) / len(poly)
+                gz_ = sum(p[1] for p in poly) / len(poly)
+                if math.hypot(gx_ - ccx, gz_ - ccz) < APO:
+                    return None, False
+        return (poly if len(poly) >= 3 else None), whole
+
+    # --- the lattice, centred so opposite edges take equal cuts
+    nx_m = int(math.ceil((x1 - x0) / PITCH))
+    nz_m = int(math.ceil((z1 - z0) / PITCH))
+    gx = x0 - (nx_m * PITCH - (x1 - x0)) / 2
+    gz = z0 - (nz_m * PITCH - (z1 - z0)) / 2
+    half = PITCH / 2
+    J = JOINT / 2
+    whole_x, whole_z, cuts = [], [], []
+    for i in range(nx_m):
+        for j in range(nz_m):
+            mx, mz = gx + i * PITCH, gz + j * PITCH
+            if (i + j) % 2 == 0:                      # the pair runs along px
+                rects = [(mx, mx + PITCH, mz, mz + half), (mx, mx + PITCH, mz + half, mz + PITCH)]
+            else:                                     # ...and along pz on the next square
+                rects = [(mx, mx + half, mz, mz + PITCH), (mx + half, mx + PITCH, mz, mz + PITCH)]
+            for r in rects:
+                r = (r[0] + J, r[1] - J, r[2] + J, r[3] - J)     # the joint, drawn not implied
+                poly, whole = place(r)
+                if poly is None:
+                    continue
+                if whole:
+                    cz = (r[2] + r[3]) / 2
+                    pl = (ctx.X((r[0] + r[1]) / 2), ctx.Y(cz), drop_w(cz) * FT)
+                    ((whole_x if (i + j) % 2 == 0 else whole_z)).append(pl)
+                else:
+                    cuts.append(poly)
+
+    def body(lx, lz):
+        """One brick about the ORIGIN with its top on z = 0, for a shared representation."""
+        hx, hz = lx * FT / 2, lz * FT / 2
+        return _prism([(-hx, -hz, -TH * FT), (hx, -hz, -TH * FT),
+                       (hx, hz, -TH * FT), (-hx, hz, -TH * FT)], (0, 0, TH * FT))
+
+    for pls, (lx, lz) in ((whole_x, (PITCH - JOINT, half - JOINT)),
+                          (whole_z, (half - JOINT, PITCH - JOINT))):
+        if not pls:
+            continue
+        v, fc = body(lx, lz)
+        add_brep_instances(ctx, "West paving brick", v, fc, BRICK, pls,
+                           ifc_class="IfcSlab", predefined="BASESLAB")
+    for i, poly in enumerate(cuts):
+        cz = sum(p[1] for p in poly) / len(poly)
+        top = drop_w(cz) * FT
+        v, fc = _prism([(ctx.X(px), ctx.Y(pz), top - TH * FT) for px, pz in poly],
+                       (0, 0, TH * FT))
+        add_brep(ctx, f"West paving cut {i}", v, fc, BRICK,
+                 ifc_class="IfcSlab", predefined="BASESLAB")
+
+
 def add_yard_fence(ctx, lot, rooms_cache, base):
     """A 6 ft stained BOARD fence closing the rear yard: from the east extension's NE
     corner, east along that wing's north wall face, to the east property line.
@@ -3645,12 +3807,17 @@ def add_street_frontage(ctx, lot, rooms_cache, terrace=0.0):
         v, fc = _prism(poly, (0, 0, -th * FT))
         add_brep(ctx, name, v, fc, color, ifc_class="IfcSlab", predefined="BASESLAB")
 
-    def ramp_w(name, x1, x2, color, th=TH):
-        """West band falling with drop_w, from the north line south to the SW corner."""
-        poly = [(ctx.X(x1), ctx.Y(north), drop_w(north) * FT),
-                (ctx.X(x2), ctx.Y(north), drop_w(north) * FT),
-                (ctx.X(x2), ctx.Y(south), drop_w(south) * FT),
-                (ctx.X(x1), ctx.Y(south), drop_w(south) * FT)]
+    def ramp_w(name, x1, x2, color, th=TH, dy=0.0):
+        """West band falling with drop_w, from the north line south to the SW corner.
+
+        `dy` drops the band below that grade. Used only by the west park strip when it is
+        paved: laid flush, brick and slab are coplanar and z-fight, and every joint shows
+        what is underneath — which on a grass slab is GREEN. Sunk a joint's depth, the slab
+        is the mortar bed and the joints read as mortar."""
+        poly = [(ctx.X(x1), ctx.Y(north), (drop_w(north) + dy) * FT),
+                (ctx.X(x2), ctx.Y(north), (drop_w(north) + dy) * FT),
+                (ctx.X(x2), ctx.Y(south), (drop_w(south) + dy) * FT),
+                (ctx.X(x1), ctx.Y(south), (drop_w(south) + dy) * FT)]
         v, fc = _prism(poly, (0, 0, -th * FT))
         add_brep(ctx, name, v, fc, color, ifc_class="IfcSlab", predefined="BASESLAB")
 
@@ -3671,7 +3838,12 @@ def add_street_frontage(ctx, lot, rooms_cache, terrace=0.0):
 
     # --- WEST frontage: falls the whole way (36" at the NW corner -> 12" at the SW)
     ramp_w("Sidewalk - west", west, w1, CONCRETE)
-    ramp_w("Park strip - west", w1, w2, GRASS)
+    # PAVED, the strip's own slab becomes the bed it is laid on: a mortar tone instead of
+    # grass, sunk one joint's depth so the brick sits flush with the walk either side.
+    _wp = lot.get("westPaving") or {}
+    MORTAR = (0.56, 0.53, 0.49)
+    ramp_w("Park strip - west", w1, w2, MORTAR if _wp else GRASS,
+           dy=(-_wp.get("jointRevealIn", 0.25) / 12.0) if _wp else 0.0)
     ramp_w("Curb - west", w2, w3, CONCRETE, th=CURB_T)
 
     # --- NW corner: a paved return where the two walks meet, both curb lines
