@@ -110,6 +110,51 @@
       .menu.open .menu-body .page-link { margin-left: auto; margin-right: auto; }
       .menu.open .menu-body .muted { margin-left: auto; margin-right: auto; max-width: 34ch; }
     }
+    /* LANDSCAPE: a narrow vertical rail of icons down the left, with the open menu's
+       body beside it. The phone rule above looks like it covers this and does not — a
+       phone on its side is ~844px wide, so `max-width: 640px` never fires in landscape
+       and the full 220px labelled stack was what obscured the model. Placed AFTER that
+       rule on purpose: a narrow window on its side matches both, and the rail is the
+       better layout there, so it has to win. */
+    @media (orientation: landscape) {
+      #ui-left {
+        flex-direction: column; width: auto; left: 10px; top: 10px; right: auto;
+        gap: 6px; max-height: calc(100vh - 20px); overflow: visible; }
+      /* Drop the chip's backdrop-filter, exactly as the phone rule does and for the same
+         reason: a backdrop filter is a containing block for position:fixed descendants,
+         so the open body would anchor to the 44px chip and be clipped to it instead of
+         to the viewport. It fails silently — a body squeezed to nothing, not an error. */
+      .menu { flex: 0 0 auto; backdrop-filter: none; -webkit-backdrop-filter: none;
+        overflow: visible; }
+      .menu-header { padding: 11px 12px; justify-content: center; gap: 0; }
+      .menu-header .mi { font-size: 18px; }
+      .menu-header .ml, .menu-header .chev { display: none; }
+      .menu.open .menu-header { background: rgba(37,99,201,0.14); }
+      .menu.open .menu-body {
+        position: fixed; left: 62px; top: 10px;
+        width: min(320px, calc(100vw - 84px));
+        max-height: calc(100vh - 20px); overflow-y: auto; z-index: 12;
+        background: rgba(255,255,255,0.96); backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-radius: 12px; padding: 14px 16px 16px;
+        box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
+    }
+    /* The fullscreen / immersive toggle: its own corner button, deliberately OUTSIDE
+       #ui-left so that immersive mode — which hides the chrome — leaves it standing as
+       the way back. */
+    #fullscreen-toggle {
+      position: fixed; top: 12px; right: 12px; z-index: 13;
+      width: 40px; height: 40px; padding: 0; border: none; border-radius: 11px;
+      background: rgba(255,255,255,0.92); backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.14);
+      font-size: 17px; line-height: 1; color: #223; cursor: pointer; }
+    #fullscreen-toggle:hover { background: #fff; }
+    /* IMMERSIVE: the fallback where the Fullscreen API is missing. The browser's own
+       chrome is not ours to remove, but the viewer's is. */
+    body.immersive #ui-left,
+    body.immersive #bottom-bar,
+    body.immersive #status { display: none; }
     #views, #lighting, #scenes { display: flex; flex-wrap: wrap; gap: 5px; }
     .view-btn {
       background: rgba(255,255,255,0.9); backdrop-filter: blur(6px);
@@ -185,6 +230,7 @@
       <div class="menu-body"><div id="props-body"><div class="muted">Tap an element — a wall, the floor, a window — to see what it is.</div></div></div>
     </div>
   </div>
+  <button id="fullscreen-toggle" title="Fullscreen">⛶</button>
   <div id="status">Loading…</div>
   <div id="bottom-bar">
     <div id="level-switcher"></div>
