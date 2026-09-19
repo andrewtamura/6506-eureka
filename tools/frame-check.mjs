@@ -163,35 +163,6 @@ const m = await page.evaluate(async () => {
            merged: (window.__eureka.consolidated?.merged || 0) +
                    (window.__eureka.consolidatedExhibits?.merged || 0) };
 });
-// THE LANDSCAPE RAIL AND THE FULLSCREEN BUTTON. This harness runs at 1400x900, which is
-// landscape, so it is already standing in the case under test and needs no new instrument.
-const ui = await page.evaluate(async () => {
-  const cs = (el) => (el ? getComputedStyle(el) : null);
-  const left = document.getElementById('ui-left');
-  const hdr = document.querySelector('[data-menu] .menu-header');
-  const label = hdr && hdr.querySelector('.ml');
-  const railW = left ? left.getBoundingClientRect().width : 0;
-  // Open a menu and measure its body. The backdrop-filter trap fails SILENTLY: the body
-  // anchors to the 44 px chip instead of the viewport and is clipped to it, which looks
-  // like a styling nitpick and is actually an unusable menu.
-  hdr && hdr.click();
-  await new Promise(r => setTimeout(r, 150));
-  const body = document.querySelector('[data-menu].open .menu-body');
-  const bodyW = body ? body.getBoundingClientRect().width : 0;
-  hdr && hdr.click();
-  // Immersive is driven directly: headless Chrome HAS the Fullscreen API, so the fallback
-  // path would otherwise never be exercised here at all.
-  const fsBtn = document.getElementById('fullscreen-toggle');
-  document.body.classList.add('immersive');
-  const hidden = ['ui-left', 'bottom-bar', 'status']
-    .map(id => cs(document.getElementById(id))?.display);
-  const btnStill = cs(fsBtn)?.display;
-  document.body.classList.remove('immersive');
-  return { rail: railW, labelDisplay: cs(label)?.display, bodyW,
-           fsBtn: !!fsBtn, handle: typeof window.__eureka.toggleFullscreen,
-           supported: window.__eureka.fullscreenSupported, hidden, btnStill };
-});
-
 // The performance HUD toggle. Built on first use, so this also proves the lazy
 // construction path works — and that the button reports the state it is actually in,
 // which it did not at first (build-then-flip hid it on the very first click).
@@ -256,6 +227,73 @@ const demand = await page.evaluate(async () => {
   const moving = n() - b2;
   return { mode, idleFrames: idle, movingFrames: moving };
 });
+// THE LANDSCAPE RAIL, THE FULLSCREEN BUTTON, AND THE PORTRAIT COLLISION. Run LAST of the
+// measurements: it flips the viewport to portrait and back, which would otherwise disturb
+// the draw-call, door-pick and HUD numbers taken above.
+//
+// The safe-area insets themselves cannot be asserted here — desktop Chrome reports
+// env(safe-area-inset-*) as 0 and puppeteer cannot fake a notch — so what is measured is
+// the LAYOUT they are applied to, which is where a regression would actually show.
+const ui = await page.evaluate(async () => {
+  const cs = (el) => (el ? getComputedStyle(el) : null);
+  const hdr = document.querySelector('[data-menu] .menu-header');
+  const label = hdr && hdr.querySelector('.ml');
+  // Immersive is driven by applying the class directly: headless Chrome HAS the Fullscreen
+  // API, so the fallback path would otherwise never be exercised here at all.
+  const fsBtn = document.getElementById('fullscreen-toggle');
+  document.body.classList.add('immersive');
+  const hidden = ['ui-left', 'bottom-bar', 'status']
+    .map(id => cs(document.getElementById(id))?.display);
+  const btnStill = cs(fsBtn)?.display;
+  document.body.classList.remove('immersive');
+  return { labelDisplay: cs(label)?.display, fsBtn: !!fsBtn,
+           handle: typeof window.__eureka.toggleFullscreen,
+           supported: window.__eureka.fullscreenSupported, hidden, btnStill };
+});
+
+const rect = (sel) => page.evaluate((q) => {
+  const e = document.querySelector(q);
+  if (!e) return null;
+  const r = e.getBoundingClientRect();
+  return { x: r.x, y: r.y, w: r.width, h: r.height, right: r.right, bottom: r.bottom };
+}, sel);
+const overlaps = (a, b) => !!a && !!b &&
+  a.x < b.right && b.x < a.right && a.y < b.bottom && b.y < a.bottom;
+
+await page.evaluate(() => document.querySelector('[data-menu].open .menu-header')?.click());
+const land = await (async () => {
+  const vp = page.viewport();
+  const railR = await rect('#ui-left');
+  await page.evaluate(() => document.querySelector('[data-menu] .menu-header')?.click());
+  await new Promise(r => setTimeout(r, 200));
+  const bodyR = await rect('[data-menu].open .menu-body');
+  await page.evaluate(() => document.querySelector('[data-menu].open .menu-header')?.click());
+  const fsR = await rect('#fullscreen-toggle');
+  const label = await page.evaluate(() =>
+    getComputedStyle(document.querySelector('[data-menu] .menu-header .ml')).display);
+  return { vp, railR, bodyR, fsR, label };
+})();
+// ...then portrait, where the button is top-right and the menus are a row along the top.
+// ON ITS OWN PAGE, not by resizing this one: flipping the measured page's viewport and
+// back threw `Attempted to use detached Frame` and took the whole harness down after the
+// numbers were in. The portrait layout is static CSS in index.html, so it needs neither
+// the model nor `window.__eureka` — only the markup, which is there at DOMContentLoaded.
+const port = await (async () => {
+  const p2 = await b.newPage();
+  try {
+    await p2.setViewport({ width: 390, height: 844 });
+    await p2.goto(URL, { waitUntil: 'domcontentloaded' });
+    await new Promise(r => setTimeout(r, 600));
+    const r2 = (q) => p2.evaluate((sel) => {
+      const e = document.querySelector(sel);
+      if (!e) return null;
+      const r = e.getBoundingClientRect();
+      return { x: r.x, y: r.y, w: r.width, h: r.height, right: r.right, bottom: r.bottom };
+    }, q);
+    return { rowR: await r2('#ui-left'), fsR: await r2('#fullscreen-toggle') };
+  } finally { await p2.close(); }
+})();
+
 await b.close();
 
 console.log(`\nFRAME COST  (${URL})`);
@@ -273,6 +311,7 @@ console.log(`  perf HUD                 ${hud.button ? (hud.before.exists ? 'bui
 console.log(`  benchmark                ${bench.fps.toFixed(1)} fps flat out, ${bench.frameMs.toFixed(1)} ms/frame = ${bench.cpuMs.toFixed(1)} cpu + ${bench.other.toFixed(1)} other`);
 console.log(`  lights                   ${bench.lights.before} on -> ${bench.lights.dimmed} dimmed -> ${bench.lights.restored} restored`);
 
+
 if (REPORT) process.exit(0);
 let bad = 0;
 const A = (ok, msg) => { console.log(`  ${ok ? 'PASS' : 'FAIL'}  ${msg}`); if (!ok) bad++; };
@@ -282,13 +321,30 @@ A(m.visible <= MAX_MESHES, `${m.visible} drawable meshes (budget ${MAX_MESHES})`
 A(m.absorbed >= MIN_ABSORBED, `the merge absorbed ${m.absorbed} authored meshes (at least ${MIN_ABSORBED})`);
 A(m.hidden >= MIN_ABSORBED, `the originals are still in the scene, hidden (${m.hidden}) — kitchen-check measures them`);
 A(m.frozen > 1000, `static transforms frozen (${m.frozen})`);
-A(ui.labelDisplay === 'none' && ui.rail < 80,
-  `landscape shows an icon rail, not the labelled stack (${Math.round(ui.rail)} px wide, labels ${ui.labelDisplay})`);
-A(ui.bodyW > 150,
-  `and an open menu's body escapes the chip (${Math.round(ui.bodyW)} px — a backdrop-filter on .menu clips it to ~44)`);
+A(ui.labelDisplay === 'none' && land.railR && land.railR.w < 80,
+  `landscape shows an icon rail, not the labelled stack (${Math.round(land.railR?.w)} px wide, labels ${ui.labelDisplay})`);
+A(land.bodyR && land.bodyR.w > 150,
+  `and an open menu's body escapes the chip (${Math.round(land.bodyR?.w)} px — a backdrop-filter on .menu clips it to ~44)`);
 A(ui.fsBtn && ui.handle === 'function', `the fullscreen button exists and is exposed (${ui.handle})`);
 A(ui.hidden.every(d => d === 'none') && ui.btnStill !== 'none',
   `immersive hides the chrome and keeps the way back (${ui.hidden.join('/')}, button ${ui.btnStill})`);
+// THE RAIL IS ON THE RIGHT, where the sensor housing is not.
+A(land.railR && land.railR.x > land.vp.width / 2 && land.vp.width - land.railR.right < 24,
+  `the rail is pinned to the right edge (x ${Math.round(land.railR?.x)} of ${land.vp.width}, ` +
+  `${Math.round(land.vp.width - (land.railR?.right ?? 0))} px clear of it)`);
+// ...and the body opens INWARD. Set `right` without clearing the base rule's `left` and it
+// stretches the whole width instead — which still looks like a menu, just the wrong one.
+A(land.bodyR && land.railR && land.bodyR.right <= land.railR.x + 2 && land.bodyR.w > 150,
+  `an open menu opens inward, left of the rail (body ends at ${Math.round(land.bodyR?.right)}, ` +
+  `rail starts at ${Math.round(land.railR?.x)})`);
+A(land.fsR && land.vp.height - land.fsR.bottom < 24 && !overlaps(land.fsR, land.railR),
+  `the fullscreen button sits bottom-right, clear of the rail ` +
+  `(${Math.round(land.vp.height - (land.fsR?.bottom ?? 0))} px off the bottom)`);
+// PORTRAIT: the row and the button overlapped on the build this replaces — the button is
+// top-right at a higher z-index and the row ran the full width, so it covered the last chip.
+A(port.rowR && port.fsR && !overlaps(port.rowR, port.fsR),
+  `portrait: the icon row stops clear of the button ` +
+  `(row ends ${Math.round(port.rowR?.right)}, button starts ${Math.round(port.fsR?.x)})`);
 A(hud.button, `the UI has a performance HUD button`);
 A(hud.button && !hud.before.exists, `the HUD is built on first use, not at startup — no render() wrapper nobody asked for`);
 A(hud.button && hud.on.shown && /draw calls/.test(hud.on.text) && /Hide/.test(hud.on.label),

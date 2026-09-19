@@ -31,14 +31,18 @@
     #props-body .row:last-child { border-bottom: none; }
     #props-body .k { color: #667; } #props-body .v { font-weight: 600; text-align: right; word-break: break-word; }
     #status {
-      position: fixed; bottom: 12px; left: 50%; transform: translateX(-50%);
+      position: fixed; left: 50%; transform: translateX(-50%);
+      bottom: calc(12px + env(safe-area-inset-bottom, 0px));
       z-index: 10; background: rgba(20,24,33,0.85); color: #fff;
       padding: 8px 16px; border-radius: 20px; font-size: 13px; }
     /* Bottom bar: the level switcher and the compass share a single centred row
        along the bottom, compass on the right. */
     #bottom-bar {
-      position: fixed; left: 50%; transform: translateX(-50%); bottom: 16px; z-index: 11;
-      display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 16px); }
+      position: fixed; left: 50%; transform: translateX(-50%); z-index: 11;
+      bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+      display: flex; align-items: center; gap: 10px;
+      max-width: calc(100vw - 16px - env(safe-area-inset-left, 0px)
+                                   - env(safe-area-inset-right, 0px)); }
     /* Compass: the rose rotates so "N" always points to true (model) north. */
     #compass {
       position: relative; flex: 0 0 auto;
@@ -83,7 +87,12 @@
        a fixed dropdown below the strip so it escapes the row's horizontal scroll. */
     @media (max-width: 640px) {
       #ui-left {
-        flex-direction: row; width: auto; left: 8px; right: 8px; top: 8px; gap: 6px;
+        /* Stops clear of #fullscreen-toggle, which is top-right here at a higher
+           z-index: full width, the button sat ON the row's last chip. */
+        flex-direction: row; width: auto; gap: 6px;
+        left: calc(8px + env(safe-area-inset-left, 0px));
+        right: calc(60px + env(safe-area-inset-right, 0px));
+        top: calc(8px + env(safe-area-inset-top, 0px));
         overflow-x: auto; overflow-y: visible; max-height: none;
         -webkit-overflow-scrolling: touch; scrollbar-width: none; }
       #ui-left::-webkit-scrollbar { display: none; }
@@ -117,8 +126,14 @@
        rule on purpose: a narrow window on its side matches both, and the rail is the
        better layout there, so it has to win. */
     @media (orientation: landscape) {
+      /* ON THE RIGHT. iOS puts the safe-area inset on whichever short edge the sensor
+         housing is, and rotating 180 degrees SWAPS it — so pinning to the right only
+         helps if the right edge respects its own inset too. Every offset below is
+         `env(..., 0px)`: a browser with no safe area reads zero and nothing moves. */
       #ui-left {
-        flex-direction: column; width: auto; left: 10px; top: 10px; right: auto;
+        flex-direction: column; width: auto; left: auto;
+        right: calc(10px + env(safe-area-inset-right, 0px));
+        top: calc(10px + env(safe-area-inset-top, 0px));
         gap: 6px; max-height: calc(100vh - 20px); overflow: visible; }
       /* Drop the chip's backdrop-filter, exactly as the phone rule does and for the same
          reason: a backdrop filter is a containing block for position:fixed descendants,
@@ -131,8 +146,13 @@
       .menu-header .ml, .menu-header .chev { display: none; }
       .menu.open .menu-header { background: rgba(37,99,201,0.14); }
       .menu.open .menu-body {
-        position: fixed; left: 62px; top: 10px;
-        width: min(320px, calc(100vw - 84px));
+        /* `left` must be reset as well as `right` set: leaving the base rule's `left`
+           in play stretches the body across the screen instead of opening inward. */
+        position: fixed; left: auto;
+        right: calc(62px + env(safe-area-inset-right, 0px));
+        top: calc(10px + env(safe-area-inset-top, 0px));
+        width: min(320px, calc(100vw - 84px - env(safe-area-inset-left, 0px)
+                                            - env(safe-area-inset-right, 0px)));
         max-height: calc(100vh - 20px); overflow-y: auto; z-index: 12;
         background: rgba(255,255,255,0.96); backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
@@ -143,13 +163,20 @@
        #ui-left so that immersive mode — which hides the chrome — leaves it standing as
        the way back. */
     #fullscreen-toggle {
-      position: fixed; top: 12px; right: 12px; z-index: 13;
+      position: fixed; z-index: 13;
+      top: calc(12px + env(safe-area-inset-top, 0px));
+      right: calc(12px + env(safe-area-inset-right, 0px));
       width: 40px; height: 40px; padding: 0; border: none; border-radius: 11px;
       background: rgba(255,255,255,0.92); backdrop-filter: blur(10px);
       -webkit-backdrop-filter: blur(10px);
       box-shadow: 0 2px 8px rgba(0,0,0,0.14);
       font-size: 17px; line-height: 1; color: #223; cursor: pointer; }
     #fullscreen-toggle:hover { background: #fff; }
+    /* In landscape it drops to the bottom of the right-hand rail, clear of the menus. */
+    @media (orientation: landscape) {
+      #fullscreen-toggle {
+        top: auto; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); }
+    }
     /* IMMERSIVE: the fallback where the Fullscreen API is missing. The browser's own
        chrome is not ours to remove, but the viewer's is. */
     body.immersive #ui-left,
