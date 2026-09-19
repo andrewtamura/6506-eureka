@@ -885,6 +885,48 @@ console.log('DINING CHAIRS');
   }
 }
 
+// ============================================================ SITTING ROOM
+// The room was an empty shell until the chimneypiece went in — a 16 ft blank east wall and
+// nothing else. What is asserted is the thing a render cannot settle: that the FIREBOX IS A
+// REAL VOID. Drawn as a solid block with a dark face it is identical head-on, has the same
+// bounding box, the same width and the same materials, and is wrong from every other angle.
+console.log('SITTING ROOM');
+{ const SX0 = -12, SX1 = 3.9167, SZ0 = 0, SZ1 = 16.0833;   // the room, as the cove block has it
+  const HALF = 0.2292, WALL = SX0 + HALF;                   // east wall's inner face
+  const fp = P.find(r => r.type === 'fireplace');
+  A(!!fp, 'a chimneypiece is built');
+  if (fp) {
+    const mm = meshes(fp);
+    console.log(`  fireplace px ${R(fp.pxLo,3)}..${R(fp.pxHi,3)}  pz ${R(fp.pzLo,3)}..${R(fp.pzHi,3)}  y ${R(fp.yLo,2)}..${R(fp.yHi,2)}`);
+    A(Math.abs(fp.pz - (SZ0 + SZ1) / 2) < 0.05,
+      `centred on the east wall (${R(fp.pz,3)} against the wall's midpoint ${R((SZ0 + SZ1) / 2,3)})`);
+    // Buried into the wall, not floating in front of it: two coplanar faces z-fight, and
+    // this is the only wall-anchored piece in the room to get it wrong on.
+    A(fp.pxLo < WALL - 0.01 && fp.pxLo > WALL - 0.12,
+      `its back is buried in the wall (${R(fp.pxLo,4)} against the face ${R(WALL,4)})`);
+    // THE VOID. A point in the middle of the firebox cavity must be inside NO mesh.
+    const inside = (px, pz, y) => mm.filter(m =>
+      px > m.pxLo && px < m.pxHi && pz > m.pzLo && pz < m.pzHi && y > m.yLo && y < m.yHi);
+    const hit = inside(WALL + 0.40, fp.pz, 1.40);
+    A(hit.length === 0, `the firebox is a real void, not a dark face (${hit.length} members in the cavity)`);
+    // ...with a POSITIVE CONTROL beside it. Without this the void test passes just as
+    // happily for a fireplace built of nothing at all.
+    const solid = inside(WALL + 0.40, fp.pz + 2.3, 1.40);
+    A(solid.length > 0, `...and the breast beside it is solid (${solid.length} members 2.3 ft off centre)`);
+    // The shelf reads as a shelf: something at mantel height projects past the breast.
+    const BR = WALL + 1.17;
+    const shelf = mm.filter(m => Math.abs(m.yHi - 4.42) < 0.06 && m.pxHi > BR + 0.05);
+    A(shelf.length > 0, `the mantel shelf projects past the breast (${R(Math.max(...shelf.map(m => m.pxHi - BR)) * 12, 1)} in proud)`);
+    // The joinery stops at the COVE'S SPRING LINE. Carried past it the cornice buries
+    // itself in the curve — and the room has no entablature to hide that.
+    A(fp.yHi <= 8.25 + 0.03, `the overmantel dies at the cove's spring (${R(fp.yHi,3)} against 8.25)`);
+    A(mm.some(m => m.yLo > 4.5), `...and there IS an overmantel above the shelf (${mm.filter(m => m.yLo > 4.5).length} members)`);
+    // The hearth is on the floor and runs out into the room.
+    A(fp.yLo < 0.03 && fp.pxHi > BR + 1.0,
+      `the hearth sits on the floor and reaches ${R((fp.pxHi - BR) * 12, 1)} in into the room`);
+  }
+}
+
 // ============================================================ CAFE NOOK (SW corner)
 // The scullery is only 6'6" deep, so a bench + table + chair stack spans the room
 // wall to wall. What has to be measured is therefore not "does it fit" but "can you

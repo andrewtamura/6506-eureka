@@ -260,6 +260,21 @@
       "shelfTFt": 0.055
     },
     {
+      "type": "fireplace",
+      "px": -11.77085,
+      "pz": 8.04165,
+      "rot": 0.0,
+      "_note": "Centred on the blank east wall. `at` is the WALL FACE (x1 -12 plus half a wall) and `faces` points into the room. ceilFt is the COVE'S SPRING LINE, not the ceiling: this room has no entablature, so the cove springs at wallTop - COVE_H = 9.5 - 1.25, and joinery carried past that buries its cornice in the curve.",
+      "faces": "W",
+      "wFt": 6.0,
+      "openWFt": 3.0,
+      "openHFt": 2.83,
+      "breastFt": 1.17,
+      "mantelFt": 4.42,
+      "hearthFt": 1.5,
+      "ceilFt": 8.25
+    },
+    {
       "type": "builtin_hutch",
       "px": 23.04,
       "pz": 1.627,

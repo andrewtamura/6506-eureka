@@ -3454,7 +3454,91 @@ function buildStreetTree(p) {
   return g;
 }
 
-const BUILDERS = { wall_basin: buildWallBasin, chandelier: buildChandelier, hot_tub: buildHotTub, mudroom_bench: buildMudroomBench, wall_mirror: buildWallMirror, recessed: buildRecessed, pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight, street_tree: buildStreetTree,
+// A CHIMNEYPIECE: hearth, chimney breast, firebox, a painted timber surround with a
+// moulded mantel shelf, and a panelled overmantel carried to the cove.
+//
+// `at` (px,pz) is the WALL FACE and `faces` the direction into the room, so the whole
+// thing is laid along that direction rather than assuming an axis — the same convention
+// buildSconce and buildCabinetRun use, and the reason this works on any of the four walls.
+//
+// THE FIREBOX IS A REAL VOID, not a dark rectangle painted on a solid block. The breast is
+// built as four pieces around the opening — two jambs, a head, and the mass above — so you
+// can see into it from an angle. Drawn as one box with a black face it reads identically
+// head-on and wrongly from everywhere else.
+//
+// The overmantel dies at the COVE'S SPRING LINE, not at the ceiling: this room has no
+// entablature, its cove springs at wallTop - COVE_H, and joinery carried past that point
+// buries its cornice in the curve.
+function buildFireplace(p) {
+  const ft = FT, g = new THREE.Group();
+  const A = DIR[p.faces || "N"], P = [-A[1], A[0]];
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
+  const box = (da, ds, yc, dl, dw, hy, mat, rad = 0) => {
+    if (dl <= 0.004 || dw <= 0.004 || hy <= 0.004) return null;
+    const q = pl(da, ds, dl, dw);
+    const geo = rad > 0 ? new RoundedBoxGeometry(q[2] * ft, hy * ft, q[3] * ft, 3, rad * ft)
+                        : new THREE.BoxGeometry(q[2] * ft, hy * ft, q[3] * ft);
+    const m = new THREE.Mesh(geo, mat);
+    m.position.copy(V(q[0], q[1], yc));
+    m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  const paint = new THREE.MeshStandardMaterial({ color: col(p.paint || "chalk", 0xf8f5ef), roughness: 0.6 });
+  const field = new THREE.MeshStandardMaterial({ color: col(p.paint || "chalk", 0xf8f5ef), roughness: 0.75 });
+  const stone = new THREE.MeshStandardMaterial({ color: col(p.stone || "limestone", 0xcdc3b0), roughness: 0.8 });
+  const fire = new THREE.MeshStandardMaterial({ color: 0x3a2f2b, roughness: 0.95 });
+  const soot = new THREE.MeshStandardMaterial({ color: 0x14100e, roughness: 1.0 });
+
+  const W = p.wFt ?? 6.0;                       // breast width
+  const BR = p.breastFt ?? 1.17;                // how far it stands off the wall
+  const OW = p.openWFt ?? 3.0, OH = p.openHFt ?? 2.83;
+  const TOP = p.ceilFt ?? 8.25;                 // the cove's spring line
+  const MS = p.mantelFt ?? 4.42;                // top of the mantel shelf
+  const HD = p.hearthFt ?? 1.5;                 // hearth projection BEYOND the breast
+  const BURY = 0.05;                            // into the wall, or the two faces z-fight
+  const back = -BURY, front = BR;               // the breast, in `da` from the wall face
+  const jamb = (W - OW) / 2;                    // masonry either side of the opening
+
+  // --- hearth: a stone slab on the floor, running out past the breast ------------------
+  box((back + front + HD) / 2, 0, 0.083, (front - back) + HD, W, 0.167, stone, 0.01);
+
+  // --- the breast, built AROUND the opening so the firebox is a void -------------------
+  const FBD = p.fireboxFt ?? 0.92;              // how deep the opening goes back
+  for (const s of [-1, 1])                      // jambs
+    box((back + front) / 2, s * (W - jamb) / 2, TOP / 2, front - back, jamb, TOP, paint);
+  box((back + front) / 2, 0, (OH + TOP) / 2, front - back, OW, TOP - OH, paint);  // over the head
+  // ...and the firebox itself: a sooted back and two splayed cheeks, set back from the face.
+  box(back + FBD, 0, OH / 2, 0.08, OW - 0.3, OH, soot);
+  for (const s of [-1, 1])
+    box((back + FBD) / 2, s * (OW - 0.34) / 2, OH / 2, FBD, 0.17, OH, fire);
+  box((back + FBD) / 2, 0, OH - 0.06, FBD, OW - 0.34, 0.12, soot);               // throat
+
+  // --- the surround: pilasters, frieze, and the shelf ---------------------------------
+  const PW = p.pilasterFt ?? 0.62, PJ = 0.09;   // pilaster width / its projection
+  for (const s of [-1, 1])
+    box(front + PJ / 2, s * (OW + PW) / 2, (OH + 0.22) / 2, PJ, PW, OH + 0.22, paint, 0.01);
+  const frieze = MS - 0.16 - (OH + 0.22);
+  box(front + PJ / 2, 0, OH + 0.22 + frieze / 2, PJ, OW + 2 * PW, frieze, paint, 0.01);
+  // The shelf projects FORWARD only. Given side overhang it ran past the breast into the
+  // field panelling either side, which is the trap buildRangeSurround's mantel documents.
+  box((front + PJ + 0.30) / 2, 0, MS - 0.08, front + PJ + 0.30, W - 0.5, 0.16, paint, 0.015);
+
+  // --- overmantel: a fielded panel between stiles, dying into the cove -----------------
+  if (TOP > MS + 0.6) {
+    const OMW = p.overmantelFt ?? (OW + 2 * PW), oy0 = MS + 0.08, oy1 = TOP - 0.22;
+    box(front + 0.02, 0, (oy0 + oy1) / 2, 0.04, OMW, oy1 - oy0, field);          // ground
+    for (const s of [-1, 1])                                                      // stiles
+      box(front + 0.05, s * (OMW - 0.30) / 2, (oy0 + oy1) / 2, 0.06, 0.30, oy1 - oy0, paint, 0.01);
+    for (const t of [-1, 1])                                                      // rails
+      box(front + 0.05, 0, t < 0 ? oy0 + 0.13 : oy1 - 0.13, 0.06, OMW - 0.60, 0.26, paint, 0.01);
+    box(front + 0.04, 0, (oy0 + oy1) / 2, 0.05, OMW - 0.72, (oy1 - oy0) - 0.62, paint, 0.02); // raised panel
+    // Cornice at the spring line — the joinery stops where the curve starts.
+    box((back + front + 0.16) / 2, 0, TOP - 0.11, (front - back) + 0.16, W, 0.22, paint, 0.015);
+  }
+  return g;
+}
+
+const BUILDERS = { wall_basin: buildWallBasin, chandelier: buildChandelier, hot_tub: buildHotTub, mudroom_bench: buildMudroomBench, wall_mirror: buildWallMirror, recessed: buildRecessed, pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight, street_tree: buildStreetTree, fireplace: buildFireplace,
   range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, open_shelves: buildOpenShelves, counter_stool: buildCounterStool, banquette: buildBanquette, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, bentwood_chair: buildBentwoodChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, wall_toilet: buildWallToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 // Re-export a few individual builders so the viewer can drop single procedural
 // pieces (e.g. patio furniture on the alt roof deck) without going through the
