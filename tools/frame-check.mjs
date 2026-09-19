@@ -291,11 +291,25 @@ const land = await (async () => {
   return { vp, railR, bodyR, fsR, label };
 })();
 // ...then portrait, where the button is top-right and the menus are a row along the top.
-await page.setViewport({ width: 390, height: 844 });
-await new Promise(r => setTimeout(r, 400));
-const port = { rowR: await rect('#ui-left'), fsR: await rect('#fullscreen-toggle') };
-await page.setViewport(land.vp);
-await new Promise(r => setTimeout(r, 400));
+// ON ITS OWN PAGE, not by resizing this one: flipping the measured page's viewport and
+// back threw `Attempted to use detached Frame` and took the whole harness down after the
+// numbers were in. The portrait layout is static CSS in index.html, so it needs neither
+// the model nor `window.__eureka` — only the markup, which is there at DOMContentLoaded.
+const port = await (async () => {
+  const p2 = await b.newPage();
+  try {
+    await p2.setViewport({ width: 390, height: 844 });
+    await p2.goto(URL, { waitUntil: 'domcontentloaded' });
+    await new Promise(r => setTimeout(r, 600));
+    const r2 = (q) => p2.evaluate((sel) => {
+      const e = document.querySelector(sel);
+      if (!e) return null;
+      const r = e.getBoundingClientRect();
+      return { x: r.x, y: r.y, w: r.width, h: r.height, right: r.right, bottom: r.bottom };
+    }, q);
+    return { rowR: await r2('#ui-left'), fsR: await r2('#fullscreen-toggle') };
+  } finally { await p2.close(); }
+})();
 
 if (REPORT) process.exit(0);
 let bad = 0;
