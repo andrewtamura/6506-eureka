@@ -925,6 +925,88 @@ console.log('SITTING ROOM');
     A(fp.yLo < 0.03 && fp.pxHi > BR + 1.0,
       `the hearth sits on the floor and reaches ${R((fp.pxHi - BR) * 12, 1)} in into the room`);
   }
+
+  // ---- THE NORTH WALL'S BUILT-INS ------------------------------------------------
+  // The wall carries the room's two front windows and had nothing else. The joinery has
+  // to absorb an asymmetry it cannot move: the front elevation is symmetrical about the
+  // door at px 9.5, so Sitting N1 and N2 sit where the facade wants them and the returns
+  // left over are 2.77 ft at the east corner against 0.81 ft at the west.
+  const NW = SZ1 - HALF, WW = SX1 - HALF;      // north wall's inner face; the run's west end
+  const W1 = [-9.0, -5.5], W2 = [-0.625, 2.875], SILL = 2.5, HEAD = 7.0;
+  const cabE = P.find(r => r.type === 'tall_cabinet' && r.px < 0);
+  const cabW = P.find(r => r.type === 'tall_cabinet' && r.px > 0);
+  const seat = P.find(r => r.type === 'window_seat');
+  const band = P.find(r => r.type === 'trim_band');
+  A(!!cabE && !!cabW && !!seat && !!band,
+    'the north wall carries two cabinets, a window seat and a head band');
+  if (cabE && cabW && seat && band) {
+    const sm = meshes(seat);
+    // The carcass of each piece is its tallest member; the plinth and the seat board both
+    // oversail it on purpose, so an item bounding box is the wrong thing to call "the front".
+    const carcass = (r) => meshes(r).slice().sort((u, v) => (v.yHi - v.yLo) - (u.yHi - u.yLo))[0];
+    const fE = carcass(cabE).pzLo, fW = carcass(cabW).pzLo, fS = carcass(seat).pzLo;
+    console.log(`  cabinets px ${R(cabE.pxLo,3)}..${R(cabE.pxHi,3)} and ${R(cabW.pxLo,3)}..${R(cabW.pxHi,3)}`);
+    console.log(`  seat px ${R(seat.pxLo,3)}..${R(seat.pxHi,3)}  y ${R(seat.yLo,2)}..${R(seat.yHi,2)}  fronts ${R(fE,3)}/${R(fS,3)}/${R(fW,3)}`);
+    // 1. Both cabinets stop at the WINDOW HEAD, which is what "match the height of the
+    //    windows" means, and both carcass fronts are flush with the bench's.
+    A(Math.abs(cabE.yHi - HEAD) < 0.02 && Math.abs(cabW.yHi - HEAD) < 0.02,
+      `both cabinets die at the window head (${R(cabE.yHi,3)} and ${R(cabW.yHi,3)} against ${HEAD})`);
+    A(Math.abs(fE - fS) < 0.01 && Math.abs(fW - fS) < 0.01,
+      `cabinet and bench fronts flush at ${R((NW - fS) * 12, 1)} in deep (spread ${R(Math.max(Math.abs(fE-fS), Math.abs(fW-fS)) * 12, 3)} in)`);
+    // 2. ONE seat across both windows, corner cabinet to corner return.
+    A(seat.pxLo < W1[0] + 0.01 && seat.pxHi > W2[1] - 0.01,
+      `the seat spans both windows (${R(seat.pxLo,3)}..${R(seat.pxHi,3)} over ${W1[0]}..${W2[1]})`);
+    A(Math.abs(seat.pxLo - cabE.pxHi) < 0.02 && Math.abs(seat.pxHi - cabW.pxLo) < 0.02,
+      'it meets the cabinet at one end and the return at the other, with no gap');
+    // 3. Nothing of it stands in the glass: the cushion tops out below the sill.
+    A(seat.yHi < SILL - 0.05,
+      `the seat clears the sill by ${R((SILL - seat.yHi) * 12, 1)} in (top ${R(seat.yHi * 12, 1)} in)`);
+    // 4. THE CUSHION IS REAL. A bench with no cushion has the same bounding box, so this
+    //    finds a member sitting ON the seat board, inset from its ends — and confirms it
+    //    is upholstery rather than another board by SOLID VOLUME: a plain box fills its
+    //    bounding box exactly, a rounded cushion does not.
+    // (Filter on the cushion's own height rather than "below the sill": the cushion is the
+    // topmost full-length member and the seat board the one under it, so a filter that
+    // caught both would take the cushion for the board and find nothing above it.)
+    const wide = sm.filter(m => (m.pxHi - m.pxLo) > 10).sort((u, v) => v.yHi - u.yHi);
+    const c = wide[0], boardTop = wide[1] ? wide[1].yHi : 0;
+    A(!!c && !!wide[1] && Math.abs(c.yLo - boardTop) < 0.02,
+      `a cushion sits ON the seat board (bottom ${R((c ? c.yLo : 0) * 12, 1)} in, board tops at ${R(boardTop * 12, 1)} in)`);
+    if (c && wide[1]) {
+      const bb = (c.pxHi - c.pxLo) * (c.pzHi - c.pzLo) * (c.yHi - c.yLo) * FT * FT * FT;
+      A(c.pxLo > seat.pxLo + 0.01 && c.pxHi < seat.pxHi - 0.01 && (c.yHi - c.yLo) > 0.12,
+        `${R((c.yHi - c.yLo) * 12, 1)} in thick and inset from the board's ends`);
+      A(c.vol / bb < 0.995,
+        `it is a rounded cushion, not a slab (fills ${R(c.vol / bb * 100, 1)}% of its box)`);
+    }
+    // 5. The head band is ONE line corner to corner. A band that stopped and restarted at
+    //    each cabinet would read broken, which is the whole point of the piece.
+    A(band.pxLo < WALL + 0.01 && band.pxHi > WW - 0.01,
+      `the head band runs the full wall (${R(band.pxLo,3)}..${R(band.pxHi,3)} over ${R(WALL,3)}..${R(WW,3)})`);
+    A(Math.abs(band.yLo - HEAD) < 0.02 && band.pzLo > carcass(cabE).pzLo,
+      `it sits on the window head (${R(band.yLo,3)}) and inside the cabinet front`);
+    // 6. THE FLAT WALL BETWEEN THE WINDOWS — asserted as an absence, so it needs the
+    //    positive control beside it or it passes just as well for a wall with no joinery.
+    const wallBand = (lo, hi) => [cabE, cabW, seat, band].flatMap(meshes)
+      .filter(m => m.yHi > 1.8 && m.yLo < 6.9 && m.pxHi > lo && m.pxLo < hi);
+    const between = wallBand(W1[1] + 0.05, W2[0] - 0.05);
+    A(between.length === 0, `flat wall between the windows (${between.length} members above the seat)`);
+    A(wallBand(WALL, W1[0]).length > 0 && wallBand(W2[1], WW).length > 0,
+      '...and there IS joinery at that height in both corners');
+    // 7. THE APRON'S STILES LAND ON THE WINDOW JAMBS. The panel divisions are derived from
+    //    the openings above rather than from an equal division of 11.875 ft, and this is
+    //    what proves it: the gaps between adjacent panels, not the authored offsets.
+    const pan = sm.filter(m => m.yLo > 0.25 && m.yHi < 1.35 && m.pzLo < fS - 0.005)
+      .sort((u, v) => u.pxLo - v.pxLo);
+    const edges = []; for (const m of pan) { const e = edges.find(q => Math.abs(q.c - (m.pxLo + m.pxHi) / 2) < 0.02);
+      if (e) { e.lo = Math.min(e.lo, m.pxLo); e.hi = Math.max(e.hi, m.pxHi); } else edges.push({ c: (m.pxLo + m.pxHi) / 2, lo: m.pxLo, hi: m.pxHi }); }
+    const stiles = edges.slice(1).map((e, i) => (edges[i].hi + e.lo) / 2);
+    console.log(`  apron: ${edges.length} panels, stiles at ${stiles.map(s => R(s,3)).join(', ')}`);
+    A(edges.length >= 3, `the apron is panelled (${edges.length} panels)`);
+    for (const j of [W1[1], W2[0]])
+      A(stiles.some(s => Math.abs(s - j) < 0.03),
+        `a stile lands on the jamb at ${j} (nearest ${R(stiles.reduce((b, s) => Math.abs(s - j) < Math.abs(b - j) ? s : b, 99), 3)})`);
+  }
 }
 
 // ============================================================ CAFE NOOK (SW corner)

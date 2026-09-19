@@ -3538,7 +3538,110 @@ function buildFireplace(p) {
   return g;
 }
 
-const BUILDERS = { wall_basin: buildWallBasin, chandelier: buildChandelier, hot_tub: buildHotTub, mudroom_bench: buildMudroomBench, wall_mirror: buildWallMirror, recessed: buildRecessed, pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight, street_tree: buildStreetTree, fireplace: buildFireplace,
+// --- WALL-MOUNTED JOINERY: a tall cabinet, a window seat, and a trim band. --------------
+// All three anchor on the WALL FACE with `faces` giving the direction into the room, and
+// place through fplace(), so they work on any of the four walls rather than assuming an
+// axis — the convention buildSconce and buildCabinetRun already use.
+//
+// `buildWindowBench` is NOT what buildWindowSeat replaces: that one is hardcoded to an attic
+// dormer knee wall (fixed depth, a back bolster, `widthFt - 0.3` "a touch narrower than the
+// dormer", no `faces` at all) and only works on the attic's axis.
+const JOIN_BURY = 0.05;            // into the wall, or the two back faces z-fight
+
+/** The shared placement kit: A/P from `faces`, and a box in (along-wall, out, up). */
+function joinery(p) {
+  const A = DIR[p.faces || "N"], P = [-A[1], A[0]];
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * FT, y * FT, -dz * FT);
+  const g = new THREE.Group();
+  const box = (da, ds, yc, dl, dw, hy, mat, rad = 0) => {
+    if (dl <= 0.004 || dw <= 0.004 || hy <= 0.004) return null;
+    const q = fplace(A, P, da, ds, dl, dw);
+    const geo = rad > 0 ? new RoundedBoxGeometry(q[2] * FT, hy * FT, q[3] * FT, 3, rad * FT)
+                        : new THREE.BoxGeometry(q[2] * FT, hy * FT, q[3] * FT);
+    const m = new THREE.Mesh(geo, mat);
+    m.position.copy(V(q[0], q[1], yc));
+    m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  return { g, box };
+}
+
+/** A fielded panel: a recessed ground with a raised field proud of it. */
+function fielded(box, da, ds, yc, dw, hy, ground, face) {
+  box(da, ds, yc, 0.04, dw, hy, ground);
+  box(da + 0.03, ds, yc, 0.03, Math.max(dw - 0.26, 0.08), Math.max(hy - 0.26, 0.08), face, 0.015);
+}
+
+// A TALL PANELLED CABINET: plinth, a pair of doors each with two stacked fielded panels, and
+// its own head band. `panelOnly` drops the doors and leaves a panelled pilaster — which is
+// what the sitting room's 9.8 in west return is, and why it is the same builder: a separate
+// one would drift in profile from the cabinet it stands opposite.
+function buildTallCabinet(p) {
+  const { g, box } = joinery(p);
+  const paint = new THREE.MeshStandardMaterial({ color: col(p.paint || "chalk", 0xf8f5ef), roughness: 0.6 });
+  const ground = new THREE.MeshStandardMaterial({ color: col(p.paint || "chalk", 0xf8f5ef), roughness: 0.78 });
+  const W = p.wFt ?? 2.77, D = p.depthFt ?? 1.58, H = p.heightFt ?? 7.0;
+  const back = -JOIN_BURY, front = D, PL = p.plinthFt ?? 0.33;
+  box((back + front) / 2, 0, H / 2, front - back, W, H, paint);          // carcass
+  box((back + front + 0.03) / 2, 0, PL / 2, (front - back) + 0.03, W, PL, paint, 0.01);  // plinth
+  if (!p.panelOnly) {
+    const n = W > 1.8 ? 2 : 1, dw = (W - 0.12) / n;                      // a pair, or one leaf
+    for (let i = 0; i < n; i++) {
+      const ds = -W / 2 + 0.06 + dw * (i + 0.5);
+      for (const t of [0, 1]) {                                          // two panels, stacked
+        const y0 = PL + 0.06 + (H - PL - 0.18) * t / 2, hy = (H - PL - 0.18) / 2;
+        fielded(box, front, ds, y0 + hy / 2, dw - 0.12, hy - 0.06, ground, paint);
+      }
+    }
+  } else {
+    fielded(box, front, 0, (PL + H) / 2, W - 0.14, H - PL - 0.14, ground, paint);
+  }
+  return g;
+}
+
+// A WINDOW SEAT: panelled apron, seat board, upholstered cushion. `divideAt` is a list of
+// offsets along the run where stiles fall — authored from the WINDOW JAMBS above, so the
+// panelling relates to the openings rather than to an equal division of the length.
+function buildWindowSeat(p) {
+  const { g, box } = joinery(p);
+  const paint = new THREE.MeshStandardMaterial({ color: col(p.paint || "chalk", 0xf8f5ef), roughness: 0.6 });
+  const ground = new THREE.MeshStandardMaterial({ color: col(p.paint || "chalk", 0xf8f5ef), roughness: 0.78 });
+  const tick = tickingTexture(0xf3efe4, col(p.cushion || "ticking", 0x3c5a78).getHex()).clone();
+  tick.needsUpdate = true;
+  const L = p.lenFt ?? 6.0, D = p.depthFt ?? 1.58, S = p.seatFt ?? 1.5;
+  tick.repeat.set(L * 2.2, D * 2.2);
+  const cmat = new THREE.MeshStandardMaterial({ map: tick, roughness: 0.95 });
+  const back = -JOIN_BURY, front = D, PL = p.plinthFt ?? 0.29, SB = 0.14;
+  box((back + front) / 2, 0, (S - SB) / 2, front - back, L, S - SB, paint);            // carcass
+  box((back + front + 0.03) / 2, 0, PL / 2, (front - back) + 0.03, L, PL, paint, 0.01); // plinth
+  // The apron's bays, split at the authored stiles and then halved so no panel runs wide.
+  const cuts = [-L / 2, ...(p.divideAt || []).slice().sort((a, b) => a - b), L / 2];
+  const bays = [];
+  for (let i = 0; i < cuts.length - 1; i++) {
+    const a = cuts[i], b = cuts[i + 1], n = Math.max(1, Math.round((b - a) / 2.6));
+    for (let k = 0; k < n; k++) bays.push([a + (b - a) * k / n, a + (b - a) * (k + 1) / n]);
+  }
+  const y0 = PL + 0.05, y1 = S - SB - 0.05;
+  for (const [a, b] of bays)
+    fielded(box, front, (a + b) / 2, (y0 + y1) / 2, (b - a) - 0.24, y1 - y0, ground, paint);
+  box((back + front + 0.10) / 2, 0, S - SB / 2, (front - back) + 0.10, L, SB, paint, 0.012); // seat board
+  box((back + front) / 2 + 0.03, 0, S + 0.10, (front - back) - 0.16, L - 0.10, 0.20, cmat, 0.07); // cushion
+  return g;
+}
+
+// A RUN OF TRIM at a height — here the window head band carried across the whole wall, so
+// the line does not stop and restart at each cabinet. Its projection is set just UNDER the
+// window casing's, so where the two coincide the casing stays proud and this disappears
+// inside it rather than the two fighting for the same plane.
+function buildTrimBand(p) {
+  const { g, box } = joinery(p);
+  const paint = new THREE.MeshStandardMaterial({ color: col(p.paint || "chalk", 0xf8f5ef), roughness: 0.6 });
+  const L = p.lenFt ?? 6.0, PR = p.projectFt ?? 0.09, H = p.heightFt ?? 0.33, Y = p.atFt ?? 7.0;
+  box((-JOIN_BURY + PR) / 2, 0, Y + H / 2, PR + JOIN_BURY, L, H, paint, 0.012);
+  return g;
+}
+
+const BUILDERS = { wall_basin: buildWallBasin, chandelier: buildChandelier, hot_tub: buildHotTub, mudroom_bench: buildMudroomBench, wall_mirror: buildWallMirror, recessed: buildRecessed, pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight, street_tree: buildStreetTree, fireplace: buildFireplace, tall_cabinet: buildTallCabinet,
+  window_seat: buildWindowSeat, trim_band: buildTrimBand,
   range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, open_shelves: buildOpenShelves, counter_stool: buildCounterStool, banquette: buildBanquette, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, bentwood_chair: buildBentwoodChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, wall_toilet: buildWallToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 // Re-export a few individual builders so the viewer can drop single procedural
 // pieces (e.g. patio furniture on the alt roof deck) without going through the
