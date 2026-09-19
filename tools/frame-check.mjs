@@ -227,23 +227,6 @@ const demand = await page.evaluate(async () => {
   const moving = n() - b2;
   return { mode, idleFrames: idle, movingFrames: moving };
 });
-await b.close();
-
-console.log(`\nFRAME COST  (${URL})`);
-console.log(`  draw calls per frame     ${m.calls}`);
-console.log(`  visible meshes           ${m.visible}   (hidden originals: ${m.hidden})`);
-console.log(`  merged meshes            ${m.merged}  absorbing ${m.absorbed}`);
-console.log(`  frozen transforms        ${m.frozen}`);
-console.log(`  consolidate pass         ${m.buildMs} ms at init`);
-console.log(`  render()                 ${m.ms} ms/frame  (swiftshader; indicative only)`);
-console.log(`  renderer mode            ${demand.mode === 0 ? 'MANUAL (on demand)' : 'AUTO'}`);
-console.log(`  frames drawn: idle 2 s   ${demand.idleFrames}   while panning  ${demand.movingFrames}`);
-console.log(`  model-owned meshes: ${m.fragMerged} merged, ${m.fragBatched} batched by fragments, ` +
-            `${m.fragTrans} transparent, ${m.fragLoose} mergeable and still loose`);
-console.log(`  perf HUD                 ${hud.button ? (hud.before.exists ? 'built at startup' : 'built on first use') : 'NO BUTTON'}`);
-console.log(`  benchmark                ${bench.fps.toFixed(1)} fps flat out, ${bench.frameMs.toFixed(1)} ms/frame = ${bench.cpuMs.toFixed(1)} cpu + ${bench.other.toFixed(1)} other`);
-console.log(`  lights                   ${bench.lights.before} on -> ${bench.lights.dimmed} dimmed -> ${bench.lights.restored} restored`);
-
 // THE LANDSCAPE RAIL, THE FULLSCREEN BUTTON, AND THE PORTRAIT COLLISION. Run LAST of the
 // measurements: it flips the viewport to portrait and back, which would otherwise disturb
 // the draw-call, door-pick and HUD numbers taken above.
@@ -310,6 +293,24 @@ const port = await (async () => {
     return { rowR: await r2('#ui-left'), fsR: await r2('#fullscreen-toggle') };
   } finally { await p2.close(); }
 })();
+
+await b.close();
+
+console.log(`\nFRAME COST  (${URL})`);
+console.log(`  draw calls per frame     ${m.calls}`);
+console.log(`  visible meshes           ${m.visible}   (hidden originals: ${m.hidden})`);
+console.log(`  merged meshes            ${m.merged}  absorbing ${m.absorbed}`);
+console.log(`  frozen transforms        ${m.frozen}`);
+console.log(`  consolidate pass         ${m.buildMs} ms at init`);
+console.log(`  render()                 ${m.ms} ms/frame  (swiftshader; indicative only)`);
+console.log(`  renderer mode            ${demand.mode === 0 ? 'MANUAL (on demand)' : 'AUTO'}`);
+console.log(`  frames drawn: idle 2 s   ${demand.idleFrames}   while panning  ${demand.movingFrames}`);
+console.log(`  model-owned meshes: ${m.fragMerged} merged, ${m.fragBatched} batched by fragments, ` +
+            `${m.fragTrans} transparent, ${m.fragLoose} mergeable and still loose`);
+console.log(`  perf HUD                 ${hud.button ? (hud.before.exists ? 'built at startup' : 'built on first use') : 'NO BUTTON'}`);
+console.log(`  benchmark                ${bench.fps.toFixed(1)} fps flat out, ${bench.frameMs.toFixed(1)} ms/frame = ${bench.cpuMs.toFixed(1)} cpu + ${bench.other.toFixed(1)} other`);
+console.log(`  lights                   ${bench.lights.before} on -> ${bench.lights.dimmed} dimmed -> ${bench.lights.restored} restored`);
+
 
 if (REPORT) process.exit(0);
 let bad = 0;
