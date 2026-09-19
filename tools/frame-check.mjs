@@ -163,6 +163,42 @@ const m = await page.evaluate(async () => {
            merged: (window.__eureka.consolidated?.merged || 0) +
                    (window.__eureka.consolidatedExhibits?.merged || 0) };
 });
+// THE LANDSCAPE RAIL AND THE FULLSCREEN BUTTON. This harness runs at 1400x900, which is
+// landscape, so it is already standing in the case under test and needs no new instrument.
+const ui = await page.evaluate(async () => {
+  const cs = (el) => (el ? getComputedStyle(el) : null);
+  const left = document.getElementById('ui-left');
+  const hdr = document.querySelector('[data-menu] .menu-header');
+  const label = hdr && hdr.querySelector('.ml');
+  const railW = left ? left.getBoundingClientRect().width : 0;
+  // Open a menu and measure its body. The backdrop-filter trap fails SILENTLY: the body
+  // anchors to the 44 px chip instead of the viewport and is clipped to it, which looks
+  // like a styling nitpick and is actually an unusable menu.
+  hdr && hdr.click();
+  await new Promise(r => setTimeout(r, 150));
+  const body = document.querySelector('[data-menu].open .menu-body');
+  const bodyW = body ? body.getBoundingClientRect().width : 0;
+  hdr && hdr.click();
+  // Immersive is driven directly: headless Chrome HAS the Fullscreen API, so the fallback
+  // path would otherwise never be exercised here at all.
+  const fsBtn = document.getElementById('fullscreen-toggle');
+  document.body.classList.add('immersive');
+  const hidden = ['ui-left', 'bottom-bar', 'status']
+    .map(id => cs(document.getElementById(id))?.display);
+  const btnStill = cs(fsBtn)?.display;
+  document.body.classList.remove('immersive');
+  return { rail: railW, labelDisplay: cs(label)?.display, bodyW,
+           fsBtn: !!fsBtn, handle: typeof window.__eureka.toggleFullscreen,
+           supported: window.__eureka.fullscreenSupported, hidden, btnStill };
+});
+A(ui.labelDisplay === 'none' && ui.rail < 80,
+  `landscape shows an icon rail, not the labelled stack (${Math.round(ui.rail)} px wide, labels ${ui.labelDisplay})`);
+A(ui.bodyW > 150,
+  `and an open menu's body escapes the chip (${Math.round(ui.bodyW)} px — a backdrop-filter on .menu clips it to ~44)`);
+A(ui.fsBtn && ui.handle === 'function', `the fullscreen button exists and is exposed (${ui.handle})`);
+A(ui.hidden.every(d => d === 'none') && ui.btnStill !== 'none',
+  `immersive hides the chrome and keeps the way back (${ui.hidden.join('/')}, button ${ui.btnStill})`);
+
 // The performance HUD toggle. Built on first use, so this also proves the lazy
 // construction path works — and that the button reports the state it is actually in,
 // which it did not at first (build-then-flip hid it on the very first click).

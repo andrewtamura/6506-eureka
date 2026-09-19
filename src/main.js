@@ -2556,6 +2556,45 @@ async function main() {
     window.addEventListener("resize", invalidate);
   }
 
+  // FULLSCREEN, with a fallback. `requestFullscreen` is feature-detected rather than
+  // assumed: where it exists the button takes the browser's chrome away, and where it does
+  // not it hides the VIEWER'S chrome instead, which is the part we own. The button lives
+  // outside #ui-left precisely so immersive mode leaves it standing as the way back.
+  {
+    const root = document.documentElement;
+    const btn = document.getElementById("fullscreen-toggle");
+    const req = root.requestFullscreen || root.webkitRequestFullscreen;
+    const out = document.exitFullscreen || document.webkitExitFullscreen;
+    const isFull = () => !!(document.fullscreenElement || document.webkitFullscreenElement);
+    const paint = () => {
+      const on = req ? isFull() : document.body.classList.contains("immersive");
+      btn.textContent = on ? "\u2715" : "\u26F6";
+      btn.title = on ? "Exit fullscreen" : (req ? "Fullscreen" : "Hide the interface");
+    };
+    const toggle = (on) => {
+      const want = on === undefined
+        ? !(req ? isFull() : document.body.classList.contains("immersive"))
+        : on;
+      if (req) {
+        // A rejected promise here is ordinary — a browser may refuse outside a user
+        // gesture — and must not take the paint with it.
+        (want ? req.call(root) : out.call(document))?.catch?.(() => {});
+      } else {
+        document.body.classList.toggle("immersive", want);
+      }
+      paint();
+      invalidate();          // render-on-demand: a state change nobody draws looks frozen
+    };
+    btn.addEventListener("click", () => toggle());
+    // Esc leaves fullscreen without going through the button, so the icon has to follow
+    // the document rather than remember what it last did.
+    for (const ev of ["fullscreenchange", "webkitfullscreenchange"])
+      document.addEventListener(ev, paint);
+    paint();
+    window.__eureka.toggleFullscreen = toggle;   // debug handle: tools/frame-check drives it
+    window.__eureka.fullscreenSupported = !!req;
+  }
+
   // The HUD is built on FIRST use, not at startup: setupPerf wraps renderer.render to
   // time it, and an instrument nobody asked for should not be in the hot path. After
   // that the button just shows and hides it. `?perf=1` still starts it open.
