@@ -191,13 +191,6 @@ const ui = await page.evaluate(async () => {
            fsBtn: !!fsBtn, handle: typeof window.__eureka.toggleFullscreen,
            supported: window.__eureka.fullscreenSupported, hidden, btnStill };
 });
-A(ui.labelDisplay === 'none' && ui.rail < 80,
-  `landscape shows an icon rail, not the labelled stack (${Math.round(ui.rail)} px wide, labels ${ui.labelDisplay})`);
-A(ui.bodyW > 150,
-  `and an open menu's body escapes the chip (${Math.round(ui.bodyW)} px — a backdrop-filter on .menu clips it to ~44)`);
-A(ui.fsBtn && ui.handle === 'function', `the fullscreen button exists and is exposed (${ui.handle})`);
-A(ui.hidden.every(d => d === 'none') && ui.btnStill !== 'none',
-  `immersive hides the chrome and keeps the way back (${ui.hidden.join('/')}, button ${ui.btnStill})`);
 
 // The performance HUD toggle. Built on first use, so this also proves the lazy
 // construction path works — and that the button reports the state it is actually in,
@@ -289,6 +282,13 @@ A(m.visible <= MAX_MESHES, `${m.visible} drawable meshes (budget ${MAX_MESHES})`
 A(m.absorbed >= MIN_ABSORBED, `the merge absorbed ${m.absorbed} authored meshes (at least ${MIN_ABSORBED})`);
 A(m.hidden >= MIN_ABSORBED, `the originals are still in the scene, hidden (${m.hidden}) — kitchen-check measures them`);
 A(m.frozen > 1000, `static transforms frozen (${m.frozen})`);
+A(ui.labelDisplay === 'none' && ui.rail < 80,
+  `landscape shows an icon rail, not the labelled stack (${Math.round(ui.rail)} px wide, labels ${ui.labelDisplay})`);
+A(ui.bodyW > 150,
+  `and an open menu's body escapes the chip (${Math.round(ui.bodyW)} px — a backdrop-filter on .menu clips it to ~44)`);
+A(ui.fsBtn && ui.handle === 'function', `the fullscreen button exists and is exposed (${ui.handle})`);
+A(ui.hidden.every(d => d === 'none') && ui.btnStill !== 'none',
+  `immersive hides the chrome and keeps the way back (${ui.hidden.join('/')}, button ${ui.btnStill})`);
 A(hud.button, `the UI has a performance HUD button`);
 A(hud.button && !hud.before.exists, `the HUD is built on first use, not at startup — no render() wrapper nobody asked for`);
 A(hud.button && hud.on.shown && /draw calls/.test(hud.on.text) && /Hide/.test(hud.on.label),
