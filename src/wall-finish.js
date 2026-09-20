@@ -14,6 +14,32 @@ const FIELD = 0xdcd7cb;  // slightly deeper field/frieze so the millwork reads
 const BATTEN_W = 0.0254;        // 1" battens
 const BATTEN_SPACING_FT = 14 / 12;  // 14" board grid, anchored at the wall corner
 
+// ARCHITRAVE: backband, fillet, COVE, fascia, OVOLO, then a bead dying into the opening.
+// Outer edge at Y=0, opening edge at Y=W — so swept DOWNWARD from a head line the backband
+// sits proud at the top and the bead dies in at the bottom, which is the way up an
+// architrave goes. `up` mirrors Y for a moulding swept the other way, from its own bottom
+// upward: same control points, typed once. (Mirroring reverses the winding; ExtrudeGeometry
+// checks the sign itself and triangulates either way.)
+// Exported because the sitting room's joinery continues this exact section across the
+// cabinet fronts — see `trim_band` and `tall_cabinet` in src/furniture.js. Two copies of a
+// profile drift; one does not.
+export const CASE_P = 0.030;                                      // its max projection
+export function casingProfile(W, P = CASE_P, up = false) {
+  const y = up ? (v) => W - v : (v) => v;
+  const sh = new THREE.Shape();
+  sh.moveTo(0, y(0));
+  sh.lineTo(P, y(0));                                             // backband, out from the wall
+  sh.lineTo(P, y(W * 0.20));                                      // its square face
+  sh.lineTo(P * 0.60, y(W * 0.22));                               // fillet, stepping in
+  sh.quadraticCurveTo(P * 0.40, y(W * 0.33), P * 0.58, y(W * 0.44)); // COVE — concave
+  sh.lineTo(P * 0.66, y(W * 0.54));                               // fascia
+  sh.quadraticCurveTo(P * 0.97, y(W * 0.66), P * 0.60, y(W * 0.82)); // OVOLO — convex
+  sh.quadraticCurveTo(P * 0.40, y(W * 0.90), P * 0.26, y(W));     // bead, dying in
+  sh.lineTo(0, y(W));
+  sh.lineTo(0, y(0));
+  return sh;
+}
+
 // `parent` is where the meshes go — the scene for the ground floor, an exhibit's model
 // object for the Second Floor, so the millwork rides that model's placement in the row of
 // views and `floorY` is that level's own finish floor (0).
@@ -177,24 +203,7 @@ export async function buildWallFinish({ scene, parent = scene, floorY, ceilingY,
     const UP = new THREE.Vector3(0, 1, 0);
     const cwf = caseW / ft;                                        // casing width, plan feet
 
-    // ARCHITRAVE: backband, fillet, COVE, fascia, OVOLO, then a bead dying into the
-    // opening. Outer edge at Y=0, opening edge at Y=caseW.
-    const casingShape = (() => {
-      const W = caseW, P = 0.030;
-      const sh = new THREE.Shape();
-      sh.moveTo(0, 0);
-      sh.lineTo(P, 0);                                            // backband, out from the wall
-      sh.lineTo(P, W * 0.20);                                     // its square face
-      sh.lineTo(P * 0.60, W * 0.22);                              // fillet, stepping in
-      sh.quadraticCurveTo(P * 0.40, W * 0.33, P * 0.58, W * 0.44); // COVE — concave
-      sh.lineTo(P * 0.66, W * 0.54);                              // fascia
-      sh.quadraticCurveTo(P * 0.97, W * 0.66, P * 0.60, W * 0.82); // OVOLO — convex
-      sh.quadraticCurveTo(P * 0.40, W * 0.90, P * 0.26, W);        // bead, dying in
-      sh.lineTo(0, W);
-      sh.lineTo(0, 0);
-      return sh;
-    })();
-    const CASE_P = 0.030;                                          // its max projection
+    const casingShape = casingProfile(caseW);
 
     // STOOL: a sill board, bullnosed at the front and undercut beneath.
     // Slim: a stool is a ~2 in board with a nosed edge, not a rolled bar. At 0.085 x

@@ -5,6 +5,7 @@
 // plan->world mapping so a plan point lands in the same spot as the BIM model.
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
+import { casingProfile } from "./wall-finish.js";
 
 const PALETTE = {
   oatmeal: 0xd9d2c4, linen: 0xcfc6b4, upholstery: 0x5a6b80,
@@ -2099,10 +2100,11 @@ function buildCabinetRun(p) {
   }
   if (kind === "wall" && p.crownFt) {
     // CROWN on a wall run: a SPRUNG moulding along the top front edge, returned round both
-    // ends and MITRED at the corners — one profile, drawn once and swept three times. The
-    // laundry's uppers wear it so their top reads as a finished cap under the transom
-    // rather than a carcass edge. `crownFt` is its height; the top of the crown is where
-    // the cabinet ENDS, so `topFt + crownFt` is the number that meets a sill.
+    // ends and mitred at the corners. The laundry's uppers wear it so their top reads as a
+    // finished cap under the transom rather than a carcass edge. `crownFt` is its height;
+    // the top of the crown is where the cabinet ENDS, so `topFt + crownFt` is the number
+    // that meets a sill. The sweep itself is `appliedMoulding` — the tall cabinets in the
+    // sitting room use the same machinery with a different section.
     const H = p.crownFt, PJ = p.crownProjFt ?? 0.22;
     const prof = (() => {
       const sh = new THREE.Shape(), h = H * ft, pj = PJ * ft;
@@ -2113,46 +2115,7 @@ function buildCabinetRun(p) {
       sh.lineTo(pj * 0.28, 0); sh.lineTo(0, 0);
       return sh;
     })();
-    const upV = new THREE.Vector3(0, 1, 0);
-    const wdir = (v) => new THREE.Vector3(-v[0], 0, -v[1]).normalize();      // plan direction -> world
-    // One piece: profile X along `xPlan` (its projection, outward), swept `len` ft along
-    // local Z = X x up from the plan point `at` (da, ds) at height y1; the caps sheared to
-    // 45 deg — z := -x at the near cap, len + x at the far — which is a mitre plane through
-    // the corner, the long point at the front (see src/wall-finish.js on why that way).
-    const piece = (xPlan, at, len, mitre) => {
-      const geo = new THREE.ExtrudeGeometry(prof, { depth: len * ft, bevelEnabled: false, curveSegments: 8 });
-      const pos = geo.getAttribute("position");
-      for (let i = 0; i < pos.count; i++) {
-        const x = pos.getX(i), z = pos.getZ(i);
-        if (mitre[0] && z < len * ft / 2) pos.setZ(i, -x);
-        if (mitre[1] && z >= len * ft / 2) pos.setZ(i, len * ft + x);
-      }
-      geo.computeVertexNormals();
-      const xw = wdir(xPlan), zw = new THREE.Vector3().crossVectors(xw, upV).normalize();
-      const m = new THREE.Mesh(geo, wood); m.castShadow = true; m.receiveShadow = true;
-      m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xw, upV, zw));
-      const [opx, opz] = pl(at[0], at[1], 0, 0);
-      m.position.copy(V(opx, opz, y1));
-      g.add(m);
-      return zw;
-    };
-    const Pw = wdir(P), Aw = wdir(A);
-    for (const [a, b] of segs) {
-      if (b - a < 0.3) continue;
-      // FRONT: projection along A (out of the face), running the segment along P. Its Z
-      // is X x up; start it at whichever end that points away from.
-      const zF = new THREE.Vector3().crossVectors(Aw, upV);
-      const fromA = zF.dot(Pw) > 0;                                            // Z runs +ds
-      piece(A, [D / 2, fromA ? a : b], b - a, [true, true]);
-      // RETURNS: projection outward along -+P at each end, running from the front back
-      // to the wall along -A. Mitred at the front end only; square where it meets the wall.
-      for (const [end, sgn] of [[a, -1], [b, +1]]) {
-        const xPlan = [P[0] * sgn, P[1] * sgn];
-        const zR = new THREE.Vector3().crossVectors(wdir(xPlan), upV);
-        const toWall = zR.dot(Aw) < 0;                                         // Z runs toward the wall
-        piece(xPlan, [toWall ? D / 2 : -D / 2, end], D, toWall ? [true, false] : [false, true]);
-      }
-    }
+    appliedMoulding({ g, A, P, mat: wood, prof, yFt: y1, front: D / 2, back: -D / 2, segs });
   }
   if (kind === "base") {
     // Countertop: full length, minus any gap that breaks it (a slide-in range).
@@ -3454,7 +3417,268 @@ function buildStreetTree(p) {
   return g;
 }
 
-const BUILDERS = { wall_basin: buildWallBasin, chandelier: buildChandelier, hot_tub: buildHotTub, mudroom_bench: buildMudroomBench, wall_mirror: buildWallMirror, recessed: buildRecessed, pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight, street_tree: buildStreetTree,
+// A CHIMNEYPIECE: hearth, chimney breast, firebox, a painted timber surround with a
+// moulded mantel shelf, and a panelled overmantel carried to the cove.
+//
+// `at` (px,pz) is the WALL FACE and `faces` the direction into the room, so the whole
+// thing is laid along that direction rather than assuming an axis — the same convention
+// buildSconce and buildCabinetRun use, and the reason this works on any of the four walls.
+//
+// THE FIREBOX IS A REAL VOID, not a dark rectangle painted on a solid block. The breast is
+// built as four pieces around the opening — two jambs, a head, and the mass above — so you
+// can see into it from an angle. Drawn as one box with a black face it reads identically
+// head-on and wrongly from everywhere else.
+//
+// The overmantel dies at the COVE'S SPRING LINE, not at the ceiling: this room has no
+// entablature, its cove springs at wallTop - COVE_H, and joinery carried past that point
+// buries its cornice in the curve.
+function buildFireplace(p) {
+  const ft = FT, g = new THREE.Group();
+  const A = DIR[p.faces || "N"], P = [-A[1], A[0]];
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * ft, y * ft, -dz * ft);
+  const pl = (da, ds, dl, dw) => fplace(A, P, da, ds, dl, dw);
+  const box = (da, ds, yc, dl, dw, hy, mat, rad = 0) => {
+    if (dl <= 0.004 || dw <= 0.004 || hy <= 0.004) return null;
+    const q = pl(da, ds, dl, dw);
+    const geo = rad > 0 ? new RoundedBoxGeometry(q[2] * ft, hy * ft, q[3] * ft, 3, rad * ft)
+                        : new THREE.BoxGeometry(q[2] * ft, hy * ft, q[3] * ft);
+    const m = new THREE.Mesh(geo, mat);
+    m.position.copy(V(q[0], q[1], yc));
+    m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  const paint = new THREE.MeshStandardMaterial({ color: col(p.paint || "chalk", 0xf8f5ef), roughness: 0.6 });
+  const field = new THREE.MeshStandardMaterial({ color: col(p.paint || "chalk", 0xf8f5ef), roughness: 0.75 });
+  const stone = new THREE.MeshStandardMaterial({ color: col(p.stone || "limestone", 0xcdc3b0), roughness: 0.8 });
+  const fire = new THREE.MeshStandardMaterial({ color: 0x3a2f2b, roughness: 0.95 });
+  const soot = new THREE.MeshStandardMaterial({ color: 0x14100e, roughness: 1.0 });
+
+  const W = p.wFt ?? 6.0;                       // breast width
+  const BR = p.breastFt ?? 1.17;                // how far it stands off the wall
+  const OW = p.openWFt ?? 3.0, OH = p.openHFt ?? 2.83;
+  const TOP = p.ceilFt ?? 8.25;                 // the cove's spring line
+  const MS = p.mantelFt ?? 4.42;                // top of the mantel shelf
+  const HD = p.hearthFt ?? 1.5;                 // hearth projection BEYOND the breast
+  const BURY = 0.05;                            // into the wall, or the two faces z-fight
+  const back = -BURY, front = BR;               // the breast, in `da` from the wall face
+  const jamb = (W - OW) / 2;                    // masonry either side of the opening
+
+  // --- hearth: a stone slab on the floor, running out past the breast ------------------
+  box((back + front + HD) / 2, 0, 0.083, (front - back) + HD, W, 0.167, stone, 0.01);
+
+  // --- the breast, built AROUND the opening so the firebox is a void -------------------
+  const FBD = p.fireboxFt ?? 0.92;              // how deep the opening goes back
+  for (const s of [-1, 1])                      // jambs
+    box((back + front) / 2, s * (W - jamb) / 2, TOP / 2, front - back, jamb, TOP, paint);
+  box((back + front) / 2, 0, (OH + TOP) / 2, front - back, OW, TOP - OH, paint);  // over the head
+  // ...and the firebox itself: a sooted back and two splayed cheeks, set back from the face.
+  box(back + FBD, 0, OH / 2, 0.08, OW - 0.3, OH, soot);
+  for (const s of [-1, 1])
+    box((back + FBD) / 2, s * (OW - 0.34) / 2, OH / 2, FBD, 0.17, OH, fire);
+  box((back + FBD) / 2, 0, OH - 0.06, FBD, OW - 0.34, 0.12, soot);               // throat
+
+  // --- the surround: pilasters, frieze, and the shelf ---------------------------------
+  const PW = p.pilasterFt ?? 0.62, PJ = 0.09;   // pilaster width / its projection
+  for (const s of [-1, 1])
+    box(front + PJ / 2, s * (OW + PW) / 2, (OH + 0.22) / 2, PJ, PW, OH + 0.22, paint, 0.01);
+  const frieze = MS - 0.16 - (OH + 0.22);
+  box(front + PJ / 2, 0, OH + 0.22 + frieze / 2, PJ, OW + 2 * PW, frieze, paint, 0.01);
+  // The shelf projects FORWARD only. Given side overhang it ran past the breast into the
+  // field panelling either side, which is the trap buildRangeSurround's mantel documents.
+  box((front + PJ + 0.30) / 2, 0, MS - 0.08, front + PJ + 0.30, W - 0.5, 0.16, paint, 0.015);
+
+  // --- overmantel: a fielded panel between stiles, dying into the cove -----------------
+  if (TOP > MS + 0.6) {
+    const OMW = p.overmantelFt ?? (OW + 2 * PW), oy0 = MS + 0.08, oy1 = TOP - 0.22;
+    box(front + 0.02, 0, (oy0 + oy1) / 2, 0.04, OMW, oy1 - oy0, field);          // ground
+    for (const s of [-1, 1])                                                      // stiles
+      box(front + 0.05, s * (OMW - 0.30) / 2, (oy0 + oy1) / 2, 0.06, 0.30, oy1 - oy0, paint, 0.01);
+    for (const t of [-1, 1])                                                      // rails
+      box(front + 0.05, 0, t < 0 ? oy0 + 0.13 : oy1 - 0.13, 0.06, OMW - 0.60, 0.26, paint, 0.01);
+    box(front + 0.04, 0, (oy0 + oy1) / 2, 0.05, OMW - 0.72, (oy1 - oy0) - 0.62, paint, 0.02); // raised panel
+    // Cornice at the spring line — the joinery stops where the curve starts.
+    box((back + front + 0.16) / 2, 0, TOP - 0.11, (front - back) + 0.16, W, 0.22, paint, 0.015);
+  }
+  return g;
+}
+
+// --- WALL-MOUNTED JOINERY: a tall cabinet, a window seat, and a trim band. --------------
+// All three anchor on the WALL FACE with `faces` giving the direction into the room, and
+// place through fplace(), so they work on any of the four walls rather than assuming an
+// axis — the convention buildSconce and buildCabinetRun already use.
+//
+// `buildWindowBench` is NOT what buildWindowSeat replaces: that one is hardcoded to an attic
+// dormer knee wall (fixed depth, a back bolster, `widthFt - 0.3` "a touch narrower than the
+// dormer", no `faces` at all) and only works on the attic's axis.
+// A MOULDING APPLIED TO A BOX FRONT: one profile, swept along the front face and RETURNED
+// round each end, the corners mitred. Shared, because the mitre below is subtle enough that
+// a second copy would drift from this one — it is what puts a crown on the laundry's uppers
+// and the window head's architrave across the sitting room's cabinet fronts.
+//   prof     profile in metres, (x = projection from the face, y = height above `yFt`)
+//   front    da offset of the face it is applied to; `back` of the wall behind it, so a
+//            return runs `front - back` and dies into the wall square
+//   segs     spans along the run, in the builder's own ds offsets
+//   returns  false for a moulding that dies into a wall at both ends rather than returning
+function appliedMoulding({ g, A, P, mat, prof, yFt, front, back, segs, returns = true, minFt = 0.3 }) {
+  const upV = new THREE.Vector3(0, 1, 0);
+  const wdir = (v) => new THREE.Vector3(-v[0], 0, -v[1]).normalize();      // plan direction -> world
+  // One piece: profile X along `xPlan` (its projection, outward), swept `len` ft along
+  // local Z = X x up from the plan point `at` (da, ds) at height `yFt`; the caps sheared to
+  // 45 deg — z := -x at the near cap, len + x at the far — which is a mitre plane through
+  // the corner, the long point at the front (see src/wall-finish.js on why that way).
+  const piece = (xPlan, at, len, mitre) => {
+    const geo = new THREE.ExtrudeGeometry(prof, { depth: len * FT, bevelEnabled: false, curveSegments: 8 });
+    const pos = geo.getAttribute("position");
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), z = pos.getZ(i);
+      if (mitre[0] && z < len * FT / 2) pos.setZ(i, -x);
+      if (mitre[1] && z >= len * FT / 2) pos.setZ(i, len * FT + x);
+    }
+    geo.computeVertexNormals();
+    const xw = wdir(xPlan), zw = new THREE.Vector3().crossVectors(xw, upV).normalize();
+    const m = new THREE.Mesh(geo, mat); m.castShadow = true; m.receiveShadow = true;
+    m.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(xw, upV, zw));
+    const q = fplace(A, P, at[0], at[1], 0, 0);
+    m.position.set(-q[0] * FT, yFt * FT, -q[1] * FT);
+    g.add(m);
+  };
+  const Pw = wdir(P), Aw = wdir(A);
+  for (const [a, b] of segs) {
+    if (b - a < minFt) continue;
+    // FRONT: projection along A (out of the face), running the segment along P. Its Z
+    // is X x up; start it at whichever end that points away from.
+    const zF = new THREE.Vector3().crossVectors(Aw, upV);
+    const fromA = zF.dot(Pw) > 0;                                            // Z runs +ds
+    piece(A, [front, fromA ? a : b], b - a, returns ? [true, true] : [false, false]);
+    if (!returns) continue;
+    // RETURNS: projection outward along -+P at each end, running from the front back
+    // to the wall along -A. Mitred at the front end only; square where it meets the wall.
+    for (const [end, sgn] of [[a, -1], [b, +1]]) {
+      const xPlan = [P[0] * sgn, P[1] * sgn];
+      const zR = new THREE.Vector3().crossVectors(wdir(xPlan), upV);
+      const toWall = zR.dot(Aw) < 0;                                         // Z runs toward the wall
+      piece(xPlan, [toWall ? front : back, end], front - back, toWall ? [true, false] : [false, true]);
+    }
+  }
+}
+
+const JOIN_BURY = 0.05;            // into the wall, or the two back faces z-fight
+
+/** The shared placement kit: A/P from `faces`, and a box in (along-wall, out, up). */
+function joinery(p) {
+  const A = DIR[p.faces || "N"], P = [-A[1], A[0]];
+  const V = (dx, dz, y) => new THREE.Vector3(-dx * FT, y * FT, -dz * FT);
+  const g = new THREE.Group();
+  const box = (da, ds, yc, dl, dw, hy, mat, rad = 0) => {
+    if (dl <= 0.004 || dw <= 0.004 || hy <= 0.004) return null;
+    const q = fplace(A, P, da, ds, dl, dw);
+    const geo = rad > 0 ? new RoundedBoxGeometry(q[2] * FT, hy * FT, q[3] * FT, 3, rad * FT)
+                        : new THREE.BoxGeometry(q[2] * FT, hy * FT, q[3] * FT);
+    const m = new THREE.Mesh(geo, mat);
+    m.position.copy(V(q[0], q[1], yc));
+    m.castShadow = true; m.receiveShadow = true; g.add(m); return m;
+  };
+  return { g, box, A, P };
+}
+
+/** A fielded panel: a recessed ground with a raised field proud of it. */
+function fielded(box, da, ds, yc, dw, hy, ground, face) {
+  box(da, ds, yc, 0.04, dw, hy, ground);
+  box(da + 0.03, ds, yc, 0.03, Math.max(dw - 0.26, 0.08), Math.max(hy - 0.26, 0.08), face, 0.015);
+}
+
+// A TALL PANELLED CABINET: plinth, a pair of doors each with two stacked fielded panels, and
+// its own head band. `panelOnly` drops the doors and leaves a panelled pilaster — which is
+// what the sitting room's 9.8 in west return is, and why it is the same builder: a separate
+// one would drift in profile from the cabinet it stands opposite.
+function buildTallCabinet(p) {
+  const { g, box, A, P } = joinery(p);
+  const paint = new THREE.MeshStandardMaterial({ color: col(p.paint || "chalk", 0xf8f5ef), roughness: 0.6 });
+  const ground = new THREE.MeshStandardMaterial({ color: col(p.paint || "chalk", 0xf8f5ef), roughness: 0.78 });
+  const W = p.wFt ?? 2.77, D = p.depthFt ?? 1.58, H = p.heightFt ?? 7.0;
+  const back = -JOIN_BURY, front = D, PL = p.plinthFt ?? 0.33;
+  box((back + front) / 2, 0, H / 2, front - back, W, H, paint);          // carcass
+  // HEAD CAP: the WINDOW'S OWN head casing, carried forward off the wall and across the
+  // cabinet's leading edge, then returned to the wall at each end. The section is
+  // `casingProfile` from src/wall-finish.js — the same one the window head is swept from,
+  // flipped (`up`) because that one sweeps downward from the head line and this one is
+  // measured up from its own bottom. Without it the head band runs 19 in BEHIND the
+  // cabinet and the line simply disappears over it.
+  // It sits ON the carcass (H..H + capFt) rather than on the doors: the fielded panels
+  // stand 0.045 proud, and a section that dies to zero projection at its bottom would have
+  // them poking through it. So a cabinet's overall height is the WINDOW'S overall height —
+  // glass head at H, casing top at H + capFt — while the carcass still dies at the head.
+  // The end that meets a side wall needs no flag: its return simply buries itself there,
+  // the same idiom as JOIN_BURY on the backs.
+  if (p.capFt !== 0) {
+    const CH = p.capFt ?? 0.33, CP = p.capProjFt ?? 0.09;
+    appliedMoulding({ g, A, P, mat: paint, prof: casingProfile(CH * FT, CP * FT, true),
+      yFt: H, front, back, segs: [[-W / 2, W / 2]], minFt: 0.2 });
+  }
+  box((back + front + 0.03) / 2, 0, PL / 2, (front - back) + 0.03, W, PL, paint, 0.01);  // plinth
+  if (!p.panelOnly) {
+    const n = W > 1.8 ? 2 : 1, dw = (W - 0.12) / n;                      // a pair, or one leaf
+    for (let i = 0; i < n; i++) {
+      const ds = -W / 2 + 0.06 + dw * (i + 0.5);
+      for (const t of [0, 1]) {                                          // two panels, stacked
+        const y0 = PL + 0.06 + (H - PL - 0.18) * t / 2, hy = (H - PL - 0.18) / 2;
+        fielded(box, front, ds, y0 + hy / 2, dw - 0.12, hy - 0.06, ground, paint);
+      }
+    }
+  } else {
+    fielded(box, front, 0, (PL + H) / 2, W - 0.14, H - PL - 0.14, ground, paint);
+  }
+  return g;
+}
+
+// A WINDOW SEAT: panelled apron, seat board, upholstered cushion. `divideAt` is a list of
+// offsets along the run where stiles fall — authored from the WINDOW JAMBS above, so the
+// panelling relates to the openings rather than to an equal division of the length.
+function buildWindowSeat(p) {
+  const { g, box } = joinery(p);
+  const paint = new THREE.MeshStandardMaterial({ color: col(p.paint || "chalk", 0xf8f5ef), roughness: 0.6 });
+  const ground = new THREE.MeshStandardMaterial({ color: col(p.paint || "chalk", 0xf8f5ef), roughness: 0.78 });
+  const tick = tickingTexture(0xf3efe4, col(p.cushion || "ticking", 0x3c5a78).getHex()).clone();
+  tick.needsUpdate = true;
+  const L = p.lenFt ?? 6.0, D = p.depthFt ?? 1.58, S = p.seatFt ?? 1.5;
+  tick.repeat.set(L * 2.2, D * 2.2);
+  const cmat = new THREE.MeshStandardMaterial({ map: tick, roughness: 0.95 });
+  const back = -JOIN_BURY, front = D, PL = p.plinthFt ?? 0.29, SB = 0.14;
+  box((back + front) / 2, 0, (S - SB) / 2, front - back, L, S - SB, paint);            // carcass
+  box((back + front + 0.03) / 2, 0, PL / 2, (front - back) + 0.03, L, PL, paint, 0.01); // plinth
+  // The apron's bays, split at the authored stiles and then halved so no panel runs wide.
+  const cuts = [-L / 2, ...(p.divideAt || []).slice().sort((a, b) => a - b), L / 2];
+  const bays = [];
+  for (let i = 0; i < cuts.length - 1; i++) {
+    const a = cuts[i], b = cuts[i + 1], n = Math.max(1, Math.round((b - a) / 2.6));
+    for (let k = 0; k < n; k++) bays.push([a + (b - a) * k / n, a + (b - a) * (k + 1) / n]);
+  }
+  const y0 = PL + 0.05, y1 = S - SB - 0.05;
+  for (const [a, b] of bays)
+    fielded(box, front, (a + b) / 2, (y0 + y1) / 2, (b - a) - 0.24, y1 - y0, ground, paint);
+  box((back + front + 0.10) / 2, 0, S - SB / 2, (front - back) + 0.10, L, SB, paint, 0.012); // seat board
+  box((back + front) / 2 + 0.03, 0, S + 0.10, (front - back) - 0.16, L - 0.10, 0.20, cmat, 0.07); // cushion
+  return g;
+}
+
+// A RUN OF TRIM at a height — here the window head band carried across the whole wall, so
+// the line does not stop and restart at each cabinet. Its projection is set just UNDER the
+// window casing's, so where the two coincide the casing stays proud and this disappears
+// inside it rather than the two fighting for the same plane.
+function buildTrimBand(p) {
+  const { g, A, P } = joinery(p);
+  const paint = new THREE.MeshStandardMaterial({ color: col(p.paint || "chalk", 0xf8f5ef), roughness: 0.6 });
+  const L = p.lenFt ?? 6.0, PR = p.projectFt ?? 0.09, H = p.heightFt ?? 0.33, Y = p.atFt ?? 7.0;
+  // The SAME section as the window's head casing (and as the cabinets' caps), so the line
+  // that breaks forward over a cabinet and comes back is one moulding rather than two that
+  // happen to share a height. Square-cut and run a bury past each end: it dies into the
+  // side walls, so it returns onto nothing.
+  appliedMoulding({ g, A, P, mat: paint, prof: casingProfile(H * FT, PR * FT, true),
+    yFt: Y, front: 0, back: -JOIN_BURY, segs: [[-L / 2 - JOIN_BURY, L / 2 + JOIN_BURY]], returns: false });
+  return g;
+}
+
+const BUILDERS = { wall_basin: buildWallBasin, chandelier: buildChandelier, hot_tub: buildHotTub, mudroom_bench: buildMudroomBench, wall_mirror: buildWallMirror, recessed: buildRecessed, pendant: buildPendant, sconce: buildSconce, undercabinet: buildUnderCabinet, skylight: buildSkylight, street_tree: buildStreetTree, fireplace: buildFireplace, tall_cabinet: buildTallCabinet,
+  window_seat: buildWindowSeat, trim_band: buildTrimBand,
   range_surround: buildRangeSurround, cased_portal: buildCasedPortal, cabinet_run: buildCabinetRun, open_shelves: buildOpenShelves, counter_stool: buildCounterStool, banquette: buildBanquette, island: buildIsland, appliance: buildAppliance, upholstered_dining_chair: buildChair, highback_chair: buildChair, bentwood_chair: buildBentwoodChair, round_pedestal_table: buildTable, rug: buildRug, builtin_hutch: buildBuiltinHutch, porch_pendant: buildPorchPendant, staircase: buildStaircase, stairwell2: buildStairwell2, bathroom: buildBathroom, window_bench: buildWindowBench, partition: buildPartition, bed: buildBed, nightstand: buildNightstand, closet_run: buildClosetRun, attic_partition: buildAtticPartition, kitchenette: buildKitchenette, toilet: buildToilet, wall_toilet: buildWallToilet, shower: buildShower, vanity: buildVanity, sofa: buildSofa, tv: buildTV, tub: buildTub };
 // Re-export a few individual builders so the viewer can drop single procedural
 // pieces (e.g. patio furniture on the alt roof deck) without going through the
