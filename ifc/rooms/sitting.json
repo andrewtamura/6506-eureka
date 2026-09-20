@@ -58,13 +58,15 @@
         "ceilFt": 8.25
       },
       {
-        "_note": "EAST corner cabinet. The return is 2.77 ft because the front elevation is symmetrical about the door at px 9.5 and the windows cannot move to balance the room; the joinery absorbs the asymmetry instead.",
+        "_note": "EAST corner cabinet. The return is 2.77 ft because the front elevation is symmetrical about the door at px 9.5 and the windows cannot move to balance the room; the joinery absorbs the asymmetry instead. capFt/capProjFt match the trim_band below: the head moulding breaks forward off the wall and runs the cabinet's leading edge, so the cabinet tops out at 7.33 like the window's casing while its carcass still dies at the 7.0 head.",
         "type": "tall_cabinet",
         "at": [-10.3854, 15.8541],
         "faces": "S",
         "wFt": 2.7708,
         "depthFt": 1.58,
-        "heightFt": 7.0
+        "heightFt": 7.0,
+        "capFt": 0.33,
+        "capProjFt": 0.09
       },
       {
         "_note": "WEST corner: 9.8 in is too narrow for a cabinet, so the same builder runs with panelOnly and reads as a panelled return. Same builder on purpose \u2014 a separate one would drift in profile from the cabinet opposite.",
@@ -74,7 +76,9 @@
         "wFt": 0.8125,
         "depthFt": 1.58,
         "heightFt": 7.0,
-        "panelOnly": true
+        "panelOnly": true,
+        "capFt": 0.33,
+        "capProjFt": 0.09
       },
       {
         "_note": "One seat spanning both windows and the flat wall between. divideAt puts the apron's stiles on the WINDOW JAMBS above (px -5.5 and -0.625), so the panelling relates to the openings; each bay then halves so no panel runs wide. Offsets are + toward WEST, as cabinet_run's are.",

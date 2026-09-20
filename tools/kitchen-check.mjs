@@ -402,6 +402,9 @@ const L = raw.loose.map(a => ({ pxLo: -a[3] / FT, pxHi: -a[0] / FT, pzLo: -a[5] 
 // than it is (a 40 mm post turned 45 deg measures 80 mm), and the item's yaw inflates it
 // again. Vertical extents are honest; horizontal ones are an upper bound only. Use `vol`
 // for anything about a member's SECTION.
+// A loose wall-finish mesh hangs off FLOOR while a placed item hangs off FLOOR + 0.02, so
+// the two are read against different datums and a loose member measures this much lower.
+const LOOSE_DY = 0.066;
 const meshes = r => (r ? r.parts : []).map((a, i) => ({ pxLo: -a[3] / FT, pxHi: -a[0] / FT,
   pzLo: -a[5] / FT, pzHi: -a[2] / FT, yLo: (a[1] - FY) / FT, yHi: (a[4] - FY) / FT,
   vol: (r.mvols || [])[i] }));
@@ -949,14 +952,14 @@ console.log('SITTING ROOM');
     console.log(`  seat px ${R(seat.pxLo,3)}..${R(seat.pxHi,3)}  y ${R(seat.yLo,2)}..${R(seat.yHi,2)}  fronts ${R(fE,3)}/${R(fS,3)}/${R(fW,3)}`);
     // 1. Both cabinets stop at the WINDOW HEAD, which is what "match the height of the
     //    windows" means, and both carcass fronts are flush with the bench's.
-    A(Math.abs(cabE.yHi - HEAD) < 0.02 && Math.abs(cabW.yHi - HEAD) < 0.02,
-      `both cabinets die at the window head (${R(cabE.yHi,3)} and ${R(cabW.yHi,3)} against ${HEAD})`);
+    A(Math.abs(carcass(cabE).yHi - HEAD) < 0.02 && Math.abs(carcass(cabW).yHi - HEAD) < 0.02,
+      `both carcasses die at the window head (${R(carcass(cabE).yHi,3)} and ${R(carcass(cabW).yHi,3)} against ${HEAD})`);
     A(Math.abs(fE - fS) < 0.01 && Math.abs(fW - fS) < 0.01,
       `cabinet and bench fronts flush at ${R((NW - fS) * 12, 1)} in deep (spread ${R(Math.max(Math.abs(fE-fS), Math.abs(fW-fS)) * 12, 3)} in)`);
     // 2. ONE seat across both windows, corner cabinet to corner return.
     A(seat.pxLo < W1[0] + 0.01 && seat.pxHi > W2[1] - 0.01,
       `the seat spans both windows (${R(seat.pxLo,3)}..${R(seat.pxHi,3)} over ${W1[0]}..${W2[1]})`);
-    A(Math.abs(seat.pxLo - cabE.pxHi) < 0.02 && Math.abs(seat.pxHi - cabW.pxLo) < 0.02,
+    A(Math.abs(seat.pxLo - carcass(cabE).pxHi) < 0.02 && Math.abs(seat.pxHi - carcass(cabW).pxLo) < 0.02,
       'it meets the cabinet at one end and the return at the other, with no gap');
     // 3. Nothing of it stands in the glass: the cushion tops out below the sill.
     A(seat.yHi < SILL - 0.05,
@@ -1006,6 +1009,73 @@ console.log('SITTING ROOM');
     for (const j of [W1[1], W2[0]])
       A(stiles.some(s => Math.abs(s - j) < 0.03),
         `a stile lands on the jamb at ${j} (nearest ${R(stiles.reduce((b, s) => Math.abs(s - j) < Math.abs(b - j) ? s : b, 99), 3)})`);
+
+    // ---- THE HEAD MOULDING BREAKS FORWARD OVER THE CABINETS ------------------------
+    // The band alone sits ON THE WALL, and a cabinet stands 19 in in front of it — so over
+    // a cabinet the line ran behind the carcass and simply vanished. The cap carries the
+    // WINDOW'S OWN head casing across the leading edge and returns it to the wall.
+    // Measured against that casing rather than against 7.33 typed a second time: the
+    // window head casing is a wall-finish mesh, so it hangs off FLOOR and reads LOOSE_DY
+    // low — its top is the line everything here has to meet.
+    const hc = L.filter(m => m.pzHi > NW - 0.2 && m.pxLo > W1[0] - 0.4 && m.pxHi < W1[1] + 0.4
+                          && m.yLo > HEAD - LOOSE_DY - 0.05 && m.yHi < HEAD + 0.40 - LOOSE_DY)
+      .sort((u, v) => (v.pxHi - v.pxLo) - (u.pxHi - u.pxLo))[0];
+    A(!!hc, 'the window head casing was found to measure against');
+    if (hc) {
+      const CASE_TOP = hc.yHi + LOOSE_DY, CASE_SEC = hc.vol / (hc.pxHi - hc.pxLo), CASE_P = hc.pzHi - hc.pzLo;
+      // The band is SQUARE CUT and 15.5 ft long, so its section is exact and is the yardstick
+      // the mitred caps are measured against.
+      const bm = meshes(band).sort((u, v) => (v.pxHi - v.pxLo) - (u.pxHi - u.pxLo))[0];
+      const BAND_SEC = (bm.vol / (FT * FT * FT)) / (bm.pxHi - bm.pxLo), BAND_P = bm.pzHi - bm.pzLo;
+      console.log(`  window head casing px ${R(hc.pxLo,3)}..${R(hc.pxHi,3)}  top ${R(CASE_TOP,3)}  ${R(CASE_P * 12,2)} in proud  ${R(CASE_SEC * 144, 2)} sq in`);
+      console.log(`  wall band ${R(BAND_P * 12,2)} in proud  ${R(BAND_SEC * 144, 2)} sq in`);
+      for (const [nm, cab] of [['east', cabE], ['west', cabW]]) {
+        const cm = meshes(cab), fr = carcass(cab).pzLo;
+        const cap = cm.filter(m => m.yLo > HEAD - 0.02);
+        // Three pieces — a front and two returns — all topping out on one line, the shape
+        // the laundry's crown check uses.
+        A(cap.length === 3, `${nm} cabinet: the cap is in three pieces (${cap.length})`);
+        A(cap.length > 0 && cap.every(m => Math.abs(m.yHi - CASE_TOP) < 0.02),
+          `...topping out with the window's casing (${R(Math.max(...cap.map(m => m.yHi)),3)} against ${R(CASE_TOP,3)})`);
+        // THE POINT OF THE CHANGE: it stands PROUD OF THE LEADING EDGE. The band is 19 in
+        // behind this, so a build with only the band fails here.
+        const run = cap.slice().sort((u, v) => (v.pxHi - v.pxLo) - (u.pxHi - u.pxLo))[0];
+        A(run.pzLo < fr - 0.02,
+          `...and runs the leading edge, ${R((fr - run.pzLo) * 12, 2)} in proud of the front`);
+        A(run.pxLo < cab.pxLo + 0.03 && run.pxHi > cab.pxHi - 0.03, '...across the cabinet\'s full width');
+        // ...and RETURNS to the wall: the other two pieces run the depth, not the width.
+        const rets = cap.filter(m => m !== run);
+        A(rets.length === 2 && rets.every(m => (m.pzHi - m.pzLo) > 1.5),
+          `...returning to the wall at both ends (${rets.map(m => R((m.pzHi - m.pzLo) * 12, 1)).join(' and ')} in deep)`);
+        // IT IS THE WINDOW'S SECTION. A box of the same bounding box would pass every test
+        // above, so the last two measure the PROFILE: its area per foot of run against the
+        // casing's (the cap is 0.09 against 0.0984 on purpose, so the casing stays proud
+        // where the two coincide), and how much of its own bounding box it fills.
+        A(Math.abs((fr - run.pzLo) - BAND_P) < 0.003 && (fr - run.pzLo) < CASE_P - 0.005,
+          `...${R((fr - run.pzLo) * 12, 2)} in proud, the band's projection and just under the casing's ${R(CASE_P * 12, 2)} in`);
+        A(Math.abs((run.yHi - run.yLo) - (hc.yHi - hc.yLo)) < 0.005,
+          `...and the casing's own depth of section (${R((run.yHi - run.yLo) * 12, 1)} in)`);
+        // IT IS THE BAND'S SECTION, swept. A box of the same bounding box passes every test
+        // above and would read 4x this volume, so what is measured is the SOLID: the band's
+        // section over this run, between the square-cut width and the mitres' long points
+        // (the shear adds material at each end, proportionally more of it on the short
+        // return — which is why a flat section-per-foot reads differently on the two).
+        const V = run.vol / (FT * FT * FT), wNom = carcass(cab).pxHi - carcass(cab).pxLo;
+        const vLo = BAND_SEC * wNom, vHi = BAND_SEC * (run.pxHi - run.pxLo);
+        A(V > vLo * 0.97 && V < vHi * 1.03,
+          `...and is the band's section swept (${R(V, 4)} cu ft, between ${R(vLo, 4)} and ${R(vHi, 4)}; a solid box would be ${R((run.pxHi - run.pxLo) * (run.pzHi - run.pzLo) * (run.yHi - run.yLo), 4)})`);
+        const bbf = V / ((run.pxHi - run.pxLo) * (run.pzHi - run.pzLo) * (run.yHi - run.yLo));
+        A(bbf < 0.8, `...a moulded profile, not a box (fills ${R(bbf * 100, 1)}% of its box — a box fills 100)`);
+      }
+      // ...and the band itself carries the CASING'S PROFILE, not a look-alike at the same
+      // height. Compared per unit of projection, which is scale-free: the two differ only
+      // by 0.09 against 0.0984, so the same section at two depths reads as one number.
+      // (The casing's own run is back-cut at its returns, which is the couple of per cent
+      // between them.)
+      A(Math.abs((BAND_SEC / BAND_P) / (CASE_SEC / CASE_P) - 1) < 0.06,
+        `the band is the casing's profile at ${R(BAND_P / CASE_P * 100, 1)}% of its projection (${R(BAND_SEC * 144, 2)} against ${R(CASE_SEC * 144, 2)} sq in)`);
+      A(Math.abs(bm.yHi - CASE_TOP) < 0.02, `...on the same line (${R(bm.yHi,3)} against ${R(CASE_TOP,3)})`);
+    }
   }
 }
 
@@ -1126,7 +1196,7 @@ console.log('WAINSCOT + LIGHTING');
   // Wall-finish meshes hang off FLOOR while placed items hang off FLOOR + 0.02, so a
   // loose mesh reads 0.066 ft lower than its authored height. The window-stool check
   // already carried a bare `- 0.066` for this; name it rather than sprinkle it.
-  const LOOSE_DY = 0.066, CAP = 3.0 - LOOSE_DY;
+  const CAP = 3.0 - LOOSE_DY;
   // WAINSCOT lives on the NORTH wall only. Its chair-rail cap is the tell: a member
   // topping out at 3.0 ft, thin in pz, running along the wall inside the room.
   const capOf = (pzLo, pzHi) => L.filter(m => Math.abs(m.yHi - CAP) < 0.03 && (m.yHi - m.yLo) < 0.35
